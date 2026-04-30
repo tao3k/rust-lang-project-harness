@@ -8,6 +8,10 @@ use xiuxian_harness_rust_lang_project::{
     run_rust_project_harness,
 };
 
+mod embedded_cargo_test_gate_macro_smoke {
+    xiuxian_harness_rust_lang_project::rust_project_harness_cargo_test_gate!();
+}
+
 #[test]
 fn explicit_path_runner_returns_compact_report() {
     let paths = vec![PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/lib.rs")];

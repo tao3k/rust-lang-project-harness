@@ -7,7 +7,7 @@ use crate::{RustDiagnosticSeverity, RustHarnessRule};
 
 use super::{
     PACK_ID, RUST_PROJ_R001, RUST_PROJ_R002, RUST_PROJ_R003, RUST_PROJ_R004, RUST_PROJ_R005,
-    RUST_PROJ_R006, RUST_PROJ_R007, RUST_PROJ_R008,
+    RUST_PROJ_R006, RUST_PROJ_R007, RUST_PROJ_R008, RUST_PROJ_R009,
 };
 
 pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
@@ -74,6 +74,14 @@ pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             RustDiagnosticSeverity::Warning,
             "Root test module mount is implicit or misplaced",
             "Root Cargo test targets must mount external modules with explicit #[path] attributes pointing under an allowed tests suite directory.",
+            labels("project-policy"),
+        ),
+        RustHarnessRule::new(
+            RUST_PROJ_R009,
+            PACK_ID,
+            RustDiagnosticSeverity::Warning,
+            "Library target does not mount the cargo-test harness gate",
+            "Mount rust_project_harness_cargo_test_gate!() from a #[cfg(test)] source module so cargo test --lib executes project policy.",
             labels("project-policy"),
         ),
     ]

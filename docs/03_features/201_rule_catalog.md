@@ -37,6 +37,7 @@ version labels, searchable domains, and default modes. The first three packs are
 - `RUST-PROJ-R006`: Cargo test target must mount the project harness gate
 - `RUST-PROJ-R007`: root Cargo test target should stay a thin harness aggregate
 - `RUST-PROJ-R008`: root Cargo test target modules should use explicit suite `#[path]` mounts
+- `RUST-PROJ-R009`: harness-enabled library target must mount the cargo-test gate for `cargo test --lib`
 - `RUST-MOD-R001`: `mod.rs` should stay interface-only with external module declarations and re-exports
 - `RUST-MOD-R002`: oversized source file should split by responsibility, including private implementation piles
 - `RUST-MOD-R003`: native `use` trees containing `super::super` should move behind a clearer owner boundary
@@ -66,6 +67,20 @@ and helpers live under `tests/unit`, `tests/integration`, or another documented
 suite directory. Module mounts from those root targets must use explicit
 `#[path = "suite/file.rs"]` attributes so Rust's implicit module lookup does not
 create unclear root-level test structure.
+
+Library crates have one additional cargo-test escape hatch: `cargo test --lib`
+does not execute root test targets under `tests/*.rs`. `RUST-PROJ-R009` closes
+that path for harness-enabled projects by requiring a source-tree cargo-test
+mount, normally:
+
+```rust
+#[cfg(test)]
+xiuxian_harness_rust_lang_project::rust_project_harness_cargo_test_gate!();
+```
+
+The mount should live in `src/lib.rs` or in a source module declared by
+`src/lib.rs`, so both `cargo test` and `cargo test --lib` execute project
+policy.
 
 ## Agent Advice Rules
 

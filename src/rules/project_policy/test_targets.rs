@@ -8,14 +8,15 @@ use serde::Deserialize;
 use syn::Item;
 use syn::spanned::Spanned;
 
+use crate::parser::ParsedRustModule;
 use crate::parser::{file_location, path_line_location, source_line};
-use crate::{RustHarnessFinding, RustHarnessRule};
+use crate::{RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
 use super::config::{LayoutPolicy, is_allowed_test_suite_path};
 use super::support::{
     display_project_path, is_rust_file, item_kind, path_attr_value, resolve_path_attr,
 };
-use super::{RUST_PROJ_R006, RUST_PROJ_R007, RUST_PROJ_R008};
+use super::{RUST_PROJ_R006, RUST_PROJ_R007, RUST_PROJ_R008, RUST_PROJ_R009};
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
@@ -54,6 +55,37 @@ pub(super) fn test_target_gate_findings(
         ));
     }
     findings
+}
+
+pub(super) fn library_cargo_test_gate_findings(
+    scope: &RustProjectHarnessScope,
+    modules: &[ParsedRustModule],
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let Some(lib_path) = scope
+        .source_paths
+        .iter()
+        .map(|source_root| source_root.join("lib.rs"))
+        .find(|path| path.exists())
+    else {
+        return Vec::new();
+    };
+    if !project_uses_harness_gate(&scope.project_root, modules)
+        || source_tree_contains_cargo_test_gate(scope, modules)
+    {
+        return Vec::new();
+    }
+    let rule = &rules[RUST_PROJ_R009];
+    vec![RustHarnessFinding::from_rule(
+        rule,
+        format!(
+            "{} is a library target in a harness-enabled project but does not mount a cargo-test harness gate.",
+            display_project_path(&scope.project_root, &lib_path)
+        ),
+        file_location(lib_path),
+        None,
+        "add #[cfg(test)] xiuxian_harness_rust_lang_project::rust_project_harness_cargo_test_gate!()",
+    )]
 }
 
 pub(super) fn test_target_aggregate_findings(
@@ -174,11 +206,52 @@ fn collect_test_target_files(project_root: &Path) -> Vec<PathBuf> {
 fn file_contains_harness_gate(content: &str) -> bool {
     [
         "rust_project_harness_gate!(",
+        "rust_project_harness_cargo_test_gate!(",
         "rust_project_harness_source_gate!(",
         "assert_rust_project_harness_clean(",
         "run_rust_project_harness(",
         "crate_testing_gate!(",
         "crate_test_policy_harness!(",
+    ]
+    .iter()
+    .any(|needle| content.contains(needle))
+}
+
+fn project_uses_harness_gate(project_root: &Path, modules: &[ParsedRustModule]) -> bool {
+    manifest_mentions_harness(project_root)
+        || modules
+            .iter()
+            .any(|module| file_contains_harness_gate(&module.source))
+}
+
+fn manifest_mentions_harness(project_root: &Path) -> bool {
+    let Ok(content) = fs::read_to_string(project_root.join("Cargo.toml")) else {
+        return false;
+    };
+    content.contains("xiuxian-harness-rust-lang-project")
+        || content.contains("xiuxian_harness_rust_lang_project")
+}
+
+fn source_tree_contains_cargo_test_gate(
+    scope: &RustProjectHarnessScope,
+    modules: &[ParsedRustModule],
+) -> bool {
+    modules.iter().any(|module| {
+        scope
+            .source_paths
+            .iter()
+            .any(|source_root| module.report.path.starts_with(source_root))
+            && file_contains_cargo_test_gate(&module.source)
+    })
+}
+
+fn file_contains_cargo_test_gate(content: &str) -> bool {
+    [
+        "rust_project_harness_cargo_test_gate!(",
+        "rust_project_harness_source_gate!(",
+        "rust_project_harness_gate!(",
+        "assert_rust_project_harness_clean(",
+        "run_rust_project_harness(",
     ]
     .iter()
     .any(|needle| content.contains(needle))
