@@ -16,7 +16,32 @@ exists, so this is the crate package-level gate:
 3. `rust.modularity`
 4. `rust.agent_policy`
 
-This is the mode used by `rust_project_harness_gate!`.
+This is the mode used by `rust_project_harness_gate!` and
+`rust_project_harness_cargo_test_gate!`.
+
+## Cargo Test Embedding
+
+Downstream crates can load the harness as a dev-dependency and mount it from the
+library target:
+
+```rust
+#[cfg(test)]
+xiuxian_harness_rust_lang_project::rust_project_harness_cargo_test_gate!();
+```
+
+Place that line in `src/lib.rs`, or in a source module that `src/lib.rs`
+declares. The `#[cfg(test)]` guard is part of the contract because
+dev-dependencies are not available to normal `cargo build`, while `cargo test`
+and `cargo test --lib` both compile the library test target.
+
+Root Cargo test targets under `tests/*.rs` should still mount
+`rust_project_harness_gate!()`. They cover ordinary `cargo test` runs, but they
+cannot protect `cargo test --lib`; the source-embedded gate closes that escape
+path.
+
+Harness-enabled library projects are checked by `RUST-PROJ-R009`: once the
+project has the harness dependency or another harness gate, a `src/lib.rs`
+target must also expose a cargo-test gate from the source tree.
 
 ## Configuration
 

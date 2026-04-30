@@ -1,5 +1,4 @@
-//! Self-applied project harness mount.
+//! Self-applied project harness mount for `cargo test --lib`.
 
 #[cfg(test)]
-#[path = "../tests/unit/lib_policy.rs"]
-mod rust_project_harness_gate;
+crate::rust_project_harness_cargo_test_gate!();

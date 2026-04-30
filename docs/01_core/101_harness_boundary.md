@@ -41,14 +41,18 @@ including test helpers and ordinary Rust file stems.
 ## Self-Apply Contract
 
 The package is also self-hosted by its own default policy. The library target
-mounts `tests/unit/lib_policy.rs` through `rust_project_harness_source_gate!`,
-and the root Cargo test target mounts `rust_project_harness_gate!` directly.
-Together they prove both supported embedding modes while keeping policy changes
-subject to the same gate downstream projects consume.
+mounts `rust_project_harness_cargo_test_gate!` from `src/self_policy.rs`, and
+the root Cargo test target mounts `rust_project_harness_gate!` directly. Together
+they prove both supported cargo-test embedding modes while keeping policy
+changes subject to the same gate downstream projects consume.
 
 New source-backed test modules should stay under `tests/unit` and be mounted
 with `#[path]`. New root Cargo test targets should mount the project harness
 gate themselves, or they will be reported by `RUST-PROJ-R006`.
+Harness-enabled library crates should also mount
+`rust_project_harness_cargo_test_gate!` from a `#[cfg(test)]` source module, or
+they will be reported by `RUST-PROJ-R009`; root test targets alone do not run
+under `cargo test --lib`.
 Root Cargo test targets are thin aggregates: they may mount the harness gate and
 external suite modules, but test bodies and helpers belong in suite files under
 `tests/unit`, `tests/integration`, or a documented custom suite.

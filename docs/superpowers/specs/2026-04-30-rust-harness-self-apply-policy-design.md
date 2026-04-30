@@ -11,12 +11,13 @@ tests.
 
 The crate self-applies policy through two mounts:
 
-1. `src/lib.rs` mounts `tests/unit/lib_policy.rs` with
-   `rust_project_harness_source_gate!`.
+1. `src/self_policy.rs` mounts `rust_project_harness_cargo_test_gate!`, which is
+   compiled by the library test target.
 2. `tests/unit_test.rs` mounts `rust_project_harness_gate!` directly.
 
-That shape proves both supported embedding modes: source-backed library gates
-and Cargo root test targets.
+That shape proves both supported cargo-test embedding modes: source-embedded
+library gates for `cargo test --lib` and Cargo root test targets for ordinary
+test runs.
 
 ## Policy Semantics
 

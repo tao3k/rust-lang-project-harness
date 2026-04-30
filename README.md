@@ -17,17 +17,46 @@ because they do not have a project scope.
 
 ## Self-Apply Policy
 
-This crate applies the default project harness to itself. `src/lib.rs` mounts a
-source-backed gate from `tests/unit/lib_policy.rs`, and `tests/unit_test.rs`
-mounts the same default gate for the Cargo test target. That keeps the harness
-rules honest: policy changes must pass through the package's own rule packs
-before downstream projects inherit them.
+This crate applies the default project harness to itself. `src/self_policy.rs`
+mounts the embedded cargo-test gate for the library target, and
+`tests/unit_test.rs` mounts the same default gate for the Cargo test target.
+That keeps the harness rules honest: policy changes must pass through the
+package's own rule packs before downstream projects inherit them.
 
 Default assertions treat `Warning` and `Error` findings as blocking. `Info`
 findings, including all `AGENT-*` advice, stay visible in compact rendered
 diagnostics without failing the gate.
 
 ## Quick Use
+
+For downstream projects, add the harness as a dev-dependency:
+
+```toml
+[dev-dependencies]
+xiuxian-harness-rust-lang-project = { git = "https://github.com/tao3k/rust-lang-project-harness", branch = "main" }
+```
+
+Then mount the cargo-test gate from `src/lib.rs`:
+
+```rust
+#[cfg(test)]
+xiuxian_harness_rust_lang_project::rust_project_harness_cargo_test_gate!();
+```
+
+Because the mount lives in the library test build, both `cargo test` and
+`cargo test --lib` execute the project harness. The `#[cfg(test)]` guard keeps
+normal `cargo build` free of the dev-dependency.
+
+Root Cargo test targets can also mount the direct gate:
+
+```rust
+xiuxian_harness_rust_lang_project::rust_project_harness_gate!();
+```
+
+That covers `cargo test`, but it does not cover `cargo test --lib` unless the
+library target also mounts the embedded cargo-test gate.
+
+The lower-level assertion API is available when a custom test shape is needed:
 
 ```rust
 use std::path::Path;
@@ -69,7 +98,7 @@ project execution runs these packs in descriptor order:
 - `rust.syntax`: blocks files that cannot be parsed by `syn`
 - `rust.project_policy`: checks test layout, explicit test mounts, gate coverage, and thin root test targets
 - `rust.modularity`: checks `lib.rs`/`mod.rs` facades, thin binary/build entrypoints, and source-shape drift
-- `rust.agent_policy`: emits `AGENT-R001..R005` non-blocking advice for LLM repair
+- `rust.agent_policy`: emits `AGENT-R001..R008` non-blocking advice for LLM repair
 
 Rendered diagnostics are intentionally compact: rule id, source location,
 highlighted source line when available, one short source pointer, `Help:`, and

@@ -17,7 +17,8 @@ use source_tests::source_test_mount_findings;
 use test_bloat::test_leaf_bloat_findings;
 use test_layout::test_layout_findings;
 use test_targets::{
-    test_target_aggregate_findings, test_target_gate_findings, test_target_module_mount_findings,
+    library_cargo_test_gate_findings, test_target_aggregate_findings, test_target_gate_findings,
+    test_target_module_mount_findings,
 };
 
 pub(crate) const PACK_ID: &str = "rust.project_policy";
@@ -29,6 +30,7 @@ pub(crate) const RUST_PROJ_R005: &str = "RUST-PROJ-R005";
 pub(crate) const RUST_PROJ_R006: &str = "RUST-PROJ-R006";
 pub(crate) const RUST_PROJ_R007: &str = "RUST-PROJ-R007";
 pub(crate) const RUST_PROJ_R008: &str = "RUST-PROJ-R008";
+pub(crate) const RUST_PROJ_R009: &str = "RUST-PROJ-R009";
 
 pub(crate) const MAX_UNIT_TEST_EFFECTIVE_LINES: usize = 260;
 pub(crate) const MIN_UNIT_TEST_FUNCTIONS: usize = 8;
@@ -54,6 +56,7 @@ pub(crate) fn evaluate(
     findings.extend(test_layout_findings(&scope.project_root, &policy, &rules));
     findings.extend(source_test_mount_findings(scope, modules, &rules));
     findings.extend(test_leaf_bloat_findings(&scope.project_root, &rules));
+    findings.extend(library_cargo_test_gate_findings(scope, modules, &rules));
     findings.extend(test_target_gate_findings(&scope.project_root, &rules));
     findings.extend(test_target_aggregate_findings(&scope.project_root, &rules));
     findings.extend(test_target_module_mount_findings(

@@ -50,7 +50,7 @@ fn library_target_mounts_source_backed_self_apply_gate() {
         fs::read_to_string(root.join("src/self_policy.rs")).expect("read src/self_policy.rs");
 
     assert!(!lib_rs.contains("rust_project_harness_source_gate!"));
-    assert!(self_policy.contains("#[path = \"../tests/unit/lib_policy.rs\"]"));
+    assert!(self_policy.contains("rust_project_harness_cargo_test_gate!()"));
 }
 
 #[test]
@@ -61,6 +61,7 @@ fn crate_facade_keeps_macro_implementation_out_of_lib_rs() {
 
     assert!(!lib_rs.contains("macro_rules!"));
     assert!(macros_rs.contains("macro_rules! rust_project_harness_gate"));
+    assert!(macros_rs.contains("macro_rules! rust_project_harness_cargo_test_gate"));
 }
 
 #[test]
