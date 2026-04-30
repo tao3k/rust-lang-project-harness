@@ -219,9 +219,7 @@ fn file_contains_harness_gate(content: &str) -> bool {
 
 fn project_uses_harness_gate(project_root: &Path, modules: &[ParsedRustModule]) -> bool {
     manifest_mentions_harness(project_root)
-        || modules
-            .iter()
-            .any(|module| file_contains_harness_gate(&module.source))
+        || modules.iter().any(module_syntax_contains_any_harness_gate)
 }
 
 fn manifest_mentions_harness(project_root: &Path) -> bool {
@@ -241,21 +239,55 @@ fn source_tree_contains_cargo_test_gate(
             .source_paths
             .iter()
             .any(|source_root| module.report.path.starts_with(source_root))
-            && file_contains_cargo_test_gate(&module.source)
+            && module_syntax_contains_cargo_test_gate(module)
     })
 }
 
-fn file_contains_cargo_test_gate(content: &str) -> bool {
-    [
-        "rust_project_harness_cargo_test_gate!(",
-        "rust_project_harness_source_gate!(",
-        "rust_project_harness_gate!(",
-        "assert_rust_project_harness_clean(",
-        "run_rust_project_harness(",
-    ]
-    .iter()
-    .any(|needle| content.contains(needle))
+fn module_syntax_contains_any_harness_gate(module: &ParsedRustModule) -> bool {
+    module
+        .syntax
+        .as_ref()
+        .is_some_and(|syntax| items_contain_macro_gate(&syntax.items, ANY_HARNESS_GATE_MACROS))
 }
+
+fn module_syntax_contains_cargo_test_gate(module: &ParsedRustModule) -> bool {
+    module.syntax.as_ref().is_some_and(|syntax| {
+        items_contain_macro_gate(&syntax.items, SOURCE_CARGO_TEST_GATE_MACROS)
+    })
+}
+
+fn items_contain_macro_gate(items: &[Item], macro_names: &[&str]) -> bool {
+    items.iter().any(|item| match item {
+        Item::Macro(item_macro) => macro_path_matches(&item_macro.mac.path, macro_names),
+        Item::Mod(item_mod) => item_mod
+            .content
+            .as_ref()
+            .is_some_and(|(_, items)| items_contain_macro_gate(items, macro_names)),
+        _ => false,
+    })
+}
+
+fn macro_path_matches(path: &syn::Path, macro_names: &[&str]) -> bool {
+    let Some(segment) = path.segments.last() else {
+        return false;
+    };
+    let ident = segment.ident.to_string();
+    macro_names.contains(&ident.as_str())
+}
+
+const ANY_HARNESS_GATE_MACROS: &[&str] = &[
+    "rust_project_harness_gate",
+    "rust_project_harness_cargo_test_gate",
+    "rust_project_harness_source_gate",
+    "crate_testing_gate",
+    "crate_test_policy_harness",
+];
+
+const SOURCE_CARGO_TEST_GATE_MACROS: &[&str] = &[
+    "rust_project_harness_cargo_test_gate",
+    "rust_project_harness_source_gate",
+    "rust_project_harness_gate",
+];
 
 fn is_test_target_aggregate_item(item: &Item) -> bool {
     match item {

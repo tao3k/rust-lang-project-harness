@@ -74,6 +74,27 @@ fn library_target_requires_cargo_test_gate_when_harness_is_dev_dependency() {
 }
 
 #[test]
+fn library_target_ignores_comment_mentions_of_embedded_cargo_test_gate() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"comment-mention-lib-gate\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dev-dependencies]\nxiuxian-harness-rust-lang-project = { path = \".\" }\n",
+    )
+    .expect("write manifest");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(
+        root.join("src/lib.rs"),
+        "//! Mentioning rust_project_harness_cargo_test_gate!() here is not a gate.\nconst NOTE: &str = \"rust_project_harness_cargo_test_gate!()\";\n",
+    )
+    .expect("write lib");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    assert!(has_rule(&report, "RUST-PROJ-R009"), "{:?}", report.findings);
+}
+
+#[test]
 fn library_target_accepts_embedded_cargo_test_gate() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
