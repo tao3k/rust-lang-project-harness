@@ -1,0 +1,18 @@
+---
+source: tests/unit/agent_policy_snapshot.rs
+expression: rendered
+---
+[ok] $TEMP/src rust
+Source: $TEMP/src
+Files: 1 Parsed: 1
+No blocking issues found.
+
+[advice]
+Issues: 1
+
+[AGENT-R005] Info: Facade exports too many public groups
+   ,-[ $TEMP/src/lib.rs:1:1 ]
+ 1 | //! Test crate.
+   | `- group facade exports behind smaller owner modules
+   |Help: $TEMP/src/lib.rs re-exports 29 public use groups from the crate facade.
+   |Contract: Keep facade exports grouped by owner so agents can identify the right repair surface quickly.

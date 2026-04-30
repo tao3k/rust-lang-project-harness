@@ -1,0 +1,35 @@
+//! Project-level Rust language harness for policy gates and agent advice.
+//!
+//! The crate provides library APIs for scanning Rust projects, returning
+//! deterministic findings, rendering compact diagnostics, and mounting a
+//! reusable Cargo test gate.
+
+mod cli;
+mod discovery;
+mod macros;
+mod model;
+mod parser;
+mod render;
+mod rules;
+mod runner;
+mod self_policy;
+
+pub use cli::run_cli_from_env;
+pub use discovery::{DEFAULT_IGNORED_DIR_NAMES, discover_rust_files, rust_project_harness_scope};
+pub use model::{
+    RulePackDescriptor, RustDiagnosticSeverity, RustHarnessConfig, RustHarnessFinding,
+    RustHarnessReport, RustHarnessRule, RustModuleReport, RustProjectHarnessScope, SourceLocation,
+};
+pub use render::{
+    render_rust_project_harness, render_rust_project_harness_advice,
+    render_rust_project_harness_json, render_rust_project_harness_with_options,
+};
+pub use rules::{
+    rust_agent_policy_rules, rust_modularity_rules, rust_project_policy_rules,
+    rust_rule_pack_descriptors, rust_syntax_rules,
+};
+pub use runner::{
+    assert_rust_lang_harness_clean, assert_rust_project_harness_clean, default_rust_harness_config,
+    run_rust_lang_harness, run_rust_lang_harness_with_config, run_rust_project_harness,
+    run_rust_project_harness_with_config,
+};

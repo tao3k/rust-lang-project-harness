@@ -1,0 +1,14 @@
+---
+source: tests/unit/mod_policy_snapshot.rs
+expression: rendered
+---
+[lint:warning] $TEMP/src rust
+Source: $TEMP/src
+Files: 2 Parsed: 2
+Issues: 1
+
+[RUST-MOD-R002] Warning: Source file carries too many responsibilities
+   ,-[ $TEMP/src/pile.rs:1:1 ]
+   | split this source file by responsibility
+   |Help: $TEMP/src/pile.rs carries 697 effective lines, 0 public items, and 41 top-level implementation items.
+   |Contract: Split oversized source files into smaller owner modules with clear public boundaries.

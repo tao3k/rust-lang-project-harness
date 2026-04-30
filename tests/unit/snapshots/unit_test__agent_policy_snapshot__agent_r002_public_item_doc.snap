@@ -1,0 +1,18 @@
+---
+source: tests/unit/agent_policy_snapshot.rs
+expression: rendered
+---
+[ok] $TEMP/src rust
+Source: $TEMP/src
+Files: 2 Parsed: 2
+No blocking issues found.
+
+[advice]
+Issues: 1
+
+[AGENT-R002] Info: Public item lacks a doc comment
+   ,-[ $TEMP/src/owned.rs:2:1 ]
+ 2 | pub struct MissingDoc;
+   | `- add a short doc comment naming the public contract
+   |Help: $TEMP/src/owned.rs exposes public item `MissingDoc` without a doc comment.
+   |Contract: Document public Rust boundaries so agents can reason from native syntax without guessing intent.

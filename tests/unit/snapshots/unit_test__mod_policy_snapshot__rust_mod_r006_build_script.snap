@@ -1,0 +1,15 @@
+---
+source: tests/unit/mod_policy_snapshot.rs
+expression: rendered
+---
+[lint:warning] $TEMP/src, $TEMP/build.rs rust
+Source: $TEMP/src, $TEMP/build.rs
+Files: 2 Parsed: 2
+Issues: 1
+
+[RUST-MOD-R006] Warning: Build script contains implementation
+   ,-[ $TEMP/build.rs:2:1 ]
+ 2 | fn helper() {}
+   | `- move build script implementation out of build.rs into a build dependency
+   |Help: $TEMP/build.rs contains implementation item `fn` inside build.rs.
+   |Contract: Keep root build.rs as a thin Cargo build-script entrypoint with use declarations and fn main only.

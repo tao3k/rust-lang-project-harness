@@ -1,0 +1,15 @@
+---
+source: tests/unit/mod_policy_snapshot.rs
+expression: rendered
+---
+[lint:warning] $TEMP/src rust
+Source: $TEMP/src
+Files: 2 Parsed: 2
+Issues: 1
+
+[RUST-MOD-R005] Warning: Binary entrypoint contains implementation
+   ,-[ $TEMP/src/bin/tool.rs:2:1 ]
+ 2 | struct CliOptions;
+   | `- move binary implementation out of the entrypoint into an owned module
+   |Help: $TEMP/src/bin/tool.rs contains implementation item `struct` inside a binary entrypoint.
+   |Contract: Keep src/main.rs and src/bin entrypoints as thin adapters with use declarations and fn main only.

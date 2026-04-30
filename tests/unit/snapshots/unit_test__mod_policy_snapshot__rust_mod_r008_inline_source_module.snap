@@ -1,0 +1,15 @@
+---
+source: tests/unit/mod_policy_snapshot.rs
+expression: rendered
+---
+[lint:warning] $TEMP/src rust
+Source: $TEMP/src
+Files: 2 Parsed: 2
+Issues: 1
+
+[RUST-MOD-R008] Warning: Source module is inline
+   ,-[ $TEMP/src/domain.rs:2:1 ]
+ 2 | mod leaf { fn helper() {} }
+   | `- move this inline module into its own source file
+   |Help: $TEMP/src/domain.rs contains inline module `leaf`.
+   |Contract: Keep reasoning-tree branches file-backed; move inline source modules into external module files.

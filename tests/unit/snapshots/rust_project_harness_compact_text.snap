@@ -1,0 +1,11 @@
+[lint:warning] $TEMP/src, $TEMP/tests rust
+Source: $TEMP/src, $TEMP/tests
+Files: 1 Parsed: 1
+Issues: 1
+
+[RUST-PROJ-R003] Warning: Inline source test module
+   ,-[ $TEMP/src/lib.rs:5:5 ]
+ 5 |     #[cfg(test)] mod tests { #[test] fn it_works() {} }
+   |     `- move this test module to tests/unit and mount it with #[path]
+   |Help: $TEMP/src/lib.rs contains inline #[cfg(test)] module `tests`.
+   |Contract: Keep test bodies out of src files; mount source-backed unit tests from tests/unit with #[path].
