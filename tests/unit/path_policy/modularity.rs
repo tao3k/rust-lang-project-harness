@@ -157,3 +157,21 @@ fn orphan_source_file_policy_rejects_unreachable_module_file() {
             .is_some_and(|path| path.ends_with("src/forgotten.rs"))
     );
 }
+
+#[test]
+fn orphan_policy_does_not_treat_latest_feature_as_cfg_test() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "cfg-feature-latest-reachability");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(
+        root.join("src/lib.rs"),
+        "//! Test crate.\n#[cfg(feature = \"latest\")]\nmod optional;\n",
+    )
+    .expect("write lib");
+    fs::write(root.join("src/optional.rs"), "//! Optional owner.\n").expect("write optional");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    assert!(!has_rule(&report, "RUST-MOD-R009"), "{:?}", report.findings);
+}

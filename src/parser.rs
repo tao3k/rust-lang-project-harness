@@ -15,7 +15,21 @@ pub(crate) struct ParsedRustModule {
 }
 
 pub(crate) fn parse_rust_file(path: &Path) -> ParsedRustModule {
-    let source = fs::read_to_string(path).unwrap_or_default();
+    let source = match fs::read_to_string(path) {
+        Ok(source) => source,
+        Err(error) => {
+            return ParsedRustModule {
+                report: RustModuleReport {
+                    path: path.to_path_buf(),
+                    is_valid: false,
+                    parse_error: Some(format!("failed to read Rust source: {error}")),
+                },
+                source: String::new(),
+                syntax: None,
+                error_span: None,
+            };
+        }
+    };
     match syn::parse_file(&source) {
         Ok(syntax) => ParsedRustModule {
             report: RustModuleReport {

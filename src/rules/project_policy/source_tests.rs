@@ -6,10 +6,10 @@ use syn::Item;
 use syn::spanned::Spanned;
 
 use crate::parser::{ParsedRustModule, path_line_location, source_line};
-use crate::rules::{display_path, is_under_any_dir};
+use crate::rules::{display_path, has_cfg_test, is_under_any_dir};
 use crate::{RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
-use super::support::{has_cfg_test, path_attr_value, resolve_path_attr};
+use super::support::{path_attr_value, resolve_path_attr};
 use super::{RUST_PROJ_R003, RUST_PROJ_R004};
 
 pub(super) fn source_test_mount_findings(

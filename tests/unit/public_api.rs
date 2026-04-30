@@ -39,6 +39,34 @@ fn explicit_path_runner_is_syntax_only_without_project_scope() {
 }
 
 #[test]
+fn explicit_path_runner_reports_unreadable_source_as_syntax_error() {
+    let temp = TempDir::new().expect("temp dir");
+    let source = temp.path().join("invalid_utf8.rs");
+    fs::write(&source, [0xff]).expect("write invalid utf8");
+
+    let report = run_rust_lang_harness(&[source]).expect("run explicit path harness");
+    let rendered = render_rust_project_harness(&report);
+
+    assert_eq!(report.file_count(), 1);
+    assert_eq!(report.parsed_count(), 0);
+    assert!(
+        report
+            .modules
+            .first()
+            .and_then(|module| module.parse_error.as_deref())
+            .is_some_and(|error| error.contains("failed to read Rust source")),
+        "{rendered}"
+    );
+    assert!(
+        report
+            .findings
+            .iter()
+            .any(|finding| finding.rule_id == "RUST-SYN-R001"),
+        "{rendered}"
+    );
+}
+
+#[test]
 fn advice_renderer_selects_info_findings() {
     let config = default_rust_harness_config();
     assert!(

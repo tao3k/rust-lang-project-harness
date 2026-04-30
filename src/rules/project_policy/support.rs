@@ -3,7 +3,6 @@
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-use quote::ToTokens;
 use syn::{Attribute, Item, Meta};
 
 use crate::rules::display_path;
@@ -12,12 +11,6 @@ pub(super) fn is_rust_file(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| extension.eq_ignore_ascii_case("rs"))
-}
-
-pub(super) fn has_cfg_test(attrs: &[Attribute]) -> bool {
-    attrs.iter().any(|attr| {
-        attr.path().is_ident("cfg") && attr.meta.to_token_stream().to_string().contains("test")
-    })
 }
 
 pub(super) fn path_attr_value(attrs: &[Attribute]) -> Option<String> {

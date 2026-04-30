@@ -2,7 +2,6 @@
 
 use std::path::{Component, Path, PathBuf};
 
-use quote::ToTokens;
 use syn::spanned::Spanned;
 use syn::{Attribute, Item, Meta, Visibility};
 
@@ -86,12 +85,6 @@ pub(super) fn is_special_entrypoint_name(path: &Path) -> bool {
     path.file_name()
         .and_then(|name| name.to_str())
         .is_some_and(|name| matches!(name, "lib.rs" | "main.rs" | "mod.rs"))
-}
-
-pub(super) fn has_cfg_test(attrs: &[Attribute]) -> bool {
-    attrs.iter().any(|attr| {
-        attr.path().is_ident("cfg") && attr.meta.to_token_stream().to_string().contains("test")
-    })
 }
 
 pub(super) fn path_attr_value(attrs: &[Attribute]) -> Option<String> {

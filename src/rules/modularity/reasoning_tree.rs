@@ -6,12 +6,10 @@ use std::path::{Path, PathBuf};
 use syn::Item;
 
 use crate::parser::{ParsedRustModule, file_location, path_line_location, source_line};
-use crate::rules::{display_path, is_under_any_dir};
+use crate::rules::{display_path, has_cfg_test, is_under_any_dir};
 use crate::{RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
-use super::support::{
-    has_cfg_test, is_special_entrypoint_name, item_span_line, normalize_path, path_attr_value,
-};
+use super::support::{is_special_entrypoint_name, item_span_line, normalize_path, path_attr_value};
 use super::{RUST_MOD_R007, RUST_MOD_R008, RUST_MOD_R009};
 
 pub(super) fn module_source_shadow_findings(
