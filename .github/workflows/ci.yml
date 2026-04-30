@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: Rust / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Install sccache
+        uses: taiki-e/install-action@v2
+        with:
+          tool: sccache
+
+      - name: Configure sccache backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${ACTIONS_CACHE_URL:-}" && -n "${ACTIONS_RUNTIME_TOKEN:-}" ]]; then
+            echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+          else
+            echo "SCCACHE_GHA_ENABLED=false" >> "$GITHUB_ENV"
+            echo "SCCACHE_DIR=${{ github.workspace }}/.sccache" >> "$GITHUB_ENV"
+          fi
+          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+
+      - name: Restore sccache cache (fallback)
+        if: ${{ env.SCCACHE_GHA_ENABLED != 'true' }}
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ github.workspace }}/.sccache/
+          key: rust-harness-sccache-${{ runner.os }}-${{ github.job }}-${{ hashFiles('Cargo.toml', '.github/workflows/ci.yml') }}-${{ github.run_id }}
+          restore-keys: |
+            rust-harness-sccache-${{ runner.os }}-${{ github.job }}-${{ hashFiles('Cargo.toml', '.github/workflows/ci.yml') }}-
+            rust-harness-sccache-${{ runner.os }}-${{ hashFiles('Cargo.toml', '.github/workflows/ci.yml') }}-
+            rust-harness-sccache-${{ runner.os }}-
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
+          shared-key: rust-harness-ci-${{ runner.os }}
+          cache-on-failure: true
+
+      - name: Fetch cargo dependencies
+        run: cargo fetch
+
+      - name: Check formatting
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: cargo fmt --all -- --check
+
+      - name: Run tests
+        run: cargo test --workspace --all-targets --all-features
+
+      - name: Run clippy
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Run harness self-check
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: cargo run --bin rust-project-harness -- .
+
+      - name: Save sccache cache (fallback)
+        if: ${{ always() && !cancelled() && env.SCCACHE_GHA_ENABLED != 'true' }}
+        continue-on-error: true
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ github.workspace }}/.sccache/
+          key: rust-harness-sccache-${{ runner.os }}-${{ github.job }}-${{ hashFiles('Cargo.toml', '.github/workflows/ci.yml') }}-${{ github.run_id }}
+
+      - name: sccache summary
+        if: ${{ always() }}
+        shell: bash
+        run: sccache --show-stats || true

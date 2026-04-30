@@ -1,0 +1,18 @@
+---
+source: tests/unit/agent_policy_snapshot.rs
+expression: rendered
+---
+[ok] $TEMP/src rust
+Source: $TEMP/src
+Files: 4 Parsed: 4
+No blocking issues found.
+
+[advice]
+Issues: 1
+
+[AGENT-R008] Info: Branch module lacks reasoning-tree intent doc
+   ,-[ $TEMP/src/domain.rs:1:1 ]
+ 1 | mod parse;
+   | `- add a //! doc explaining this branch module's ownership
+   |Help: $TEMP/src/domain.rs declares 2 child modules without a reasoning-tree intent doc.
+   |Contract: Document source modules that branch into multiple child modules so agents can traverse the owner tree intentionally.

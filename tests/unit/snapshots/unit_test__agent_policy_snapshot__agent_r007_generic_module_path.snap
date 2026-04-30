@@ -1,0 +1,18 @@
+---
+source: tests/unit/agent_policy_snapshot.rs
+expression: rendered
+---
+[ok] $TEMP/src rust
+Source: $TEMP/src
+Files: 2 Parsed: 2
+No blocking issues found.
+
+[advice]
+Issues: 1
+
+[AGENT-R007] Info: Module path segment is generic
+   ,-[ $TEMP/src/helpers.rs:1:1 ]
+ 1 | //! Helper bucket.
+   | `- rename this module path segment to the responsibility it owns
+   |Help: $TEMP/src/helpers.rs uses generic module path segment `helpers`.
+   |Contract: Avoid generic Rust module file or directory names in source roots; name paths after the owner responsibility.

@@ -1,0 +1,14 @@
+---
+source: tests/unit/mod_policy_snapshot.rs
+expression: rendered
+---
+[lint:warning] $TEMP/src rust
+Source: $TEMP/src
+Files: 3 Parsed: 3
+Issues: 1
+
+[RUST-MOD-R007] Warning: Module source has file and mod.rs forms
+   ,-[ $TEMP/src/domain/mod.rs:1:1 ]
+   | choose one module source layout for this owner
+   |Help: $TEMP/src/domain.rs and $TEMP/src/domain/mod.rs both define the same Rust module source.
+   |Contract: Do not keep both foo.rs and foo/mod.rs for the same Rust module owner; choose one source layout.

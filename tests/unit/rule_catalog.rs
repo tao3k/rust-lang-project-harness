@@ -1,0 +1,118 @@
+use xiuxian_harness_rust_lang_project::{
+    RustDiagnosticSeverity, rust_agent_policy_rules, rust_modularity_rules,
+    rust_project_policy_rules, rust_rule_pack_descriptors, rust_syntax_rules,
+};
+
+#[test]
+fn rule_pack_descriptors_expose_default_execution_order() {
+    let packs = rust_rule_pack_descriptors();
+    let pack_ids = packs.iter().map(|pack| pack.id).collect::<Vec<_>>();
+
+    assert_eq!(
+        pack_ids,
+        vec![
+            "rust.syntax",
+            "rust.project_policy",
+            "rust.modularity",
+            "rust.agent_policy",
+        ]
+    );
+    assert_eq!(packs[0].default_mode, "blocking");
+    assert_eq!(packs[1].default_mode, "blocking");
+    assert_eq!(packs[2].default_mode, "blocking");
+    assert_eq!(packs[3].default_mode, "advisory");
+    assert!(packs.iter().all(|pack| pack.version == "1"));
+    assert!(
+        packs
+            .iter()
+            .all(|pack| pack.domains.contains(&"rust") && !pack.domains.is_empty())
+    );
+}
+
+#[test]
+fn rule_catalogs_expose_stable_rule_ids() {
+    let syntax_ids = rust_syntax_rules()
+        .into_iter()
+        .map(|rule| rule.rule_id)
+        .collect::<Vec<_>>();
+    assert_eq!(syntax_ids, vec!["RUST-SYN-R001"]);
+
+    let agent_ids = rust_agent_policy_rules()
+        .into_iter()
+        .map(|rule| rule.rule_id)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        agent_ids,
+        vec![
+            "AGENT-R001",
+            "AGENT-R002",
+            "AGENT-R003",
+            "AGENT-R004",
+            "AGENT-R005",
+            "AGENT-R006",
+            "AGENT-R007",
+            "AGENT-R008",
+        ]
+    );
+
+    let project_ids = rust_project_policy_rules()
+        .into_iter()
+        .map(|rule| rule.rule_id)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        project_ids,
+        vec![
+            "RUST-PROJ-R001",
+            "RUST-PROJ-R002",
+            "RUST-PROJ-R003",
+            "RUST-PROJ-R004",
+            "RUST-PROJ-R005",
+            "RUST-PROJ-R006",
+            "RUST-PROJ-R007",
+            "RUST-PROJ-R008",
+        ]
+    );
+
+    let modularity_ids = rust_modularity_rules()
+        .into_iter()
+        .map(|rule| rule.rule_id)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        modularity_ids,
+        vec![
+            "RUST-MOD-R001",
+            "RUST-MOD-R002",
+            "RUST-MOD-R003",
+            "RUST-MOD-R004",
+            "RUST-MOD-R005",
+            "RUST-MOD-R006",
+            "RUST-MOD-R007",
+            "RUST-MOD-R008",
+            "RUST-MOD-R009",
+        ]
+    );
+}
+
+#[test]
+fn rule_catalogs_keep_default_severities_aligned() {
+    assert!(
+        rust_syntax_rules()
+            .into_iter()
+            .all(|rule| rule.severity == RustDiagnosticSeverity::Error)
+    );
+    assert!(
+        rust_project_policy_rules()
+            .into_iter()
+            .all(|rule| rule.severity == RustDiagnosticSeverity::Warning)
+    );
+    assert!(
+        rust_modularity_rules()
+            .into_iter()
+            .all(|rule| rule.severity == RustDiagnosticSeverity::Warning)
+    );
+    assert!(
+        rust_agent_policy_rules()
+            .into_iter()
+            .all(|rule| rule.severity == RustDiagnosticSeverity::Info)
+    );
+}

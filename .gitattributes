@@ -1,0 +1,11 @@
+* text=auto
+
+*.md text eol=lf
+*.nix text eol=lf
+*.rs text eol=lf
+*.snap text eol=lf
+*.toml text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+
+devenv.lock text eol=lf
