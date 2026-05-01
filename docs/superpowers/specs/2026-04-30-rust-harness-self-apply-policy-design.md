@@ -2,7 +2,7 @@
 
 ## Goal
 
-`xiuxian-harness-rust-lang-project` should use the same project harness policy
+`rust-lang-project-harness` should use the same project harness policy
 that it asks downstream Rust projects to mount. The crate already does this in
 code; this design makes that contract explicit in docs and locks it with focused
 tests.

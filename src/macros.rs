@@ -19,7 +19,7 @@ macro_rules! rust_project_harness_gate {
 ///
 /// ```rust,ignore
 /// #[cfg(test)]
-/// xiuxian_harness_rust_lang_project::rust_project_harness_cargo_test_gate!();
+/// rust_lang_project_harness::rust_project_harness_cargo_test_gate!();
 /// ```
 ///
 /// The `#[cfg(test)]` guard keeps normal `cargo build` free of the dev-dependency,

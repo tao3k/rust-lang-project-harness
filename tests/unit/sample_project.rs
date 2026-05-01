@@ -1,7 +1,7 @@
 use std::fs;
 
+use rust_lang_project_harness::{render_rust_project_harness, run_rust_project_harness};
 use tempfile::TempDir;
-use xiuxian_harness_rust_lang_project::{render_rust_project_harness, run_rust_project_harness};
 
 #[test]
 fn project_runner_reports_blocking_policy_and_agent_advice() {

@@ -1,6 +1,6 @@
-# xiuxian-harness-rust-lang-project
+# rust-lang-project-harness
 
-`xiuxian-harness-rust-lang-project` is a project-level Rust language harness
+`rust-lang-project-harness` is a project-level Rust language harness
 library. It is a standalone extraction of the useful Rust project-governance
 surface from `xiuxian-testing`, shaped like the Python project harness:
 library-first APIs, deterministic rule catalogs, compact rendered diagnostics,
@@ -12,8 +12,10 @@ needed.
 
 Project-root runners execute the full policy surface. By default they cover Rust
 code under the crate's `src/`, `tests/`, `examples/`, and `benches/` roots, plus
-root `build.rs` when it exists. Explicit-path runners are focused syntax probes
-because they do not have a project scope.
+root `build.rs` when it exists. If the root is a Cargo workspace or a directory
+containing multiple Cargo packages, each package is evaluated with its own crate
+scope. Explicit-path runners are focused syntax probes because they do not have
+a project scope.
 
 ## Self-Apply Policy
 
@@ -33,14 +35,14 @@ For downstream projects, add the harness as a dev-dependency:
 
 ```toml
 [dev-dependencies]
-xiuxian-harness-rust-lang-project = { git = "https://github.com/tao3k/rust-lang-project-harness", branch = "main" }
+rust-lang-project-harness = { git = "https://github.com/tao3k/rust-lang-project-harness", branch = "main" }
 ```
 
 Then mount the cargo-test gate from `src/lib.rs`:
 
 ```rust
 #[cfg(test)]
-xiuxian_harness_rust_lang_project::rust_project_harness_cargo_test_gate!();
+rust_lang_project_harness::rust_project_harness_cargo_test_gate!();
 ```
 
 Because the mount lives in the library test build, both `cargo test` and
@@ -50,7 +52,7 @@ normal `cargo build` free of the dev-dependency.
 Root Cargo test targets can also mount the direct gate:
 
 ```rust
-xiuxian_harness_rust_lang_project::rust_project_harness_gate!();
+rust_lang_project_harness::rust_project_harness_gate!();
 ```
 
 That covers `cargo test`, but it does not cover `cargo test --lib` unless the
@@ -61,7 +63,7 @@ The lower-level assertion API is available when a custom test shape is needed:
 ```rust
 use std::path::Path;
 
-use xiuxian_harness_rust_lang_project::assert_rust_project_harness_clean;
+use rust_lang_project_harness::assert_rust_project_harness_clean;
 
 #[test]
 fn rust_project_harness_gate() {
@@ -74,7 +76,7 @@ For a compact repair surface without panicking:
 ```rust
 use std::path::Path;
 
-use xiuxian_harness_rust_lang_project::{
+use rust_lang_project_harness::{
     render_rust_project_harness, run_rust_project_harness,
 };
 

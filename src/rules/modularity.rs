@@ -18,7 +18,9 @@ use entrypoints::{
 use reasoning_tree::{
     inline_source_module_findings, module_source_shadow_findings, orphan_source_module_findings,
 };
-use source_shape::{deep_relative_import_findings, source_file_bloat_findings};
+use source_shape::{
+    deep_relative_import_findings, glob_import_findings, source_file_bloat_findings,
+};
 
 pub(crate) const PACK_ID: &str = "rust.modularity";
 pub(crate) const RUST_MOD_R001: &str = "RUST-MOD-R001";
@@ -30,6 +32,7 @@ pub(crate) const RUST_MOD_R006: &str = "RUST-MOD-R006";
 pub(crate) const RUST_MOD_R007: &str = "RUST-MOD-R007";
 pub(crate) const RUST_MOD_R008: &str = "RUST-MOD-R008";
 pub(crate) const RUST_MOD_R009: &str = "RUST-MOD-R009";
+pub(crate) const RUST_MOD_R010: &str = "RUST-MOD-R010";
 
 pub(crate) const MAX_SOURCE_EFFECTIVE_LINES: usize = 650;
 pub(crate) const MIN_SOURCE_PUBLIC_ITEMS: usize = 12;
@@ -58,28 +61,19 @@ pub(crate) fn evaluate(
         if !is_source_module && !is_package_entrypoint {
             continue;
         }
-        let Some(syntax) = &module.syntax else {
+        if !module.report.is_valid {
             continue;
-        };
-        if is_source_module {
-            findings.extend(crate_facade_findings(module, &syntax.items, &rules));
-            findings.extend(binary_entrypoint_findings(
-                scope,
-                module,
-                &syntax.items,
-                &rules,
-            ));
-            findings.extend(interface_mod_findings(module, &syntax.items, &rules));
-            findings.extend(inline_source_module_findings(module, &syntax.items, &rules));
-            findings.extend(source_file_bloat_findings(module, &syntax.items, &rules));
-            findings.extend(deep_relative_import_findings(module, &syntax.items, &rules));
         }
-        findings.extend(build_script_entrypoint_findings(
-            scope,
-            module,
-            &syntax.items,
-            &rules,
-        ));
+        if is_source_module {
+            findings.extend(crate_facade_findings(module, &rules));
+            findings.extend(binary_entrypoint_findings(scope, module, &rules));
+            findings.extend(interface_mod_findings(module, &rules));
+            findings.extend(inline_source_module_findings(module, &rules));
+            findings.extend(source_file_bloat_findings(module, &rules));
+            findings.extend(deep_relative_import_findings(module, &rules));
+            findings.extend(glob_import_findings(module, &rules));
+        }
+        findings.extend(build_script_entrypoint_findings(scope, module, &rules));
     }
     findings
 }

@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use xiuxian_harness_rust_lang_project::RustHarnessReport;
+use rust_lang_project_harness::RustHarnessReport;
 
 pub(super) fn write_manifest(root: &Path, name: &str) {
     fs::write(
@@ -24,7 +24,7 @@ pub(super) fn private_implementation_pile() -> String {
 pub(super) fn findings_for_rule<'a>(
     report: &'a RustHarnessReport,
     rule_id: &str,
-) -> Vec<&'a xiuxian_harness_rust_lang_project::RustHarnessFinding> {
+) -> Vec<&'a rust_lang_project_harness::RustHarnessFinding> {
     report
         .findings
         .iter()

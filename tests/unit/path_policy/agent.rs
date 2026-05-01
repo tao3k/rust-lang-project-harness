@@ -1,7 +1,7 @@
 use std::fs;
 
+use rust_lang_project_harness::run_rust_project_harness;
 use tempfile::TempDir;
-use xiuxian_harness_rust_lang_project::run_rust_project_harness;
 
 use super::support::{findings_for_rule, write_manifest};
 
@@ -96,6 +96,48 @@ fn generic_public_module_names_are_agent_advice() {
             .summary
             .contains("generic public module `utils`")
     );
+    assert!(report.is_clean(), "{:?}", report.findings);
+}
+
+#[test]
+fn public_doc_policy_ignores_comment_text_that_mentions_docs() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "public-doc-comment-text");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod owner;\n").expect("write lib");
+    fs::write(
+        root.join("src/owner.rs"),
+        "//! Owner module.\n// /// Pretend doc text.\npub struct MissingDoc;\n",
+    )
+    .expect("write owner");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    let findings = findings_for_rule(&report, "AGENT-R002");
+    assert_eq!(findings.len(), 1, "{:?}", report.findings);
+    assert!(findings[0].summary.contains("`MissingDoc`"));
+    assert!(report.is_clean(), "{:?}", report.findings);
+}
+
+#[test]
+fn module_intent_policy_uses_native_inner_doc_attributes() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "module-intent-native-doc");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod owner;\n").expect("write lib");
+    fs::write(
+        root.join("src/owner.rs"),
+        "// ! Pretend module doc text.\n/// Owner handle.\npub struct Owner;\n",
+    )
+    .expect("write owner");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    let findings = findings_for_rule(&report, "AGENT-R001");
+    assert_eq!(findings.len(), 1, "{:?}", report.findings);
+    assert!(findings[0].summary.contains("src/owner.rs"));
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 

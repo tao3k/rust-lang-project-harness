@@ -1,11 +1,11 @@
 use std::fs;
-use std::path::Path;
 
-use tempfile::TempDir;
-use xiuxian_harness_rust_lang_project::{
-    RustHarnessConfig, RustHarnessReport, run_rust_project_harness,
-    run_rust_project_harness_with_config,
+use rust_lang_project_harness::{
+    RustHarnessConfig, run_rust_project_harness, run_rust_project_harness_with_config,
 };
+use tempfile::TempDir;
+
+use super::support::{has_module_path, has_rule, write_manifest};
 
 #[test]
 fn default_project_runner_covers_cargo_package_rust_targets() {
@@ -84,7 +84,7 @@ fn include_tests_false_skips_test_root_parsing_not_test_layout_policy() {
     fs::write(root.join("tests/unit/broken.rs"), "fn broken( {\n").expect("write broken test");
     fs::write(
         root.join("tests/custom_gate.rs"),
-        "xiuxian_harness_rust_lang_project::rust_project_harness_gate!();\n",
+        "rust_lang_project_harness::rust_project_harness_gate!();\n",
     )
     .expect("write custom gate");
 
@@ -118,7 +118,7 @@ fn root_test_target_policy_rejects_top_level_test_implementation() {
     fs::create_dir(root.join("tests")).expect("create tests");
     fs::write(
         root.join("tests/unit_test.rs"),
-        "xiuxian_harness_rust_lang_project::rust_project_harness_gate!();\n#[test]\nfn inline_test() {}\n",
+        "rust_lang_project_harness::rust_project_harness_gate!();\n#[test]\nfn inline_test() {}\n",
     )
     .expect("write root test target");
 
@@ -137,7 +137,7 @@ fn root_test_target_policy_accepts_thin_aggregate() {
     fs::create_dir_all(root.join("tests/unit")).expect("create unit tests");
     fs::write(
         root.join("tests/unit_test.rs"),
-        "xiuxian_harness_rust_lang_project::rust_project_harness_gate!();\n#[path = \"unit/helper.rs\"]\nmod helper;\n",
+        "rust_lang_project_harness::rust_project_harness_gate!();\n#[path = \"unit/helper.rs\"]\nmod helper;\n",
     )
     .expect("write root test target");
     fs::write(root.join("tests/unit/helper.rs"), "fn helper() {}\n").expect("write helper");
@@ -161,7 +161,7 @@ fn root_test_target_policy_rejects_implicit_module_mounts() {
     fs::create_dir_all(root.join("tests/unit")).expect("create unit tests");
     fs::write(
         root.join("tests/unit_test.rs"),
-        "xiuxian_harness_rust_lang_project::rust_project_harness_gate!();\nmod helper;\n",
+        "rust_lang_project_harness::rust_project_harness_gate!();\nmod helper;\n",
     )
     .expect("write root test target");
     fs::write(root.join("tests/unit/helper.rs"), "fn helper() {}\n").expect("write helper");
@@ -186,7 +186,7 @@ fn root_test_target_policy_accepts_documented_suite_mounts() {
     .expect("write policy config");
     fs::write(
         root.join("tests/unit_test.rs"),
-        "xiuxian_harness_rust_lang_project::rust_project_harness_gate!();\n#[path = \"contract/helper.rs\"]\nmod helper;\n",
+        "rust_lang_project_harness::rust_project_harness_gate!();\n#[path = \"contract/helper.rs\"]\nmod helper;\n",
     )
     .expect("write root test target");
     fs::write(root.join("tests/contract/helper.rs"), "fn helper() {}\n").expect("write helper");
@@ -274,26 +274,4 @@ fn build_script_policy_rejects_top_level_implementation() {
     let report = run_rust_project_harness(root).expect("run project harness");
 
     assert!(has_rule(&report, "RUST-MOD-R006"));
-}
-
-fn write_manifest(root: &Path, name: &str) {
-    fs::write(
-        root.join("Cargo.toml"),
-        format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n"),
-    )
-    .expect("write manifest");
-}
-
-fn has_rule(report: &RustHarnessReport, rule_id: &str) -> bool {
-    report
-        .findings
-        .iter()
-        .any(|finding| finding.rule_id == rule_id)
-}
-
-fn has_module_path(report: &RustHarnessReport, suffix: &str) -> bool {
-    report
-        .modules
-        .iter()
-        .any(|module| module.path.ends_with(suffix))
 }

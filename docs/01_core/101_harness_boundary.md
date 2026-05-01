@@ -1,6 +1,6 @@
 # Harness Boundary
 
-`xiuxian-harness-rust-lang-project` owns project-level Rust harness behavior:
+`rust-lang-project-harness` owns project-level Rust harness behavior:
 
 1. discovering conventional Rust project paths
 2. parsing Rust files with native Rust syntax
@@ -19,6 +19,19 @@ source-only.
 Explicit-path runners have no project scope and therefore act as focused Rust
 syntax probes. See
 [`Runner Modes`](../03_features/202_runner_modes.md) for the exact split.
+
+Native Rust syntax parsing is a core substrate, not a rule-local detail. Policy
+packs must parse Rust through `src/parser/`; rule modules consume parsed modules,
+source locations, source metrics, and native syntax facts from that layer
+instead of calling `syn::parse_file` or duplicating source scans themselves.
+This keeps comments, strings, macro text, and real Rust AST nodes separated
+before policy logic runs.
+
+Cargo manifest policy follows the same boundary discipline for non-Rust input:
+`Cargo.toml` is parsed as TOML facts before project-policy rules inspect test
+targets or harness dependencies. Comments and prose in the manifest do not count
+as dependency evidence.
+
 Custom project source roots configured through `RustHarnessConfig` are treated
 as source ownership roots by project, modularity, and agent policy packs.
 Within those roots, `lib.rs` is treated as a crate facade: it should declare
@@ -33,10 +46,11 @@ Root `build.rs` has the same thin-entrypoint contract for Cargo build-script
 logic: keep imports and `fn main` there, and move larger build behavior behind a
 build dependency.
 
-The path-clarity surface is also project-scoped. Modularity policy detects
-native Rust `use` trees that cross upward through `super::super`, and agent
-advice reports repeated namespace segments across the default package surface,
-including test helpers and ordinary Rust file stems.
+The path-clarity surface is also project-scoped. Modularity policy consumes
+native Rust `use` tree facts from the parser to reject `super::super` owner
+escapes and all glob imports, including `use super::*`. Agent advice reports
+repeated namespace segments across the default package surface, including test
+helpers and ordinary Rust file stems.
 
 ## Self-Apply Contract
 

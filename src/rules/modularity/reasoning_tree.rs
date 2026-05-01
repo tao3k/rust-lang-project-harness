@@ -3,13 +3,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use syn::Item;
-
 use crate::parser::{ParsedRustModule, file_location, path_line_location, source_line};
-use crate::rules::{display_path, has_cfg_test, is_under_any_dir};
+use crate::rules::{display_path, is_under_any_dir};
 use crate::{RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
-use super::support::{is_special_entrypoint_name, item_span_line, normalize_path, path_attr_value};
+use super::support::{is_special_entrypoint_name, normalize_path};
 use super::{RUST_MOD_R007, RUST_MOD_R008, RUST_MOD_R009};
 
 pub(super) fn module_source_shadow_findings(
@@ -87,10 +85,7 @@ pub(super) fn orphan_source_module_findings(
         let Some(module) = modules_by_path.get(&path) else {
             continue;
         };
-        let Some(syntax) = &module.syntax else {
-            continue;
-        };
-        for child_path in external_child_module_paths(&path, &syntax.items, &source_files) {
+        for child_path in external_child_module_paths(module, &source_files) {
             if !reachable.contains(&child_path) {
                 stack.push(child_path);
             }
@@ -117,60 +112,59 @@ pub(super) fn orphan_source_module_findings(
 
 pub(super) fn inline_source_module_findings(
     module: &ParsedRustModule,
-    items: &[Item],
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     if is_special_entrypoint_name(&module.report.path) {
         return Vec::new();
     }
     let rule = &rules[RUST_MOD_R008];
-    let mut findings = Vec::new();
-    collect_inline_source_module_findings(module, items, rule, &mut findings);
-    findings
-}
-
-fn collect_inline_source_module_findings(
-    module: &ParsedRustModule,
-    items: &[Item],
-    rule: &RustHarnessRule,
-    findings: &mut Vec<RustHarnessFinding>,
-) {
-    for item in items {
-        let Item::Mod(item_mod) = item else {
-            continue;
-        };
-        if item_mod.content.is_none() || has_cfg_test(&item_mod.attrs) {
-            continue;
-        }
-        let line = item_span_line(item);
-        findings.push(RustHarnessFinding::from_rule(
-            rule,
-            format!(
-                "{} contains inline module `{}`.",
-                display_path(&module.report.path),
-                item_mod.ident
-            ),
-            path_line_location(&module.report.path, line),
-            source_line(&module.source, line),
-            "move this inline module into its own source file",
-        ));
-    }
+    module
+        .syntax_facts
+        .top_level_items
+        .iter()
+        .filter_map(|item| item.module.as_ref())
+        .filter(|item_mod| item_mod.is_inline && !item_mod.is_cfg_test)
+        .map(|item_mod| {
+            RustHarnessFinding::from_rule(
+                rule,
+                format!(
+                    "{} contains inline module `{}`.",
+                    display_path(&module.report.path),
+                    item_mod.ident
+                ),
+                path_line_location(&module.report.path, item_mod.line),
+                source_line(&module.source, item_mod.line),
+                "move this inline module into its own source file",
+            )
+        })
+        .collect()
 }
 
 fn external_child_module_paths(
-    module_path: &Path,
-    items: &[Item],
+    module: &ParsedRustModule,
     source_files: &BTreeSet<PathBuf>,
 ) -> Vec<PathBuf> {
+    let module_path = &module.report.path;
     let mut paths = Vec::new();
-    for item in items {
-        let Item::Mod(item_mod) = item else {
+    for item in &module.syntax_facts.top_level_items {
+        if let Some(include_target) = &item.include_target {
+            let include_path = normalize_path(
+                module_path
+                    .parent()
+                    .unwrap_or_else(|| Path::new(""))
+                    .join(include_target),
+            );
+            if source_files.contains(&include_path) {
+                paths.push(include_path);
+            }
+        }
+        let Some(item_mod) = &item.module else {
             continue;
         };
-        if item_mod.content.is_some() || has_cfg_test(&item_mod.attrs) {
+        if item_mod.is_inline || item_mod.is_cfg_test {
             continue;
         }
-        if let Some(path_value) = path_attr_value(&item_mod.attrs) {
+        if let Some(path_value) = &item_mod.path_attr {
             let resolved = normalize_path(
                 module_path
                     .parent()
@@ -183,7 +177,7 @@ fn external_child_module_paths(
             continue;
         }
         let base = child_module_base_dir(module_path);
-        let name = item_mod.ident.to_string();
+        let name = &item_mod.ident;
         let file_form = base.join(format!("{name}.rs"));
         if source_files.contains(&file_form) {
             paths.push(file_form);

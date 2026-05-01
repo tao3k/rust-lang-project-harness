@@ -3,9 +3,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use syn::{Attribute, Item, Visibility};
-
-use crate::parser::{ParsedRustModule, file_location, path_line_location, source_line};
+use crate::parser::{
+    ParsedRustModule, RustTopLevelItemSyntax, file_location, path_line_location, source_line,
+};
 use crate::{RustDiagnosticSeverity, RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
 use super::{display_path, is_under_any_dir, labels};
@@ -46,18 +46,14 @@ pub(crate) fn evaluate(
         .filter(|module| is_under_any_dir(&module.report.path, &scope.source_paths))
         .collect::<Vec<_>>();
     for module in &source_modules {
-        let Some(syntax) = &module.syntax else {
+        if !module.report.is_valid {
             continue;
         };
-        findings.extend(module_intent_findings(module, &syntax.items, &rules));
-        findings.extend(public_doc_findings(module, &syntax.items, &rules));
-        findings.extend(facade_reexport_findings(module, &syntax.items, &rules));
-        findings.extend(generic_public_module_findings(
-            module,
-            &syntax.items,
-            &rules,
-        ));
-        findings.extend(branch_module_intent_findings(module, &syntax.items, &rules));
+        findings.extend(module_intent_findings(module, &rules));
+        findings.extend(public_doc_findings(module, &rules));
+        findings.extend(facade_reexport_findings(module, &rules));
+        findings.extend(generic_public_module_findings(module, &rules));
+        findings.extend(branch_module_intent_findings(module, &rules));
     }
     findings.extend(repeated_namespace_findings(scope, modules, &rules));
     findings.extend(generic_module_path_findings(scope, &source_modules, &rules));
@@ -67,10 +63,9 @@ pub(crate) fn evaluate(
 
 fn module_intent_findings(
     module: &ParsedRustModule,
-    items: &[Item],
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    if has_module_doc(&module.source) || !has_public_surface(items) {
+    if module.syntax_facts.has_module_doc || !has_public_surface(module) {
         return Vec::new();
     }
     let rule = &rules[AGENT_R001];
@@ -88,18 +83,19 @@ fn module_intent_findings(
 
 fn public_doc_findings(
     module: &ParsedRustModule,
-    items: &[Item],
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     let rule = &rules[AGENT_R002];
-    items
+    module
+        .syntax_facts
+        .top_level_items
         .iter()
         .filter_map(|item| {
             let public_name = public_named_item(item)?;
-            if has_doc_attr(item_attrs(item)) {
+            if item.has_doc {
                 return None;
             }
-            let line = item_span_line(item);
+            let line = item.line;
             Some(RustHarnessFinding::from_rule(
                 rule,
                 format!(
@@ -116,7 +112,6 @@ fn public_doc_findings(
 
 fn facade_reexport_findings(
     module: &ParsedRustModule,
-    items: &[Item],
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     if module
@@ -128,9 +123,11 @@ fn facade_reexport_findings(
     {
         return Vec::new();
     }
-    let reexport_count = items
+    let reexport_count = module
+        .syntax_facts
+        .top_level_items
         .iter()
-        .filter(|item| matches!(item, Item::Use(item_use) if matches!(item_use.vis, Visibility::Public(_))))
+        .filter(|item| item.is_public_use)
         .count();
     if reexport_count <= MAX_FACADE_REEXPORTS {
         return Vec::new();
@@ -150,32 +147,30 @@ fn facade_reexport_findings(
 
 fn generic_public_module_findings(
     module: &ParsedRustModule,
-    items: &[Item],
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     let rule = &rules[AGENT_R006];
-    items
+    module
+        .syntax_facts
+        .top_level_items
         .iter()
         .filter_map(|item| {
-            let Item::Mod(item_mod) = item else {
-                return None;
-            };
-            if !is_public(&item_mod.vis) {
+            let module_decl = item.module.as_ref()?;
+            if !item.is_public {
                 return None;
             }
-            let module_name = item_mod.ident.to_string();
-            if !is_generic_public_module_name(&module_name) {
+            let module_name = &module_decl.ident;
+            if !is_generic_public_module_name(module_name.as_str()) {
                 return None;
             }
-            let line = item_span_line(item);
             Some(RustHarnessFinding::from_rule(
                 rule,
                 format!(
                     "{} exposes generic public module `{module_name}`.",
                     display_path(&module.report.path)
                 ),
-                path_line_location(&module.report.path, line),
-                source_line(&module.source, line),
+                path_line_location(&module.report.path, item.line),
+                source_line(&module.source, item.line),
                 "rename this public module to the domain it owns",
             ))
         })
@@ -211,13 +206,12 @@ fn generic_module_path_findings(
 
 fn branch_module_intent_findings(
     module: &ParsedRustModule,
-    items: &[Item],
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    if has_module_doc(&module.source) {
+    if module.syntax_facts.has_module_doc {
         return Vec::new();
     }
-    let child_modules = count_external_child_modules(items);
+    let child_modules = count_external_child_modules(module);
     if child_modules < MIN_BRANCH_CHILD_MODULES {
         return Vec::new();
     }
@@ -279,17 +273,17 @@ fn public_name_conflict_findings(
 ) -> Vec<RustHarnessFinding> {
     let mut names = BTreeMap::<String, Vec<(&ParsedRustModule, usize)>>::new();
     for module in modules {
-        let Some(syntax) = &module.syntax else {
+        if !module.report.is_valid {
             continue;
         };
-        for item in &syntax.items {
+        for item in &module.syntax_facts.top_level_items {
             let Some(name) = public_named_item(item) else {
                 continue;
             };
             names
-                .entry(name)
+                .entry(name.to_owned())
                 .or_default()
-                .push((module, item_span_line(item)));
+                .push((module, item.line));
         }
     }
     let rule = &rules[AGENT_R004];
@@ -313,68 +307,26 @@ fn public_name_conflict_findings(
     findings
 }
 
-fn has_module_doc(source: &str) -> bool {
-    source
-        .lines()
-        .map(str::trim)
-        .find(|line| !line.is_empty() && !line.starts_with("#!["))
-        .is_some_and(|line| line.starts_with("//!") || line.starts_with("/*!"))
-}
-
-fn has_public_surface(items: &[Item]) -> bool {
-    items.iter().any(|item| public_named_item(item).is_some())
-}
-
-fn count_external_child_modules(items: &[Item]) -> usize {
-    items
+fn has_public_surface(module: &ParsedRustModule) -> bool {
+    module
+        .syntax_facts
+        .top_level_items
         .iter()
-        .filter(|item| matches!(item, Item::Mod(item_mod) if item_mod.content.is_none()))
+        .any(|item| public_named_item(item).is_some())
+}
+
+fn count_external_child_modules(module: &ParsedRustModule) -> usize {
+    module
+        .syntax_facts
+        .top_level_items
+        .iter()
+        .filter_map(|item| item.module.as_ref())
+        .filter(|module_decl| !module_decl.is_inline)
         .count()
 }
 
-fn public_named_item(item: &Item) -> Option<String> {
-    match item {
-        Item::Const(item) if is_public(&item.vis) => Some(item.ident.to_string()),
-        Item::Enum(item) if is_public(&item.vis) => Some(item.ident.to_string()),
-        Item::Fn(item) if is_public(&item.vis) => Some(item.sig.ident.to_string()),
-        Item::Mod(item) if is_public(&item.vis) => Some(item.ident.to_string()),
-        Item::Static(item) if is_public(&item.vis) => Some(item.ident.to_string()),
-        Item::Struct(item) if is_public(&item.vis) => Some(item.ident.to_string()),
-        Item::Trait(item) if is_public(&item.vis) => Some(item.ident.to_string()),
-        Item::TraitAlias(item) if is_public(&item.vis) => Some(item.ident.to_string()),
-        Item::Type(item) if is_public(&item.vis) => Some(item.ident.to_string()),
-        Item::Union(item) if is_public(&item.vis) => Some(item.ident.to_string()),
-        _ => None,
-    }
-}
-
-fn item_attrs(item: &Item) -> &[Attribute] {
-    match item {
-        Item::Const(item) => &item.attrs,
-        Item::Enum(item) => &item.attrs,
-        Item::Fn(item) => &item.attrs,
-        Item::Mod(item) => &item.attrs,
-        Item::Static(item) => &item.attrs,
-        Item::Struct(item) => &item.attrs,
-        Item::Trait(item) => &item.attrs,
-        Item::TraitAlias(item) => &item.attrs,
-        Item::Type(item) => &item.attrs,
-        Item::Union(item) => &item.attrs,
-        _ => &[],
-    }
-}
-
-fn has_doc_attr(attrs: &[Attribute]) -> bool {
-    attrs.iter().any(|attr| attr.path().is_ident("doc"))
-}
-
-fn item_span_line(item: &Item) -> usize {
-    use syn::spanned::Spanned;
-    item.span().start().line.max(1)
-}
-
-fn is_public(vis: &Visibility) -> bool {
-    matches!(vis, Visibility::Public(_))
+fn public_named_item(item: &RustTopLevelItemSyntax) -> Option<&str> {
+    item.is_public.then_some(item.name.as_deref()).flatten()
 }
 
 fn is_generic_public_module_name(name: &str) -> bool {

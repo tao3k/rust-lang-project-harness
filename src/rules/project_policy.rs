@@ -2,6 +2,7 @@
 
 mod catalog;
 mod config;
+mod manifest;
 mod source_tests;
 mod support;
 mod test_bloat;

@@ -1,0 +1,16 @@
+---
+source: tests/unit/mod_policy_snapshot.rs
+assertion_line: 170
+expression: rendered
+---
+[lint:warning] $TEMP/src rust
+Source: $TEMP/src
+Files: 2 Parsed: 2
+Issues: 1
+
+[RUST-MOD-R010] Warning: Glob import hides owner scope
+   ,-[ $TEMP/src/domain.rs:2:1 ]
+ 2 | use super::*;
+   | `- replace glob import with explicit owner imports
+   |Help: $TEMP/src/domain.rs uses a Rust glob import.
+   |Contract: Avoid Rust glob imports; import the owner names explicitly so module dependencies stay visible.

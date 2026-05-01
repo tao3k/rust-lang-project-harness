@@ -19,6 +19,12 @@ exists, so this is the crate package-level gate:
 This is the mode used by `rust_project_harness_gate!` and
 `rust_project_harness_cargo_test_gate!`.
 
+When the requested root is a Cargo workspace or a directory that contains
+multiple nested `Cargo.toml` package manifests, the project runner evaluates
+each package as its own member scope. Test layout, `lib.rs` facade policy,
+source-backed test mounts, and module reachability are therefore checked against
+the owning crate root instead of the workspace directory.
+
 ## Cargo Test Embedding
 
 Downstream crates can load the harness as a dev-dependency and mount it from the
@@ -26,7 +32,7 @@ library target:
 
 ```rust
 #[cfg(test)]
-xiuxian_harness_rust_lang_project::rust_project_harness_cargo_test_gate!();
+rust_lang_project_harness::rust_project_harness_cargo_test_gate!();
 ```
 
 Place that line in `src/lib.rs`, or in a source module that `src/lib.rs`

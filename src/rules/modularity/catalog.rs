@@ -7,7 +7,7 @@ use crate::{RustDiagnosticSeverity, RustHarnessRule};
 
 use super::{
     PACK_ID, RUST_MOD_R001, RUST_MOD_R002, RUST_MOD_R003, RUST_MOD_R004, RUST_MOD_R005,
-    RUST_MOD_R006, RUST_MOD_R007, RUST_MOD_R008, RUST_MOD_R009,
+    RUST_MOD_R006, RUST_MOD_R007, RUST_MOD_R008, RUST_MOD_R009, RUST_MOD_R010,
 };
 
 pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
@@ -82,6 +82,14 @@ pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             RustDiagnosticSeverity::Warning,
             "Source file is orphaned from the module tree",
             "Every scanned source file must be reachable from a crate or binary root through external mod declarations.",
+            labels("modularity"),
+        ),
+        RustHarnessRule::new(
+            RUST_MOD_R010,
+            PACK_ID,
+            RustDiagnosticSeverity::Warning,
+            "Glob import hides owner scope",
+            "Avoid Rust glob imports; import the owner names explicitly so module dependencies stay visible.",
             labels("modularity"),
         ),
     ]

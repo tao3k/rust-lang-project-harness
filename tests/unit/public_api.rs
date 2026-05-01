@@ -1,15 +1,15 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tempfile::TempDir;
-use xiuxian_harness_rust_lang_project::{
+use rust_lang_project_harness::{
     RustDiagnosticSeverity, default_rust_harness_config, render_rust_project_harness,
     render_rust_project_harness_advice, render_rust_project_harness_json, run_rust_lang_harness,
     run_rust_project_harness,
 };
+use tempfile::TempDir;
 
 mod embedded_cargo_test_gate_macro_smoke {
-    xiuxian_harness_rust_lang_project::rust_project_harness_cargo_test_gate!();
+    rust_lang_project_harness::rust_project_harness_cargo_test_gate!();
 }
 
 #[test]

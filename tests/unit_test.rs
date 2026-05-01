@@ -1,4 +1,4 @@
-xiuxian_harness_rust_lang_project::rust_project_harness_gate!();
+rust_lang_project_harness::rust_project_harness_gate!();
 
 #[path = "unit/cli.rs"]
 mod cli;
@@ -27,7 +27,7 @@ mod mod_policy_snapshot;
 #[path = "unit/agent_policy_snapshot.rs"]
 mod agent_policy_snapshot;
 
-#[path = "unit/runner_config.rs"]
+#[path = "unit/runner_config/mod.rs"]
 mod runner_config;
 
 #[path = "unit/sample_project.rs"]

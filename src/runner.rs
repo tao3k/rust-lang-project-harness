@@ -2,7 +2,9 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::discovery::{discover_rust_files, rust_project_harness_scope};
+use crate::discovery::{
+    discover_cargo_package_roots, discover_rust_files, rust_project_harness_scope,
+};
 use crate::model::{RustHarnessConfig, RustHarnessReport};
 use crate::parser::{ParsedRustModule, parse_rust_file};
 use crate::rules::evaluate_default_rule_packs;
@@ -37,22 +39,16 @@ pub fn run_rust_project_harness_with_config(
             project_root.display()
         ));
     }
-    let scope = rust_project_harness_scope(
-        project_root,
-        config.include_tests,
-        &config.source_dir_names,
-        &config.test_dir_names,
-    );
-    let monitored_paths = scope.monitored_paths();
-    let mut report = run_paths(&monitored_paths, config);
-    report.project_scope = Some(scope);
-    let parsed_modules = parse_paths(&monitored_paths, config);
-    report.findings = evaluate_default_rule_packs(report.project_scope.as_ref(), &parsed_modules);
-    report.modules = parsed_modules
-        .into_iter()
-        .map(|module| module.report)
-        .collect();
-    Ok(report)
+    let package_roots = discover_cargo_package_roots(project_root, &config.ignored_dir_names);
+    if should_run_member_scopes(project_root, &package_roots) {
+        return Ok(run_member_scoped_project_harness(
+            project_root,
+            &package_roots,
+            config,
+        ));
+    }
+
+    Ok(run_single_project_harness(project_root, config))
 }
 
 /// Run the harness over explicit files or directories.
@@ -117,7 +113,86 @@ fn run_paths(paths: &[PathBuf], config: &RustHarnessConfig) -> RustHarnessReport
         root_paths: paths.to_vec(),
         blocking_severities: config.blocking_severities.clone(),
         project_scope: None,
+        workspace_member_scopes: Vec::new(),
     }
+}
+
+fn run_single_project_harness(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+) -> RustHarnessReport {
+    let scope = rust_project_harness_scope(
+        project_root,
+        config.include_tests,
+        &config.source_dir_names,
+        &config.test_dir_names,
+    );
+    let monitored_paths = scope.monitored_paths();
+    let parsed_modules = parse_paths(&monitored_paths, config);
+    let findings = evaluate_default_rule_packs(Some(&scope), &parsed_modules);
+    RustHarnessReport {
+        modules: parsed_modules
+            .into_iter()
+            .map(|module| module.report)
+            .collect(),
+        findings,
+        root_paths: monitored_paths,
+        blocking_severities: config.blocking_severities.clone(),
+        project_scope: Some(scope),
+        workspace_member_scopes: Vec::new(),
+    }
+}
+
+fn run_member_scoped_project_harness(
+    project_root: &Path,
+    package_roots: &[PathBuf],
+    config: &RustHarnessConfig,
+) -> RustHarnessReport {
+    let mut modules = Vec::new();
+    let mut findings = Vec::new();
+    let member_scopes = package_roots
+        .iter()
+        .map(|package_root| {
+            rust_project_harness_scope(
+                package_root,
+                config.include_tests,
+                &config.source_dir_names,
+                &config.test_dir_names,
+            )
+        })
+        .collect::<Vec<_>>();
+    for scope in &member_scopes {
+        let monitored_paths = scope.monitored_paths();
+        let parsed_modules = parse_paths(&monitored_paths, config);
+        findings.extend(evaluate_default_rule_packs(Some(scope), &parsed_modules));
+        modules.extend(
+            parsed_modules
+                .into_iter()
+                .map(|module| module.report)
+                .collect::<Vec<_>>(),
+        );
+    }
+    modules.sort_by(|left, right| left.path.cmp(&right.path));
+    RustHarnessReport {
+        modules,
+        findings,
+        root_paths: vec![project_root.to_path_buf()],
+        blocking_severities: config.blocking_severities.clone(),
+        project_scope: Some(rust_project_harness_scope(
+            project_root,
+            config.include_tests,
+            &config.source_dir_names,
+            &config.test_dir_names,
+        )),
+        workspace_member_scopes: member_scopes,
+    }
+}
+
+fn should_run_member_scopes(project_root: &Path, package_roots: &[PathBuf]) -> bool {
+    package_roots.len() > 1
+        || package_roots
+            .first()
+            .is_some_and(|root| root != project_root)
 }
 
 fn parse_paths(paths: &[PathBuf], config: &RustHarnessConfig) -> Vec<ParsedRustModule> {

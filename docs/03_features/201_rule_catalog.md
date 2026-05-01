@@ -47,6 +47,7 @@ version labels, searchable domains, and default modes. The first three packs are
 - `RUST-MOD-R007`: a module owner should not have both `foo.rs` and `foo/mod.rs`
 - `RUST-MOD-R008`: source modules should not hide implementation in inline `mod name { ... }` blocks
 - `RUST-MOD-R009`: scanned source files must be reachable from a crate or binary module tree
+- `RUST-MOD-R010`: Rust glob imports should be replaced with explicit owner imports
 
 `lib.rs`, `mod.rs`, `src/main.rs`, `src/bin` entrypoints, and root `build.rs`
 are special Rust ownership files. They are treated as
@@ -71,11 +72,13 @@ create unclear root-level test structure.
 Library crates have one additional cargo-test escape hatch: `cargo test --lib`
 does not execute root test targets under `tests/*.rs`. `RUST-PROJ-R009` closes
 that path for harness-enabled projects by requiring a source-tree cargo-test
-mount, normally:
+mount. The harness-enabled decision comes from parsed Cargo manifest dependency
+tables or native Rust gate invocations, not comment or string matches. The mount
+normally looks like:
 
 ```rust
 #[cfg(test)]
-xiuxian_harness_rust_lang_project::rust_project_harness_cargo_test_gate!();
+rust_lang_project_harness::rust_project_harness_cargo_test_gate!();
 ```
 
 The mount should live in `src/lib.rs` or in a source module declared by
@@ -127,20 +130,24 @@ including multi-finding ambiguity cases such as duplicated public names.
 ## Path Clarity Policy
 
 Path clarity rules follow Rust syntax and project scope instead of raw text
-searches. `RUST-MOD-R003` inspects parsed `syn::UseTree` items, so grouped uses
-such as `use super::{super::Owner}` are caught while comments and strings are
+searches. `RUST-MOD-R003` and `RUST-MOD-R010` consume native `use` tree facts
+from `src/parser/`, so grouped uses such as `use super::{super::Owner}` and
+glob imports such as `use super::*` are caught while comments and strings are
 ignored.
 
-`AGENT-R003` evaluates the default package harness surface, including `src/` and
-`tests/`. It treats normal Rust file stems as namespace segments, so both
-`src/domain/domain.rs` and `tests/unit/unit/helper.rs` produce advisory path
-clarity findings. `AGENT-R004` separately reports duplicated public item names
-across source modules as non-blocking ambiguity advice. `AGENT-R006` catches
-public generic bucket modules such as `pub mod utils;`; those names are often
-where LLM-generated code loses a real owner boundary without violating Rust
-syntax, rustfmt, or Clippy. `AGENT-R007` catches the same drift at the file
-system level, such as `src/helpers.rs` or `src/common/mod.rs`, even when the
-module is private.
+`AGENT-R001`, `AGENT-R002`, `AGENT-R004`, `AGENT-R005`, `AGENT-R006`, and
+`AGENT-R008` consume native facts from `src/parser/`, including file-level inner
+doc attributes, public names, public item doc attributes, public re-export
+groups, and external child module declarations. `AGENT-R003` evaluates the
+default package harness surface, including `src/` and `tests/`. It treats normal
+Rust file stems as namespace segments, so both `src/domain/domain.rs` and
+`tests/unit/unit/helper.rs` produce advisory path clarity findings. `AGENT-R004`
+separately reports duplicated public item names across source modules as
+non-blocking ambiguity advice. `AGENT-R006` catches public generic bucket
+modules such as `pub mod utils;`; those names are often where LLM-generated code
+loses a real owner boundary without violating Rust syntax, rustfmt, or Clippy.
+`AGENT-R007` catches the same drift at the file system level, such as
+`src/helpers.rs` or `src/common/mod.rs`, even when the module is private.
 
 ## Reasoning Tree Policy
 
