@@ -69,6 +69,16 @@ removes configured test roots from recursive parsing. It does not disable
 filesystem-level project policy such as root test-layout and test-target gate
 checks. Use the explicit-path runner for syntax-only probes.
 
+Policy findings are configurable through `RustHarnessConfig` after rule
+evaluation and before the report is returned. `disabled_rules` removes matching
+rule ids from the final finding list, while `rule_severity_overrides` changes a
+matching finding's severity for that run. The `with_disabled_rule`,
+`with_disabled_rules`, `with_rule_severity`, and `with_blocking_severities`
+builder methods provide the stable library API for those controls. This keeps
+the default catalogs deterministic while giving downstream crates a narrow way
+to turn a rule into advisory output or suppress a rule they have intentionally
+replaced with local policy.
+
 ## Explicit-Path Runner
 
 Use `run_rust_lang_harness()` or `assert_rust_lang_harness_clean()` when a caller

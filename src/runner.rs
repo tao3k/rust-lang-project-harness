@@ -7,7 +7,7 @@ use crate::discovery::{
 };
 use crate::model::{RustHarnessConfig, RustHarnessReport};
 use crate::parser::{ParsedRustModule, parse_rust_file};
-use crate::rules::evaluate_default_rule_packs;
+use crate::rules::evaluate_default_rule_packs_with_config;
 
 /// Return the default Rust harness configuration.
 #[must_use]
@@ -103,7 +103,7 @@ pub fn assert_rust_lang_harness_clean(paths: &[PathBuf]) -> RustHarnessReport {
 
 fn run_paths(paths: &[PathBuf], config: &RustHarnessConfig) -> RustHarnessReport {
     let parsed_modules = parse_paths(paths, config);
-    let findings = evaluate_default_rule_packs(None, &parsed_modules);
+    let findings = evaluate_default_rule_packs_with_config(None, &parsed_modules, config);
     RustHarnessReport {
         modules: parsed_modules
             .into_iter()
@@ -129,7 +129,7 @@ fn run_single_project_harness(
     );
     let monitored_paths = scope.monitored_paths();
     let parsed_modules = parse_paths(&monitored_paths, config);
-    let findings = evaluate_default_rule_packs(Some(&scope), &parsed_modules);
+    let findings = evaluate_default_rule_packs_with_config(Some(&scope), &parsed_modules, config);
     RustHarnessReport {
         modules: parsed_modules
             .into_iter()
@@ -164,7 +164,11 @@ fn run_member_scoped_project_harness(
     for scope in &member_scopes {
         let monitored_paths = scope.monitored_paths();
         let parsed_modules = parse_paths(&monitored_paths, config);
-        findings.extend(evaluate_default_rule_packs(Some(scope), &parsed_modules));
+        findings.extend(evaluate_default_rule_packs_with_config(
+            Some(scope),
+            &parsed_modules,
+            config,
+        ));
         modules.extend(
             parsed_modules
                 .into_iter()

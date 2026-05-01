@@ -120,6 +120,26 @@ cargo run --bin rust-project-harness -- --json .
 cargo run --bin rust-project-harness -- --agent-snapshot .
 ```
 
+Library callers can tune policy without changing the default rule catalogs:
+
+```rust
+use std::path::Path;
+
+use rust_lang_project_harness::{
+    RustDiagnosticSeverity, default_rust_harness_config,
+    run_rust_project_harness_with_config,
+};
+
+let config = default_rust_harness_config()
+    .with_rule_severity("RUST-MOD-R010", RustDiagnosticSeverity::Info)
+    .with_disabled_rule("AGENT-R008");
+let report =
+    run_rust_project_harness_with_config(Path::new("."), &config).expect("harness run");
+```
+
+Rule ids can be disabled for a run or reclassified to another severity. The
+configured `blocking_severities` still decide whether the final report fails.
+
 ## Current Rule Packs
 
 Use `rust_rule_pack_descriptors()` for stable pack-level metadata. Default

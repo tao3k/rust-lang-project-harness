@@ -214,6 +214,12 @@ pub struct RustHarnessConfig {
     pub ignored_dir_names: BTreeSet<String>,
     /// Severities that block assertions.
     pub blocking_severities: BTreeSet<RustDiagnosticSeverity>,
+    /// Rule ids that should not emit findings for this run.
+    #[serde(default)]
+    pub disabled_rules: BTreeSet<String>,
+    /// Per-rule severity overrides applied after rule evaluation.
+    #[serde(default)]
+    pub rule_severity_overrides: BTreeMap<String, RustDiagnosticSeverity>,
     /// Whether project runs include conventional test roots.
     pub include_tests: bool,
     /// Source directory names, relative to the project root.
@@ -233,10 +239,55 @@ impl Default for RustHarnessConfig {
                 RustDiagnosticSeverity::Warning,
                 RustDiagnosticSeverity::Error,
             ]),
+            disabled_rules: BTreeSet::new(),
+            rule_severity_overrides: BTreeMap::new(),
             include_tests: true,
             source_dir_names: vec!["src".to_string()],
             test_dir_names: vec!["tests".to_string()],
         }
+    }
+}
+
+impl RustHarnessConfig {
+    /// Return a config with one rule disabled.
+    #[must_use]
+    pub fn with_disabled_rule(mut self, rule_id: impl Into<String>) -> Self {
+        self.disabled_rules.insert(rule_id.into());
+        self
+    }
+
+    /// Return a config with several rules disabled.
+    #[must_use]
+    pub fn with_disabled_rules<I, S>(mut self, rule_ids: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.disabled_rules
+            .extend(rule_ids.into_iter().map(Into::into));
+        self
+    }
+
+    /// Return a config with one rule severity overridden.
+    #[must_use]
+    pub fn with_rule_severity(
+        mut self,
+        rule_id: impl Into<String>,
+        severity: RustDiagnosticSeverity,
+    ) -> Self {
+        self.rule_severity_overrides
+            .insert(rule_id.into(), severity);
+        self
+    }
+
+    /// Return a config with explicit blocking severities.
+    #[must_use]
+    pub fn with_blocking_severities<I>(mut self, severities: I) -> Self
+    where
+        I: IntoIterator<Item = RustDiagnosticSeverity>,
+    {
+        self.blocking_severities = severities.into_iter().collect();
+        self
     }
 }
 

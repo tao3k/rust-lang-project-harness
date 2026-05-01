@@ -12,7 +12,7 @@ use crate::parser::{
     RustModuleChildEdge, RustReasoningOwnerBranchFacts, RustReasoningOwnerBranchRole,
     parse_rust_file, rust_reasoning_tree_facts,
 };
-use crate::rules::evaluate_default_rule_packs;
+use crate::rules::evaluate_default_rule_packs_with_config;
 use crate::{RustDiagnosticSeverity, RustHarnessFinding, RustProjectHarnessScope};
 
 /// Render a compact project-structure snapshot for repair-oriented agents.
@@ -66,7 +66,8 @@ pub fn render_rust_project_harness_agent_snapshot_with_config(
             &config.test_dir_names,
         );
         let parsed_modules = parse_scope(&scope, config);
-        let findings = evaluate_default_rule_packs(Some(&scope), &parsed_modules);
+        let findings =
+            evaluate_default_rule_packs_with_config(Some(&scope), &parsed_modules, config);
         rendered.push('\n');
         rendered.push_str(&render_package_snapshot(&scope, &parsed_modules, &findings));
     }
