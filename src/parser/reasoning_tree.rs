@@ -21,6 +21,7 @@ pub(crate) struct RustReasoningTreeFacts {
     pub(crate) package_entrypoints: Vec<PathBuf>,
     pub(crate) modules: Vec<RustReasoningModuleFacts>,
     pub(crate) owner_branches: Vec<RustReasoningOwnerBranchFacts>,
+    pub(crate) owner_dependencies: Vec<RustReasoningOwnerDependencyFacts>,
     pub(crate) shadowed_module_sources: Vec<RustModuleSourceShadow>,
     pub(crate) unreachable_source_files: Vec<PathBuf>,
 }
@@ -133,12 +134,14 @@ pub(crate) fn rust_reasoning_tree_facts(
         })
         .collect::<Vec<_>>();
     let owner_branches = owner_branch_facts(&module_facts);
+    let owner_dependencies = owner_dependency_facts(&module_facts);
     RustReasoningTreeFacts {
         package_root: scope.project_root.clone(),
         source_roots: scope.source_paths.clone(),
         package_entrypoints: scope.package_paths.clone(),
         modules: module_facts,
         owner_branches,
+        owner_dependencies,
         shadowed_module_sources: module_tree.shadowed_module_sources,
         unreachable_source_files: module_tree.unreachable_source_files,
     }
@@ -170,6 +173,31 @@ fn owner_branch_facts(modules: &[RustReasoningModuleFacts]) -> Vec<RustReasoning
             .then_with(|| left.path.cmp(&right.path))
     });
     branches
+}
+
+fn owner_dependency_facts(
+    modules: &[RustReasoningModuleFacts],
+) -> Vec<RustReasoningOwnerDependencyFacts> {
+    let mut dependencies = modules
+        .iter()
+        .flat_map(|module| {
+            module
+                .import_summary
+                .local_owner_dependencies
+                .iter()
+                .cloned()
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    dependencies.sort_by(|left, right| {
+        left.source_namespace
+            .len()
+            .cmp(&right.source_namespace.len())
+            .then_with(|| left.source_path.cmp(&right.source_path))
+            .then_with(|| left.target_path.cmp(&right.target_path))
+    });
+    dependencies
 }
 
 fn known_module_namespace_paths(

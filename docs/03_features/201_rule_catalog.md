@@ -159,11 +159,13 @@ facades and branch modules point to owner modules, and owner modules point to
 leaf implementation files. Parser reasoning facts also summarize each owner
 branch's import roots (`crate`, `self`, `parent`, `external`, plus
 glob/deep/test markers) and local owner dependency edges for compact agent
-snapshots. `RUST-MOD-R008` keeps those branches file-backed by rejecting inline
-source modules outside special entrypoints and `#[cfg(test)]` test modules.
-`RUST-MOD-R009` then verifies parser-owned module-tree facts: a scanned source
-file must be reachable from crate roots or binary roots through external `mod`
-declarations, explicit `#[path]` mounts, or literal `include!` source shards.
-`AGENT-R008` adds non-blocking advice when a branch file has multiple resolved
-child edges without a `//!` intent doc, because agents need a local navigation
-summary before they choose which subtree to edit.
+snapshots. The reasoning tree also exposes package-level owner dependency
+edges, such as `src/lib.rs --crate--> src/domain.rs`. `RUST-MOD-R008` keeps
+those branches file-backed by rejecting inline source modules outside special
+entrypoints and `#[cfg(test)]` test modules. `RUST-MOD-R009` then verifies
+parser-owned module-tree facts: a scanned source file must be reachable from
+crate roots or binary roots through external `mod` declarations, explicit
+`#[path]` mounts, or literal `include!` source shards. `AGENT-R008` adds
+non-blocking advice when a branch file has multiple resolved child edges without
+a `//!` intent doc, because agents need a local navigation summary before they
+choose which subtree to edit.

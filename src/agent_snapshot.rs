@@ -10,7 +10,8 @@ use crate::discovery::{
 use crate::model::RustHarnessConfig;
 use crate::parser::{
     RustModuleChildEdge, RustReasoningImportFacts, RustReasoningOwnerBranchFacts,
-    RustReasoningOwnerBranchRole, parse_rust_file, rust_reasoning_tree_facts,
+    RustReasoningOwnerBranchRole, RustReasoningOwnerDependencyFacts, parse_rust_file,
+    rust_reasoning_tree_facts,
 };
 use crate::rules::evaluate_default_rule_packs_with_config;
 use crate::{RustDiagnosticSeverity, RustHarnessFinding, RustProjectHarnessScope};
@@ -121,10 +122,11 @@ fn render_package_snapshot(
     );
     let _ = writeln!(
         rendered,
-        "Modules: source={} roots={} branches={} shadowed={} orphaned={}",
+        "Modules: source={} roots={} branches={} deps={} shadowed={} orphaned={}",
         source_module_count,
         root_count,
         branch_count,
+        reasoning_tree.owner_dependencies.len(),
         reasoning_tree.shadowed_module_sources.len(),
         reasoning_tree.unreachable_source_files.len()
     );
@@ -150,6 +152,18 @@ fn render_package_snapshot(
         rendered.push_str(" - none\n");
     } else {
         rendered.push_str(&branch_lines.join("\n"));
+        rendered.push('\n');
+    }
+    rendered.push_str("OwnerDependencies:\n");
+    let dependency_lines = reasoning_tree
+        .owner_dependencies
+        .iter()
+        .map(|dependency| display_owner_dependency(&reasoning_tree.package_root, dependency))
+        .collect::<Vec<_>>();
+    if dependency_lines.is_empty() {
+        rendered.push_str(" - none\n");
+    } else {
+        rendered.push_str(&dependency_lines.join("\n"));
         rendered.push('\n');
     }
     rendered.push_str("FindingGroups:\n");
@@ -213,23 +227,35 @@ fn display_import_summary(summary: &RustReasoningImportFacts) -> String {
     push_count(&mut parts, "deep", summary.deep_relative_imports);
     push_count(&mut parts, "prelude", summary.prelude_imports);
     push_count(&mut parts, "test", summary.test_context_imports);
-    if !summary.local_owner_imports.is_empty() {
-        parts.push(format!(
-            "local:{}",
-            summary
-                .local_owner_imports
-                .iter()
-                .map(|namespace| namespace.join("/"))
-                .collect::<Vec<_>>()
-                .join("|")
-        ));
-    }
     format!(" imports={}", parts.join(","))
 }
 
 fn push_count(parts: &mut Vec<String>, label: &str, count: usize) {
     if count > 0 {
         parts.push(format!("{label}:{count}"));
+    }
+}
+
+fn display_owner_dependency(
+    package_root: &Path,
+    dependency: &RustReasoningOwnerDependencyFacts,
+) -> String {
+    format!(
+        " - {} --{}--> {}",
+        display_project_path(package_root, &dependency.source_path),
+        import_root_label(dependency.via_root),
+        display_project_path(package_root, &dependency.target_path)
+    )
+}
+
+fn import_root_label(root: crate::parser::RustUseImportRootKind) -> &'static str {
+    match root {
+        crate::parser::RustUseImportRootKind::Absolute => "absolute",
+        crate::parser::RustUseImportRootKind::Crate => "crate",
+        crate::parser::RustUseImportRootKind::SelfScope => "self",
+        crate::parser::RustUseImportRootKind::Parent => "parent",
+        crate::parser::RustUseImportRootKind::External => "external",
+        crate::parser::RustUseImportRootKind::Unknown => "unknown",
     }
 }
 

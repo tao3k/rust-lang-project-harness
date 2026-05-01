@@ -48,10 +48,11 @@ policy execution. The reasoning tree gives each parsed module a source role,
 owner namespace, module-tree-root marker, import-root summary, local owner
 dependency edges, declared child edges, and shadow/orphan reachability state. It also
 derives owner-branch facts that group branch roots, roles, owner namespaces,
-import roots, local dependencies, and child edges together, so policy packs and
-agent snapshots do not have to infer project structure from a massive file list.
-Child edges retain their native relation kind: ordinary `mod`, explicit
-`#[path] mod`, or literal `include!`.
+import roots, local dependencies, and child edges together. Package-level owner
+dependency edges are exposed separately, so policy packs and agent snapshots do
+not have to infer project structure from a massive file list. Child edges retain
+their native relation kind: ordinary `mod`, explicit `#[path] mod`, or literal
+`include!`.
 
 Custom project source roots configured through `RustHarnessConfig` are treated
 as source ownership roots by project, modularity, and agent policy packs.
