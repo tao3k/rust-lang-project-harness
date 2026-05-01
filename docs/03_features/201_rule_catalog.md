@@ -104,8 +104,8 @@ and are not blocking by default.
 
 ## Rendered Diagnostic Policy
 
-Rendered findings intentionally avoid large JSON payloads. The primary repair
-surface is compact text:
+Rendered findings intentionally avoid large JSON payloads and human audit
+headers. The primary repair surface is compact text for agents:
 
 1. stable rule id
 2. source location
@@ -114,10 +114,16 @@ surface is compact text:
 5. one `Help:` line from the concrete finding summary
 6. one `Contract:` line from the rule requirement
 
+When findings exist, compact text starts directly at those finding blocks. It
+does not prepend global `Source`, `Files`, `Parsed`, `Issues`, `advice`, or
+`No blocking issues` sections; those counters are audit metadata, not repair
+instructions. A fully clean render is the only case that emits a global status,
+and that status is just `[ok] rust`.
+
 `render_rust_project_harness()` includes advice by default. A report with only
-`Info` findings is still clean, but its advice remains visible. Use
-`render_rust_project_harness_advice()` when a caller wants only the non-blocking
-repair hints.
+`Info` findings is still clean, but its advice remains visible as ordinary
+finding blocks. Use `render_rust_project_harness_advice()` when a caller wants
+only the non-blocking repair hints.
 
 Structured consumers should use `render_rust_project_harness_json()` or the
 serializable `RustHarnessReport` for JSON output instead of parsing the compact

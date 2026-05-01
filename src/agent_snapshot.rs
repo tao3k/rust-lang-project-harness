@@ -101,6 +101,11 @@ fn render_package_snapshot(
         .iter()
         .filter(|module| module.is_source_module && !module.declared_child_edges.is_empty())
         .count();
+    let owner_dependencies = reasoning_tree
+        .owner_dependencies
+        .iter()
+        .filter(|dependency| !dependency.is_test_context)
+        .collect::<Vec<_>>();
     if source_module_count == 0 && findings.is_empty() {
         return String::new();
     }
@@ -119,7 +124,7 @@ fn render_package_snapshot(
             source_module_count,
             root_count,
             branch_count,
-            reasoning_tree.owner_dependencies.len(),
+            owner_dependencies.len(),
             reasoning_tree.shadowed_module_sources.len(),
             reasoning_tree.unreachable_source_files.len(),
         )
@@ -146,8 +151,7 @@ fn render_package_snapshot(
         rendered.push_str(&branch_lines.join("\n"));
         rendered.push('\n');
     }
-    let dependency_lines = reasoning_tree
-        .owner_dependencies
+    let dependency_lines = owner_dependencies
         .iter()
         .map(|dependency| display_owner_dependency(&reasoning_tree.package_root, dependency))
         .collect::<Vec<_>>();

@@ -106,8 +106,8 @@ fn print_help() {
     println!(
         "rust-project-harness [--json | --agent-snapshot] [PROJECT_ROOT]\n\n\
          Runs the default package-level Rust harness.\n\n\
-         Compact text is the default output for humans and repair-oriented agents.\n\
-         Use --json to emit the structured RustHarnessReport JSON shape.\n\
+         Compact text is the default agent-facing repair surface.\n\
+         Use --json to emit the structured RustHarnessReport audit shape.\n\
          Use --agent-snapshot to emit a low-noise reasoning-tree summary."
     );
 }

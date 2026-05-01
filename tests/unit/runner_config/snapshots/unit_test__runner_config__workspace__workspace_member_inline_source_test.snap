@@ -1,13 +1,7 @@
 ---
 source: tests/unit/runner_config/workspace.rs
-assertion_line: 51
 expression: rendered
 ---
-[lint:warning] $TEMP rust
-Source: $TEMP
-Files: 5 Parsed: 5
-Issues: 1
-
 [RUST-PROJ-R003] Warning: Inline source test module
    ,-[ $TEMP/crates/inline/src/lib.rs:2:1 ]
  2 | #[cfg(test)] mod tests { #[test] fn it_works() {} }

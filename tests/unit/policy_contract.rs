@@ -42,7 +42,7 @@ fn crate_is_clean_under_its_own_project_harness() {
     let rendered = render_rust_project_harness(&report);
 
     assert!(report.is_clean(), "{rendered}");
-    assert!(rendered.contains("No blocking issues found."));
+    assert_eq!(rendered, "[ok] rust\n");
 }
 
 #[test]

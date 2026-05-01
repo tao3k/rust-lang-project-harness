@@ -2,14 +2,6 @@
 source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
-[ok] $TEMP/src rust
-Source: $TEMP/src
-Files: 3 Parsed: 3
-No blocking issues found.
-
-[advice]
-Issues: 1
-
 [AGENT-R003] Info: Namespace path repeats a segment
    ,-[ $TEMP/src/domain/domain.rs:1:1 ]
    | rename the deepest repeated path segment to its real responsibility

@@ -5,7 +5,7 @@
 1. discovering conventional Rust project paths
 2. parsing Rust files with native Rust syntax
 3. emitting deterministic findings from small rule packs
-4. rendering compact diagnostics for humans and repair-oriented agents
+4. rendering compact diagnostics for repair-oriented agents
 5. exposing assertion helpers that can be mounted in Cargo test targets
 
 The package is deliberately library-like. It does not know about a specific

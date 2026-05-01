@@ -2,14 +2,6 @@
 source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
-[ok] $TEMP/src rust
-Source: $TEMP/src
-Files: 9 Parsed: 9
-No blocking issues found.
-
-[advice]
-Issues: 1
-
 [AGENT-R011] Info: Owner fan-out lacks intent doc
    ,-[ $TEMP/src/orchestrator.rs:1:1 ]
  1 | use crate::alpha::Alpha;

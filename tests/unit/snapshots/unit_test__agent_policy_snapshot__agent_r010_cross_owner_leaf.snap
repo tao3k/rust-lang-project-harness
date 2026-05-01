@@ -2,14 +2,6 @@
 source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
-[ok] $TEMP/src rust
-Source: $TEMP/src
-Files: 5 Parsed: 5
-No blocking issues found.
-
-[advice]
-Issues: 1
-
 [AGENT-R010] Info: Owner branch imports another owner leaf
    ,-[ $TEMP/src/ui.rs:2:1 ]
  2 | use crate::domain::leaf::Leaf;

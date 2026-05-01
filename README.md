@@ -3,8 +3,8 @@
 `rust-lang-project-harness` is a project-level Rust language harness
 library. It is a standalone extraction of the useful Rust project-governance
 surface from `xiuxian-testing`, shaped like the Python project harness:
-library-first APIs, deterministic rule catalogs, compact rendered diagnostics,
-and non-blocking `AGENT-*` advice for repair-oriented agents.
+library-first APIs, deterministic rule catalogs, agent-facing compact rendered
+diagnostics, and non-blocking `AGENT-*` advice for repair-oriented agents.
 
 It also ships a small CLI for local and CI policy runs. Compact text is the
 default output; pass `--json` when a structured `RustHarnessReport` payload is
@@ -151,10 +151,14 @@ project execution runs these packs in descriptor order:
 - `rust.modularity`: checks `lib.rs`/`mod.rs` facades, thin binary/build entrypoints, and source-shape drift
 - `rust.agent_policy`: emits `AGENT-R001..R011` non-blocking advice for LLM repair
 
-Rendered diagnostics are intentionally compact: rule id, source location,
-highlighted source line when available, one short source pointer, `Help:`, and
-`Contract:`. Structured consumers should keep using the serializable
-`RustHarnessReport` shape through `render_rust_project_harness_json()`.
+Rendered diagnostics are intentionally agent-first, not human audit reports.
+When there are findings, compact text starts directly at the rule block: rule
+id, source location, highlighted source line when available, one short source
+pointer, `Help:`, and `Contract:`. It does not prepend global `Source`,
+`Files`, `Parsed`, `Issues`, or `No blocking issues` headers. A fully clean run
+uses only the minimal `[ok] rust` success signal. Structured audit consumers
+should keep using the serializable `RustHarnessReport` shape through
+`render_rust_project_harness_json()`.
 Agents that need project shape rather than diagnostic cards can use
 `render_rust_project_harness_agent_snapshot()` or the `--agent-snapshot` CLI
 mode; that output starts with the module/owner facts agents need and omits

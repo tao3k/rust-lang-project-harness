@@ -2,14 +2,6 @@
 source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
-[ok] $TEMP/src rust
-Source: $TEMP/src
-Files: 3 Parsed: 3
-No blocking issues found.
-
-[advice]
-Issues: 2
-
 [AGENT-R004] Info: Public item name conflicts across namespaces
    ,-[ $TEMP/src/alpha.rs:2:1 ]
  2 | /// Alpha handle.

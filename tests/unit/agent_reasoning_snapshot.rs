@@ -1,7 +1,10 @@
 use std::fs;
 use std::path::Path;
 
-use rust_lang_project_harness::render_rust_project_harness_agent_snapshot;
+use rust_lang_project_harness::{
+    default_rust_harness_config, render_rust_project_harness_agent_snapshot,
+    render_rust_project_harness_agent_snapshot_with_config,
+};
 use tempfile::TempDir;
 
 #[test]
@@ -64,6 +67,41 @@ fn agent_reasoning_tree_snapshot_compacts_workspace_packages() {
 
     assert!(!rendered.contains("crates/empty"), "{rendered}");
     insta::assert_snapshot!("agent_reasoning_tree_workspace_snapshot", rendered);
+}
+
+#[test]
+fn agent_reasoning_tree_snapshot_ignores_test_context_owner_dependencies() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "agent-snapshot-test-context");
+    fs::create_dir_all(root.join("src/alpha")).expect("create alpha");
+    fs::create_dir_all(root.join("src/beta")).expect("create beta");
+    fs::write(
+        root.join("src/lib.rs"),
+        "//! Test crate.\nmod alpha;\nmod beta;\n",
+    )
+    .expect("write lib");
+    fs::write(
+        root.join("src/alpha.rs"),
+        "//! Alpha owner.\nmod core;\n#[cfg(test)]\nmod tests {\n    use crate::beta::Beta;\n}\n/// Alpha handle.\npub struct Alpha;\n",
+    )
+    .expect("write alpha");
+    fs::write(
+        root.join("src/beta.rs"),
+        "//! Beta owner.\nmod core;\n#[cfg(test)]\nmod tests {\n    use crate::alpha::Alpha;\n}\n/// Beta handle.\npub struct Beta;\n",
+    )
+    .expect("write beta");
+    fs::write(root.join("src/alpha/core.rs"), "//! Alpha core.\n").expect("write alpha core");
+    fs::write(root.join("src/beta/core.rs"), "//! Beta core.\n").expect("write beta core");
+    let config = default_rust_harness_config().with_disabled_rule("RUST-PROJ-R003");
+
+    let rendered = render_rust_project_harness_agent_snapshot_with_config(root, &config)
+        .expect("render snapshot");
+    let rendered = normalize_temp_root(&rendered, root);
+
+    assert!(!rendered.contains("deps="), "{rendered}");
+    assert!(!rendered.contains("OwnerDependencies:"), "{rendered}");
+    insta::assert_snapshot!("agent_reasoning_tree_ignores_test_context_deps", rendered);
 }
 
 fn normalize_temp_root(rendered: &str, root: &Path) -> String {

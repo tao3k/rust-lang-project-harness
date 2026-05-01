@@ -2,14 +2,6 @@
 source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
-[ok] $TEMP/src rust
-Source: $TEMP/src
-Files: 2 Parsed: 2
-No blocking issues found.
-
-[advice]
-Issues: 1
-
 [AGENT-R007] Info: Module path segment is generic
    ,-[ $TEMP/src/helpers.rs:1:1 ]
  1 | //! Helper bucket.

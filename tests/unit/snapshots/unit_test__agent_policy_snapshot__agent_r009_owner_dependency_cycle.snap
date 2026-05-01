@@ -2,14 +2,6 @@
 source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
-[ok] $TEMP/src rust
-Source: $TEMP/src
-Files: 5 Parsed: 5
-No blocking issues found.
-
-[advice]
-Issues: 1
-
 [AGENT-R009] Info: Owner dependency cycle crosses branches
    ,-[ $TEMP/src/alpha.rs:2:1 ]
  2 | use crate::beta::Beta;

@@ -21,8 +21,7 @@ fn explicit_path_runner_returns_compact_report() {
     assert_eq!(report.file_count(), 1);
     assert!(report.parsed_count() == 1);
     let rendered = render_rust_project_harness(&report);
-    assert!(rendered.contains("[ok]"));
-    assert!(rendered.contains("No blocking issues found."));
+    assert_eq!(rendered, "[ok] rust\n");
 }
 
 #[test]
@@ -83,7 +82,7 @@ fn advice_renderer_selects_info_findings() {
     let report = run_rust_lang_harness(&paths).expect("run harness over lib.rs");
     let rendered = render_rust_project_harness_advice(&report);
 
-    assert!(rendered.contains("rust"));
+    assert!(rendered.is_empty(), "{rendered}");
 }
 
 #[test]
@@ -107,11 +106,16 @@ fn default_renderer_keeps_info_advice_visible_without_blocking() {
     let rendered = render_rust_project_harness(&report);
 
     assert!(report.is_clean(), "{rendered}");
-    assert!(rendered.contains("[advice]"));
     assert!(rendered.contains("AGENT-R001"));
     assert!(rendered.contains("AGENT-R002"));
     assert!(rendered.contains("Help:"));
     assert!(rendered.contains("Contract:"));
+    assert!(!rendered.contains("[ok]"), "{rendered}");
+    assert!(!rendered.contains("[advice]"), "{rendered}");
+    assert!(
+        !rendered.contains("No blocking issues found."),
+        "{rendered}"
+    );
 }
 
 #[test]

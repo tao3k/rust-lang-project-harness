@@ -148,7 +148,7 @@ pub struct RustHarnessRule {
     pub pack_id: &'static str,
     /// Rule severity.
     pub severity: RustDiagnosticSeverity,
-    /// Short human title.
+    /// Short display title.
     pub title: &'static str,
     /// Precise requirement line.
     pub requirement: &'static str,
