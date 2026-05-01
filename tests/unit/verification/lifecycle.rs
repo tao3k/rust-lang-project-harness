@@ -82,7 +82,7 @@ fn failed_verification_receipt_remains_active() {
 
     let failed_plan =
         plan_rust_project_verification_with_config(root, &failed_config).expect("failed plan");
-    let rendered = render_rust_verification_plan(&failed_plan);
+    let rendered = normalize_temp_root(&render_rust_verification_plan(&failed_plan), root);
 
     assert!(!failed_plan.is_clear());
     assert!(rendered.contains("[verify:stress] failed"), "{rendered}");
@@ -90,6 +90,7 @@ fn failed_verification_receipt_remains_active() {
         rendered.contains("p99 exceeded SLA at step 4"),
         "{rendered}"
     );
+    insta::assert_snapshot!("verification_failed_receipt_resolution", rendered);
 }
 
 #[test]
@@ -139,14 +140,15 @@ fn incomplete_verification_waiver_keeps_task_active_with_resolution_note() {
         .iter()
         .find(|task| task.kind == RustVerificationTaskKind::Stress)
         .expect("stress task");
-    let rendered = render_rust_verification_plan(&plan);
+    let rendered = normalize_temp_root(&render_rust_verification_plan(&plan), root);
 
     assert_eq!(stress.state, RustVerificationTaskState::Pending);
     assert!(!plan.is_clear());
     assert!(
-        rendered.contains("resolution: waiver=incomplete: missing owner,reason,expires_at"),
+        rendered.contains("resolution: waiver=incomplete: missing owner, reason, expires_at"),
         "{rendered}"
     );
+    insta::assert_snapshot!("verification_incomplete_waiver_resolution", rendered);
 }
 
 #[test]

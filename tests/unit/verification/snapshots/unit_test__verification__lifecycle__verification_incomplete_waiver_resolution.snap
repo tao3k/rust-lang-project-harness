@@ -1,0 +1,13 @@
+---
+source: tests/unit/verification/lifecycle.rs
+assertion_line: 151
+expression: rendered
+---
+[verify:stress] pending src/api.rs
+   |owner: src/api
+   |phase: after_unit_tests_pass
+   |why: profile declares public or latency-sensitive surface
+   |resolution: waiver=incomplete: missing owner, reason, expires_at
+   |fact: profile=public_api
+   |contract: stress skill must report p50/p99/p999, load steps, and SLA result for this fingerprint
+   |fingerprint: rustv:2ca7bdf9c4f30a0f

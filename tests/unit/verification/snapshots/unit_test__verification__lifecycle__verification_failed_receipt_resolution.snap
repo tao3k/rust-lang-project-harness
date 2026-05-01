@@ -1,0 +1,13 @@
+---
+source: tests/unit/verification/lifecycle.rs
+assertion_line: 93
+expression: rendered
+---
+[verify:stress] failed src/api.rs
+   |owner: src/api
+   |phase: after_unit_tests_pass
+   |why: profile declares public or latency-sensitive surface
+   |receipt: p99 exceeded SLA at step 4
+   |fact: profile=public_api
+   |contract: stress skill must report p50/p99/p999, load steps, and SLA result for this fingerprint
+   |fingerprint: rustv:2ca7bdf9c4f30a0f

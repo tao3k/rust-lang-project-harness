@@ -473,7 +473,7 @@ fn incomplete_waiver_detail(waiver: &RustVerificationWaiver) -> String {
     if waiver.expires_at.trim().is_empty() {
         missing_fields.push("expires_at");
     }
-    format!("incomplete: missing {}", missing_fields.join(","))
+    format!("incomplete: missing {}", missing_fields.join(", "))
 }
 
 fn receipt_summary(receipt: &RustVerificationReceipt) -> String {
