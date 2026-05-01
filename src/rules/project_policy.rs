@@ -2,14 +2,13 @@
 
 mod catalog;
 mod config;
-mod manifest;
 mod source_tests;
 mod support;
 mod test_bloat;
 mod test_layout;
 mod test_targets;
 
-use crate::parser::ParsedRustModule;
+use crate::parser::{ParsedRustModule, parse_cargo_manifest};
 use crate::{RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
 use catalog::rules_by_id;
@@ -54,14 +53,29 @@ pub(crate) fn evaluate(
     let rules = rules_by_id();
     let mut findings = Vec::new();
     let policy = load_layout_policy(&scope.project_root);
+    let cargo_manifest = parse_cargo_manifest(&scope.project_root);
     findings.extend(test_layout_findings(&scope.project_root, &policy, &rules));
     findings.extend(source_test_mount_findings(scope, modules, &rules));
     findings.extend(test_leaf_bloat_findings(&scope.project_root, &rules));
-    findings.extend(library_cargo_test_gate_findings(scope, modules, &rules));
-    findings.extend(test_target_gate_findings(&scope.project_root, &rules));
-    findings.extend(test_target_aggregate_findings(&scope.project_root, &rules));
+    findings.extend(library_cargo_test_gate_findings(
+        scope,
+        modules,
+        &cargo_manifest,
+        &rules,
+    ));
+    findings.extend(test_target_gate_findings(
+        &scope.project_root,
+        &cargo_manifest,
+        &rules,
+    ));
+    findings.extend(test_target_aggregate_findings(
+        &scope.project_root,
+        &cargo_manifest,
+        &rules,
+    ));
     findings.extend(test_target_module_mount_findings(
         &scope.project_root,
+        &cargo_manifest,
         &policy,
         &rules,
     ));

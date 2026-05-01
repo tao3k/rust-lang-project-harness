@@ -177,6 +177,23 @@ fn manifest_package_field_uses_the_canonical_harness_identity() {
 }
 
 #[test]
+fn target_dependency_table_uses_canonical_harness_identity() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"target-dependency-table\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[target.'cfg(unix)'.dev-dependencies]\nrust-lang-project-harness = { path = \".\" }\n",
+    )
+    .expect("write manifest");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    assert!(has_rule(&report, "RUST-PROJ-R009"), "{:?}", report.findings);
+}
+
+#[test]
 fn large_unit_test_leaf_is_reported_from_parser_source_metrics() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();

@@ -28,9 +28,10 @@ This keeps comments, strings, macro text, and real Rust AST nodes separated
 before policy logic runs.
 
 Cargo manifest policy follows the same boundary discipline for non-Rust input:
-`Cargo.toml` is parsed as TOML facts before project-policy rules inspect test
-targets or harness dependencies. Comments and prose in the manifest do not count
-as dependency evidence.
+`Cargo.toml` is parsed into facts under `src/parser/` before project discovery
+or project-policy rules inspect workspace members, test targets, or harness
+dependencies. Comments and prose in the manifest do not count as dependency
+evidence.
 
 Custom project source roots configured through `RustHarnessConfig` are treated
 as source ownership roots by project, modularity, and agent policy packs.

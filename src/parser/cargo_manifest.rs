@@ -1,4 +1,4 @@
-//! Cargo manifest facts used by project-policy rules.
+//! Cargo manifest facts owned by the parser layer.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -8,14 +8,36 @@ use serde::Deserialize;
 
 const HARNESS_PACKAGE_NAME: &str = "rust-lang-project-harness";
 
+#[derive(Debug, Clone, Default)]
+pub(crate) struct CargoManifestFacts {
+    pub(crate) has_package: bool,
+    pub(crate) workspace_members: Vec<String>,
+    pub(crate) workspace_excludes: Vec<String>,
+    pub(crate) test_target_files: Vec<PathBuf>,
+    pub(crate) references_harness: bool,
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, rename_all = "kebab-case")]
 struct CargoManifestToml {
+    package: Option<CargoPackageToml>,
+    workspace: Option<CargoWorkspaceToml>,
     test: Vec<CargoTestTargetToml>,
     dependencies: BTreeMap<String, toml::Value>,
     dev_dependencies: BTreeMap<String, toml::Value>,
     build_dependencies: BTreeMap<String, toml::Value>,
     target: BTreeMap<String, CargoTargetManifestToml>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct CargoPackageToml {}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct CargoWorkspaceToml {
+    members: Vec<String>,
+    exclude: Vec<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -32,12 +54,33 @@ struct CargoTargetManifestToml {
     build_dependencies: BTreeMap<String, toml::Value>,
 }
 
-pub(super) fn manifest_test_target_files(project_root: &Path) -> Vec<PathBuf> {
+pub(crate) fn parse_cargo_manifest(project_root: &Path) -> CargoManifestFacts {
     let Some(manifest) = read_manifest(project_root) else {
-        return Vec::new();
+        return CargoManifestFacts::default();
     };
-    manifest
-        .test
+    let references_harness = manifest_references_harness(&manifest);
+    let has_package = manifest.package.is_some();
+    let workspace = manifest.workspace.unwrap_or_default();
+    let test_target_files = manifest_test_target_files(project_root, manifest.test);
+    CargoManifestFacts {
+        has_package,
+        workspace_members: workspace.members,
+        workspace_excludes: workspace.exclude,
+        test_target_files,
+        references_harness,
+    }
+}
+
+fn read_manifest(project_root: &Path) -> Option<CargoManifestToml> {
+    let content = fs::read_to_string(project_root.join("Cargo.toml")).ok()?;
+    toml::from_str::<CargoManifestToml>(&content).ok()
+}
+
+fn manifest_test_target_files(
+    project_root: &Path,
+    test_targets: Vec<CargoTestTargetToml>,
+) -> Vec<PathBuf> {
+    test_targets
         .into_iter()
         .filter_map(|target| {
             let target_path = target.path.trim();
@@ -46,10 +89,7 @@ pub(super) fn manifest_test_target_files(project_root: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-pub(super) fn manifest_references_harness(project_root: &Path) -> bool {
-    let Some(manifest) = read_manifest(project_root) else {
-        return false;
-    };
+fn manifest_references_harness(manifest: &CargoManifestToml) -> bool {
     dependency_table_references_harness(&manifest.dependencies)
         || dependency_table_references_harness(&manifest.dev_dependencies)
         || dependency_table_references_harness(&manifest.build_dependencies)
@@ -58,11 +98,6 @@ pub(super) fn manifest_references_harness(project_root: &Path) -> bool {
                 || dependency_table_references_harness(&target.dev_dependencies)
                 || dependency_table_references_harness(&target.build_dependencies)
         })
-}
-
-fn read_manifest(project_root: &Path) -> Option<CargoManifestToml> {
-    let content = fs::read_to_string(project_root.join("Cargo.toml")).ok()?;
-    toml::from_str::<CargoManifestToml>(&content).ok()
 }
 
 fn dependency_table_references_harness(dependencies: &BTreeMap<String, toml::Value>) -> bool {

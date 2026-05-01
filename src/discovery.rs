@@ -4,9 +4,8 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
-
 use crate::RustProjectHarnessScope;
+use crate::parser::parse_cargo_manifest;
 
 /// Directory names ignored by default during recursive discovery.
 pub const DEFAULT_IGNORED_DIR_NAMES: &[&str] = &[
@@ -42,11 +41,7 @@ pub(crate) fn discover_cargo_package_roots(
 ) -> Vec<PathBuf> {
     let manifest_path = project_root.join("Cargo.toml");
     if manifest_path.is_file() {
-        return discover_package_roots_from_manifest(
-            project_root,
-            &manifest_path,
-            ignored_dir_names,
-        );
+        return discover_package_roots_from_manifest(project_root, ignored_dir_names);
     }
 
     let mut manifests = BTreeSet::new();
@@ -115,52 +110,25 @@ fn is_rust_file(path: &Path) -> bool {
         .is_some_and(|extension| extension.eq_ignore_ascii_case("rs"))
 }
 
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
-struct CargoManifestToml {
-    package: Option<CargoPackageToml>,
-    workspace: Option<CargoWorkspaceToml>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
-struct CargoPackageToml {}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
-struct CargoWorkspaceToml {
-    members: Vec<String>,
-    exclude: Vec<String>,
-}
-
 fn discover_package_roots_from_manifest(
     project_root: &Path,
-    manifest_path: &Path,
     ignored_dir_names: &BTreeSet<String>,
 ) -> Vec<PathBuf> {
-    let Ok(content) = fs::read_to_string(manifest_path) else {
-        return vec![project_root.to_path_buf()];
-    };
-    let Ok(manifest) = toml::from_str::<CargoManifestToml>(&content) else {
-        return vec![project_root.to_path_buf()];
-    };
-    let Some(workspace) = manifest.workspace else {
-        return vec![project_root.to_path_buf()];
-    };
-    if workspace.members.is_empty() {
+    let manifest = parse_cargo_manifest(project_root);
+    if manifest.workspace_members.is_empty() {
         return vec![project_root.to_path_buf()];
     }
 
-    let excludes = workspace
-        .exclude
+    let excludes = manifest
+        .workspace_excludes
         .iter()
         .map(|pattern| project_root.join(pattern))
         .collect::<Vec<_>>();
     let mut roots = BTreeSet::new();
-    if manifest.package.is_some() {
+    if manifest.has_package {
         roots.insert(project_root.to_path_buf());
     }
-    for member_pattern in workspace.members {
+    for member_pattern in manifest.workspace_members {
         for member_root in
             expand_workspace_member_pattern(project_root, &member_pattern, ignored_dir_names)
         {

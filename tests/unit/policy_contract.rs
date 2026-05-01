@@ -88,6 +88,33 @@ fn parsed_module_does_not_expose_syn_file_to_policy_rules() {
 }
 
 #[test]
+fn cargo_manifest_parser_lives_under_parser_module() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let parser_source = fs::read_to_string(root.join("src/parser/cargo_manifest.rs"))
+        .expect("read cargo manifest parser");
+    assert!(parser_source.contains("toml::from_str::<CargoManifestToml>"));
+
+    let mut offenders = Vec::new();
+    for path in rust_files_under(&root.join("src")) {
+        let relative = relative_path(&root, &path);
+        if relative == "src/parser/cargo_manifest.rs" {
+            continue;
+        }
+        let source = fs::read_to_string(&path).expect("read Rust source");
+        if source.contains("CargoManifestToml")
+            || source.contains("toml::from_str::<CargoManifestToml>")
+        {
+            offenders.push(relative);
+        }
+    }
+
+    assert!(
+        offenders.is_empty(),
+        "Cargo manifest TOML parsing must live in src/parser/cargo_manifest.rs: {offenders:?}"
+    );
+}
+
+#[test]
 fn library_target_mounts_source_backed_self_apply_gate() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let lib_rs = fs::read_to_string(root.join("src/lib.rs")).expect("read src/lib.rs");

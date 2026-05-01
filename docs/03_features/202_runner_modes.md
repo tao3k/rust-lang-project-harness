@@ -23,7 +23,9 @@ When the requested root is a Cargo workspace or a directory that contains
 multiple nested `Cargo.toml` package manifests, the project runner evaluates
 each package as its own member scope. Test layout, `lib.rs` facade policy,
 source-backed test mounts, and module reachability are therefore checked against
-the owning crate root instead of the workspace directory.
+the owning crate root instead of the workspace directory. Workspace package
+facts come from the shared Cargo manifest parser, so discovery and policy use
+the same `Cargo.toml` interpretation.
 
 ## Cargo Test Embedding
 

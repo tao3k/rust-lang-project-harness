@@ -5,23 +5,23 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::parser::{
-    ParsedRustModule, RustTopLevelItemSyntax, file_location, parse_rust_file, path_line_location,
-    source_line,
+    CargoManifestFacts, ParsedRustModule, RustTopLevelItemSyntax, file_location, parse_rust_file,
+    path_line_location, source_line,
 };
 use crate::{RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
 use super::config::{LayoutPolicy, is_allowed_test_suite_path};
-use super::manifest::{manifest_references_harness, manifest_test_target_files};
 use super::support::{display_project_path, is_rust_file, resolve_path_attr};
 use super::{RUST_PROJ_R006, RUST_PROJ_R007, RUST_PROJ_R008, RUST_PROJ_R009};
 
 pub(super) fn test_target_gate_findings(
     project_root: &Path,
+    cargo_manifest: &CargoManifestFacts,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     let mut findings = Vec::new();
     let rule = &rules[RUST_PROJ_R006];
-    for target in collect_test_target_files(project_root) {
+    for target in collect_test_target_files(project_root, cargo_manifest) {
         let parsed = parse_rust_file(&target);
         if parsed
             .syntax_facts
@@ -46,6 +46,7 @@ pub(super) fn test_target_gate_findings(
 pub(super) fn library_cargo_test_gate_findings(
     scope: &RustProjectHarnessScope,
     modules: &[ParsedRustModule],
+    cargo_manifest: &CargoManifestFacts,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     let Some(lib_path) = scope
@@ -56,7 +57,7 @@ pub(super) fn library_cargo_test_gate_findings(
     else {
         return Vec::new();
     };
-    if !project_uses_harness_gate(&scope.project_root, modules)
+    if !project_uses_harness_gate(cargo_manifest, modules)
         || source_tree_contains_cargo_test_gate(scope, modules)
     {
         return Vec::new();
@@ -76,11 +77,12 @@ pub(super) fn library_cargo_test_gate_findings(
 
 pub(super) fn test_target_aggregate_findings(
     project_root: &Path,
+    cargo_manifest: &CargoManifestFacts,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     let mut findings = Vec::new();
     let rule = &rules[RUST_PROJ_R007];
-    for target in collect_test_target_files(project_root) {
+    for target in collect_test_target_files(project_root, cargo_manifest) {
         let parsed = parse_rust_file(&target);
         for item in parsed
             .syntax_facts
@@ -106,12 +108,13 @@ pub(super) fn test_target_aggregate_findings(
 
 pub(super) fn test_target_module_mount_findings(
     project_root: &Path,
+    cargo_manifest: &CargoManifestFacts,
     policy: &LayoutPolicy,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     let mut findings = Vec::new();
     let rule = &rules[RUST_PROJ_R008];
-    for target in collect_test_target_files(project_root) {
+    for target in collect_test_target_files(project_root, cargo_manifest) {
         let parsed = parse_rust_file(&target);
         for item_mod in parsed
             .syntax_facts
@@ -153,7 +156,10 @@ pub(super) fn test_target_module_mount_findings(
     findings
 }
 
-fn collect_test_target_files(project_root: &Path) -> Vec<PathBuf> {
+fn collect_test_target_files(
+    project_root: &Path,
+    cargo_manifest: &CargoManifestFacts,
+) -> Vec<PathBuf> {
     let mut targets = BTreeSet::new();
     let tests_dir = project_root.join("tests");
     if let Ok(entries) = fs::read_dir(&tests_dir) {
@@ -164,17 +170,15 @@ fn collect_test_target_files(project_root: &Path) -> Vec<PathBuf> {
             }
         }
     }
-    targets.extend(manifest_test_target_files(project_root));
+    targets.extend(cargo_manifest.test_target_files.iter().cloned());
     targets.into_iter().collect()
 }
 
-fn project_uses_harness_gate(project_root: &Path, modules: &[ParsedRustModule]) -> bool {
-    manifest_mentions_harness(project_root)
-        || modules.iter().any(module_syntax_contains_any_harness_gate)
-}
-
-fn manifest_mentions_harness(project_root: &Path) -> bool {
-    manifest_references_harness(project_root)
+fn project_uses_harness_gate(
+    cargo_manifest: &CargoManifestFacts,
+    modules: &[ParsedRustModule],
+) -> bool {
+    cargo_manifest.references_harness || modules.iter().any(module_syntax_contains_any_harness_gate)
 }
 
 fn source_tree_contains_cargo_test_gate(
