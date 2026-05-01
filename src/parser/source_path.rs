@@ -9,6 +9,7 @@ pub(crate) struct RustSourcePathFacts {
     pub(crate) repeated_namespace_segments: BTreeSet<String>,
     pub(crate) repeated_namespace_branch: Option<PathBuf>,
     pub(crate) is_special_entrypoint: bool,
+    pub(crate) is_test_source: bool,
     pub(crate) is_crate_facade: bool,
     pub(crate) is_interface_mod: bool,
     pub(crate) is_binary_entrypoint: bool,
@@ -19,6 +20,7 @@ pub(crate) struct RustSourcePathFacts {
 pub(crate) fn rust_source_path_facts(
     project_root: &Path,
     source_paths: &[PathBuf],
+    test_paths: &[PathBuf],
     package_paths: &[PathBuf],
     path: &Path,
 ) -> RustSourcePathFacts {
@@ -32,12 +34,17 @@ pub(crate) fn rust_source_path_facts(
         repeated_namespace_segments,
         repeated_namespace_branch,
         is_special_entrypoint: file_name_matches(path, &["lib.rs", "main.rs", "mod.rs"]),
+        is_test_source: is_under_any_dir(path, test_paths),
         is_crate_facade: file_name_is(path, "lib.rs"),
         is_interface_mod: file_name_is(path, "mod.rs"),
         is_binary_entrypoint: is_binary_entrypoint(source_paths, path),
         is_package_entrypoint,
         is_build_script_entrypoint: is_package_entrypoint && file_name_is(path, "build.rs"),
     }
+}
+
+fn is_under_any_dir(path: &Path, dirs: &[PathBuf]) -> bool {
+    dirs.iter().any(|dir| path.starts_with(dir))
 }
 
 fn namespace_components(project_root: &Path, path: &Path) -> Option<Vec<String>> {

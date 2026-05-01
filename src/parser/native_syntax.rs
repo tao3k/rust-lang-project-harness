@@ -6,6 +6,7 @@ use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
 
 use super::path_resolution::resolve_rust_path_attr;
+use super::use_tree::{RustUseStatementContext, RustUseStatementSyntax, rust_use_statement_syntax};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct RustNativeSyntaxFacts {
@@ -45,13 +46,6 @@ pub(crate) struct RustModuleDeclarationSyntax {
     pub is_cfg_test: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RustUseStatementSyntax {
-    pub line: usize,
-    pub contains_deep_relative_import: bool,
-    pub contains_glob_import: bool,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RustInvocationSyntax {
     pub line: usize,
@@ -83,6 +77,7 @@ pub(crate) fn rust_native_syntax_facts(
     let mut collector = NativeSyntaxCollector {
         source_file,
         facts: RustNativeSyntaxFacts::default(),
+        module_stack: Vec::new(),
     };
     collector.visit_file(syntax);
     collector.facts.has_module_doc = attrs_have_doc(&syntax.attrs);
@@ -97,16 +92,29 @@ pub(crate) fn rust_native_syntax_facts(
 struct NativeSyntaxCollector<'a> {
     source_file: &'a Path,
     facts: RustNativeSyntaxFacts,
+    module_stack: Vec<RustModuleContextFrame>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RustModuleContextFrame {
+    ident: String,
+    is_cfg_test: bool,
 }
 
 impl<'ast> Visit<'ast> for NativeSyntaxCollector<'_> {
     fn visit_item_mod(&mut self, item_mod: &'ast syn::ItemMod) {
-        if attrs_have_cfg_test(&item_mod.attrs) {
+        let is_cfg_test = attrs_have_cfg_test(&item_mod.attrs);
+        if is_cfg_test {
             self.facts
                 .cfg_test_modules
                 .push(module_declaration_from_item_mod(item_mod, self.source_file));
         }
+        self.module_stack.push(RustModuleContextFrame {
+            ident: item_mod.ident.to_string(),
+            is_cfg_test,
+        });
         visit::visit_item_mod(self, item_mod);
+        self.module_stack.pop();
     }
 
     fn visit_item_fn(&mut self, item_fn: &'ast syn::ItemFn) {
@@ -119,7 +127,7 @@ impl<'ast> Visit<'ast> for NativeSyntaxCollector<'_> {
     fn visit_item_use(&mut self, item_use: &'ast syn::ItemUse) {
         self.facts
             .use_statements
-            .push(rust_use_statement_syntax(item_use));
+            .push(rust_use_statement_syntax(item_use, self.use_context()));
         visit::visit_item_use(self, item_use);
     }
 
@@ -140,11 +148,15 @@ impl<'ast> Visit<'ast> for NativeSyntaxCollector<'_> {
     }
 }
 
-fn rust_use_statement_syntax(item_use: &syn::ItemUse) -> RustUseStatementSyntax {
-    RustUseStatementSyntax {
-        line: item_use.span().start().line.max(1),
-        contains_deep_relative_import: use_item_contains_deep_relative_import(item_use),
-        contains_glob_import: use_item_contains_glob_import(item_use),
+impl NativeSyntaxCollector<'_> {
+    fn use_context(&self) -> RustUseStatementContext {
+        RustUseStatementContext::from_enclosing_modules(
+            self.module_stack
+                .iter()
+                .map(|frame| frame.ident.clone())
+                .collect(),
+            self.module_stack.iter().any(|frame| frame.is_cfg_test),
+        )
     }
 }
 
@@ -374,60 +386,4 @@ fn include_literal_target(mac: &syn::Macro) -> Option<String> {
     syn::parse2::<syn::LitStr>(mac.tokens.clone())
         .ok()
         .map(|lit| lit.value())
-}
-
-fn use_item_contains_deep_relative_import(item_use: &syn::ItemUse) -> bool {
-    let mut segments = Vec::new();
-    use_tree_contains_super_super_with_prefix(&item_use.tree, &mut segments)
-}
-
-fn use_item_contains_glob_import(item_use: &syn::ItemUse) -> bool {
-    use_tree_contains_glob(&item_use.tree)
-}
-
-fn use_tree_contains_glob(tree: &syn::UseTree) -> bool {
-    match tree {
-        syn::UseTree::Path(path) => use_tree_contains_glob(&path.tree),
-        syn::UseTree::Group(group) => group.items.iter().any(use_tree_contains_glob),
-        syn::UseTree::Name(_) | syn::UseTree::Rename(_) => false,
-        syn::UseTree::Glob(_) => true,
-    }
-}
-
-fn use_tree_contains_super_super_with_prefix(
-    tree: &syn::UseTree,
-    segments: &mut Vec<String>,
-) -> bool {
-    match tree {
-        syn::UseTree::Path(path) => {
-            segments.push(path.ident.to_string());
-            let contains = has_super_super(segments)
-                || use_tree_contains_super_super_with_prefix(&path.tree, segments);
-            segments.pop();
-            contains
-        }
-        syn::UseTree::Group(group) => group
-            .items
-            .iter()
-            .any(|item| use_tree_contains_super_super_with_prefix(item, segments)),
-        syn::UseTree::Name(name) => {
-            segments.push(name.ident.to_string());
-            let contains = has_super_super(segments);
-            segments.pop();
-            contains
-        }
-        syn::UseTree::Rename(rename) => {
-            segments.push(rename.ident.to_string());
-            let contains = has_super_super(segments);
-            segments.pop();
-            contains
-        }
-        syn::UseTree::Glob(_) => has_super_super(segments),
-    }
-}
-
-fn has_super_super(segments: &[String]) -> bool {
-    segments
-        .windows(2)
-        .any(|window| window[0] == "super" && window[1] == "super")
 }

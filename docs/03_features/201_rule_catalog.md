@@ -133,7 +133,9 @@ Path clarity rules follow Rust syntax and project scope instead of raw text
 searches. `RUST-MOD-R003` and `RUST-MOD-R010` consume native `use` tree facts
 from `src/parser/`, so grouped uses such as `use super::{super::Owner}` and
 glob imports such as `use super::*` are caught while comments and strings are
-ignored.
+ignored. The parser also records whether a `use` statement is inside an inline
+`#[cfg(test)]` module or a conventional `tests/` root, so glob findings can name
+test context without weakening the default no-glob harness contract.
 
 `AGENT-R001`, `AGENT-R002`, `AGENT-R004`, `AGENT-R005`, `AGENT-R006`, and
 `AGENT-R008` consume native facts from `src/parser/`, including file-level inner

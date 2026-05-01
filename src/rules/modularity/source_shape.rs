@@ -2,7 +2,10 @@
 
 use std::collections::BTreeMap;
 
-use crate::parser::{ParsedRustModule, file_location, path_line_location, source_line};
+use crate::parser::{
+    ParsedRustModule, RustReasoningModuleFacts, RustUseStatementSyntax, file_location,
+    path_line_location, source_line,
+};
 use crate::rules::display_path;
 use crate::{RustHarnessFinding, RustHarnessRule};
 
@@ -78,6 +81,7 @@ pub(super) fn deep_relative_import_findings(
 }
 
 pub(super) fn glob_import_findings(
+    module_facts: &RustReasoningModuleFacts,
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
@@ -90,17 +94,81 @@ pub(super) fn glob_import_findings(
             if use_syntax.contains_glob_import {
                 Some(RustHarnessFinding::from_rule(
                     rule,
-                    format!(
-                        "{} uses a Rust glob import.",
-                        display_path(&module.report.path)
-                    ),
+                    glob_import_summary(module_facts, module, use_syntax),
                     path_line_location(&module.report.path, use_syntax.line),
                     source_line(&module.source, use_syntax.line),
-                    "replace glob import with explicit owner imports",
+                    glob_import_label(use_syntax),
                 ))
             } else {
                 None
             }
         })
         .collect()
+}
+
+fn glob_import_summary(
+    module_facts: &RustReasoningModuleFacts,
+    module: &ParsedRustModule,
+    use_syntax: &RustUseStatementSyntax,
+) -> String {
+    format!(
+        "{} uses {}{}.",
+        display_path(&module.report.path),
+        glob_import_descriptor(use_syntax),
+        glob_import_context(module_facts, use_syntax),
+    )
+}
+
+fn glob_import_descriptor(use_syntax: &RustUseStatementSyntax) -> String {
+    let imports = &use_syntax.glob_imports;
+    let Some(first_import) = imports.first() else {
+        return "a Rust glob import".to_string();
+    };
+    if imports.len() > 1 {
+        return format!(
+            "{} Rust glob imports ({})",
+            imports.len(),
+            imports
+                .iter()
+                .map(|glob_import| glob_import.rendered_path())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+    }
+    let rendered_path = first_import.rendered_path();
+    if first_import.is_direct_parent_scope_glob {
+        return format!("parent-scope glob import `{rendered_path}`");
+    }
+    if first_import.is_parent_relative_glob {
+        return format!("parent-relative glob import `{rendered_path}`");
+    }
+    if first_import.is_prelude_glob {
+        return format!("prelude glob import `{rendered_path}`");
+    }
+    format!("Rust glob import `{rendered_path}`")
+}
+
+fn glob_import_context(
+    module_facts: &RustReasoningModuleFacts,
+    use_syntax: &RustUseStatementSyntax,
+) -> &'static str {
+    if module_facts.source_path.is_test_source || use_syntax.context.is_inside_cfg_test_module {
+        " in test context"
+    } else if use_syntax.context.is_inside_inline_module {
+        " inside inline module"
+    } else {
+        ""
+    }
+}
+
+fn glob_import_label(use_syntax: &RustUseStatementSyntax) -> &'static str {
+    if use_syntax
+        .glob_imports
+        .iter()
+        .any(|glob_import| glob_import.is_direct_parent_scope_glob)
+    {
+        "replace parent-scope glob with explicit imports"
+    } else {
+        "replace glob import with explicit owner imports"
+    }
 }

@@ -68,9 +68,11 @@ build dependency.
 
 The path-clarity surface is also project-scoped. Modularity policy consumes
 native Rust `use` tree facts from the parser to reject `super::super` owner
-escapes and all glob imports, including `use super::*`. Agent advice reports
-repeated namespace segments across the default package surface, including test
-helpers and ordinary Rust file stems.
+escapes and all glob imports, including `use super::*`. Those facts include
+inline-module and `#[cfg(test)]` context, and import clarity policy runs over
+both `src/` and conventional `tests/` roots. Agent advice reports repeated
+namespace segments across the default package surface, including test helpers
+and ordinary Rust file stems.
 
 Reasoning-tree reachability uses the same parser boundary: `mod` declarations,
 `#[path]` attributes, and literal `include!` source shards are resolved into

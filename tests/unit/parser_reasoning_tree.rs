@@ -122,6 +122,44 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
     assert!(reasoning_tree.unreachable_source_files.is_empty());
 }
 
+#[test]
+fn reasoning_tree_marks_test_root_modules_as_test_sources() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    let src = root.join("src");
+    let tests = root.join("tests");
+    fs::create_dir_all(&src).expect("create source tree");
+    fs::create_dir_all(&tests).expect("create tests tree");
+    fs::write(src.join("lib.rs"), "//! Crate facade.\n").expect("write lib");
+    fs::write(tests.join("integration.rs"), "use crate::prelude::*;\n").expect("write integration");
+
+    let modules = [
+        parse_rust_file(&src.join("lib.rs")),
+        parse_rust_file(&tests.join("integration.rs")),
+    ];
+    let scope = RustProjectHarnessScope {
+        project_root: root.to_path_buf(),
+        source_paths: vec![src],
+        test_paths: vec![tests.clone()],
+        package_paths: Vec::new(),
+        fallback_paths: vec![root.to_path_buf()],
+    };
+
+    let reasoning_tree = rust_reasoning_tree_facts(&scope, &modules);
+    let test_module = reasoning_tree
+        .module(&tests.join("integration.rs"))
+        .expect("test module facts");
+
+    assert!(test_module.source_path.is_test_source);
+    assert!(!test_module.is_source_module);
+    assert!(
+        !reasoning_tree
+            .owner_branches
+            .iter()
+            .any(|branch| branch.path.ends_with("tests/integration.rs"))
+    );
+}
+
 fn child_edges(
     module: &crate::parser::RustReasoningModuleFacts,
 ) -> Vec<(RustModuleChildEdgeKind, std::path::PathBuf)> {

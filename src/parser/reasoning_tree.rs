@@ -75,6 +75,7 @@ pub(crate) fn rust_reasoning_tree_facts(
                 source_path: rust_source_path_facts(
                     &scope.project_root,
                     &scope.source_paths,
+                    &scope.test_paths,
                     &scope.package_paths,
                     &module.report.path,
                 ),

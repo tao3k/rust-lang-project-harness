@@ -58,20 +58,27 @@ pub(crate) fn evaluate(
         let Some(module_facts) = reasoning_tree.module(&module.report.path) else {
             continue;
         };
-        if !module_facts.is_source_module && !module_facts.source_path.is_package_entrypoint {
+        if !module_facts.is_source_module
+            && !module_facts.source_path.is_test_source
+            && !module_facts.source_path.is_package_entrypoint
+        {
             continue;
         }
         if !module.report.is_valid {
             continue;
         }
+        let is_import_policy_source =
+            module_facts.is_source_module || module_facts.source_path.is_test_source;
         if module_facts.is_source_module {
             findings.extend(crate_facade_findings(module_facts, module, &rules));
             findings.extend(binary_entrypoint_findings(module_facts, module, &rules));
             findings.extend(interface_mod_findings(module_facts, module, &rules));
             findings.extend(inline_source_module_findings(module_facts, module, &rules));
             findings.extend(source_file_bloat_findings(module, &rules));
+        }
+        if is_import_policy_source {
             findings.extend(deep_relative_import_findings(module, &rules));
-            findings.extend(glob_import_findings(module, &rules));
+            findings.extend(glob_import_findings(module_facts, module, &rules));
         }
         findings.extend(build_script_entrypoint_findings(
             module_facts,

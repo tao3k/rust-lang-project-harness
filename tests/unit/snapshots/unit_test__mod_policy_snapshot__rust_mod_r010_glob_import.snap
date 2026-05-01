@@ -11,6 +11,6 @@ Issues: 1
 [RUST-MOD-R010] Warning: Glob import hides owner scope
    ,-[ $TEMP/src/domain.rs:2:1 ]
  2 | use super::*;
-   | `- replace glob import with explicit owner imports
-   |Help: $TEMP/src/domain.rs uses a Rust glob import.
+   | `- replace parent-scope glob with explicit imports
+   |Help: $TEMP/src/domain.rs uses parent-scope glob import `super::*`.
    |Contract: Avoid Rust glob imports; import the owner names explicitly so module dependencies stay visible.

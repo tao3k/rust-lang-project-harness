@@ -10,6 +10,7 @@ mod path_resolution;
 mod reasoning_tree;
 mod source_metrics;
 mod source_path;
+mod use_tree;
 
 pub(crate) use cargo_manifest::{CargoManifestFacts, parse_cargo_manifest};
 pub(crate) use cargo_test_targets::parse_cargo_test_targets;
@@ -25,3 +26,4 @@ pub(crate) use reasoning_tree::{
 };
 pub(crate) use source_metrics::RustSourceMetrics;
 pub(crate) use source_path::{RustSourcePathFacts, rust_source_path_facts};
+pub(crate) use use_tree::RustUseStatementSyntax;
