@@ -5,7 +5,8 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use crate::{
-    render_rust_project_harness, render_rust_project_harness_json, run_rust_project_harness,
+    render_rust_project_harness, render_rust_project_harness_agent_snapshot,
+    render_rust_project_harness_json, run_rust_project_harness,
 };
 
 /// Run the CLI using process environment arguments.
@@ -28,7 +29,12 @@ fn run(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitCode, S
     }
     let project_root = options.project_root()?;
     let report = run_rust_project_harness(&project_root)?;
-    if options.json {
+    if options.agent_snapshot {
+        print!(
+            "{}",
+            render_rust_project_harness_agent_snapshot(&project_root)?
+        );
+    } else if options.json {
         println!(
             "{}",
             render_rust_project_harness_json(&report)
@@ -47,6 +53,7 @@ fn run(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitCode, S
 #[derive(Debug, Default)]
 struct CliOptions {
     json: bool,
+    agent_snapshot: bool,
     help: bool,
     paths: Vec<PathBuf>,
 }
@@ -67,6 +74,7 @@ impl CliOptions {
             match value {
                 "--" => positional_only = true,
                 "--json" => options.json = true,
+                "--agent-snapshot" => options.agent_snapshot = true,
                 "--help" | "-h" => options.help = true,
                 value if value.starts_with('-') => {
                     return Err(format!("unknown option: {value}"));
@@ -76,6 +84,9 @@ impl CliOptions {
         }
         if options.paths.len() > 1 {
             return Err("expected at most one PROJECT_ROOT argument".to_string());
+        }
+        if options.json && options.agent_snapshot {
+            return Err("expected only one output mode: --json or --agent-snapshot".to_string());
         }
         Ok(options)
     }
@@ -93,9 +104,10 @@ impl CliOptions {
 
 fn print_help() {
     println!(
-        "rust-project-harness [--json] [PROJECT_ROOT]\n\n\
+        "rust-project-harness [--json | --agent-snapshot] [PROJECT_ROOT]\n\n\
          Runs the default package-level Rust harness.\n\n\
          Compact text is the default output for humans and repair-oriented agents.\n\
-         Use --json to emit the structured RustHarnessReport JSON shape."
+         Use --json to emit the structured RustHarnessReport JSON shape.\n\
+         Use --agent-snapshot to emit a low-noise reasoning-tree summary."
     );
 }

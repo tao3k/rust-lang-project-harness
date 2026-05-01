@@ -4,6 +4,7 @@
 //! deterministic findings, rendering compact diagnostics, and mounting a
 //! reusable Cargo test gate.
 
+mod agent_snapshot;
 mod cli;
 mod discovery;
 mod macros;
@@ -26,6 +27,10 @@ mod parser_source_path_tests;
 #[path = "../tests/unit/parser_reasoning_tree.rs"]
 mod parser_reasoning_tree_tests;
 
+pub use agent_snapshot::{
+    render_rust_project_harness_agent_snapshot,
+    render_rust_project_harness_agent_snapshot_with_config,
+};
 pub use cli::run_cli_from_env;
 pub use discovery::{DEFAULT_IGNORED_DIR_NAMES, discover_rust_files, rust_project_harness_scope};
 pub use model::{

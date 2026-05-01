@@ -8,7 +8,8 @@ and non-blocking `AGENT-*` advice for repair-oriented agents.
 
 It also ships a small CLI for local and CI policy runs. Compact text is the
 default output; pass `--json` when a structured `RustHarnessReport` payload is
-needed.
+needed, or `--agent-snapshot` when an LLM needs a low-noise reasoning-tree
+summary instead of a full file list.
 
 Project-root runners execute the full policy surface. By default they cover Rust
 code under the crate's `src/`, `tests/`, `examples/`, and `benches/` roots, plus
@@ -116,6 +117,7 @@ configured-blocking findings:
 ```shell
 cargo run --bin rust-project-harness -- .
 cargo run --bin rust-project-harness -- --json .
+cargo run --bin rust-project-harness -- --agent-snapshot .
 ```
 
 ## Current Rule Packs
@@ -132,6 +134,10 @@ Rendered diagnostics are intentionally compact: rule id, source location,
 highlighted source line when available, one short source pointer, `Help:`, and
 `Contract:`. Structured consumers should keep using the serializable
 `RustHarnessReport` shape through `render_rust_project_harness_json()`.
+Agents that need project shape rather than diagnostic cards can use
+`render_rust_project_harness_agent_snapshot()` or the `--agent-snapshot` CLI
+mode; that output is grouped by package, source roots, owner branches, and
+finding groups.
 
 ## Docs
 

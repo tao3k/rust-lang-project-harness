@@ -3,8 +3,8 @@ use std::path::PathBuf;
 
 use rust_lang_project_harness::{
     RustDiagnosticSeverity, default_rust_harness_config, render_rust_project_harness,
-    render_rust_project_harness_advice, render_rust_project_harness_json, run_rust_lang_harness,
-    run_rust_project_harness,
+    render_rust_project_harness_advice, render_rust_project_harness_agent_snapshot,
+    render_rust_project_harness_json, run_rust_lang_harness, run_rust_project_harness,
 };
 use tempfile::TempDir;
 
@@ -112,6 +112,36 @@ fn default_renderer_keeps_info_advice_visible_without_blocking() {
     assert!(rendered.contains("AGENT-R002"));
     assert!(rendered.contains("Help:"));
     assert!(rendered.contains("Contract:"));
+}
+
+#[test]
+fn agent_snapshot_renderer_exposes_reasoning_tree_shape() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"snapshot-shape\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write manifest");
+    fs::create_dir_all(root.join("src/domain")).expect("create domain");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod domain;\n").expect("write lib");
+    fs::write(
+        root.join("src/domain.rs"),
+        "//! Domain branch.\nmod leaf;\n",
+    )
+    .expect("write domain");
+    fs::write(root.join("src/domain/leaf.rs"), "//! Domain leaf.\n").expect("write leaf");
+
+    let rendered = render_rust_project_harness_agent_snapshot(root).expect("render snapshot");
+
+    assert!(rendered.starts_with("[agent:snapshot]"), "{rendered}");
+    assert!(rendered.contains("Package: ."), "{rendered}");
+    assert!(rendered.contains("SourceRoots: src"), "{rendered}");
+    assert!(
+        rendered.contains("src/lib.rs [root, facade] owner=src -> src/domain.rs"),
+        "{rendered}"
+    );
+    assert!(rendered.contains("FindingGroups:\n - none"), "{rendered}");
 }
 
 #[test]
