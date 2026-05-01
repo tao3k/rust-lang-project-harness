@@ -14,6 +14,10 @@ mod rules;
 mod runner;
 mod self_policy;
 
+#[cfg(test)]
+#[path = "../tests/unit/discovery.rs"]
+mod discovery_tests;
+
 pub use cli::run_cli_from_env;
 pub use discovery::{DEFAULT_IGNORED_DIR_NAMES, discover_rust_files, rust_project_harness_scope};
 pub use model::{

@@ -180,7 +180,9 @@ fn fixed_prefix_root(project_root: &Path, pattern: &str) -> PathBuf {
     project_root.join(prefix)
 }
 
-fn glob_pattern_matches(pattern: &str, value: &str) -> bool {
+pub(crate) fn glob_pattern_matches(pattern: &str, value: &str) -> bool {
+    let pattern = normalize_glob_path(pattern);
+    let value = normalize_glob_path(value);
     let pattern_components = pattern.split('/').collect::<Vec<_>>();
     let value_components = value.split('/').collect::<Vec<_>>();
     pattern_components.len() == value_components.len()
@@ -189,6 +191,10 @@ fn glob_pattern_matches(pattern: &str, value: &str) -> bool {
                 glob_component_matches(pattern_component, value_component)
             },
         )
+}
+
+fn normalize_glob_path(path: &str) -> String {
+    path.replace('\\', "/")
 }
 
 fn glob_component_matches(pattern: &str, value: &str) -> bool {
