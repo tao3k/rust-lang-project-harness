@@ -1,0 +1,8 @@
+---
+source: tests/unit/public_api/policy_config.rs
+assertion_line: 164
+expression: rendered
+---
+Modules: source=2 branches=1
+OwnerBranches:
+ - src/lib.rs [root, facade] owner=src -> mod:src/owner.rs
