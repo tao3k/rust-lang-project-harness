@@ -213,6 +213,17 @@ fn display_import_summary(summary: &RustReasoningImportFacts) -> String {
     push_count(&mut parts, "deep", summary.deep_relative_imports);
     push_count(&mut parts, "prelude", summary.prelude_imports);
     push_count(&mut parts, "test", summary.test_context_imports);
+    if !summary.local_owner_imports.is_empty() {
+        parts.push(format!(
+            "local:{}",
+            summary
+                .local_owner_imports
+                .iter()
+                .map(|namespace| namespace.join("/"))
+                .collect::<Vec<_>>()
+                .join("|")
+        ));
+    }
     format!(" imports={}", parts.join(","))
 }
 

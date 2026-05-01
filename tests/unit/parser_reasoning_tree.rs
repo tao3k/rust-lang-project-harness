@@ -61,6 +61,10 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
     assert_eq!(lib.import_summary.crate_imports, 1);
     assert_eq!(lib.import_summary.external_imports, 1);
     assert_eq!(
+        lib.import_summary.local_owner_imports,
+        vec![vec!["src".to_string(), "domain".to_string()]]
+    );
+    assert_eq!(
         child_edges(lib),
         vec![
             (RustModuleChildEdgeKind::Mod, src.join("domain.rs")),
@@ -84,6 +88,14 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
     );
     assert_eq!(branch.import_summary.self_imports, 1);
     assert_eq!(branch.import_summary.parent_imports, 1);
+    assert_eq!(
+        branch.import_summary.local_owner_imports,
+        vec![vec![
+            "src".to_string(),
+            "domain".to_string(),
+            "leaf".to_string()
+        ]]
+    );
     assert_eq!(
         child_edges(branch),
         vec![(RustModuleChildEdgeKind::Mod, src.join("domain/leaf.rs"))]
@@ -128,6 +140,12 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
             .external_imports,
         1
     );
+    assert_eq!(
+        reasoning_tree.owner_branches[0]
+            .import_summary
+            .local_owner_imports,
+        vec![vec!["src".to_string(), "domain".to_string()]]
+    );
     assert_eq!(reasoning_tree.owner_branches[1].path, src.join("domain.rs"));
     assert_eq!(
         reasoning_tree.owner_branches[1].roles,
@@ -146,6 +164,16 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
             .import_summary
             .parent_imports,
         1
+    );
+    assert_eq!(
+        reasoning_tree.owner_branches[1]
+            .import_summary
+            .local_owner_imports,
+        vec![vec![
+            "src".to_string(),
+            "domain".to_string(),
+            "leaf".to_string()
+        ]]
     );
 
     assert!(reasoning_tree.shadowed_module_sources.is_empty());

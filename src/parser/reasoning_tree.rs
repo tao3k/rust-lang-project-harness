@@ -9,7 +9,10 @@ use super::module_tree::{
     RustModuleChildEdge, RustModuleSourceShadow, external_child_module_edges, is_module_tree_root,
     rust_module_tree_facts,
 };
-use super::{ParsedRustModule, RustSourcePathFacts, RustUseImportRootKind, rust_source_path_facts};
+use super::{
+    ParsedRustModule, RustSourcePathFacts, RustUseImportRootKind, RustUseImportSyntax,
+    rust_source_path_facts,
+};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct RustReasoningTreeFacts {
@@ -54,6 +57,7 @@ pub(crate) struct RustReasoningImportFacts {
     pub(crate) deep_relative_imports: usize,
     pub(crate) prelude_imports: usize,
     pub(crate) test_context_imports: usize,
+    pub(crate) local_owner_imports: Vec<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -83,7 +87,7 @@ pub(crate) fn rust_reasoning_tree_facts(
         .filter(|module| is_under_any_dir(&module.report.path, &scope.source_paths))
         .map(|module| module.report.path.clone())
         .collect::<BTreeSet<_>>();
-    let module_facts = modules
+    let preliminary_modules = modules
         .iter()
         .map(|module| {
             let is_source_module = source_files.contains(&module.report.path);
@@ -96,7 +100,7 @@ pub(crate) fn rust_reasoning_tree_facts(
                     &scope.package_paths,
                     &module.report.path,
                 ),
-                import_summary: import_summary(module),
+                import_summary: RustReasoningImportFacts::default(),
                 is_source_module,
                 is_module_tree_root: is_source_module
                     && is_module_tree_root(&scope.source_paths, &module.report.path),
@@ -106,6 +110,16 @@ pub(crate) fn rust_reasoning_tree_facts(
                     Vec::new()
                 },
             }
+        })
+        .collect::<Vec<_>>();
+    let known_module_namespaces = known_module_namespaces(&preliminary_modules);
+    let module_facts = preliminary_modules
+        .into_iter()
+        .zip(modules)
+        .map(|(mut module_facts, module)| {
+            module_facts.import_summary =
+                import_summary(module, &module_facts, &known_module_namespaces);
+            module_facts
         })
         .collect::<Vec<_>>();
     let owner_branches = owner_branch_facts(&module_facts);
@@ -148,8 +162,22 @@ fn owner_branch_facts(modules: &[RustReasoningModuleFacts]) -> Vec<RustReasoning
     branches
 }
 
-fn import_summary(module: &ParsedRustModule) -> RustReasoningImportFacts {
+fn known_module_namespaces(modules: &[RustReasoningModuleFacts]) -> BTreeSet<Vec<String>> {
+    modules
+        .iter()
+        .filter(|module| module.is_source_module)
+        .map(|module| module.source_path.namespace_components.clone())
+        .filter(|namespace| !namespace.is_empty())
+        .collect()
+}
+
+fn import_summary(
+    module: &ParsedRustModule,
+    module_facts: &RustReasoningModuleFacts,
+    known_module_namespaces: &BTreeSet<Vec<String>>,
+) -> RustReasoningImportFacts {
     let mut summary = RustReasoningImportFacts::default();
+    let mut local_owner_imports = BTreeSet::<Vec<String>>::new();
     for use_statement in &module.syntax_facts.use_statements {
         let import_count = use_statement.imports.len();
         summary.total_imports += import_count;
@@ -174,9 +202,74 @@ fn import_summary(module: &ParsedRustModule) -> RustReasoningImportFacts {
             if import.is_prelude_import {
                 summary.prelude_imports += 1;
             }
+            if let Some(namespace) = local_owner_import_namespace(
+                &module_facts.source_path.namespace_components,
+                import,
+                known_module_namespaces,
+            ) {
+                local_owner_imports.insert(namespace);
+            }
         }
     }
+    summary.local_owner_imports = local_owner_imports.into_iter().collect();
     summary
+}
+
+fn local_owner_import_namespace(
+    current_namespace: &[String],
+    import: &RustUseImportSyntax,
+    known_module_namespaces: &BTreeSet<Vec<String>>,
+) -> Option<Vec<String>> {
+    let candidate = local_import_candidate_namespace(current_namespace, import)?;
+    let namespace = longest_known_namespace_prefix(&candidate, known_module_namespaces)?;
+    if namespace.len() <= 1 || namespace.as_slice() == current_namespace {
+        return None;
+    }
+    Some(namespace)
+}
+
+fn local_import_candidate_namespace(
+    current_namespace: &[String],
+    import: &RustUseImportSyntax,
+) -> Option<Vec<String>> {
+    match import.root_kind {
+        RustUseImportRootKind::Crate => {
+            let root = current_namespace.first()?.clone();
+            let mut namespace = vec![root];
+            namespace.extend(import.segments.iter().skip(1).cloned());
+            Some(namespace)
+        }
+        RustUseImportRootKind::SelfScope => {
+            let mut namespace = current_namespace.to_vec();
+            namespace.extend(import.segments.iter().skip(1).cloned());
+            Some(namespace)
+        }
+        RustUseImportRootKind::Parent => {
+            if import.parent_hops > current_namespace.len() {
+                return None;
+            }
+            let mut namespace = current_namespace
+                .iter()
+                .take(current_namespace.len() - import.parent_hops)
+                .cloned()
+                .collect::<Vec<_>>();
+            namespace.extend(import.segments.iter().skip(import.parent_hops).cloned());
+            Some(namespace)
+        }
+        RustUseImportRootKind::Absolute
+        | RustUseImportRootKind::External
+        | RustUseImportRootKind::Unknown => None,
+    }
+}
+
+fn longest_known_namespace_prefix(
+    candidate: &[String],
+    known_module_namespaces: &BTreeSet<Vec<String>>,
+) -> Option<Vec<String>> {
+    (1..=candidate.len()).rev().find_map(|length| {
+        let prefix = candidate.iter().take(length).cloned().collect::<Vec<_>>();
+        known_module_namespaces.contains(&prefix).then_some(prefix)
+    })
 }
 
 fn owner_branch_roles(module: &RustReasoningModuleFacts) -> Vec<RustReasoningOwnerBranchRole> {
