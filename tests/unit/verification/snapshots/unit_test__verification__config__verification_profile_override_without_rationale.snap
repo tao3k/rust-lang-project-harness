@@ -1,0 +1,18 @@
+---
+source: tests/unit/verification/config.rs
+expression: rendered
+---
+[verify] src/api.rs
+   |owner: src/api
+   |security: pending phase=before_release fingerprint=rustv:be5021ff926a2e4c
+   |why: security=owner profile explicitly requests security verification
+   |requires: security=attack_classes,authorization_boundary,findings
+   |fact: security.profile=public_api
+   |contract: security=security skill must report scanned attack classes and authorization-boundary result for this fingerprint
+   |responsibility_review: pending phase=before_verification fingerprint=rustv:155d1b8cd4498a95
+   |why: responsibility_review=owner-local verification override needs compact rationale
+   |requires: responsibility_review=profile_resolution
+   |fact: responsibility_review.profile=public_api
+   |fact: responsibility_review.derived=stress
+   |fact: responsibility_review.configured=security
+   |contract: responsibility_review=update the verification profile hint to match parser facts, or attach a complete waiver

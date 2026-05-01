@@ -204,7 +204,8 @@ let config = default_rust_harness_config()
                         "tenant authz probe result",
                     )],
                 ),
-            ),
+            )
+            .with_rationale("this slice changes route authorization"),
     )
     .with_verification_responsibility_task_kinds(
         RustOwnerResponsibility::LatencySensitive,
@@ -217,6 +218,10 @@ defaults. Owner-local `RustVerificationProfileHint::with_task_kinds()` and
 `with_task_contract()` win only for that profile. Passing an empty task-kind set,
 or using `without_verification_tasks()`, suppresses profile-derived reminders
 for that owner while receipts and waivers still operate by task fingerprint.
+When an owner-local task override changes the responsibility-derived default,
+the profile must include a compact rationale. Without that rationale the harness
+keeps a `responsibility_review` task active so the Agent explains why stress,
+security, chaos, or regression evidence was added or removed.
 
 For workspaces, profile hint paths can be package-relative (`src/api.rs`) or
 workspace-root-relative (`crates/api/src/api.rs`). Task fingerprints include the

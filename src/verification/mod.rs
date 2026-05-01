@@ -3,6 +3,7 @@
 mod fingerprint;
 mod model;
 mod planner;
+mod profile;
 mod render;
 
 pub use model::{

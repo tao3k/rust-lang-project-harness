@@ -104,7 +104,8 @@ let config = default_rust_harness_config()
                         "tenant authz probe result",
                     )],
                 ),
-            ),
+            )
+            .with_rationale("this slice changes route authorization"),
         ),
     )
     .with_verification_responsibility_task_kinds(
@@ -121,6 +122,13 @@ deliberately out of scope for external stress, chaos, security, or regression
 evidence in this slice. Receipts and waivers still clear tasks through
 fingerprints, so changing the owner-local task kinds or contracts invalidates
 stale evidence automatically.
+
+Owner-local overrides are allowed to differ from the responsibility-derived
+default, but they must explain the responsibility boundary. If a profile adds,
+removes, or suppresses task kinds without `with_rationale(...)`, the planner
+keeps a `responsibility_review` task active instead of silently trusting the
+configuration. The same review task is emitted when an owner-local contract is
+attached to a task kind that is not effective for that owner.
 
 ## Task Families
 

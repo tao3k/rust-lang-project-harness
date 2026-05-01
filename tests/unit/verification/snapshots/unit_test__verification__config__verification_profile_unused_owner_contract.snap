@@ -1,0 +1,17 @@
+---
+source: tests/unit/verification/config.rs
+expression: rendered
+---
+[verify] src/api.rs
+   |owner: src/api
+   |stress: pending phase=after_unit_tests_pass fingerprint=rustv:745d9b51631431fd
+   |why: stress=profile declares public or latency-sensitive surface
+   |requires: stress=p50,p99,p999,load_steps,sla_result
+   |fact: stress.profile=public_api
+   |contract: stress=stress skill must report p50/p99/p999, load steps, and SLA result for this fingerprint
+   |responsibility_review: pending phase=before_verification fingerprint=rustv:c56698057fb11df0
+   |why: responsibility_review=owner-local task contract is not used by effective task kinds
+   |requires: responsibility_review=profile_resolution
+   |fact: responsibility_review.effective=stress
+   |fact: responsibility_review.unused_contracts=security
+   |contract: responsibility_review=update the verification profile hint to match parser facts, or attach a complete waiver
