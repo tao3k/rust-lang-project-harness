@@ -1,0 +1,14 @@
+---
+source: tests/unit/verification/performance_index.rs
+assertion_line: 183
+expression: rendered
+---
+[perf-state] crates/api/src/api.rs
+   |owner: src/api
+   |state: pending phase=after_unit_tests_pass fingerprint=rustv:cfffd7aba04871fe skill=rust-verification-performance@criterion
+   |missing: benchmark_command,baseline,regression_threshold,latency_or_throughput,allocation_profile,profile_artifact
+
+[perf-state] crates/worker/src/api.rs
+   |owner: src/api
+   |state: pending phase=after_unit_tests_pass fingerprint=rustv:e169a0bb5e8ceff6 skill=rust-verification-performance@criterion
+   |missing: benchmark_command,baseline,regression_threshold,latency_or_throughput,allocation_profile,profile_artifact

@@ -248,7 +248,10 @@ Use `build_rust_verification_performance_index(&plan)` when a caller needs a
 performance-specific retrieval surface. It returns only `performance` task
 records, including pending, failed, satisfied, and waived states. Each record is
 keyed by parser-owned package path, owner path, owner namespace, fingerprint,
-state, skill binding, required evidence keys, and receipt evidence. This is the
+state, skill binding, required evidence keys, and receipt evidence. Callers can
+query by owner, package, state, or receipt evidence key, and each record can
+compute `missing_receipt_evidence_keys()` so a failed or partial receipt tells
+the Agent exactly which benchmark/profiling facts are still absent. This is the
 intended performance-status lane: human-readable reminders stay quiet, while
 benchmark state remains traceable for CI indexes, dashboards, or future
 reasoning-tree retrieval.
@@ -360,6 +363,18 @@ from the default verification reminder and from descriptor expansion:
    |observed_at: 2026-05-01T20:00:00Z
    |evidence: benchmark_command=cargo bench --bench parser_hot_path,baseline=main@...,regression_threshold=5%,latency_or_throughput=-1.4% latency,allocation_profile=allocs/op unchanged,profile_artifact=target/criterion/parser_hot_path/report/index.html
    |artifact: target/criterion/parser_hot_path/report/index.html
+```
+
+Partial failed receipts keep the same retrieval shape and add a compact missing
+line instead of requiring the Agent to reopen the adapter contract:
+
+```text
+[perf-state] src/api.rs
+   |owner: src/api
+   |state: failed phase=after_unit_tests_pass fingerprint=rustv:... skill=rust-verification-performance@criterion contract_ref=rust-verification-performance@criterion
+   |receipt: latency regression exceeded threshold
+   |evidence: benchmark_command=cargo bench --bench parser_hot_path,regression_threshold=5%,latency_or_throughput=+11.2% latency
+   |missing: baseline,allocation_profile,profile_artifact
 ```
 
 The Rust-native descriptors follow the ecosystem split between Cargo's

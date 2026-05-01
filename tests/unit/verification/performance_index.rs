@@ -9,6 +9,7 @@ use tempfile::TempDir;
 
 use crate::verification::support::{
     normalize_temp_root, public_api_profile_config, write_api_project,
+    write_workspace_with_api_members,
 };
 
 #[test]
@@ -80,6 +81,17 @@ fn performance_index_renders_pending_task_without_skill_manual_snapshot() {
 
     assert_eq!(record.state, RustVerificationTaskState::Pending);
     assert_eq!(
+        record.missing_receipt_evidence_keys(),
+        [
+            "benchmark_command",
+            "baseline",
+            "regression_threshold",
+            "latency_or_throughput",
+            "allocation_profile",
+            "profile_artifact",
+        ]
+    );
+    assert_eq!(
         record.required_evidence_keys,
         [
             "benchmark_command",
@@ -93,6 +105,82 @@ fn performance_index_renders_pending_task_without_skill_manual_snapshot() {
     assert!(!rendered.contains("[skill-contract]"), "{rendered}");
     assert!(!rendered.contains("|standard:"), "{rendered}");
     insta::assert_snapshot!("performance_index_pending_task", rendered);
+}
+
+#[test]
+fn performance_index_marks_partial_failed_receipt_missing_keys_snapshot() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_api_project(root);
+    let config = rust_native_performance_config();
+    let initial_plan = plan_rust_project_verification_with_config(root, &config).expect("plan");
+    let task = initial_plan
+        .active_tasks()
+        .into_iter()
+        .find(|task| task.kind == RustVerificationTaskKind::Performance)
+        .expect("performance task");
+    let resolved_config = config.with_verification_receipt(
+        RustVerificationReceipt::failed(
+            task.fingerprint.clone(),
+            RustVerificationTaskKind::Performance,
+            "latency regression exceeded threshold",
+        )
+        .with_evidence("benchmark_command", "cargo bench --bench parser_hot_path")
+        .with_evidence("regression_threshold", "5%")
+        .with_evidence("latency_or_throughput", "+11.2% latency"),
+    );
+    let plan =
+        plan_rust_project_verification_with_config(root, &resolved_config).expect("resolved plan");
+
+    let index = build_rust_verification_performance_index(&plan);
+    let rendered = normalize_temp_root(&render_rust_verification_performance_index(&index), root);
+    let record = index.records.first().expect("performance record");
+
+    assert_eq!(record.state, RustVerificationTaskState::Failed);
+    assert_eq!(
+        index
+            .records_in_state(RustVerificationTaskState::Failed)
+            .len(),
+        1
+    );
+    assert_eq!(
+        record.missing_receipt_evidence_keys(),
+        ["baseline", "allocation_profile", "profile_artifact"]
+    );
+    insta::assert_snapshot!("performance_index_partial_failed_receipt", rendered);
+}
+
+#[test]
+fn performance_index_workspace_package_queries_snapshot() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_workspace_with_api_members(root);
+    let config = default_rust_harness_config()
+        .with_verification_profile_hint(RustVerificationProfileHint::new(
+            "src/api.rs",
+            [RustOwnerResponsibility::LatencySensitive],
+        ))
+        .with_verification_skill_binding(
+            RustVerificationTaskKind::Performance,
+            RustVerificationSkillBinding::new("rust-verification-performance")
+                .with_adapter("criterion"),
+        );
+    let plan = plan_rust_project_verification_with_config(root, &config).expect("plan");
+
+    let index = build_rust_verification_performance_index(&plan);
+    let rendered = normalize_temp_root(&render_rust_verification_performance_index(&index), root);
+
+    assert_eq!(index.records.len(), 2);
+    assert_eq!(index.records_for_owner("src/api.rs").len(), 2);
+    assert_eq!(index.records_for_package("crates/api").len(), 1);
+    assert_eq!(index.records_for_package("crates/worker").len(), 1);
+    assert_eq!(
+        index
+            .records_in_state(RustVerificationTaskState::Pending)
+            .len(),
+        2
+    );
+    insta::assert_snapshot!("performance_index_workspace_package_queries", rendered);
 }
 
 #[test]

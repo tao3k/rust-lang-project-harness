@@ -281,6 +281,9 @@ Rust performance state. The index is keyed by parser-owned package/owner facts,
 fingerprint, state, skill binding, required evidence keys, receipt evidence,
 artifact URI, and observed timestamp; it can be rendered as compact
 `[perf-state]` text or JSON without expanding the long performance handbook.
+It also exposes owner/package/state queries and missing receipt evidence keys,
+so partial failed receipts can tell the Agent exactly which benchmark facts are
+still absent.
 
 For workspaces, profile hint paths can be package-relative (`src/api.rs`) or
 workspace-root-relative (`crates/api/src/api.rs`). Task fingerprints include the

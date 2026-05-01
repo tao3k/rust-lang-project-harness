@@ -50,6 +50,37 @@ impl RustVerificationPerformanceIndex {
             .collect()
     }
 
+    /// Return records owned by one package root.
+    #[must_use]
+    pub fn records_for_package(
+        &self,
+        package_root: impl AsRef<Path>,
+    ) -> Vec<&RustVerificationPerformanceRecord> {
+        let package_root = package_root.as_ref();
+        self.records
+            .iter()
+            .filter(|record| {
+                record.package_root == package_root
+                    || record
+                        .package_root
+                        .strip_prefix(&self.project_root)
+                        .is_ok_and(|relative| relative == package_root)
+            })
+            .collect()
+    }
+
+    /// Return records in one verification state.
+    #[must_use]
+    pub fn records_in_state(
+        &self,
+        state: RustVerificationTaskState,
+    ) -> Vec<&RustVerificationPerformanceRecord> {
+        self.records
+            .iter()
+            .filter(|record| record.state == state)
+            .collect()
+    }
+
     /// Return records that carry one receipt evidence key.
     #[must_use]
     pub fn records_with_receipt_evidence(
@@ -110,6 +141,16 @@ impl RustVerificationPerformanceRecord {
             .iter()
             .find(|evidence| evidence.label == key)
             .map(|evidence| evidence.value.as_str())
+    }
+
+    /// Return required evidence keys not present in the matching receipt.
+    #[must_use]
+    pub fn missing_receipt_evidence_keys(&self) -> Vec<&str> {
+        self.required_evidence_keys
+            .iter()
+            .filter(|key| self.receipt_evidence_value(key).is_none())
+            .map(String::as_str)
+            .collect()
     }
 }
 
@@ -226,12 +267,10 @@ fn render_performance_record(
             .collect::<Vec<_>>()
             .join(",");
         let _ = writeln!(rendered, "   |evidence: {evidence}");
-    } else if record.state.is_active() && !record.required_evidence_keys.is_empty() {
-        let _ = writeln!(
-            rendered,
-            "   |missing: {}",
-            record.required_evidence_keys.join(",")
-        );
+    }
+    let missing = record.missing_receipt_evidence_keys();
+    if record.state.is_active() && !missing.is_empty() {
+        let _ = writeln!(rendered, "   |missing: {}", missing.join(","));
     }
     if let Some(uri) = &record.receipt_evidence_uri {
         let _ = writeln!(rendered, "   |artifact: {uri}");
