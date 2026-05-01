@@ -183,3 +183,9 @@ Harness implications:
    keeps the useful "primitive obsession" signal without turning clone usage,
    unwraps, index loops, or other Clippy-shaped anti-pattern examples into
    harness rules.
+7. The actionbook error-handling skill maps to parser policy at the public
+   boundary, not at every `unwrap` or `?` site. `AGENT-R013` records public
+   function return types through `syn` and flags application-style catch-all
+   boundaries such as `anyhow::Result`, `eyre::Result`, and
+   `Result<_, Box<dyn Error>>`. This preserves the library-vs-application
+   signal while avoiding Clippy-shaped panic, unwrap, and ignored-error rules.

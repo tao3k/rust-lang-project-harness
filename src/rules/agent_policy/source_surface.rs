@@ -13,7 +13,7 @@ use crate::rules::display_path;
 
 use super::{
     AGENT_R001, AGENT_R002, AGENT_R003, AGENT_R004, AGENT_R005, AGENT_R006, AGENT_R007, AGENT_R008,
-    AGENT_R012,
+    AGENT_R012, AGENT_R013,
 };
 
 const MAX_FACADE_REEXPORTS: usize = 28;
@@ -34,6 +34,7 @@ pub(super) fn source_module_findings(
     findings.extend(generic_public_module_findings(module, rules));
     findings.extend(branch_module_intent_findings(reasoning_tree, module, rules));
     findings.extend(public_primitive_identifier_findings(module, rules));
+    findings.extend(public_application_error_boundary_findings(module, rules));
     findings
 }
 
@@ -316,6 +317,35 @@ fn public_primitive_identifier_findings(
                 path_line_location(&module.report.path, param.line),
                 source_line(&module.source, param.line),
                 "wrap this identifier in an owner-named newtype or document why the primitive boundary is intentional",
+            ))
+        })
+        .collect()
+}
+
+fn public_application_error_boundary_findings(
+    module: &ParsedRustModule,
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let rule = &rules[AGENT_R013];
+    module
+        .syntax_facts
+        .public_function_returns
+        .iter()
+        .filter_map(|function_return| {
+            if function_return.is_test_context {
+                return None;
+            }
+            let boundary = function_return.application_error_boundary.as_ref()?;
+            Some(RustHarnessFinding::from_rule(
+                rule,
+                format!(
+                    "{} exposes public function `{}` with application error boundary `{boundary}`.",
+                    display_path(&module.report.path),
+                    function_return.function_name
+                ),
+                path_line_location(&module.report.path, function_return.line),
+                source_line(&module.source, function_return.line),
+                "return a crate-owned typed error at the public boundary or document why this is an application boundary",
             ))
         })
         .collect()

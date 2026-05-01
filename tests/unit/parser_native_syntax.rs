@@ -111,3 +111,45 @@ fn native_syntax_facts_record_public_function_params() {
     assert_eq!(params[3].primitive_contract_type, None);
     assert!(params[4].is_test_context);
 }
+
+#[test]
+fn native_syntax_facts_record_public_function_returns() {
+    let temp = TempDir::new().expect("temp dir");
+    let source = temp.path().join("api.rs");
+    fs::write(
+        &source,
+        "pub enum UserError {}\n\
+         pub fn load_user() -> anyhow::Result<String> { todo!() }\n\
+         pub fn save_user() -> Result<(), Box<dyn std::error::Error + Send + Sync>> { todo!() }\n\
+         pub fn typed_user() -> Result<(), UserError> { todo!() }\n\
+         fn private_user() -> anyhow::Result<()> { todo!() }\n\
+         #[cfg(test)]\n\
+         pub fn fixture_user() -> eyre::Result<()> { todo!() }\n",
+    )
+    .expect("write source");
+
+    let module = parse_rust_file(&source);
+
+    let returns = module.syntax_facts.public_function_returns;
+    assert_eq!(
+        returns
+            .iter()
+            .map(|return_fact| return_fact.function_name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["load_user", "save_user", "typed_user", "fixture_user"]
+    );
+    assert_eq!(
+        returns[0].application_error_boundary.as_deref(),
+        Some("anyhow::Result")
+    );
+    assert_eq!(
+        returns[1].application_error_boundary.as_deref(),
+        Some("Result<_, Box<dyn Error>>")
+    );
+    assert_eq!(returns[2].application_error_boundary, None);
+    assert_eq!(
+        returns[3].application_error_boundary.as_deref(),
+        Some("eyre::Result")
+    );
+    assert!(returns[3].is_test_context);
+}

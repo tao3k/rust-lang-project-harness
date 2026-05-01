@@ -56,6 +56,7 @@ fn rule_catalogs_expose_stable_rule_ids() {
             "AGENT-R010",
             "AGENT-R011",
             "AGENT-R012",
+            "AGENT-R013",
         ]
     );
 
