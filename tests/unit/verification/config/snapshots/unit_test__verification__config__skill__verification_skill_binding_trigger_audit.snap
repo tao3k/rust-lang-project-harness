@@ -1,0 +1,37 @@
+---
+source: tests/unit/verification/config/skill.rs
+assertion_line: 108
+expression: audit
+---
+{
+  "kind": "stress",
+  "owner": "src/api.rs",
+  "quiet_compact": {
+    "omits_contract": true,
+    "omits_fact": true,
+    "omits_requires": true,
+    "omits_why": true,
+    "rendered": "[verify] src/api.rs\n   |owner: src/api\n   |stress: pending phase=after_unit_tests_pass fingerprint=rustv:f5966fb522a92f96 skill=rust-verification-stress@k6\n"
+  },
+  "required_evidence": [
+    "p50",
+    "p99",
+    "p999",
+    "load_steps",
+    "sla_result"
+  ],
+  "skill_binding": {
+    "adapter": "k6",
+    "skill_id": "rust-verification-stress"
+  },
+  "trigger_evidence": [
+    {
+      "label": "profile",
+      "value": "public_api"
+    },
+    {
+      "label": "skill",
+      "value": "rust-verification-stress@k6"
+    }
+  ]
+}

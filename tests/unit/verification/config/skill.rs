@@ -43,18 +43,42 @@ fn verification_skill_binding_renders_quiet_dispatch_snapshot() {
 }
 
 #[test]
-fn verification_skill_binding_remains_structured_json() {
+fn verification_skill_binding_trigger_audit_snapshot() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_api_project(root);
     let config = public_api_profile_config().with_verification_skill_binding(
         RustVerificationTaskKind::Stress,
-        RustVerificationSkillBinding::new("rust-verification-stress"),
+        RustVerificationSkillBinding::new("rust-verification-stress").with_adapter("k6"),
     );
 
     let plan = plan_rust_project_verification_with_config(root, &config).expect("plan");
+    let task = plan.active_tasks()[0];
+    let rendered = normalize_temp_root(&render_rust_verification_plan(&plan), root);
     let json = render_rust_verification_plan_json(&plan).expect("json");
     let value: serde_json::Value = serde_json::from_str(&json).expect("parse json");
+    let owner = task
+        .owner_path
+        .strip_prefix(root)
+        .expect("owner relative to root")
+        .display()
+        .to_string()
+        .replace('\\', "/");
+    let required_evidence = task
+        .required_evidence
+        .iter()
+        .map(|requirement| requirement.key.as_str())
+        .collect::<Vec<_>>();
+    let trigger_evidence = task
+        .evidence
+        .iter()
+        .map(|evidence| {
+            serde_json::json!({
+                "label": evidence.label.as_str(),
+                "value": evidence.value.as_str(),
+            })
+        })
+        .collect::<Vec<_>>();
 
     assert_eq!(
         value["tasks"][0]["skill_binding"]["skill_id"],
@@ -63,7 +87,23 @@ fn verification_skill_binding_remains_structured_json() {
     assert_eq!(value["tasks"][0]["evidence"][1]["label"], "skill");
     assert_eq!(
         value["tasks"][0]["evidence"][1]["value"],
-        "rust-verification-stress"
+        "rust-verification-stress@k6"
     );
     assert_eq!(value["tasks"][0]["required_evidence"][0]["key"], "p50");
+    let audit = serde_json::to_string_pretty(&serde_json::json!({
+        "kind": task.kind.as_str(),
+        "owner": owner,
+        "skill_binding": task.skill_binding.as_ref(),
+        "trigger_evidence": trigger_evidence,
+        "required_evidence": required_evidence,
+        "quiet_compact": {
+            "rendered": rendered,
+            "omits_why": !rendered.contains("|why:"),
+            "omits_requires": !rendered.contains("|requires:"),
+            "omits_fact": !rendered.contains("|fact:"),
+            "omits_contract": !rendered.contains("|contract:"),
+        },
+    }))
+    .expect("serialize audit");
+    insta::assert_snapshot!("verification_skill_binding_trigger_audit", audit);
 }
