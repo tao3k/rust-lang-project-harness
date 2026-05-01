@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::parser::{
     CargoManifestFacts, ParsedRustModule, RustTopLevelItemSyntax, file_location,
-    path_line_location, source_line,
+    path_line_location, rust_source_path_facts, source_line,
 };
 use crate::{RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
@@ -47,12 +47,7 @@ pub(super) fn library_cargo_test_gate_findings(
     cargo_manifest: &CargoManifestFacts,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let Some(lib_path) = scope
-        .source_paths
-        .iter()
-        .map(|source_root| source_root.join("lib.rs"))
-        .find(|path| path.exists())
-    else {
+    let Some(lib_path) = library_target_path(scope, modules) else {
         return Vec::new();
     };
     if !project_uses_harness_gate(cargo_manifest, modules)
@@ -71,6 +66,23 @@ pub(super) fn library_cargo_test_gate_findings(
         None,
         "add #[cfg(test)] rust_lang_project_harness::rust_project_harness_cargo_test_gate!()",
     )]
+}
+
+fn library_target_path(
+    scope: &RustProjectHarnessScope,
+    modules: &[ParsedRustModule],
+) -> Option<std::path::PathBuf> {
+    modules.iter().find_map(|module| {
+        let path_facts = rust_source_path_facts(
+            &scope.project_root,
+            &scope.source_paths,
+            &scope.package_paths,
+            &module.report.path,
+        );
+        path_facts
+            .is_crate_facade
+            .then(|| module.report.path.clone())
+    })
 }
 
 pub(super) fn test_target_aggregate_findings(
