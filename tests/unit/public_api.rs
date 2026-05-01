@@ -182,7 +182,8 @@ fn agent_snapshot_uses_policy_configured_findings() {
         .expect("render configured agent snapshot");
 
     assert!(!rendered.contains("RUST-MOD-R010"), "{rendered}");
-    assert!(rendered.contains("FindingGroups:\n - none"), "{rendered}");
+    assert!(!rendered.contains("FindingGroups:"), "{rendered}");
+    assert!(!rendered.contains(" - none"), "{rendered}");
 }
 
 #[test]
@@ -209,11 +210,13 @@ fn agent_snapshot_renderer_exposes_reasoning_tree_shape() {
     assert!(!rendered.contains("[agent:snapshot]"), "{rendered}");
     assert!(!rendered.contains("SourceRoots:"), "{rendered}");
     assert!(!rendered.contains("PackageEntrypoints:"), "{rendered}");
+    assert!(!rendered.contains("shadowed=0"), "{rendered}");
+    assert!(!rendered.contains("orphaned=0"), "{rendered}");
     assert!(
         rendered.contains("src/lib.rs [root, facade] owner=src -> mod:src/domain.rs"),
         "{rendered}"
     );
-    assert!(rendered.contains("FindingGroups:\n - none"), "{rendered}");
+    assert!(!rendered.contains("FindingGroups:"), "{rendered}");
 }
 
 #[test]

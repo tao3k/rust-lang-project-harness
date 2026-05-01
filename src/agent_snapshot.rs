@@ -106,15 +106,16 @@ fn render_package_snapshot(
     }
     let _ = writeln!(
         rendered,
-        "Modules: source={} roots={} branches={} deps={} shadowed={} orphaned={}",
-        source_module_count,
-        root_count,
-        branch_count,
-        reasoning_tree.owner_dependencies.len(),
-        reasoning_tree.shadowed_module_sources.len(),
-        reasoning_tree.unreachable_source_files.len()
+        "{}",
+        display_module_summary(
+            source_module_count,
+            root_count,
+            branch_count,
+            reasoning_tree.owner_dependencies.len(),
+            reasoning_tree.shadowed_module_sources.len(),
+            reasoning_tree.unreachable_source_files.len(),
+        )
     );
-    rendered.push_str("OwnerBranches:\n");
     let branch_lines = reasoning_tree
         .owner_branches
         .iter()
@@ -132,33 +133,51 @@ fn render_package_snapshot(
             )
         })
         .collect::<Vec<_>>();
-    if branch_lines.is_empty() {
-        rendered.push_str(" - none\n");
-    } else {
+    if !branch_lines.is_empty() {
+        rendered.push_str("OwnerBranches:\n");
         rendered.push_str(&branch_lines.join("\n"));
         rendered.push('\n');
     }
-    rendered.push_str("OwnerDependencies:\n");
     let dependency_lines = reasoning_tree
         .owner_dependencies
         .iter()
         .map(|dependency| display_owner_dependency(&reasoning_tree.package_root, dependency))
         .collect::<Vec<_>>();
-    if dependency_lines.is_empty() {
-        rendered.push_str(" - none\n");
-    } else {
+    if !dependency_lines.is_empty() {
+        rendered.push_str("OwnerDependencies:\n");
         rendered.push_str(&dependency_lines.join("\n"));
         rendered.push('\n');
     }
-    rendered.push_str("FindingGroups:\n");
     let finding_lines = grouped_findings(&reasoning_tree.package_root, findings);
-    if finding_lines.is_empty() {
-        rendered.push_str(" - none\n");
-    } else {
+    if !finding_lines.is_empty() {
+        rendered.push_str("FindingGroups:\n");
         rendered.push_str(&finding_lines.join("\n"));
         rendered.push('\n');
     }
     rendered
+}
+
+fn display_module_summary(
+    source_module_count: usize,
+    root_count: usize,
+    branch_count: usize,
+    dependency_count: usize,
+    shadowed_count: usize,
+    orphaned_count: usize,
+) -> String {
+    let mut parts = vec![format!("source={source_module_count}")];
+    push_metric_if(&mut parts, "roots", root_count, root_count > 1);
+    push_metric_if(&mut parts, "branches", branch_count, branch_count > 0);
+    push_metric_if(&mut parts, "deps", dependency_count, dependency_count > 0);
+    push_metric_if(&mut parts, "shadowed", shadowed_count, shadowed_count > 0);
+    push_metric_if(&mut parts, "orphaned", orphaned_count, orphaned_count > 0);
+    format!("Modules: {}", parts.join(" "))
+}
+
+fn push_metric_if(parts: &mut Vec<String>, label: &str, count: usize, should_render: bool) {
+    if should_render {
+        parts.push(format!("{label}={count}"));
+    }
 }
 
 fn parse_scope(
