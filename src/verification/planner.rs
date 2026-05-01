@@ -32,6 +32,14 @@ struct VerificationTaskSpec {
     evidence: Vec<RustVerificationEvidence>,
 }
 
+struct ProfileReviewTaskSpec<'a> {
+    owner_path: PathBuf,
+    owner_namespace: Vec<String>,
+    reason: &'static str,
+    evidence: Vec<RustVerificationEvidence>,
+    hint: Option<&'a RustVerificationProfileHint>,
+}
+
 /// Plan parser-native verification tasks for a conventional Rust project.
 ///
 /// # Errors
@@ -162,16 +170,19 @@ fn collect_unmatched_profile_hints(
             new_profile_review_task(
                 project_root,
                 project_root,
-                owner_path,
-                Vec::new(),
-                "profile hint target is not a parser-known Rust source module",
-                vec![RustVerificationEvidence::new(
-                    "hint",
-                    format!(
-                        "responsibilities={}",
-                        responsibility_labels(&hint.responsibilities)
-                    ),
-                )],
+                ProfileReviewTaskSpec {
+                    owner_path,
+                    owner_namespace: Vec::new(),
+                    reason: "profile hint target is not a parser-known Rust source module",
+                    evidence: vec![RustVerificationEvidence::new(
+                        "hint",
+                        format!(
+                            "responsibilities={}",
+                            responsibility_labels(&hint.responsibilities)
+                        ),
+                    )],
+                    hint: Some(hint),
+                },
                 policy,
             ),
         );
@@ -199,19 +210,25 @@ fn collect_profile_conflict_task(
     let task = new_profile_review_task(
         project_root,
         package_root,
-        module.path.clone(),
-        module.source_path.namespace_components.clone(),
-        "profile declares pure domain logic but parser facts show runtime or owner dependencies",
-        vec![
-            RustVerificationEvidence::new("profile", responsibility_labels(&hint.responsibilities)),
-            RustVerificationEvidence::new(
-                "parser",
-                format!(
-                    "external_imports={} owner_deps={non_test_owner_deps}",
-                    module.import_summary.external_imports
+        ProfileReviewTaskSpec {
+            owner_path: module.path.clone(),
+            owner_namespace: module.source_path.namespace_components.clone(),
+            reason: "profile declares pure domain logic but parser facts show runtime or owner dependencies",
+            evidence: vec![
+                RustVerificationEvidence::new(
+                    "profile",
+                    responsibility_labels(&hint.responsibilities),
                 ),
-            ),
-        ],
+                RustVerificationEvidence::new(
+                    "parser",
+                    format!(
+                        "external_imports={} owner_deps={non_test_owner_deps}",
+                        module.import_summary.external_imports
+                    ),
+                ),
+            ],
+            hint: Some(hint),
+        },
         policy,
     );
     push_task(tasks, policy, task);
@@ -226,7 +243,8 @@ fn collect_skill_tasks_from_profile(
     tasks: &mut BTreeMap<String, RustVerificationTask>,
 ) {
     let responsibilities = &hint.responsibilities;
-    for kind in task_kinds_for_responsibilities(responsibilities, policy) {
+    let uses_owner_task_override = hint.task_kinds.is_some();
+    for kind in task_kinds_for_profile(hint, policy) {
         push_task(
             tasks,
             policy,
@@ -238,8 +256,8 @@ fn collect_skill_tasks_from_profile(
                     owner_path: module.path.clone(),
                     owner_namespace: module.source_path.namespace_components.clone(),
                     line: None,
-                    reason: profile_task_reason(kind, responsibilities),
-                    contract: task_contract(policy, kind),
+                    reason: profile_task_reason(kind, responsibilities, uses_owner_task_override),
+                    contract: task_contract_for_profile(policy, Some(hint), kind),
                     evidence: vec![RustVerificationEvidence::new(
                         "profile",
                         responsibility_labels(responsibilities),
@@ -280,7 +298,11 @@ fn collect_regression_tasks(
                     line: None,
                     reason: "parser facts show a branch coordinating several child modules or local owners"
                         .to_string(),
-                    contract: task_contract(policy, RustVerificationTaskKind::Regression),
+                    contract: task_contract_for_profile(
+                        policy,
+                        None,
+                        RustVerificationTaskKind::Regression,
+                    ),
                     evidence: vec![
                         RustVerificationEvidence::new("child_modules", child_count.to_string()),
                         RustVerificationEvidence::new("owner_deps", dependency_count.to_string()),
@@ -295,10 +317,7 @@ fn collect_regression_tasks(
 fn new_profile_review_task(
     project_root: &Path,
     package_root: &Path,
-    owner_path: PathBuf,
-    owner_namespace: Vec<String>,
-    reason: &'static str,
-    evidence: Vec<RustVerificationEvidence>,
+    spec: ProfileReviewTaskSpec<'_>,
     policy: &RustVerificationPolicy,
 ) -> RustVerificationTask {
     new_skill_task(
@@ -306,12 +325,16 @@ fn new_profile_review_task(
         package_root,
         VerificationTaskSpec {
             kind: RustVerificationTaskKind::ResponsibilityReview,
-            owner_path,
-            owner_namespace,
+            owner_path: spec.owner_path,
+            owner_namespace: spec.owner_namespace,
             line: None,
-            reason: reason.to_string(),
-            contract: task_contract(policy, RustVerificationTaskKind::ResponsibilityReview),
-            evidence,
+            reason: spec.reason.to_string(),
+            contract: task_contract_for_profile(
+                policy,
+                spec.hint,
+                RustVerificationTaskKind::ResponsibilityReview,
+            ),
+            evidence: spec.evidence,
         },
         policy,
     )
@@ -512,6 +535,15 @@ fn task_kinds_for_responsibilities(
         .collect()
 }
 
+fn task_kinds_for_profile(
+    hint: &RustVerificationProfileHint,
+    policy: &RustVerificationPolicy,
+) -> BTreeSet<RustVerificationTaskKind> {
+    hint.task_kinds
+        .clone()
+        .unwrap_or_else(|| task_kinds_for_responsibilities(&hint.responsibilities, policy))
+}
+
 fn default_task_kinds_for_responsibility(
     responsibility: RustOwnerResponsibility,
 ) -> BTreeSet<RustVerificationTaskKind> {
@@ -534,7 +566,14 @@ fn default_task_kinds_for_responsibility(
 fn profile_task_reason(
     kind: RustVerificationTaskKind,
     responsibilities: &BTreeSet<RustOwnerResponsibility>,
+    uses_owner_task_override: bool,
 ) -> String {
+    if uses_owner_task_override {
+        return format!(
+            "owner profile explicitly requests {} verification",
+            kind.as_str()
+        );
+    }
     if responsibilities.iter().any(|responsibility| {
         default_task_kinds_for_responsibility(*responsibility).contains(&kind)
     }) {
@@ -565,14 +604,13 @@ fn default_profile_task_reason(kind: RustVerificationTaskKind) -> &'static str {
     }
 }
 
-fn task_contract(
+fn task_contract_for_profile(
     policy: &RustVerificationPolicy,
+    hint: Option<&RustVerificationProfileHint>,
     kind: RustVerificationTaskKind,
 ) -> RustVerificationTaskContract {
-    policy
-        .task_contract_overrides
-        .get(&kind)
-        .cloned()
+    hint.and_then(|hint| hint.task_contract_overrides.get(&kind).cloned())
+        .or_else(|| policy.task_contract_overrides.get(&kind).cloned())
         .unwrap_or_else(|| default_task_contract(kind))
 }
 

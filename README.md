@@ -177,30 +177,46 @@ config hints, so incorrect responsibility declarations become
 believes.
 
 The verification surface is configurable through the same library config. A
-project can remap a responsibility to different task kinds, suppress a default
-task by mapping to an empty set, or override a task contract with project-owned
-evidence keys:
+project can define global defaults, then let an Agent narrow one owner profile
+when the task boundary is more specific than the global mapping. This lets the
+Agent say "this owner is a public API, but this change needs security
+evidence, not stress evidence", or "this owner has no external verification
+task in this slice", without changing unrelated owners.
 
 ```rust
 use rust_lang_project_harness::{
-    RustOwnerResponsibility, RustVerificationPhase, RustVerificationRequirement,
-    RustVerificationTaskContract, RustVerificationTaskKind, default_rust_harness_config,
+    RustOwnerResponsibility, RustVerificationPhase, RustVerificationProfileHint,
+    RustVerificationRequirement, RustVerificationTaskContract, RustVerificationTaskKind,
+    default_rust_harness_config,
 };
 
 let config = default_rust_harness_config()
-    .with_verification_responsibility_task_kinds(
-        RustOwnerResponsibility::PublicApi,
-        [RustVerificationTaskKind::Security],
+    .with_verification_profile_hint(
+        RustVerificationProfileHint::new("src/api.rs", [RustOwnerResponsibility::PublicApi])
+            .with_task_kinds([RustVerificationTaskKind::Security])
+            .with_task_contract(
+                RustVerificationTaskKind::Security,
+                RustVerificationTaskContract::new(
+                    RustVerificationPhase::BeforeRelease,
+                    "security skill must report tenant authz probes for this fingerprint",
+                    [RustVerificationRequirement::new(
+                        "tenant_authz",
+                        "tenant authz probe result",
+                    )],
+                ),
+            ),
     )
-    .with_verification_task_contract(
-        RustVerificationTaskKind::Security,
-        RustVerificationTaskContract::new(
-            RustVerificationPhase::BeforeRelease,
-            "security skill must report tenant authz probes for this fingerprint",
-            [RustVerificationRequirement::new("tenant_authz", "tenant authz probe result")],
-        ),
+    .with_verification_responsibility_task_kinds(
+        RustOwnerResponsibility::LatencySensitive,
+        [RustVerificationTaskKind::Stress],
     );
 ```
+
+Global responsibility mappings and task contracts remain available for project
+defaults. Owner-local `RustVerificationProfileHint::with_task_kinds()` and
+`with_task_contract()` win only for that profile. Passing an empty task-kind set,
+or using `without_verification_tasks()`, suppresses profile-derived reminders
+for that owner while receipts and waivers still operate by task fingerprint.
 
 For workspaces, profile hint paths can be package-relative (`src/api.rs`) or
 workspace-root-relative (`crates/api/src/api.rs`). Task fingerprints include the

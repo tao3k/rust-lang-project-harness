@@ -71,13 +71,17 @@ Verification config stays library-first. It does not introduce CLI flags or
 TOML precedence. Embedding projects can adjust the verification contract through
 `RustHarnessConfig` or `RustVerificationPolicy`.
 
-There are two configurable layers:
+There are three configurable layers:
 
 - Responsibility mapping: choose which task kinds a declared responsibility
   triggers. Mapping a responsibility to an empty set suppresses the default
   task for that responsibility.
-- Task contract: override the phase, receipt contract, and structured evidence
-  keys for a task kind.
+- Global task contract: override the phase, receipt contract, and structured
+  evidence keys for a task kind across the project.
+- Owner profile override: let one owner choose its exact task kinds and
+  contracts. This is the Agent-facing layer for declaring that a concrete
+  module needs stress, security, chaos, regression, or no external skill in the
+  current responsibility boundary.
 
 ```rust
 use rust_lang_project_harness::{
@@ -87,26 +91,36 @@ use rust_lang_project_harness::{
 };
 
 let config = default_rust_harness_config()
-    .with_verification_profile_hint(RustVerificationProfileHint::new(
-        "src/api.rs",
-        [RustOwnerResponsibility::PublicApi],
-    ))
-    .with_verification_responsibility_task_kinds(
-        RustOwnerResponsibility::PublicApi,
-        [RustVerificationTaskKind::Security],
-    )
-    .with_verification_task_contract(
-        RustVerificationTaskKind::Security,
-        RustVerificationTaskContract::new(
-            RustVerificationPhase::BeforeRelease,
-            "security skill must report tenant authz probes for this fingerprint",
-            [RustVerificationRequirement::new(
-                "tenant_authz",
-                "tenant authz probe result",
-            )],
+    .with_verification_profile_hint(
+        RustVerificationProfileHint::new("src/api.rs", [RustOwnerResponsibility::PublicApi])
+            .with_task_kinds([RustVerificationTaskKind::Security])
+            .with_task_contract(
+                RustVerificationTaskKind::Security,
+                RustVerificationTaskContract::new(
+                    RustVerificationPhase::BeforeRelease,
+                    "security skill must report tenant authz probes for this fingerprint",
+                    [RustVerificationRequirement::new(
+                        "tenant_authz",
+                        "tenant authz probe result",
+                    )],
+                ),
+            ),
         ),
+    )
+    .with_verification_responsibility_task_kinds(
+        RustOwnerResponsibility::LatencySensitive,
+        [RustVerificationTaskKind::Stress],
     );
 ```
+
+Owner-local config wins over global defaults only for that profile. Use
+`RustVerificationProfileHint::with_task_kinds([...])` when the Agent can name
+the exact verification skill families for an owner. Use
+`RustVerificationProfileHint::without_verification_tasks()` when the owner is
+deliberately out of scope for external stress, chaos, security, or regression
+evidence in this slice. Receipts and waivers still clear tasks through
+fingerprints, so changing the owner-local task kinds or contracts invalidates
+stale evidence automatically.
 
 ## Task Families
 

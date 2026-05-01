@@ -363,6 +363,15 @@ pub struct RustVerificationProfileHint {
     pub owner_path: PathBuf,
     /// Declared responsibilities for this owner.
     pub responsibilities: BTreeSet<RustOwnerResponsibility>,
+    /// Explicit verification task kinds for this owner.
+    ///
+    /// `None` keeps the policy-derived responsibility mapping. `Some(empty)`
+    /// means this owner intentionally has no external verification task.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_kinds: Option<BTreeSet<RustVerificationTaskKind>>,
+    /// Owner-local contract overrides. These win over global policy overrides.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub task_contract_overrides: BTreeMap<RustVerificationTaskKind, RustVerificationTaskContract>,
     /// Optional compact rationale.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rationale: Option<String>,
@@ -378,8 +387,41 @@ impl RustVerificationProfileHint {
         Self {
             owner_path: owner_path.into(),
             responsibilities: responsibilities.into_iter().collect(),
+            task_kinds: None,
+            task_contract_overrides: BTreeMap::new(),
             rationale: None,
         }
+    }
+
+    /// Attach explicit verification task kinds for this owner.
+    ///
+    /// Passing an empty iterator suppresses profile-derived verification tasks
+    /// for this owner without changing global responsibility defaults.
+    #[must_use]
+    pub fn with_task_kinds<I>(mut self, task_kinds: I) -> Self
+    where
+        I: IntoIterator<Item = RustVerificationTaskKind>,
+    {
+        self.task_kinds = Some(task_kinds.into_iter().collect());
+        self
+    }
+
+    /// Mark this owner as having no external verification tasks.
+    #[must_use]
+    pub fn without_verification_tasks(mut self) -> Self {
+        self.task_kinds = Some(BTreeSet::new());
+        self
+    }
+
+    /// Attach an owner-local verification task contract override.
+    #[must_use]
+    pub fn with_task_contract(
+        mut self,
+        kind: RustVerificationTaskKind,
+        contract: RustVerificationTaskContract,
+    ) -> Self {
+        self.task_contract_overrides.insert(kind, contract);
+        self
     }
 
     /// Attach a compact rationale.
