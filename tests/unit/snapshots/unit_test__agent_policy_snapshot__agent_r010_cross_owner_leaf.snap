@@ -1,0 +1,18 @@
+---
+source: tests/unit/agent_policy_snapshot.rs
+expression: rendered
+---
+[ok] $TEMP/src rust
+Source: $TEMP/src
+Files: 5 Parsed: 5
+No blocking issues found.
+
+[advice]
+Issues: 1
+
+[AGENT-R010] Info: Owner branch imports another owner leaf
+   ,-[ $TEMP/src/ui.rs:2:1 ]
+ 2 | use crate::domain::leaf::Leaf;
+   | `- depend on the target owner branch instead of reaching into its leaf module
+   |Help: $TEMP/src/ui.rs imports leaf $TEMP/src/domain/leaf.rs across owner boundary.
+   |Contract: Depend on another owner through its branch boundary instead of importing leaf implementation modules directly.

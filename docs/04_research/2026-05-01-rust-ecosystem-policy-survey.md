@@ -115,7 +115,8 @@ Observed workspace pattern:
    of scanning raw strings.
 2. Defaults can be opinionated for LLM-generated code, but every rule that
    conflicts with common Rust practice needs library-level configuration. The
-   current `disabled_rules` and `rule_severity_overrides` interface is the right
+   current `disabled_rules` and `rule_severity_overrides` interface, plus
+   library-only rule-pack helpers that expand into those fields, is the right
    first boundary.
 3. The next parser-native improvement should classify native `use` statements by
    context: source root vs package target vs test root, top-level vs nested,

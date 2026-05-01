@@ -68,6 +68,77 @@ pub struct RulePackDescriptor {
     pub default_mode: &'static str,
 }
 
+/// Built-in rule packs that can be configured as a group.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RustRulePack {
+    /// Syntax parsing rules.
+    Syntax,
+    /// Project-level harness and test-layout policy.
+    ProjectPolicy,
+    /// Rust source modularity and ownership policy.
+    Modularity,
+    /// Non-blocking repair advice for agents.
+    AgentPolicy,
+}
+
+impl RustRulePack {
+    /// Return the stable rule-pack id.
+    #[must_use]
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Syntax => "rust.syntax",
+            Self::ProjectPolicy => "rust.project_policy",
+            Self::Modularity => "rust.modularity",
+            Self::AgentPolicy => "rust.agent_policy",
+        }
+    }
+
+    /// Return all stable rule ids owned by this built-in pack.
+    #[must_use]
+    pub const fn rule_ids(self) -> &'static [&'static str] {
+        match self {
+            Self::Syntax => &["RUST-SYN-R001"],
+            Self::ProjectPolicy => &[
+                "RUST-PROJ-R001",
+                "RUST-PROJ-R002",
+                "RUST-PROJ-R003",
+                "RUST-PROJ-R004",
+                "RUST-PROJ-R005",
+                "RUST-PROJ-R006",
+                "RUST-PROJ-R007",
+                "RUST-PROJ-R008",
+                "RUST-PROJ-R009",
+            ],
+            Self::Modularity => &[
+                "RUST-MOD-R001",
+                "RUST-MOD-R002",
+                "RUST-MOD-R003",
+                "RUST-MOD-R004",
+                "RUST-MOD-R005",
+                "RUST-MOD-R006",
+                "RUST-MOD-R007",
+                "RUST-MOD-R008",
+                "RUST-MOD-R009",
+                "RUST-MOD-R010",
+            ],
+            Self::AgentPolicy => &[
+                "AGENT-R001",
+                "AGENT-R002",
+                "AGENT-R003",
+                "AGENT-R004",
+                "AGENT-R005",
+                "AGENT-R006",
+                "AGENT-R007",
+                "AGENT-R008",
+                "AGENT-R009",
+                "AGENT-R010",
+                "AGENT-R011",
+            ],
+        }
+    }
+}
+
 /// Compact rule metadata.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RustHarnessRule {
@@ -268,6 +339,18 @@ impl RustHarnessConfig {
         self
     }
 
+    /// Return a config with every rule in one built-in pack disabled.
+    #[must_use]
+    pub fn with_disabled_rule_pack(mut self, rule_pack: RustRulePack) -> Self {
+        self.disabled_rules.extend(
+            rule_pack
+                .rule_ids()
+                .iter()
+                .map(|rule_id| (*rule_id).to_string()),
+        );
+        self
+    }
+
     /// Return a config with one rule severity overridden.
     #[must_use]
     pub fn with_rule_severity(
@@ -277,6 +360,22 @@ impl RustHarnessConfig {
     ) -> Self {
         self.rule_severity_overrides
             .insert(rule_id.into(), severity);
+        self
+    }
+
+    /// Return a config with every rule in one built-in pack assigned a severity.
+    #[must_use]
+    pub fn with_rule_pack_severity(
+        mut self,
+        rule_pack: RustRulePack,
+        severity: RustDiagnosticSeverity,
+    ) -> Self {
+        self.rule_severity_overrides.extend(
+            rule_pack
+                .rule_ids()
+                .iter()
+                .map(|rule_id| ((*rule_id).to_string(), severity)),
+        );
         self
     }
 

@@ -73,11 +73,14 @@ Policy findings are configurable through `RustHarnessConfig` after rule
 evaluation and before the report is returned. `disabled_rules` removes matching
 rule ids from the final finding list, while `rule_severity_overrides` changes a
 matching finding's severity for that run. The `with_disabled_rule`,
-`with_disabled_rules`, `with_rule_severity`, and `with_blocking_severities`
-builder methods provide the stable library API for those controls. This keeps
-the default catalogs deterministic while giving downstream crates a narrow way
-to turn a rule into advisory output or suppress a rule they have intentionally
-replaced with local policy.
+`with_disabled_rules`, `with_disabled_rule_pack`, `with_rule_severity`,
+`with_rule_pack_severity`, and `with_blocking_severities` builder methods
+provide the stable library API for those controls. Pack-level helpers use the
+`RustRulePack` enum and expand into the same rule-id collections, so the
+serialized config shape remains unchanged. This keeps the default catalogs
+deterministic while giving downstream crates a narrow way to turn a rule or pack
+into advisory output or suppress rules they have intentionally replaced with
+local policy.
 
 ## Explicit-Path Runner
 

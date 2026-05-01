@@ -98,6 +98,9 @@ and are not blocking by default.
 - `AGENT-R006`: public module name is a generic bucket such as `utils`, `common`, `helpers`, or `shared`
 - `AGENT-R007`: source module file or directory path uses a generic bucket segment
 - `AGENT-R008`: branch module owns multiple resolved child edges without a reasoning-tree intent doc
+- `AGENT-R009`: owner dependency graph contains a local owner cycle
+- `AGENT-R010`: owner branch imports another owner's leaf implementation module
+- `AGENT-R011`: branch module fans out to three or more local owners without an intent doc
 
 ## Rendered Diagnostic Policy
 
@@ -150,7 +153,11 @@ bucket modules such as `pub mod utils;`; those names are often where
 LLM-generated code loses a real owner boundary without violating Rust syntax,
 rustfmt, or Clippy. `AGENT-R007` catches the same drift at the file system
 level, such as `src/helpers.rs` or `src/common/mod.rs`, even when the module is
-private.
+private. `AGENT-R009`, `AGENT-R010`, and `AGENT-R011` consume parser-derived
+owner dependency edges. They stay advisory because Rust permits these import
+shapes, but they are high-signal LLM repair risks: circular owner reasoning,
+reaching into another owner's leaf module, and fan-out branches without local
+intent documentation.
 
 ## Reasoning Tree Policy
 
@@ -160,12 +167,13 @@ leaf implementation files. Parser reasoning facts also summarize each owner
 branch's import roots (`crate`, `self`, `parent`, `external`, plus
 glob/deep/test markers) and local owner dependency edges for compact agent
 snapshots. The reasoning tree also exposes package-level owner dependency
-edges, such as `src/lib.rs --crate--> src/domain.rs`. `RUST-MOD-R008` keeps
-those branches file-backed by rejecting inline source modules outside special
-entrypoints and `#[cfg(test)]` test modules. `RUST-MOD-R009` then verifies
-parser-owned module-tree facts: a scanned source file must be reachable from
-crate roots or binary roots through external `mod` declarations, explicit
-`#[path]` mounts, or literal `include!` source shards. `AGENT-R008` adds
-non-blocking advice when a branch file has multiple resolved child edges without
-a `//!` intent doc, because agents need a local navigation summary before they
-choose which subtree to edit.
+edges, such as `src/lib.rs --crate--> src/domain.rs`, while retaining source
+line and test-context metadata. `RUST-MOD-R008` keeps those branches file-backed
+by rejecting inline source modules outside special entrypoints and `#[cfg(test)]`
+test modules. `RUST-MOD-R009` then verifies parser-owned module-tree facts: a
+scanned source file must be reachable from crate roots or binary roots through
+external `mod` declarations, explicit `#[path]` mounts, or literal `include!`
+source shards. `AGENT-R008` adds non-blocking advice when a branch file has
+multiple resolved child edges without a `//!` intent doc, because agents need a
+local navigation summary before they choose which subtree to edit. Dependency
+graph agent rules ignore edges observed only inside `#[cfg(test)]` context.

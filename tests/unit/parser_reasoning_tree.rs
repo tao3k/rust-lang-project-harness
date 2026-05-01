@@ -14,6 +14,8 @@ type DependencyEdge = (
     std::path::PathBuf,
     Vec<String>,
     RustUseImportRootKind,
+    usize,
+    bool,
 );
 
 #[test]
@@ -80,6 +82,8 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
             src.join("domain.rs"),
             vec!["src".to_string(), "domain".to_string()],
             RustUseImportRootKind::Crate,
+            2,
+            false,
         )]
     );
     assert_eq!(
@@ -122,6 +126,8 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
             src.join("domain/leaf.rs"),
             vec!["src".to_string(), "domain".to_string(), "leaf".to_string()],
             RustUseImportRootKind::SelfScope,
+            2,
+            false,
         )]
     );
     assert_eq!(
@@ -133,6 +139,8 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
                 src.join("domain.rs"),
                 vec!["src".to_string(), "domain".to_string()],
                 RustUseImportRootKind::Crate,
+                2,
+                false,
             ),
             (
                 src.join("domain.rs"),
@@ -140,6 +148,8 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
                 src.join("domain/leaf.rs"),
                 vec!["src".to_string(), "domain".to_string(), "leaf".to_string()],
                 RustUseImportRootKind::SelfScope,
+                2,
+                false,
             ),
         ]
     );
@@ -228,6 +238,65 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
 }
 
 #[test]
+fn reasoning_tree_deduplicates_owner_dependencies_by_context_and_keeps_earliest_line() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    let src = root.join("src");
+    fs::create_dir_all(&src).expect("create source tree");
+    fs::write(
+        src.join("lib.rs"),
+        "//! Crate facade.\nuse crate::domain::Thing;\nuse crate::domain::Other;\nmod domain;\n#[cfg(test)]\nmod tests {\n    use crate::domain::Thing;\n}\n",
+    )
+    .expect("write lib");
+    fs::write(src.join("domain.rs"), "//! Domain branch.\n").expect("write domain");
+
+    let modules = [
+        parse_rust_file(&src.join("lib.rs")),
+        parse_rust_file(&src.join("domain.rs")),
+    ];
+    let scope = RustProjectHarnessScope {
+        project_root: root.to_path_buf(),
+        source_paths: vec![src.clone()],
+        test_paths: Vec::new(),
+        package_paths: Vec::new(),
+        fallback_paths: vec![root.to_path_buf()],
+    };
+
+    let reasoning_tree = rust_reasoning_tree_facts(&scope, &modules);
+    let lib = reasoning_tree
+        .module(&src.join("lib.rs"))
+        .expect("lib facts");
+
+    assert_eq!(
+        dependency_edges(lib),
+        vec![
+            (
+                src.join("lib.rs"),
+                vec!["src".to_string()],
+                src.join("domain.rs"),
+                vec!["src".to_string(), "domain".to_string()],
+                RustUseImportRootKind::Crate,
+                2,
+                false,
+            ),
+            (
+                src.join("lib.rs"),
+                vec!["src".to_string()],
+                src.join("domain.rs"),
+                vec!["src".to_string(), "domain".to_string()],
+                RustUseImportRootKind::Crate,
+                7,
+                true,
+            ),
+        ]
+    );
+    assert_eq!(
+        dependency_edges(lib),
+        tree_dependency_edges(&reasoning_tree)
+    );
+}
+
+#[test]
 fn reasoning_tree_marks_test_root_modules_as_test_sources() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
@@ -297,6 +366,8 @@ fn dependency_edges(module: &crate::parser::RustReasoningModuleFacts) -> Vec<Dep
                 dependency.target_path.clone(),
                 dependency.target_namespace.clone(),
                 dependency.via_root,
+                dependency.line,
+                dependency.is_test_context,
             )
         })
         .collect()
@@ -312,6 +383,8 @@ fn tree_dependency_edges(tree: &crate::parser::RustReasoningTreeFacts) -> Vec<De
                 dependency.target_path.clone(),
                 dependency.target_namespace.clone(),
                 dependency.via_root,
+                dependency.line,
+                dependency.is_test_context,
             )
         })
         .collect()

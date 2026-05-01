@@ -69,6 +69,16 @@ pub(crate) struct RustReasoningOwnerDependencyFacts {
     pub(crate) target_path: PathBuf,
     pub(crate) target_namespace: Vec<String>,
     pub(crate) via_root: RustUseImportRootKind,
+    pub(crate) line: usize,
+    pub(crate) is_test_context: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct RustReasoningOwnerDependencyKey {
+    source_path: PathBuf,
+    target_path: PathBuf,
+    via_root: RustUseImportRootKind,
+    is_test_context: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -180,15 +190,12 @@ fn owner_dependency_facts(
 ) -> Vec<RustReasoningOwnerDependencyFacts> {
     let mut dependencies = modules
         .iter()
-        .flat_map(|module| {
-            module
-                .import_summary
-                .local_owner_dependencies
-                .iter()
-                .cloned()
+        .flat_map(|module| module.import_summary.local_owner_dependencies.iter())
+        .fold(BTreeMap::new(), |mut dependencies, dependency| {
+            merge_owner_dependency(&mut dependencies, dependency.clone());
+            dependencies
         })
-        .collect::<BTreeSet<_>>()
-        .into_iter()
+        .into_values()
         .collect::<Vec<_>>();
     dependencies.sort_by(|left, right| {
         left.source_namespace
@@ -223,7 +230,8 @@ fn import_summary(
 ) -> RustReasoningImportFacts {
     let mut summary = RustReasoningImportFacts::default();
     let mut local_owner_imports = BTreeSet::<Vec<String>>::new();
-    let mut local_owner_dependencies = BTreeSet::<RustReasoningOwnerDependencyFacts>::new();
+    let mut local_owner_dependencies =
+        BTreeMap::<RustReasoningOwnerDependencyKey, RustReasoningOwnerDependencyFacts>::new();
     for use_statement in &module.syntax_facts.use_statements {
         let import_count = use_statement.imports.len();
         summary.total_imports += import_count;
@@ -252,15 +260,17 @@ fn import_summary(
                 &module_facts.path,
                 &module_facts.source_path.namespace_components,
                 import,
+                use_statement.line,
+                use_statement.context.is_inside_cfg_test_module,
                 known_module_namespace_paths,
             ) {
                 local_owner_imports.insert(dependency.target_namespace.clone());
-                local_owner_dependencies.insert(dependency);
+                merge_owner_dependency(&mut local_owner_dependencies, dependency);
             }
         }
     }
     summary.local_owner_imports = local_owner_imports.into_iter().collect();
-    summary.local_owner_dependencies = local_owner_dependencies.into_iter().collect();
+    summary.local_owner_dependencies = local_owner_dependencies.into_values().collect();
     summary
 }
 
@@ -268,6 +278,8 @@ fn local_owner_dependency(
     current_path: &Path,
     current_namespace: &[String],
     import: &RustUseImportSyntax,
+    line: usize,
+    is_test_context: bool,
     known_module_namespace_paths: &BTreeMap<Vec<String>, PathBuf>,
 ) -> Option<RustReasoningOwnerDependencyFacts> {
     let candidate = local_import_candidate_namespace(current_namespace, import)?;
@@ -283,7 +295,29 @@ fn local_owner_dependency(
         target_path,
         target_namespace,
         via_root: import.root_kind,
+        line,
+        is_test_context,
     })
+}
+
+fn merge_owner_dependency(
+    dependencies: &mut BTreeMap<RustReasoningOwnerDependencyKey, RustReasoningOwnerDependencyFacts>,
+    dependency: RustReasoningOwnerDependencyFacts,
+) {
+    let key = RustReasoningOwnerDependencyKey {
+        source_path: dependency.source_path.clone(),
+        target_path: dependency.target_path.clone(),
+        via_root: dependency.via_root,
+        is_test_context: dependency.is_test_context,
+    };
+    dependencies
+        .entry(key)
+        .and_modify(|existing| {
+            if dependency.line < existing.line {
+                *existing = dependency.clone();
+            }
+        })
+        .or_insert(dependency);
 }
 
 fn local_import_candidate_namespace(

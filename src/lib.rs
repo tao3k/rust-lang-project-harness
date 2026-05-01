@@ -35,7 +35,8 @@ pub use cli::run_cli_from_env;
 pub use discovery::{DEFAULT_IGNORED_DIR_NAMES, discover_rust_files, rust_project_harness_scope};
 pub use model::{
     RulePackDescriptor, RustDiagnosticSeverity, RustHarnessConfig, RustHarnessFinding,
-    RustHarnessReport, RustHarnessRule, RustModuleReport, RustProjectHarnessScope, SourceLocation,
+    RustHarnessReport, RustHarnessRule, RustModuleReport, RustProjectHarnessScope, RustRulePack,
+    SourceLocation,
 };
 pub use render::{
     render_rust_project_harness, render_rust_project_harness_advice,

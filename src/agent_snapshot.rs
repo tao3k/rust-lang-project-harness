@@ -64,17 +64,22 @@ pub fn render_rust_project_harness_agent_snapshot_with_config(
         let parsed_modules = parse_scope(&scope, config);
         let findings =
             evaluate_default_rule_packs_with_config(Some(&scope), &parsed_modules, config);
-        package_snapshots.push(render_package_snapshot(
+        let package_snapshot = render_package_snapshot(
+            project_root,
             &scope,
             &parsed_modules,
             &findings,
             include_package_heading,
-        ));
+        );
+        if !package_snapshot.is_empty() {
+            package_snapshots.push(package_snapshot);
+        }
     }
     Ok(package_snapshots.join("\n"))
 }
 
 fn render_package_snapshot(
+    snapshot_root: &Path,
     scope: &RustProjectHarnessScope,
     parsed_modules: &[crate::parser::ParsedRustModule],
     findings: &[RustHarnessFinding],
@@ -96,12 +101,15 @@ fn render_package_snapshot(
         .iter()
         .filter(|module| module.is_source_module && !module.declared_child_edges.is_empty())
         .count();
+    if source_module_count == 0 && findings.is_empty() {
+        return String::new();
+    }
     let mut rendered = String::new();
     if include_package_heading {
         let _ = writeln!(
             rendered,
-            "Package: {}",
-            display_project_path(&reasoning_tree.package_root, &reasoning_tree.package_root)
+            "pkg {}",
+            display_project_path(snapshot_root, &reasoning_tree.package_root)
         );
     }
     let _ = writeln!(

@@ -126,11 +126,12 @@ Library callers can tune policy without changing the default rule catalogs:
 use std::path::Path;
 
 use rust_lang_project_harness::{
-    RustDiagnosticSeverity, default_rust_harness_config,
+    RustDiagnosticSeverity, RustRulePack, default_rust_harness_config,
     run_rust_project_harness_with_config,
 };
 
 let config = default_rust_harness_config()
+    .with_rule_pack_severity(RustRulePack::Modularity, RustDiagnosticSeverity::Info)
     .with_rule_severity("RUST-MOD-R010", RustDiagnosticSeverity::Info)
     .with_disabled_rule("AGENT-R008");
 let report =
@@ -148,7 +149,7 @@ project execution runs these packs in descriptor order:
 - `rust.syntax`: blocks files that cannot be parsed by `syn`
 - `rust.project_policy`: checks test layout, explicit test mounts, gate coverage, and thin root test targets
 - `rust.modularity`: checks `lib.rs`/`mod.rs` facades, thin binary/build entrypoints, and source-shape drift
-- `rust.agent_policy`: emits `AGENT-R001..R008` non-blocking advice for LLM repair
+- `rust.agent_policy`: emits `AGENT-R001..R011` non-blocking advice for LLM repair
 
 Rendered diagnostics are intentionally compact: rule id, source location,
 highlighted source line when available, one short source pointer, `Help:`, and

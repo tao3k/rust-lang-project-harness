@@ -3,7 +3,7 @@ rust_lang_project_harness::rust_project_harness_gate!();
 #[path = "unit/cli.rs"]
 mod cli;
 
-#[path = "unit/public_api.rs"]
+#[path = "unit/public_api/mod.rs"]
 mod public_api;
 
 #[path = "unit/policy_contract.rs"]

@@ -13,6 +13,7 @@ fn rust_reasoning_tree_facts_are_the_policy_facing_parser_layer() {
     assert!(parser_source.contains("local_owner_imports"));
     assert!(parser_source.contains("owner_dependencies"));
     assert!(parser_source.contains("RustReasoningOwnerDependencyFacts"));
+    assert!(parser_source.contains("is_test_context"));
     assert!(parser_source.contains("owner_branches"));
     assert!(parser_source.contains("RustReasoningOwnerBranchFacts"));
     assert!(

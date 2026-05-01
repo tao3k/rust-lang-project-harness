@@ -33,6 +33,39 @@ fn agent_reasoning_tree_snapshot_groups_owner_branches() {
     );
 }
 
+#[test]
+fn agent_reasoning_tree_snapshot_compacts_workspace_packages() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"crates/*\"]\n",
+    )
+    .expect("write workspace manifest");
+    let active = root.join("crates/active");
+    let empty = root.join("crates/empty");
+    fs::create_dir_all(active.join("src")).expect("create active src");
+    fs::create_dir_all(&empty).expect("create empty crate");
+    write_manifest(&active, "active");
+    write_manifest(&empty, "empty");
+    fs::write(
+        active.join("src/lib.rs"),
+        "//! Active crate.\nuse crate::domain::Thing;\nmod domain;\n",
+    )
+    .expect("write active lib");
+    fs::write(
+        active.join("src/domain.rs"),
+        "//! Domain owner.\n/// Domain thing.\npub struct Thing;\n",
+    )
+    .expect("write active domain");
+
+    let rendered = render_rust_project_harness_agent_snapshot(root).expect("render snapshot");
+    let rendered = normalize_temp_root(&rendered, root);
+
+    assert!(!rendered.contains("crates/empty"), "{rendered}");
+    insta::assert_snapshot!("agent_reasoning_tree_workspace_snapshot", rendered);
+}
+
 fn normalize_temp_root(rendered: &str, root: &Path) -> String {
     let root_text = root.display().to_string();
     rendered
