@@ -56,6 +56,9 @@ members have the same owner path.
 The compact renderer only prints active tasks. A passed receipt or complete
 waiver makes the matching task disappear from this channel. Structured callers
 can keep the full task state through `render_rust_verification_plan_json()`.
+If a receipt or waiver is present but cannot clear the task, the active task
+keeps rendering with a `resolution:` line so the Agent knows what still needs to
+be fixed.
 
 ## Task Families
 
@@ -100,6 +103,8 @@ let waiver = RustVerificationWaiver::new(
 Waivers must carry an owner, reason, and expiry string. In this stage the harness
 checks completeness and fingerprint identity; expiry interpretation remains owned
 by the embedding project.
+An incomplete waiver does not clear the task; compact output records the missing
+fields as resolution feedback.
 
 ## Agent-First Output
 

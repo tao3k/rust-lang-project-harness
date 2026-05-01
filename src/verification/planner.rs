@@ -17,8 +17,8 @@ use super::fingerprint::verification_task_fingerprint;
 use super::{
     RustOwnerResponsibility, RustVerificationEvidence, RustVerificationPhase, RustVerificationPlan,
     RustVerificationPolicy, RustVerificationProfileHint, RustVerificationReceipt,
-    RustVerificationReceiptStatus, RustVerificationTask, RustVerificationTaskKind,
-    RustVerificationTaskState, RustVerificationWaiver,
+    RustVerificationReceiptStatus, RustVerificationResolutionNote, RustVerificationTask,
+    RustVerificationTaskKind, RustVerificationTaskState, RustVerificationWaiver,
 };
 
 struct VerificationTaskSpec {
@@ -398,6 +398,7 @@ fn new_skill_task(
         reason: spec.reason.to_string(),
         required_receipt: spec.required_receipt.to_string(),
         evidence: spec.evidence,
+        resolution_notes: Vec::new(),
         receipt_summary: None,
         waiver_reason: None,
     };
@@ -415,6 +416,13 @@ fn apply_task_resolution(task: &mut RustVerificationTask, policy: &RustVerificat
         task.state = RustVerificationTaskState::Waived;
         task.waiver_reason = Some(waiver.reason.clone());
         return;
+    }
+    if let Some(waiver) = incomplete_matching_waiver(task, policy) {
+        task.resolution_notes
+            .push(RustVerificationResolutionNote::new(
+                "waiver",
+                incomplete_waiver_detail(waiver),
+            ));
     }
     if let Some(receipt) = matching_receipt(task, policy, RustVerificationReceiptStatus::Failed) {
         task.state = RustVerificationTaskState::Failed;
@@ -442,6 +450,30 @@ fn matching_waiver<'a>(
         .waivers
         .iter()
         .find(|waiver| waiver.task_fingerprint == task.fingerprint && waiver.is_complete())
+}
+
+fn incomplete_matching_waiver<'a>(
+    task: &RustVerificationTask,
+    policy: &'a RustVerificationPolicy,
+) -> Option<&'a RustVerificationWaiver> {
+    policy
+        .waivers
+        .iter()
+        .find(|waiver| waiver.task_fingerprint == task.fingerprint && !waiver.is_complete())
+}
+
+fn incomplete_waiver_detail(waiver: &RustVerificationWaiver) -> String {
+    let mut missing_fields = Vec::new();
+    if waiver.owner.trim().is_empty() {
+        missing_fields.push("owner");
+    }
+    if waiver.reason.trim().is_empty() {
+        missing_fields.push("reason");
+    }
+    if waiver.expires_at.trim().is_empty() {
+        missing_fields.push("expires_at");
+    }
+    format!("incomplete: missing {}", missing_fields.join(","))
 }
 
 fn receipt_summary(receipt: &RustVerificationReceipt) -> String {

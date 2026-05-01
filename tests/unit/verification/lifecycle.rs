@@ -122,6 +122,34 @@ fn complete_verification_waiver_clears_matching_task() {
 }
 
 #[test]
+fn incomplete_verification_waiver_keeps_task_active_with_resolution_note() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_api_project(root);
+    let config = public_api_profile_config();
+    let initial_plan = plan_rust_project_verification_with_config(root, &config).expect("plan");
+    let task = initial_plan.active_tasks()[0];
+    let incomplete_config = public_api_profile_config().with_verification_waiver(
+        RustVerificationWaiver::new(task.fingerprint.clone(), "", "", ""),
+    );
+
+    let plan = plan_rust_project_verification_with_config(root, &incomplete_config).expect("plan");
+    let stress = plan
+        .tasks
+        .iter()
+        .find(|task| task.kind == RustVerificationTaskKind::Stress)
+        .expect("stress task");
+    let rendered = render_rust_verification_plan(&plan);
+
+    assert_eq!(stress.state, RustVerificationTaskState::Pending);
+    assert!(!plan.is_clear());
+    assert!(
+        rendered.contains("resolution: waiver=incomplete: missing owner,reason,expires_at"),
+        "{rendered}"
+    );
+}
+
+#[test]
 fn parser_facts_can_reject_wrong_responsibility_profile() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
@@ -196,4 +224,5 @@ fn verification_json_preserves_structured_plan_fields() {
     assert_eq!(value["tasks"][0]["state"], "pending");
     assert_eq!(value["tasks"][0]["owner_namespace"][0], "src");
     assert_eq!(value["tasks"][0]["owner_namespace"][1], "api");
+    assert!(value["tasks"][0]["resolution_notes"].is_null());
 }

@@ -178,6 +178,9 @@ pub struct RustVerificationTask {
     pub required_receipt: String,
     /// Parser/profile evidence used to produce the task.
     pub evidence: Vec<RustVerificationEvidence>,
+    /// Why supplied resolution inputs did not clear the task.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub resolution_notes: Vec<RustVerificationResolutionNote>,
     /// Matching receipt summary, when one was supplied.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub receipt_summary: Option<String>,
@@ -191,6 +194,26 @@ impl RustVerificationTask {
     #[must_use]
     pub fn is_active(&self) -> bool {
         self.state.is_active()
+    }
+}
+
+/// Compact explanation for a receipt or waiver that did not clear a task.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct RustVerificationResolutionNote {
+    /// Resolution input category.
+    pub label: String,
+    /// Why it did not clear the task.
+    pub detail: String,
+}
+
+impl RustVerificationResolutionNote {
+    /// Build one resolution note.
+    #[must_use]
+    pub fn new(label: impl Into<String>, detail: impl Into<String>) -> Self {
+        Self {
+            label: label.into(),
+            detail: detail.into(),
+        }
     }
 }
 

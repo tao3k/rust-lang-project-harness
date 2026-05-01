@@ -8,8 +8,8 @@ mod render;
 pub use model::{
     RustOwnerResponsibility, RustVerificationEvidence, RustVerificationPhase, RustVerificationPlan,
     RustVerificationPolicy, RustVerificationProfileHint, RustVerificationReceipt,
-    RustVerificationReceiptStatus, RustVerificationTask, RustVerificationTaskKind,
-    RustVerificationTaskState, RustVerificationWaiver,
+    RustVerificationReceiptStatus, RustVerificationResolutionNote, RustVerificationTask,
+    RustVerificationTaskKind, RustVerificationTaskState, RustVerificationWaiver,
 };
 pub use planner::{
     plan_rust_project_verification, plan_rust_project_verification_with_config,

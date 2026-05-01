@@ -52,6 +52,9 @@ fn render_task(task: &RustVerificationTask, display_root: &Path) -> String {
     if let Some(summary) = &task.receipt_summary {
         let _ = writeln!(rendered, "   |receipt: {summary}");
     }
+    for note in &task.resolution_notes {
+        let _ = writeln!(rendered, "   |resolution: {}={}", note.label, note.detail);
+    }
     for fact in &task.evidence {
         let _ = writeln!(rendered, "   |fact: {}={}", fact.label, fact.value);
     }
