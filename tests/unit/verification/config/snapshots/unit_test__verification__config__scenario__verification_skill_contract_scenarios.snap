@@ -1,0 +1,68 @@
+---
+source: tests/unit/verification/config/scenario.rs
+assertion_line: 121
+expression: rendered
+---
+[scenario] stress_k6_triggered_by_public_api
+   |kind: stress
+   |resolution: none
+   |initial: active=1 state=pending contract_ref=rust-verification-stress@k6
+   |final: active=1 state=pending contract_ref=rust-verification-stress@k6
+   |verify: [verify] src/api.rs
+   |verify:    |owner: src/api
+   |verify:    |stress: pending phase=after_unit_tests_pass fingerprint=rustv:b9654e9e1352f015 skill=rust-verification-stress@k6 contract_ref=rust-verification-stress@k6
+   |contracts: [skill-contract] rust-verification-stress@k6
+   |contracts:    |tool: k6
+   |contracts:    |run: k6 run <script>
+   |contracts:    |standard: scenarios define load shape; thresholds define pass/fail
+   |contracts:    |inputs: script,target_url,scenario,thresholds
+   |contracts:    |pass: exit=0,thresholds=pass
+   |contracts:    |receipt: p50,p99,p999,load_steps,sla_result,artifact
+
+[scenario] performance_criterion_triggered_by_latency_sensitive
+   |kind: performance
+   |resolution: none
+   |initial: active=1 state=pending contract_ref=rust-verification-performance@criterion
+   |final: active=1 state=pending contract_ref=rust-verification-performance@criterion
+   |verify: [verify] src/api.rs
+   |verify:    |owner: src/api
+   |verify:    |performance: pending phase=after_unit_tests_pass fingerprint=rustv:07c5fef10ad0d802 skill=rust-verification-performance@criterion contract_ref=rust-verification-performance@criterion
+   |contracts: [skill-contract] rust-verification-performance@criterion
+   |contracts:    |tool: criterion
+   |contracts:    |run: cargo bench
+   |contracts:    |standard: statistical benchmark baseline detects runtime regression
+   |contracts:    |inputs: bench_target,baseline,regression_threshold
+   |contracts:    |pass: regression<=threshold
+   |contracts:    |receipt: benchmark_command,baseline,regression_threshold,latency_or_throughput,allocation_profile,profile_artifact
+
+[scenario] descriptor_config_without_responsibility_is_not_triggered
+   |kind: performance
+   |resolution: none
+   |initial: active=0 state=- contract_ref=-
+   |final: active=0 state=- contract_ref=-
+   |verify: -
+   |contracts: -
+
+[scenario] public_api_profile_suppressed_with_rationale_is_not_triggered
+   |kind: stress
+   |resolution: profile_suppressed
+   |initial: active=0 state=- contract_ref=-
+   |final: active=0 state=- contract_ref=-
+   |verify: -
+   |contracts: -
+
+[scenario] stress_k6_solved_by_passed_receipt
+   |kind: stress
+   |resolution: passed_receipt
+   |initial: active=1 state=pending contract_ref=rust-verification-stress@k6
+   |final: active=0 state=satisfied contract_ref=-
+   |verify: -
+   |contracts: -
+
+[scenario] performance_criterion_solved_by_complete_waiver
+   |kind: performance
+   |resolution: complete_waiver
+   |initial: active=1 state=pending contract_ref=rust-verification-performance@criterion
+   |final: active=0 state=waived contract_ref=-
+   |verify: -
+   |contracts: -
