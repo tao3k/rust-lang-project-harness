@@ -60,8 +60,9 @@ pub use verification::{
     RustOwnerResponsibility, RustVerificationEvidence, RustVerificationPhase, RustVerificationPlan,
     RustVerificationPolicy, RustVerificationProfileHint, RustVerificationReceipt,
     RustVerificationReceiptStatus, RustVerificationRequirement, RustVerificationResolutionNote,
-    RustVerificationTask, RustVerificationTaskContract, RustVerificationTaskKind,
-    RustVerificationTaskState, RustVerificationWaiver, plan_rust_project_verification,
-    plan_rust_project_verification_with_config, plan_rust_project_verification_with_policy,
-    render_rust_verification_plan, render_rust_verification_plan_json,
+    RustVerificationSkillBinding, RustVerificationTask, RustVerificationTaskContract,
+    RustVerificationTaskKind, RustVerificationTaskState, RustVerificationWaiver,
+    plan_rust_project_verification, plan_rust_project_verification_with_config,
+    plan_rust_project_verification_with_policy, render_rust_verification_plan,
+    render_rust_verification_plan_json,
 };

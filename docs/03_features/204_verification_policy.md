@@ -71,7 +71,7 @@ Verification config stays library-first. It does not introduce CLI flags or
 TOML precedence. Embedding projects can adjust the verification contract through
 `RustHarnessConfig` or `RustVerificationPolicy`.
 
-There are three configurable layers:
+There are four configurable layers:
 
 - Responsibility mapping: choose which task kinds a declared responsibility
   triggers. Mapping a responsibility to an empty set suppresses the default
@@ -82,12 +82,15 @@ There are three configurable layers:
   contracts. This is the Agent-facing layer for declaring that a concrete
   module needs stress, performance, security, chaos, regression, or no external
   skill in the current responsibility boundary.
+- Skill binding: bind a task kind to a configured Agent skill adapter. This is
+  the quiet dispatch layer; once present, compact output no longer repeats the
+  skill manual every run.
 
 ```rust
 use rust_lang_project_harness::{
     RustOwnerResponsibility, RustVerificationPhase, RustVerificationProfileHint,
-    RustVerificationRequirement, RustVerificationTaskContract, RustVerificationTaskKind,
-    default_rust_harness_config,
+    RustVerificationRequirement, RustVerificationSkillBinding,
+    RustVerificationTaskContract, RustVerificationTaskKind, default_rust_harness_config,
 };
 
 let config = default_rust_harness_config()
@@ -111,6 +114,11 @@ let config = default_rust_harness_config()
     .with_verification_responsibility_task_kinds(
         RustOwnerResponsibility::LatencySensitive,
         [RustVerificationTaskKind::Stress],
+    )
+    .with_verification_skill_binding(
+        RustVerificationTaskKind::Performance,
+        RustVerificationSkillBinding::new("rust-verification-performance")
+            .with_adapter("criterion"),
     );
 ```
 
@@ -129,6 +137,15 @@ removes, or suppresses task kinds without `with_rationale(...)`, the planner
 keeps a `responsibility_review` task active instead of silently trusting the
 configuration. The same review task is emitted when an owner-local contract is
 attached to a task kind that is not effective for that owner.
+
+Skill bindings are intentionally separate from task contracts. A contract says
+what evidence is required. A binding says the project already has a skill or
+adapter that knows how to produce that evidence. This avoids loading large skill
+Markdown on every run. If a binding is absent, compact text includes the
+fallback contract lines. If a binding is present, compact text emits only the
+task line with `skill=<id>` while JSON keeps `required_evidence` and
+`required_receipt` for structured consumers. The binding label participates in
+the task fingerprint, so switching adapters invalidates stale receipts.
 
 ## Task Families
 
@@ -202,3 +219,11 @@ the active obligation:
 ```
 
 When there are no active tasks, the compact string is empty.
+
+With a configured skill binding, the same active obligation is shorter:
+
+```text
+[verify] src/api.rs
+   |owner: src/api
+   |performance: pending phase=after_unit_tests_pass fingerprint=rustv:... skill=rust-verification-performance@criterion
+```

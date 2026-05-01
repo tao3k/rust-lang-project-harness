@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::verification::{
     RustOwnerResponsibility, RustVerificationPolicy, RustVerificationProfileHint,
-    RustVerificationReceipt, RustVerificationTaskContract, RustVerificationTaskKind,
-    RustVerificationWaiver,
+    RustVerificationReceipt, RustVerificationSkillBinding, RustVerificationTaskContract,
+    RustVerificationTaskKind, RustVerificationWaiver,
 };
 
 /// Finding severity used by the Rust project harness.
@@ -437,6 +437,19 @@ impl RustHarnessConfig {
         self.verification_policy
             .task_contract_overrides
             .insert(kind, contract);
+        self
+    }
+
+    /// Return a config with one verification skill binding configured.
+    #[must_use]
+    pub fn with_verification_skill_binding(
+        mut self,
+        kind: RustVerificationTaskKind,
+        binding: RustVerificationSkillBinding,
+    ) -> Self {
+        self.verification_policy
+            .skill_bindings
+            .insert(kind, binding);
         self
     }
 

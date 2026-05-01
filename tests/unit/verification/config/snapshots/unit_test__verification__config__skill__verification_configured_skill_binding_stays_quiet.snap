@@ -1,0 +1,8 @@
+---
+source: tests/unit/verification/config/skill.rs
+assertion_line: 39
+expression: rendered
+---
+[verify] src/api.rs
+   |owner: src/api
+   |stress: pending phase=after_unit_tests_pass fingerprint=rustv:f5966fb522a92f96 skill=rust-verification-stress@k6

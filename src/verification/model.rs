@@ -204,6 +204,53 @@ impl RustVerificationTaskContract {
     }
 }
 
+/// Configured Agent skill adapter for one verification task family.
+///
+/// A binding means the embedding project already knows how to dispatch that
+/// skill family, so compact renders can stay quiet and emit only the scheduler
+/// hint instead of repeating contract text every run.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct RustVerificationSkillBinding {
+    /// Stable local or external skill id.
+    pub skill_id: String,
+    /// Optional adapter name such as `criterion`, `k6`, or `semgrep`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub adapter: Option<String>,
+}
+
+impl RustVerificationSkillBinding {
+    /// Build a configured skill binding.
+    #[must_use]
+    pub fn new(skill_id: impl Into<String>) -> Self {
+        Self {
+            skill_id: skill_id.into(),
+            adapter: None,
+        }
+    }
+
+    /// Attach an adapter label for the configured skill.
+    #[must_use]
+    pub fn with_adapter(mut self, adapter: impl Into<String>) -> Self {
+        self.adapter = Some(adapter.into());
+        self
+    }
+
+    pub(crate) fn is_configured(&self) -> bool {
+        !self.skill_id.trim().is_empty()
+    }
+
+    pub(crate) fn compact_label(&self) -> String {
+        self.adapter
+            .as_deref()
+            .map(str::trim)
+            .filter(|adapter| !adapter.is_empty())
+            .map_or_else(
+                || self.skill_id.clone(),
+                |adapter| format!("{}@{adapter}", self.skill_id),
+            )
+    }
+}
+
 /// Verification task generated from parser facts and optional profile hints.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RustVerificationTask {
@@ -227,6 +274,9 @@ pub struct RustVerificationTask {
     pub reason: String,
     /// Receipt contract expected from the external skill.
     pub required_receipt: String,
+    /// Configured skill adapter for quiet dispatch, when available.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skill_binding: Option<RustVerificationSkillBinding>,
     /// Structured evidence fields expected from the external skill.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub required_evidence: Vec<RustVerificationRequirement>,
@@ -453,6 +503,9 @@ pub struct RustVerificationPolicy {
     /// Per-kind verification contract overrides.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub task_contract_overrides: BTreeMap<RustVerificationTaskKind, RustVerificationTaskContract>,
+    /// Per-kind Agent skill bindings used for quiet dispatch.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub skill_bindings: BTreeMap<RustVerificationTaskKind, RustVerificationSkillBinding>,
     /// Per-responsibility task mapping overrides.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub responsibility_task_overrides:
@@ -468,6 +521,7 @@ impl RustVerificationPolicy {
             && self.waivers.is_empty()
             && self.disabled_task_kinds.is_empty()
             && self.task_contract_overrides.is_empty()
+            && self.skill_bindings.is_empty()
             && self.responsibility_task_overrides.is_empty()
     }
 
@@ -507,6 +561,17 @@ impl RustVerificationPolicy {
         contract: RustVerificationTaskContract,
     ) -> Self {
         self.task_contract_overrides.insert(kind, contract);
+        self
+    }
+
+    /// Return a policy with one verification skill binding configured.
+    #[must_use]
+    pub fn with_skill_binding(
+        mut self,
+        kind: RustVerificationTaskKind,
+        binding: RustVerificationSkillBinding,
+    ) -> Self {
+        self.skill_bindings.insert(kind, binding);
         self
     }
 

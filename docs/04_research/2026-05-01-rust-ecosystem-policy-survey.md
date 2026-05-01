@@ -146,3 +146,33 @@ top-level macro is a cfg-gated `compile_error!` contract or when `syn` can parse
 the macro body as facade-only items (`mod`, `use`, `extern crate`, or recursively
 facade-only macro invocations). Local `macro_rules!` definitions still remain
 implementation and should stay outside the facade.
+
+## Follow-up: Rust Skill Catalogs
+
+Two Rust skill repositories were shallow-cloned on 2026-05-01:
+
+| Repository | Commit | Useful Pattern |
+| --- | --- | --- |
+| [leonardomso/rust-skills](https://github.com/leonardomso/rust-skills/tree/89910e858533) | `89910e858533` | Compact rule-catalog folders such as `perf-*`, `mem-*`, `async-*`, `proj-*`, and `test-*`. |
+| [actionbook/rust-skills](https://github.com/actionbook/rust-skills/tree/1f4becdcb88d) | `1f4becdcb88d` | Skill routing, skill folders, performance skill triggers, and adapter-oriented Agent workflow. |
+
+Harness implications:
+
+1. Do not migrate large Rust skill Markdown into the active prompt path. That
+   would recreate the token-noise problem the harness is meant to solve.
+2. Convert useful rule-catalog content into typed contracts, evidence keys,
+   parser facts, or configurable policy helpers. For example, performance
+   guidance becomes `RustVerificationTaskKind::Performance` evidence such as
+   `benchmark_command`, `baseline`, `regression_threshold`,
+   `latency_or_throughput`, `allocation_profile`, and `profile_artifact`.
+3. Convert skill routing into configuration, not prose. The harness now exposes
+   `RustVerificationSkillBinding` so a project can bind a task kind to a
+   configured Agent skill adapter. Once configured, compact output emits only a
+   short `skill=<id>` dispatch hint while structured JSON keeps the full
+   contract.
+4. Treat the binding as part of the verification task fingerprint. If an Agent
+   switches from one adapter to another, stale receipts should not silently clear
+   the new obligation.
+5. Keep the Markdown under top-level `skills/` passive and progressive. It is
+   useful for onboarding or repairing configuration, but a healthy configured
+   project should not need to reread it on every run.

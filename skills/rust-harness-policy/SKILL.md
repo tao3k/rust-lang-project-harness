@@ -5,7 +5,10 @@ description: "Use when modifying rust-lang-project-harness Rust source, tests, p
 
 # Rust Harness Policy
 
-Use this skill before changing `src/` or `tests/` Rust code in this repository.
+Use this skill when onboarding to this repository or when compact harness output
+does not give enough context to repair `src/` or `tests/` Rust code directly.
+Do not reread it on every run after the relevant code-level policy and skill
+bindings are configured.
 
 ## Operating Contract
 

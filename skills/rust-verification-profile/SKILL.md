@@ -21,6 +21,11 @@ Verification is library-first and parser-native. The authority order is:
 Profile hints are useful declarations, not facts. If a hint conflicts with
 parser evidence, the planner should keep a `responsibility_review` task active.
 
+Skill Markdown is a fallback surface. Prefer configuring
+`RustVerificationSkillBinding` for task kinds that have a project-owned adapter;
+after that, compact output should stay quiet and only include the `skill=<id>`
+dispatch hint.
+
 ## Profile Rules
 
 - `RustVerificationProfileHint::new(path, responsibilities)` maps an owner path

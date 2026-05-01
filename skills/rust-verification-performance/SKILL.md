@@ -13,6 +13,11 @@ The harness does not run benchmarks itself. It plans an obligation for an
 external Agent skill and accepts a receipt or waiver for the current
 fingerprint.
 
+If the compact task line already contains `skill=rust-verification-performance`
+or another configured performance skill id, do not reload this file just to
+learn the contract. Use the structured JSON task or the project-owned adapter
+configuration. This file is fallback guidance for configuration or repair.
+
 ## Trigger Signals
 
 - The owner profile includes `RustOwnerResponsibility::LatencySensitive`.

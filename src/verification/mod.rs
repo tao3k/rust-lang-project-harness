@@ -10,8 +10,8 @@ pub use model::{
     RustOwnerResponsibility, RustVerificationEvidence, RustVerificationPhase, RustVerificationPlan,
     RustVerificationPolicy, RustVerificationProfileHint, RustVerificationReceipt,
     RustVerificationReceiptStatus, RustVerificationRequirement, RustVerificationResolutionNote,
-    RustVerificationTask, RustVerificationTaskContract, RustVerificationTaskKind,
-    RustVerificationTaskState, RustVerificationWaiver,
+    RustVerificationSkillBinding, RustVerificationTask, RustVerificationTaskContract,
+    RustVerificationTaskKind, RustVerificationTaskState, RustVerificationWaiver,
 };
 pub use planner::{
     plan_rust_project_verification, plan_rust_project_verification_with_config,

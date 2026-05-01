@@ -187,8 +187,8 @@ task in this slice", without changing unrelated owners.
 ```rust
 use rust_lang_project_harness::{
     RustOwnerResponsibility, RustVerificationPhase, RustVerificationProfileHint,
-    RustVerificationRequirement, RustVerificationTaskContract, RustVerificationTaskKind,
-    default_rust_harness_config,
+    RustVerificationRequirement, RustVerificationSkillBinding,
+    RustVerificationTaskContract, RustVerificationTaskKind, default_rust_harness_config,
 };
 
 let config = default_rust_harness_config()
@@ -211,6 +211,11 @@ let config = default_rust_harness_config()
     .with_verification_responsibility_task_kinds(
         RustOwnerResponsibility::LatencySensitive,
         [RustVerificationTaskKind::Stress],
+    )
+    .with_verification_skill_binding(
+        RustVerificationTaskKind::Performance,
+        RustVerificationSkillBinding::new("rust-verification-performance")
+            .with_adapter("criterion"),
     );
 ```
 
@@ -223,6 +228,15 @@ When an owner-local task override changes the responsibility-derived default,
 the profile must include a compact rationale. Without that rationale the harness
 keeps a `responsibility_review` task active so the Agent explains why stress,
 performance, security, chaos, or regression evidence was added or removed.
+
+`RustVerificationSkillBinding` is the low-token bridge from Markdown skills to
+code. When a task kind has a configured binding, compact output emits a short
+dispatch hint such as `skill=rust-verification-performance@criterion` and omits
+the repeated `requires`, `fact`, and `contract` onboarding lines. JSON still
+keeps the full structured contract for tooling. When no binding exists, compact
+text falls back to the passive progressive contract so an Agent can learn what
+must be configured or executed. The binding label participates in the task
+fingerprint, so changing adapters invalidates stale receipts.
 
 For workspaces, profile hint paths can be package-relative (`src/api.rs`) or
 workspace-root-relative (`crates/api/src/api.rs`). Task fingerprints include the
@@ -258,10 +272,11 @@ dependencies render as compact edges such as
 ## Repo-Local Agent Skills
 
 Top-level [`skills/`](skills/README.md) contains the Agent-facing operating
-contracts for this repository. Load those skills before changing harness policy,
-verification profile config, or performance-sensitive Rust paths. They are
-original harness-specific guidance, not vendored copies of external Rust skill
-catalogs.
+contracts for this repository. Use them as passive progressive guidance when
+configuring or repairing harness policy, verification profiles, or
+performance-sensitive Rust paths. Once `RustVerificationSkillBinding` is
+configured, compact verification output should stay on the short code-level
+dispatch path instead of making the Agent reread Markdown skill manuals.
 
 ## Docs
 

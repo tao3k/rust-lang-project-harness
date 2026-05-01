@@ -505,6 +505,14 @@ fn new_skill_task(
     spec: VerificationTaskSpec,
     policy: &RustVerificationPolicy,
 ) -> RustVerificationTask {
+    let skill_binding = skill_binding_for_task(policy, spec.kind);
+    let mut evidence = spec.evidence;
+    if let Some(binding) = &skill_binding {
+        evidence.push(RustVerificationEvidence::new(
+            "skill",
+            binding.compact_label(),
+        ));
+    }
     let fingerprint = verification_task_fingerprint(
         spec.kind,
         project_root,
@@ -512,7 +520,7 @@ fn new_skill_task(
         &spec.owner_path,
         spec.line,
         &spec.contract.required_evidence,
-        &spec.evidence,
+        &evidence,
     );
     let mut task = RustVerificationTask {
         fingerprint,
@@ -525,14 +533,26 @@ fn new_skill_task(
         phase: spec.contract.phase,
         reason: spec.reason,
         required_receipt: spec.contract.required_receipt,
+        skill_binding,
         required_evidence: spec.contract.required_evidence,
-        evidence: spec.evidence,
+        evidence,
         resolution_notes: Vec::new(),
         receipt_summary: None,
         waiver_reason: None,
     };
     apply_task_resolution(&mut task, policy);
     task
+}
+
+fn skill_binding_for_task(
+    policy: &RustVerificationPolicy,
+    kind: RustVerificationTaskKind,
+) -> Option<super::RustVerificationSkillBinding> {
+    policy
+        .skill_bindings
+        .get(&kind)
+        .filter(|binding| binding.is_configured())
+        .cloned()
 }
 
 fn apply_task_resolution(task: &mut RustVerificationTask, policy: &RustVerificationPolicy) {

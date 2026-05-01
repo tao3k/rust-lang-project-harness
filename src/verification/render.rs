@@ -86,27 +86,26 @@ fn render_owner_group(
 
 fn render_task(task: &RustVerificationTask, rendered: &mut String) {
     let kind = task.kind.as_str();
-    let _ = writeln!(
+    let _ = write!(
         rendered,
         "   |{kind}: {} phase={} fingerprint={}",
         task.state.as_str(),
         task.phase.as_str(),
         task.fingerprint
     );
+    if let Some(binding) = &task.skill_binding {
+        let _ = write!(rendered, " skill={}", binding.compact_label());
+    }
+    let _ = writeln!(rendered);
     if let Some(line) = task.line {
         let _ = writeln!(rendered, "   |line: {kind}={line}");
     }
+    if task.skill_binding.is_some() {
+        render_task_resolution(task, rendered, kind);
+        return;
+    }
     let _ = writeln!(rendered, "   |why: {kind}={}", task.reason);
-    if let Some(summary) = &task.receipt_summary {
-        let _ = writeln!(rendered, "   |receipt: {kind}={summary}");
-    }
-    for note in &task.resolution_notes {
-        let _ = writeln!(
-            rendered,
-            "   |resolution: {kind}.{}={}",
-            note.label, note.detail
-        );
-    }
+    render_task_resolution(task, rendered, kind);
     if !task.required_evidence.is_empty() {
         let required = task
             .required_evidence
@@ -120,6 +119,19 @@ fn render_task(task: &RustVerificationTask, rendered: &mut String) {
         let _ = writeln!(rendered, "   |fact: {kind}.{}={}", fact.label, fact.value);
     }
     let _ = writeln!(rendered, "   |contract: {kind}={}", task.required_receipt);
+}
+
+fn render_task_resolution(task: &RustVerificationTask, rendered: &mut String, kind: &str) {
+    if let Some(summary) = &task.receipt_summary {
+        let _ = writeln!(rendered, "   |receipt: {kind}={summary}");
+    }
+    for note in &task.resolution_notes {
+        let _ = writeln!(
+            rendered,
+            "   |resolution: {kind}.{}={}",
+            note.label, note.detail
+        );
+    }
 }
 
 fn display_project_path(project_root: &Path, path: &Path) -> String {
