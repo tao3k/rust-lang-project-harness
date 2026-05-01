@@ -36,6 +36,8 @@ Root Cargo test targets follow that parser boundary too: conventional
 `tests/*.rs` targets and manifest-declared `[[test]]` paths are collected and
 parsed under `src/parser/` before `RUST-PROJ-R006`, `RUST-PROJ-R007`, and
 `RUST-PROJ-R008` render findings.
+Rust `#[path]` attributes are also resolved there, so project policy consumes
+both the native attribute text and its normalized target path as parser facts.
 
 Custom project source roots configured through `RustHarnessConfig` are treated
 as source ownership roots by project, modularity, and agent policy packs.

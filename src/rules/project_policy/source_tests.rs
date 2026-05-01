@@ -6,7 +6,6 @@ use crate::parser::{ParsedRustModule, path_line_location, source_line};
 use crate::rules::{display_path, is_under_any_dir};
 use crate::{RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
-use super::support::resolve_path_attr;
 use super::{RUST_PROJ_R003, RUST_PROJ_R004};
 
 pub(super) fn source_test_mount_findings(
@@ -61,8 +60,10 @@ fn collect_source_test_mount_findings(
             ));
             continue;
         };
-        let resolved = resolve_path_attr(&module.report.path, path_value);
-        let project_relative = resolved.strip_prefix(project_root).unwrap_or(&resolved);
+        let Some(resolved) = item_mod.resolved_path_attr.as_ref() else {
+            continue;
+        };
+        let project_relative = resolved.strip_prefix(project_root).unwrap_or(resolved);
         if !resolved.exists() || !project_relative.starts_with("tests/unit") {
             let rule = &rules[RUST_PROJ_R004];
             findings.push(RustHarnessFinding::from_rule(

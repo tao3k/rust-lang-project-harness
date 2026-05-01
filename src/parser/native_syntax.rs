@@ -1,7 +1,11 @@
 //! Native Rust syntax facts shared by harness policies.
 
+use std::path::{Path, PathBuf};
+
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
+
+use super::path_resolution::resolve_rust_path_attr;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct RustNativeSyntaxFacts {
@@ -36,6 +40,7 @@ pub(crate) struct RustModuleDeclarationSyntax {
     pub line: usize,
     pub ident: String,
     pub path_attr: Option<String>,
+    pub resolved_path_attr: Option<PathBuf>,
     pub is_inline: bool,
     pub is_cfg_test: bool,
 }
@@ -71,25 +76,35 @@ impl RustNativeSyntaxFacts {
     }
 }
 
-pub(crate) fn rust_native_syntax_facts(syntax: &syn::File) -> RustNativeSyntaxFacts {
-    let mut collector = NativeSyntaxCollector::default();
+pub(crate) fn rust_native_syntax_facts(
+    syntax: &syn::File,
+    source_file: &Path,
+) -> RustNativeSyntaxFacts {
+    let mut collector = NativeSyntaxCollector {
+        source_file,
+        facts: RustNativeSyntaxFacts::default(),
+    };
     collector.visit_file(syntax);
     collector.facts.has_module_doc = attrs_have_doc(&syntax.attrs);
-    collector.facts.top_level_items = syntax.items.iter().map(top_level_item_syntax).collect();
+    collector.facts.top_level_items = syntax
+        .items
+        .iter()
+        .map(|item| top_level_item_syntax(item, source_file))
+        .collect();
     collector.facts
 }
 
-#[derive(Default)]
-struct NativeSyntaxCollector {
+struct NativeSyntaxCollector<'a> {
+    source_file: &'a Path,
     facts: RustNativeSyntaxFacts,
 }
 
-impl<'ast> Visit<'ast> for NativeSyntaxCollector {
+impl<'ast> Visit<'ast> for NativeSyntaxCollector<'_> {
     fn visit_item_mod(&mut self, item_mod: &'ast syn::ItemMod) {
         if attrs_have_cfg_test(&item_mod.attrs) {
             self.facts
                 .cfg_test_modules
-                .push(module_declaration_from_item_mod(item_mod));
+                .push(module_declaration_from_item_mod(item_mod, self.source_file));
         }
         visit::visit_item_mod(self, item_mod);
     }
@@ -133,7 +148,7 @@ fn rust_use_statement_syntax(item_use: &syn::ItemUse) -> RustUseStatementSyntax 
     }
 }
 
-fn top_level_item_syntax(item: &syn::Item) -> RustTopLevelItemSyntax {
+fn top_level_item_syntax(item: &syn::Item, source_file: &Path) -> RustTopLevelItemSyntax {
     RustTopLevelItemSyntax {
         line: item.span().start().line.max(1),
         kind: item_kind(item),
@@ -149,7 +164,7 @@ fn top_level_item_syntax(item: &syn::Item) -> RustTopLevelItemSyntax {
         function_name: function_name_syntax(item),
         macro_name: macro_name_syntax(item),
         include_target: include_target_syntax(item),
-        module: module_declaration_syntax(item),
+        module: module_declaration_syntax(item, source_file),
     }
 }
 
@@ -206,22 +221,33 @@ fn include_target_syntax(item: &syn::Item) -> Option<String> {
     include_literal_target(&item_macro.mac)
 }
 
-fn module_declaration_syntax(item: &syn::Item) -> Option<RustModuleDeclarationSyntax> {
+fn module_declaration_syntax(
+    item: &syn::Item,
+    source_file: &Path,
+) -> Option<RustModuleDeclarationSyntax> {
     let syn::Item::Mod(item_mod) = item else {
         return None;
     };
-    Some(module_declaration_from_item_mod(item_mod))
+    Some(module_declaration_from_item_mod(item_mod, source_file))
 }
 
-fn module_declaration_from_item_mod(item_mod: &syn::ItemMod) -> RustModuleDeclarationSyntax {
+fn module_declaration_from_item_mod(
+    item_mod: &syn::ItemMod,
+    source_file: &Path,
+) -> RustModuleDeclarationSyntax {
     let line = item_mod.attrs.first().map_or_else(
         || item_mod.span().start().line.max(1),
         |attr| attr.span().start().line.max(1),
     );
+    let path_attr = path_attr_value(&item_mod.attrs);
+    let resolved_path_attr = path_attr
+        .as_deref()
+        .map(|path_value| resolve_rust_path_attr(source_file, path_value));
     RustModuleDeclarationSyntax {
         line,
         ident: item_mod.ident.to_string(),
-        path_attr: path_attr_value(&item_mod.attrs),
+        path_attr,
+        resolved_path_attr,
         is_inline: item_mod.content.is_some(),
         is_cfg_test: attrs_have_cfg_test(&item_mod.attrs),
     }

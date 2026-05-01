@@ -167,6 +167,34 @@ fn cargo_test_target_parsing_lives_under_parser_module() {
 }
 
 #[test]
+fn rust_path_attribute_resolution_lives_under_parser_module() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let parser_source = fs::read_to_string(root.join("src/parser/native_syntax.rs"))
+        .expect("read native syntax parser");
+    assert!(parser_source.contains("resolved_path_attr"));
+
+    let path_resolution = fs::read_to_string(root.join("src/parser/path_resolution.rs"))
+        .expect("read path resolution parser helper");
+    assert!(path_resolution.contains("pub(crate) fn resolve_rust_path_attr"));
+
+    let mut offenders = Vec::new();
+    for path in rust_files_under(&root.join("src/rules")) {
+        let source = fs::read_to_string(&path).expect("read rule source");
+        if source.contains("resolve_path_attr")
+            || source.contains("resolve_rust_path_attr")
+            || source.contains("Component::ParentDir")
+        {
+            offenders.push(relative_path(&root, &path));
+        }
+    }
+
+    assert!(
+        offenders.is_empty(),
+        "Rust #[path] resolution must be parser facts, not rule-local path normalization: {offenders:?}"
+    );
+}
+
+#[test]
 fn library_target_mounts_source_backed_self_apply_gate() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let lib_rs = fs::read_to_string(root.join("src/lib.rs")).expect("read src/lib.rs");

@@ -1,9 +1,10 @@
 //! Rust module tree facts derived from native module declarations.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 use super::ParsedRustModule;
+use super::path_resolution::resolve_rust_include_literal;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct RustModuleTreeFacts {
@@ -111,12 +112,7 @@ fn external_child_module_paths(
     let mut paths = Vec::new();
     for item in &module.syntax_facts.top_level_items {
         if let Some(include_target) = &item.include_target {
-            let include_path = normalize_path(
-                module_path
-                    .parent()
-                    .unwrap_or_else(|| Path::new(""))
-                    .join(include_target),
-            );
+            let include_path = resolve_rust_include_literal(module_path, include_target);
             if source_files.contains(&include_path) {
                 paths.push(include_path);
             }
@@ -127,15 +123,9 @@ fn external_child_module_paths(
         if item_mod.is_inline || item_mod.is_cfg_test {
             continue;
         }
-        if let Some(path_value) = &item_mod.path_attr {
-            let resolved = normalize_path(
-                module_path
-                    .parent()
-                    .unwrap_or_else(|| Path::new(""))
-                    .join(path_value),
-            );
-            if source_files.contains(&resolved) {
-                paths.push(resolved);
+        if let Some(resolved) = &item_mod.resolved_path_attr {
+            if source_files.contains(resolved) {
+                paths.push(resolved.clone());
             }
             continue;
         }
@@ -188,20 +178,4 @@ fn is_module_tree_root(source_paths: &[PathBuf], path: &Path) -> bool {
 
 fn is_under_any_dir(path: &Path, dirs: &[PathBuf]) -> bool {
     dirs.iter().any(|dir| path.starts_with(dir))
-}
-
-fn normalize_path(path: PathBuf) -> PathBuf {
-    let mut normalized = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::CurDir => {}
-            Component::ParentDir => {
-                normalized.pop();
-            }
-            Component::Normal(_) | Component::Prefix(_) | Component::RootDir => {
-                normalized.push(component.as_os_str());
-            }
-        }
-    }
-    normalized
 }

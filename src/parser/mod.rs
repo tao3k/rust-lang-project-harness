@@ -6,6 +6,7 @@ mod location;
 mod module_tree;
 pub(crate) mod native_syntax;
 mod parsed_module;
+mod path_resolution;
 mod source_metrics;
 
 pub(crate) use cargo_manifest::{CargoManifestFacts, parse_cargo_manifest};

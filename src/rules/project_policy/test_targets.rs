@@ -10,7 +10,7 @@ use crate::parser::{
 use crate::{RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
 use super::config::{LayoutPolicy, is_allowed_test_suite_path};
-use super::support::{display_project_path, resolve_path_attr};
+use super::support::display_project_path;
 use super::{RUST_PROJ_R006, RUST_PROJ_R007, RUST_PROJ_R008, RUST_PROJ_R009};
 
 pub(super) fn test_target_gate_findings(
@@ -133,8 +133,10 @@ pub(super) fn test_target_module_mount_findings(
                 ));
                 continue;
             };
-            let resolved = resolve_path_attr(&parsed.report.path, path_value);
-            let project_relative = resolved.strip_prefix(project_root).unwrap_or(&resolved);
+            let Some(resolved) = item_mod.resolved_path_attr.as_ref() else {
+                continue;
+            };
+            let project_relative = resolved.strip_prefix(project_root).unwrap_or(resolved);
             if !resolved.exists() || !is_allowed_test_suite_path(project_relative, policy) {
                 findings.push(RustHarnessFinding::from_rule(
                     rule,
