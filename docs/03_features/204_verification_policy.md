@@ -218,8 +218,30 @@ Use a receipt when the external skill ran:
 ```rust
 use rust_lang_project_harness::{RustVerificationReceipt, RustVerificationTaskKind};
 
-let receipt = RustVerificationReceipt::passed(task.fingerprint.clone(), RustVerificationTaskKind::Stress);
+let receipt = RustVerificationReceipt::passed(
+    task.fingerprint.clone(),
+    RustVerificationTaskKind::Performance,
+)
+.with_evidence("benchmark_command", "cargo bench --bench parser_hot_path")
+.with_evidence("baseline", "main@b0a8a7a")
+.with_evidence("regression_threshold", "5%")
+.with_evidence("latency_or_throughput", "-1.4% latency")
+.with_evidence("allocation_profile", "allocs/op unchanged")
+.with_evidence(
+    "profile_artifact",
+    "target/criterion/parser_hot_path/report/index.html",
+)
+.with_evidence_uri("target/criterion/parser_hot_path/report/index.html")
+.with_observed_at("2026-05-01T20:00:00Z");
 ```
+
+Receipt evidence is copied into the matching task as `receipt_evidence`.
+Compact output still disappears when the task is satisfied, because the Agent no
+longer needs a reminder. Structured callers can keep searching the JSON state
+for the command, baseline, threshold, metric delta, allocation profile, artifact
+URI, and observed timestamp. This is the intended performance-status lane:
+human-readable reminders stay quiet, while benchmark state remains traceable
+for CI indexes, dashboards, or future reasoning-tree retrieval.
 
 Use a waiver when the task is intentionally out of scope for the current work:
 
@@ -324,7 +346,9 @@ profiling-first optimization. See the official docs for
 [Criterion.rs](https://bheisler.github.io/criterion.rs/book/index.html),
 [Divan](https://docs.rs/divan/latest/divan/),
 [iai-callgrind](https://docs.rs/iai-callgrind/latest/iai_callgrind/), and the
-[Rust Performance Book profiling chapter](https://nnethercote.github.io/perf-book/profiling.html).
+[Rust Performance Book benchmarking](https://nnethercote.github.io/perf-book/benchmarking.html)
+and [profiling](https://nnethercote.github.io/perf-book/profiling.html)
+chapters.
 The built-in k6 descriptor follows Grafana k6's model: `k6 run <script>` is the
 local execution command, scenarios describe load shape, and thresholds define
 pass/fail behavior with a zero exit code on pass and nonzero exit code on

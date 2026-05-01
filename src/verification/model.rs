@@ -515,6 +515,9 @@ pub struct RustVerificationTask {
     /// Matching receipt summary, when one was supplied.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub receipt_summary: Option<String>,
+    /// Structured receipt evidence copied from the matching external skill run.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub receipt_evidence: Vec<RustVerificationEvidence>,
     /// Matching waiver reason, when one was supplied.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub waiver_reason: Option<String>,
@@ -562,6 +565,9 @@ pub struct RustVerificationReceipt {
     /// Optional evidence artifact URI or local path.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub evidence_uri: Option<String>,
+    /// Structured evidence emitted by the external skill.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidence: Vec<RustVerificationEvidence>,
     /// Optional timestamp supplied by the external skill.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub observed_at: Option<String>,
@@ -577,6 +583,7 @@ impl RustVerificationReceipt {
             status: RustVerificationReceiptStatus::Passed,
             summary: "passed".to_string(),
             evidence_uri: None,
+            evidence: Vec::new(),
             observed_at: None,
         }
     }
@@ -594,8 +601,31 @@ impl RustVerificationReceipt {
             status: RustVerificationReceiptStatus::Failed,
             summary: summary.into(),
             evidence_uri: None,
+            evidence: Vec::new(),
             observed_at: None,
         }
+    }
+
+    /// Attach one structured evidence field.
+    #[must_use]
+    pub fn with_evidence(mut self, label: impl Into<String>, value: impl Into<String>) -> Self {
+        self.evidence
+            .push(RustVerificationEvidence::new(label, value));
+        self
+    }
+
+    /// Attach an evidence artifact URI or local path.
+    #[must_use]
+    pub fn with_evidence_uri(mut self, evidence_uri: impl Into<String>) -> Self {
+        self.evidence_uri = Some(evidence_uri.into());
+        self
+    }
+
+    /// Attach an observed-at timestamp supplied by the external skill.
+    #[must_use]
+    pub fn with_observed_at(mut self, observed_at: impl Into<String>) -> Self {
+        self.observed_at = Some(observed_at.into());
+        self
     }
 }
 

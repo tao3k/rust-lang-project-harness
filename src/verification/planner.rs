@@ -548,6 +548,7 @@ fn new_skill_task(
         evidence,
         resolution_notes: Vec::new(),
         receipt_summary: None,
+        receipt_evidence: Vec::new(),
         waiver_reason: None,
     };
     apply_task_resolution(&mut task, policy);
@@ -595,6 +596,7 @@ fn apply_task_resolution(task: &mut RustVerificationTask, policy: &RustVerificat
     if let Some(receipt) = matching_receipt(task, policy, RustVerificationReceiptStatus::Passed) {
         task.state = RustVerificationTaskState::Satisfied;
         task.receipt_summary = Some(receipt_summary(receipt));
+        task.receipt_evidence.clone_from(&receipt.evidence);
         return;
     }
     if let Some(waiver) = matching_waiver(task, policy) {
@@ -612,6 +614,7 @@ fn apply_task_resolution(task: &mut RustVerificationTask, policy: &RustVerificat
     if let Some(receipt) = matching_receipt(task, policy, RustVerificationReceiptStatus::Failed) {
         task.state = RustVerificationTaskState::Failed;
         task.receipt_summary = Some(receipt_summary(receipt));
+        task.receipt_evidence.clone_from(&receipt.evidence);
     }
 }
 

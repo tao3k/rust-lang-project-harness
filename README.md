@@ -268,6 +268,15 @@ and SLA evidence. `criterion_performance()`, `divan_performance()`, and
 instruction, cache, and profiling evidence through the `performance` task
 family.
 
+Performance receipts are also structured state, not prompt text. A Criterion,
+Divan, or iai-callgrind run can attach searchable evidence such as
+`benchmark_command`, `baseline`, `regression_threshold`,
+`latency_or_throughput`, `allocation_profile`, and `profile_artifact` through
+`RustVerificationReceipt::with_evidence(...)`. When that receipt matches the
+current task fingerprint, compact output goes quiet, while
+`render_rust_verification_plan_json()` still preserves `receipt_summary` and
+`receipt_evidence` for dashboards, CI indexes, or later Agent retrieval.
+
 For workspaces, profile hint paths can be package-relative (`src/api.rs`) or
 workspace-root-relative (`crates/api/src/api.rs`). Task fingerprints include the
 owning package path, so two members with the same owner path do not collide.

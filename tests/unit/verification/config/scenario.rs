@@ -27,6 +27,27 @@ const SKILL_CONTRACT_SCENARIOS: &[VerificationSkillContractScenario] = &[
         resolution: ScenarioResolution::None,
     },
     VerificationSkillContractScenario {
+        id: "chaos_fault_triggered_by_external_dependency",
+        kind: RustVerificationTaskKind::Chaos,
+        responsibility: Some(RustOwnerResponsibility::ExternalDependency),
+        descriptor: SkillDescriptorCase::ChaosFault,
+        resolution: ScenarioResolution::None,
+    },
+    VerificationSkillContractScenario {
+        id: "security_scan_triggered_by_security_boundary",
+        kind: RustVerificationTaskKind::Security,
+        responsibility: Some(RustOwnerResponsibility::SecurityBoundary),
+        descriptor: SkillDescriptorCase::SecurityScan,
+        resolution: ScenarioResolution::None,
+    },
+    VerificationSkillContractScenario {
+        id: "regression_harness_triggered_by_owner_override",
+        kind: RustVerificationTaskKind::Regression,
+        responsibility: Some(RustOwnerResponsibility::PureDomainLogic),
+        descriptor: SkillDescriptorCase::RegressionHarness,
+        resolution: ScenarioResolution::OwnerOverride,
+    },
+    VerificationSkillContractScenario {
         id: "descriptor_config_without_responsibility_is_not_triggered",
         kind: RustVerificationTaskKind::Performance,
         responsibility: None,
@@ -46,6 +67,34 @@ const SKILL_CONTRACT_SCENARIOS: &[VerificationSkillContractScenario] = &[
         responsibility: Some(RustOwnerResponsibility::PublicApi),
         descriptor: SkillDescriptorCase::K6Stress,
         resolution: ScenarioResolution::PassedReceipt,
+    },
+    VerificationSkillContractScenario {
+        id: "performance_criterion_solved_by_structured_receipt",
+        kind: RustVerificationTaskKind::Performance,
+        responsibility: Some(RustOwnerResponsibility::LatencySensitive),
+        descriptor: SkillDescriptorCase::CriterionPerformance,
+        resolution: ScenarioResolution::StructuredPerformanceReceipt,
+    },
+    VerificationSkillContractScenario {
+        id: "performance_criterion_failed_receipt_stays_active",
+        kind: RustVerificationTaskKind::Performance,
+        responsibility: Some(RustOwnerResponsibility::LatencySensitive),
+        descriptor: SkillDescriptorCase::CriterionPerformance,
+        resolution: ScenarioResolution::FailedReceipt,
+    },
+    VerificationSkillContractScenario {
+        id: "performance_criterion_stale_receipt_is_not_solved",
+        kind: RustVerificationTaskKind::Performance,
+        responsibility: Some(RustOwnerResponsibility::LatencySensitive),
+        descriptor: SkillDescriptorCase::CriterionPerformance,
+        resolution: ScenarioResolution::StalePassedReceipt,
+    },
+    VerificationSkillContractScenario {
+        id: "stress_k6_incomplete_waiver_stays_active",
+        kind: RustVerificationTaskKind::Stress,
+        responsibility: Some(RustOwnerResponsibility::PublicApi),
+        descriptor: SkillDescriptorCase::K6Stress,
+        resolution: ScenarioResolution::IncompleteWaiver,
     },
     VerificationSkillContractScenario {
         id: "performance_criterion_solved_by_complete_waiver",
@@ -69,6 +118,9 @@ struct VerificationSkillContractScenario {
 enum SkillDescriptorCase {
     K6Stress,
     CriterionPerformance,
+    ChaosFault,
+    SecurityScan,
+    RegressionHarness,
 }
 
 impl SkillDescriptorCase {
@@ -76,6 +128,34 @@ impl SkillDescriptorCase {
         match self {
             Self::K6Stress => RustVerificationSkillDescriptor::k6_stress(),
             Self::CriterionPerformance => RustVerificationSkillDescriptor::criterion_performance(),
+            Self::ChaosFault => RustVerificationSkillDescriptor::new("rust-verification-chaos")
+                .with_adapter("fault-injection")
+                .with_tool("fault-injection")
+                .with_command("project-owned chaos command")
+                .with_standard("degradation and recovery stay within declared bounds")
+                .with_required_inputs(["dependency", "failure_mode", "recovery_threshold"])
+                .with_pass_criteria(["recovery=pass"])
+                .with_receipt_fields(["injected_failures", "degradation", "recovery"]),
+            Self::SecurityScan => {
+                RustVerificationSkillDescriptor::new("rust-verification-security")
+                    .with_adapter("security-scan")
+                    .with_tool("security-scan")
+                    .with_command("project-owned security probe")
+                    .with_standard("attack classes and authorization boundary have explicit result")
+                    .with_required_inputs(["attack_classes", "target", "authz_model"])
+                    .with_pass_criteria(["findings=none_or_triaged"])
+                    .with_receipt_fields(["attack_classes", "authorization_boundary", "findings"])
+            }
+            Self::RegressionHarness => {
+                RustVerificationSkillDescriptor::new("rust-verification-regression")
+                    .with_adapter("harness")
+                    .with_tool("rust-lang-project-harness")
+                    .with_command("cargo test verification::regression")
+                    .with_standard("architecture drift remains within configured baseline")
+                    .with_required_inputs(["baseline", "owner", "thresholds"])
+                    .with_pass_criteria(["drift=within_threshold"])
+                    .with_receipt_fields(["source_growth", "dependency_drift", "module_cycles"])
+            }
         }
     }
 
@@ -92,8 +172,13 @@ impl SkillDescriptorCase {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ScenarioResolution {
     None,
+    OwnerOverride,
     ProfileSuppressed,
     PassedReceipt,
+    StructuredPerformanceReceipt,
+    FailedReceipt,
+    StalePassedReceipt,
+    IncompleteWaiver,
     CompleteWaiver,
 }
 
@@ -129,16 +214,49 @@ fn render_skill_contract_scenario(scenario: &VerificationSkillContractScenario) 
     let initial_plan =
         plan_rust_project_verification_with_config(root, &config).expect("initial scenario plan");
     let final_config = match scenario.resolution {
-        ScenarioResolution::None | ScenarioResolution::ProfileSuppressed => config,
-        ScenarioResolution::PassedReceipt => {
+        ScenarioResolution::None
+        | ScenarioResolution::OwnerOverride
+        | ScenarioResolution::ProfileSuppressed => config,
+        ScenarioResolution::PassedReceipt | ScenarioResolution::StructuredPerformanceReceipt => {
             let task = initial_plan
                 .active_tasks()
                 .into_iter()
                 .find(|task| task.kind == scenario.kind)
                 .expect("active task for receipt scenario");
-            config.with_verification_receipt(RustVerificationReceipt::passed(
+            config
+                .with_verification_receipt(passed_receipt_for_scenario(scenario, &task.fingerprint))
+        }
+        ScenarioResolution::FailedReceipt => {
+            let task = initial_plan
+                .active_tasks()
+                .into_iter()
+                .find(|task| task.kind == scenario.kind)
+                .expect("active task for failed receipt scenario");
+            config.with_verification_receipt(
+                RustVerificationReceipt::failed(
+                    task.fingerprint.clone(),
+                    scenario.kind,
+                    "benchmark regression exceeded threshold",
+                )
+                .with_evidence("benchmark_command", "cargo bench --bench parser_hot_path")
+                .with_evidence("regression_threshold", "5%")
+                .with_evidence("latency_or_throughput", "+11.2% latency"),
+            )
+        }
+        ScenarioResolution::StalePassedReceipt => config.with_verification_receipt(
+            RustVerificationReceipt::passed("rustv:stale", scenario.kind),
+        ),
+        ScenarioResolution::IncompleteWaiver => {
+            let task = initial_plan
+                .active_tasks()
+                .into_iter()
+                .find(|task| task.kind == scenario.kind)
+                .expect("active task for incomplete waiver scenario");
+            config.with_verification_waiver(RustVerificationWaiver::new(
                 task.fingerprint.clone(),
-                scenario.kind,
+                "",
+                "",
+                "",
             ))
         }
         ScenarioResolution::CompleteWaiver => {
@@ -185,10 +303,24 @@ impl VerificationSkillContractScenario {
             .with_verification_skill_descriptor(self.descriptor.descriptor());
         if let Some(responsibility) = self.responsibility {
             let mut hint = RustVerificationProfileHint::new("src/api.rs", [responsibility]);
-            if self.resolution == ScenarioResolution::ProfileSuppressed {
-                hint = hint
-                    .without_verification_tasks()
-                    .with_rationale("scenario intentionally suppresses external verification");
+            match self.resolution {
+                ScenarioResolution::OwnerOverride => {
+                    hint = hint
+                        .with_task_kinds([self.kind])
+                        .with_rationale("scenario explicitly requests regression verification");
+                }
+                ScenarioResolution::ProfileSuppressed => {
+                    hint = hint
+                        .without_verification_tasks()
+                        .with_rationale("scenario intentionally suppresses external verification");
+                }
+                ScenarioResolution::None
+                | ScenarioResolution::PassedReceipt
+                | ScenarioResolution::StructuredPerformanceReceipt
+                | ScenarioResolution::FailedReceipt
+                | ScenarioResolution::StalePassedReceipt
+                | ScenarioResolution::IncompleteWaiver
+                | ScenarioResolution::CompleteWaiver => {}
             }
             config = config.with_verification_profile_hint(hint);
         }
@@ -196,11 +328,34 @@ impl VerificationSkillContractScenario {
     }
 }
 
+fn passed_receipt_for_scenario(
+    scenario: &VerificationSkillContractScenario,
+    fingerprint: &str,
+) -> RustVerificationReceipt {
+    let receipt = RustVerificationReceipt::passed(fingerprint.to_string(), scenario.kind);
+    if scenario.resolution != ScenarioResolution::StructuredPerformanceReceipt {
+        return receipt;
+    }
+    receipt
+        .with_evidence("benchmark_command", "cargo bench --bench parser_hot_path")
+        .with_evidence("baseline", "main@b0a8a7a")
+        .with_evidence("regression_threshold", "5%")
+        .with_evidence("latency_or_throughput", "-1.4% latency")
+        .with_evidence("allocation_profile", "allocs/op unchanged")
+        .with_evidence(
+            "profile_artifact",
+            "target/criterion/parser_hot_path/report/index.html",
+        )
+        .with_evidence_uri("target/criterion/parser_hot_path/report/index.html")
+        .with_observed_at("2026-05-01T20:00:00Z")
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ScenarioStatus {
     active_count: usize,
     task_state: Option<RustVerificationTaskState>,
     contract_ref: Option<String>,
+    receipt_evidence: Vec<String>,
 }
 
 fn scenario_status(
@@ -214,6 +369,12 @@ fn scenario_status(
         contract_ref: task
             .filter(|task| task.is_active())
             .and_then(|task| task.skill_contract_ref.clone()),
+        receipt_evidence: task.map_or_else(Vec::new, |task| {
+            task.receipt_evidence
+                .iter()
+                .map(|evidence| format!("{}={}", evidence.label, evidence.value))
+                .collect()
+        }),
     }
 }
 
@@ -245,6 +406,26 @@ fn assert_scenario_expectations(
                 scenario.id
             );
         }
+        ScenarioResolution::OwnerOverride => {
+            assert_eq!(initial_status.active_count, 1, "{}", scenario.id);
+            assert_eq!(final_status.active_count, 1, "{}", scenario.id);
+            assert_eq!(
+                final_status.task_state,
+                Some(RustVerificationTaskState::Pending),
+                "{}",
+                scenario.id
+            );
+            assert!(
+                rendered.contains("contract_ref="),
+                "owner override should trigger a compact contract ref: {}",
+                scenario.id
+            );
+            assert!(
+                contracts.contains("[skill-contract]"),
+                "owner override should expose an expandable contract: {}",
+                scenario.id
+            );
+        }
         ScenarioResolution::None => {
             assert_eq!(initial_status.active_count, 0, "{}", scenario.id);
             assert_eq!(final_status.active_count, 0, "{}", scenario.id);
@@ -269,6 +450,73 @@ fn assert_scenario_expectations(
             assert!(rendered.is_empty(), "{}", scenario.id);
             assert!(contracts.is_empty(), "{}", scenario.id);
         }
+        ScenarioResolution::StructuredPerformanceReceipt => {
+            assert_eq!(initial_status.active_count, 1, "{}", scenario.id);
+            assert_eq!(final_status.active_count, 0, "{}", scenario.id);
+            assert_eq!(
+                final_status.task_state,
+                Some(RustVerificationTaskState::Satisfied),
+                "{}",
+                scenario.id
+            );
+            assert!(
+                final_status
+                    .receipt_evidence
+                    .iter()
+                    .any(|evidence| evidence.starts_with("benchmark_command=")),
+                "structured performance receipt should stay searchable: {}",
+                scenario.id
+            );
+            assert!(rendered.is_empty(), "{}", scenario.id);
+            assert!(contracts.is_empty(), "{}", scenario.id);
+        }
+        ScenarioResolution::FailedReceipt => {
+            assert_eq!(initial_status.active_count, 1, "{}", scenario.id);
+            assert_eq!(final_status.active_count, 1, "{}", scenario.id);
+            assert_eq!(
+                final_status.task_state,
+                Some(RustVerificationTaskState::Failed),
+                "{}",
+                scenario.id
+            );
+            assert!(rendered.contains("|receipt:"), "{}", scenario.id);
+            assert!(
+                contracts.contains("[skill-contract]"),
+                "failed active receipt should keep contract available: {}",
+                scenario.id
+            );
+        }
+        ScenarioResolution::StalePassedReceipt => {
+            assert_eq!(initial_status.active_count, 1, "{}", scenario.id);
+            assert_eq!(final_status.active_count, 1, "{}", scenario.id);
+            assert_eq!(
+                final_status.task_state,
+                Some(RustVerificationTaskState::Pending),
+                "{}",
+                scenario.id
+            );
+            assert!(rendered.contains("contract_ref="), "{}", scenario.id);
+            assert!(
+                final_status.receipt_evidence.is_empty(),
+                "stale receipt should not attach searchable evidence: {}",
+                scenario.id
+            );
+        }
+        ScenarioResolution::IncompleteWaiver => {
+            assert_eq!(initial_status.active_count, 1, "{}", scenario.id);
+            assert_eq!(final_status.active_count, 1, "{}", scenario.id);
+            assert_eq!(
+                final_status.task_state,
+                Some(RustVerificationTaskState::Pending),
+                "{}",
+                scenario.id
+            );
+            assert!(
+                rendered.contains("resolution: stress.waiver=incomplete"),
+                "{}",
+                scenario.id
+            );
+        }
         ScenarioResolution::CompleteWaiver => {
             assert_eq!(initial_status.active_count, 1, "{}", scenario.id);
             assert_eq!(final_status.active_count, 0, "{}", scenario.id);
@@ -292,7 +540,7 @@ fn render_scenario_audit(
     contracts: &str,
 ) -> String {
     let mut audit = format!(
-        "[scenario] {}\n   |kind: {}\n   |resolution: {}\n   |initial: active={} state={} contract_ref={}\n   |final: active={} state={} contract_ref={}\n",
+        "[scenario] {}\n   |kind: {} resolution={}\n   |initial: active={} state={} contract_ref={}\n   |final: active={} state={} contract_ref={}\n",
         scenario.id,
         scenario.kind.as_str(),
         scenario.resolution.label(),
@@ -303,6 +551,12 @@ fn render_scenario_audit(
         state_label(final_status.task_state),
         option_label(final_status.contract_ref.as_deref()),
     );
+    append_evidence_line(
+        &mut audit,
+        "initial-receipt",
+        &initial_status.receipt_evidence,
+    );
+    append_evidence_line(&mut audit, "final-receipt", &final_status.receipt_evidence);
     append_block(&mut audit, "verify", rendered);
     append_block(&mut audit, "contracts", contracts);
     audit
@@ -312,8 +566,13 @@ impl ScenarioResolution {
     const fn label(self) -> &'static str {
         match self {
             Self::None => "none",
+            Self::OwnerOverride => "owner_override",
             Self::ProfileSuppressed => "profile_suppressed",
             Self::PassedReceipt => "passed_receipt",
+            Self::StructuredPerformanceReceipt => "structured_performance_receipt",
+            Self::FailedReceipt => "failed_receipt",
+            Self::StalePassedReceipt => "stale_passed_receipt",
+            Self::IncompleteWaiver => "incomplete_waiver",
             Self::CompleteWaiver => "complete_waiver",
         }
     }
@@ -333,9 +592,14 @@ fn option_label(value: Option<&str>) -> &str {
     value.unwrap_or("-")
 }
 
+fn append_evidence_line(audit: &mut String, label: &str, evidence: &[String]) {
+    if !evidence.is_empty() {
+        audit.push_str(&format!("   |{label}: {}\n", evidence.join(",")));
+    }
+}
+
 fn append_block(audit: &mut String, label: &str, block: &str) {
     if block.is_empty() {
-        audit.push_str(&format!("   |{label}: -\n"));
         return;
     }
     for line in block.lines() {

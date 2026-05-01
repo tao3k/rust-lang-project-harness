@@ -1,6 +1,6 @@
 ---
-source: tests/unit/verification/lifecycle.rs
-assertion_line: 192
+source: tests/unit/verification/lifecycle/profiles.rs
+assertion_line: 74
 expression: rendered
 ---
 [verify] src/domain.rs
