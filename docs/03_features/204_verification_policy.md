@@ -1,11 +1,11 @@
 # Verification Policy
 
 Verification policy is a parser-native task contract for external Agent skills.
-It does not run stress, chaos, security, or regression tools by itself. The
-harness decides when a task is structurally relevant, attaches structured
-evidence requirements, renders a compact owner-level reminder for the Agent, and
-accepts a receipt or waiver that removes the reminder for the current
-parser-fact fingerprint.
+It does not run cargo bench, Criterion, Divan, iai-callgrind, stress, chaos,
+security, or regression tools by itself. The harness decides when a task is
+structurally relevant, attaches structured evidence requirements, renders a
+compact owner-level reminder for the Agent, and accepts a receipt or waiver that
+removes the reminder for the current parser-fact fingerprint.
 
 The authority order is:
 
@@ -61,9 +61,9 @@ If a receipt or waiver is present but cannot clear the task, the active task
 keeps rendering with a `resolution:` line so the Agent knows what still needs to
 be fixed.
 
-Compact text is grouped by owner path. If one owner needs stress, chaos, and
-security verification, the renderer emits one `[verify] owner.rs` block with
-task-specific lines instead of three repeated owner cards.
+Compact text is grouped by owner path. If one owner needs stress, performance,
+chaos, and security verification, the renderer emits one `[verify] owner.rs`
+block with task-specific lines instead of repeated owner cards.
 
 ## Configurable Surface
 
@@ -80,8 +80,8 @@ There are three configurable layers:
   evidence keys for a task kind across the project.
 - Owner profile override: let one owner choose its exact task kinds and
   contracts. This is the Agent-facing layer for declaring that a concrete
-  module needs stress, security, chaos, regression, or no external skill in the
-  current responsibility boundary.
+  module needs stress, performance, security, chaos, regression, or no external
+  skill in the current responsibility boundary.
 
 ```rust
 use rust_lang_project_harness::{
@@ -118,8 +118,8 @@ Owner-local config wins over global defaults only for that profile. Use
 `RustVerificationProfileHint::with_task_kinds([...])` when the Agent can name
 the exact verification skill families for an owner. Use
 `RustVerificationProfileHint::without_verification_tasks()` when the owner is
-deliberately out of scope for external stress, chaos, security, or regression
-evidence in this slice. Receipts and waivers still clear tasks through
+deliberately out of scope for external stress, performance, chaos, security, or
+regression evidence in this slice. Receipts and waivers still clear tasks through
 fingerprints, so changing the owner-local task kinds or contracts invalidates
 stale evidence automatically.
 
@@ -133,6 +133,9 @@ attached to a task kind that is not effective for that owner.
 ## Task Families
 
 - `stress`: high-concurrency load, p50/p99/p999, SLA break detection
+- `performance`: Rust-native benchmark and allocation regression evidence,
+  such as `cargo bench`, Criterion, Divan, iai-callgrind, flamegraph, or a
+  project-owned benchmark command
 - `chaos`: dependency kill, delay, packet loss, degradation, recovery
 - `security`: common attack-surface probes and authorization-boundary checks
 - `regression`: architecture drift checks such as branch growth, owner fan-out,
@@ -143,7 +146,10 @@ Verification tasks are not harness findings. A finding means a policy violation
 inside the Rust project. A verification task means an external Agent skill should
 produce evidence before the task is considered handled. Each task also carries
 `required_evidence` for structured consumers. For example, stress verification
-requires keys such as `p50`, `p99`, `p999`, `load_steps`, and `sla_result`.
+requires keys such as `p50`, `p99`, `p999`, `load_steps`, and `sla_result`;
+performance verification requires keys such as `benchmark_command`, `baseline`,
+`regression_threshold`, `latency_or_throughput`, `allocation_profile`, and
+`profile_artifact`.
 
 ## Receipt And Waiver Lifecycle
 
@@ -189,9 +195,9 @@ the active obligation:
 [verify] src/api.rs
    |owner: src/api
    |stress: pending phase=after_unit_tests_pass fingerprint=rustv:...
-   |why: stress=profile declares public or latency-sensitive surface
+   |why: stress=profile declares public API or integration surface
    |requires: stress=p50,p99,p999,load_steps,sla_result
-   |fact: stress.profile=public_api,latency_sensitive
+   |fact: stress.profile=public_api
    |contract: stress=stress skill must report p50/p99/p999, load steps, and SLA result for this fingerprint
 ```
 

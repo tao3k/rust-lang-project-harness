@@ -32,7 +32,7 @@ fn verification_profile_tasks_render_compact_snapshot() {
     let plan = plan_rust_project_verification_with_config(root, &config).expect("plan");
     let rendered = normalize_temp_root(&render_rust_verification_plan(&plan), root);
 
-    assert_eq!(plan.active_tasks().len(), 3, "{rendered}");
+    assert_eq!(plan.active_tasks().len(), 4, "{rendered}");
     insta::assert_snapshot!("verification_profile_tasks", rendered);
 }
 

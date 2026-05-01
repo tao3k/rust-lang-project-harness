@@ -11,6 +11,8 @@ use serde::{Deserialize, Serialize};
 pub enum RustVerificationTaskKind {
     /// High-concurrency and latency-curve validation.
     Stress,
+    /// Rust-native benchmark and allocation-regression validation.
+    Performance,
     /// Dependency failure and recovery validation.
     Chaos,
     /// Common vulnerability and authorization-boundary probing.
@@ -27,6 +29,7 @@ impl RustVerificationTaskKind {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Stress => "stress",
+            Self::Performance => "performance",
             Self::Chaos => "chaos",
             Self::Security => "security",
             Self::Regression => "regression",

@@ -1,11 +1,11 @@
 ---
-source: tests/unit/verification/config.rs
+source: tests/unit/verification/config/profile_review.rs
 expression: rendered
 ---
 [verify] src/api.rs
    |owner: src/api
    |stress: pending phase=after_unit_tests_pass fingerprint=rustv:745d9b51631431fd
-   |why: stress=profile declares public or latency-sensitive surface
+   |why: stress=profile declares public API or integration surface
    |requires: stress=p50,p99,p999,load_steps,sla_result
    |fact: stress.profile=public_api
    |contract: stress=stress skill must report p50/p99/p999, load steps, and SLA result for this fingerprint

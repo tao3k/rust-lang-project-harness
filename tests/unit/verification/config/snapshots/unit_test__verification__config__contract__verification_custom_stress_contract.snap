@@ -1,12 +1,11 @@
 ---
-source: tests/unit/verification/config.rs
-assertion_line: 46
+source: tests/unit/verification/config/contract.rs
 expression: rendered
 ---
 [verify] src/api.rs
    |owner: src/api
    |stress: pending phase=before_release fingerprint=rustv:bbbccdc62d977a33
-   |why: stress=profile declares public or latency-sensitive surface
+   |why: stress=profile declares public API or integration surface
    |requires: stress=tenant_slo,saturation_step
    |fact: stress.profile=public_api
    |contract: stress=custom stress skill must report tenant SLO and saturation step

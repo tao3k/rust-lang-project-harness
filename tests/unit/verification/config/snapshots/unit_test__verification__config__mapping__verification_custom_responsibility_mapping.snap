@@ -1,12 +1,11 @@
 ---
-source: tests/unit/verification/config.rs
+source: tests/unit/verification/config/mapping.rs
 expression: rendered
 ---
 [verify] src/api.rs
    |owner: src/api
-   |security: pending phase=before_release fingerprint=rustv:d7072252e8144694
-   |why: security=owner profile explicitly requests security verification
+   |security: pending phase=before_release fingerprint=rustv:be5021ff926a2e4c
+   |why: security=profile config maps responsibilities to security verification
    |requires: security=attack_classes,authorization_boundary,findings
    |fact: security.profile=public_api
-   |fact: security.rationale=this slice changes route authorization
    |contract: security=security skill must report scanned attack classes and authorization-boundary result for this fingerprint

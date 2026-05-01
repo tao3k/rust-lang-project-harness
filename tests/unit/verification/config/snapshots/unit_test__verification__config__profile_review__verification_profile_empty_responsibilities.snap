@@ -1,5 +1,5 @@
 ---
-source: tests/unit/verification/config.rs
+source: tests/unit/verification/config/profile_review.rs
 expression: rendered
 ---
 [verify] src/api.rs

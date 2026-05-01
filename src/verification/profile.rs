@@ -86,8 +86,9 @@ fn default_task_kinds_for_responsibility(
     responsibility: RustOwnerResponsibility,
 ) -> BTreeSet<RustVerificationTaskKind> {
     match responsibility {
-        RustOwnerResponsibility::PublicApi | RustOwnerResponsibility::LatencySensitive => {
-            BTreeSet::from([RustVerificationTaskKind::Stress])
+        RustOwnerResponsibility::PublicApi => BTreeSet::from([RustVerificationTaskKind::Stress]),
+        RustOwnerResponsibility::LatencySensitive => {
+            BTreeSet::from([RustVerificationTaskKind::Performance])
         }
         RustOwnerResponsibility::ExternalDependency
         | RustOwnerResponsibility::Persistence
@@ -126,7 +127,8 @@ pub(super) fn profile_task_reason(
 
 fn default_profile_task_reason(kind: RustVerificationTaskKind) -> &'static str {
     match kind {
-        RustVerificationTaskKind::Stress => "profile declares public or latency-sensitive surface",
+        RustVerificationTaskKind::Stress => "profile declares public API or integration surface",
+        RustVerificationTaskKind::Performance => "profile declares latency-sensitive Rust owner",
         RustVerificationTaskKind::Chaos => {
             "profile declares dependency, persistence, or availability responsibility"
         }
@@ -158,6 +160,11 @@ fn default_task_contract(kind: RustVerificationTaskKind) -> RustVerificationTask
             RustVerificationPhase::AfterUnitTestsPass,
             "stress skill must report p50/p99/p999, load steps, and SLA result for this fingerprint",
             stress_requirements(),
+        ),
+        RustVerificationTaskKind::Performance => RustVerificationTaskContract::new(
+            RustVerificationPhase::AfterUnitTestsPass,
+            "performance skill must report benchmark command, baseline, regression threshold, latency or throughput, allocation profile, and profiling artifact for this fingerprint",
+            performance_requirements(),
         ),
         RustVerificationTaskKind::Chaos => RustVerificationTaskContract::new(
             RustVerificationPhase::BeforeRelease,
@@ -195,6 +202,35 @@ fn stress_requirements() -> Vec<RustVerificationRequirement> {
             "pressure staircase and concurrency/request rates",
         ),
         ("sla_result", "whether the declared SLA was held or broken"),
+    ])
+}
+
+fn performance_requirements() -> Vec<RustVerificationRequirement> {
+    requirements([
+        (
+            "benchmark_command",
+            "cargo bench or project-owned command that exercises this owner",
+        ),
+        (
+            "baseline",
+            "baseline commit, release, or previous artifact used for comparison",
+        ),
+        (
+            "regression_threshold",
+            "accepted slowdown, throughput drop, or allocation growth limit",
+        ),
+        (
+            "latency_or_throughput",
+            "ns/op, ops/sec, or domain-specific throughput result",
+        ),
+        (
+            "allocation_profile",
+            "allocation count, bytes, or explicit unsupported result",
+        ),
+        (
+            "profile_artifact",
+            "criterion, divan, iai-callgrind, flamegraph, or equivalent artifact",
+        ),
     ])
 }
 

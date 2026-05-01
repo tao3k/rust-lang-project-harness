@@ -142,11 +142,12 @@ Rule ids can be disabled for a run or reclassified to another severity. The
 configured `blocking_severities` still decide whether the final report fails.
 
 Verification skills use a separate library-first contract. The harness does not
-execute k6, locust, chaos injection, security scanners, or regression probes; it
-plans parser-native obligations for external Agent skills and accepts receipts or
-waivers that clear the compact reminder for the current task fingerprint. Each
-task carries structured evidence requirements in JSON and an owner-grouped
-contract in compact text:
+execute cargo bench, Criterion, Divan, iai-callgrind, k6, locust, chaos
+injection, security scanners, or regression probes; it plans parser-native
+obligations for external Agent skills and accepts receipts or waivers that clear
+the compact reminder for the current task fingerprint. Each task carries
+structured evidence requirements in JSON and an owner-grouped contract in
+compact text:
 
 ```rust
 use std::path::Path;
@@ -221,7 +222,7 @@ for that owner while receipts and waivers still operate by task fingerprint.
 When an owner-local task override changes the responsibility-derived default,
 the profile must include a compact rationale. Without that rationale the harness
 keeps a `responsibility_review` task active so the Agent explains why stress,
-security, chaos, or regression evidence was added or removed.
+performance, security, chaos, or regression evidence was added or removed.
 
 For workspaces, profile hint paths can be package-relative (`src/api.rs`) or
 workspace-root-relative (`crates/api/src/api.rs`). Task fingerprints include the
