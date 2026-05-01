@@ -3,7 +3,10 @@ use std::fs;
 use tempfile::TempDir;
 
 use crate::RustProjectHarnessScope;
-use crate::parser::{RustModuleChildEdgeKind, parse_rust_file, rust_reasoning_tree_facts};
+use crate::parser::{
+    RustModuleChildEdgeKind, RustReasoningOwnerBranchRole, parse_rust_file,
+    rust_reasoning_tree_facts,
+};
 
 #[test]
 fn reasoning_tree_interprets_modules_owners_and_child_edges() {
@@ -78,6 +81,43 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
         vec![(RustModuleChildEdgeKind::Mod, src.join("domain/leaf.rs"))]
     );
 
+    assert_eq!(reasoning_tree.owner_branches.len(), 2);
+    assert_eq!(reasoning_tree.owner_branches[0].path, src.join("lib.rs"));
+    assert_eq!(
+        reasoning_tree.owner_branches[0].roles,
+        vec![
+            RustReasoningOwnerBranchRole::Root,
+            RustReasoningOwnerBranchRole::Facade,
+        ]
+    );
+    assert_eq!(
+        reasoning_tree.owner_branches[0].owner_namespace,
+        vec!["src".to_string()]
+    );
+    assert_eq!(
+        owner_branch_child_edges(&reasoning_tree.owner_branches[0]),
+        vec![
+            (RustModuleChildEdgeKind::Mod, src.join("domain.rs")),
+            (
+                RustModuleChildEdgeKind::PathAttrMod,
+                src.join("alt/custom.rs")
+            ),
+            (
+                RustModuleChildEdgeKind::IncludeLiteral,
+                src.join("shard.rs")
+            ),
+        ]
+    );
+    assert_eq!(reasoning_tree.owner_branches[1].path, src.join("domain.rs"));
+    assert_eq!(
+        reasoning_tree.owner_branches[1].roles,
+        vec![RustReasoningOwnerBranchRole::Branch]
+    );
+    assert_eq!(
+        reasoning_tree.owner_branches[1].owner_namespace,
+        vec!["src".to_string(), "domain".to_string()]
+    );
+
     assert!(reasoning_tree.shadowed_module_sources.is_empty());
     assert!(reasoning_tree.unreachable_source_files.is_empty());
 }
@@ -86,6 +126,16 @@ fn child_edges(
     module: &crate::parser::RustReasoningModuleFacts,
 ) -> Vec<(RustModuleChildEdgeKind, std::path::PathBuf)> {
     module
+        .declared_child_edges
+        .iter()
+        .map(|edge| (edge.kind, edge.child_path.clone()))
+        .collect()
+}
+
+fn owner_branch_child_edges(
+    branch: &crate::parser::RustReasoningOwnerBranchFacts,
+) -> Vec<(RustModuleChildEdgeKind, std::path::PathBuf)> {
+    branch
         .declared_child_edges
         .iter()
         .map(|edge| (edge.kind, edge.child_path.clone()))

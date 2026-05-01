@@ -8,7 +8,10 @@ use crate::discovery::{
     discover_cargo_package_roots, discover_rust_files, rust_project_harness_scope,
 };
 use crate::model::RustHarnessConfig;
-use crate::parser::{RustModuleChildEdge, parse_rust_file, rust_reasoning_tree_facts};
+use crate::parser::{
+    RustModuleChildEdge, RustReasoningOwnerBranchFacts, RustReasoningOwnerBranchRole,
+    parse_rust_file, rust_reasoning_tree_facts,
+};
 use crate::rules::evaluate_default_rule_packs;
 use crate::{RustDiagnosticSeverity, RustHarnessFinding, RustProjectHarnessScope};
 
@@ -125,40 +128,18 @@ fn render_package_snapshot(
         reasoning_tree.unreachable_source_files.len()
     );
     rendered.push_str("OwnerBranches:\n");
-    let mut branch_modules = reasoning_tree
-        .modules
+    let branch_lines = reasoning_tree
+        .owner_branches
         .iter()
-        .filter(|module| module.is_source_module)
-        .filter(|module| {
-            module.is_module_tree_root
-                || !module.declared_child_edges.is_empty()
-                || module.source_path.is_special_entrypoint
-                || !module.source_path.repeated_namespace_segments.is_empty()
-        })
-        .collect::<Vec<_>>();
-    branch_modules.sort_by(|left, right| {
-        right
-            .is_module_tree_root
-            .cmp(&left.is_module_tree_root)
-            .then_with(|| left.path.cmp(&right.path))
-    });
-    let branch_lines = branch_modules
-        .into_iter()
-        .map(|module| {
-            let roles = module_roles(module);
-            let owner = if module.source_path.namespace_components.is_empty() {
-                "-".to_string()
-            } else {
-                module.source_path.namespace_components.join("/")
-            };
+        .map(|branch| {
             format!(
                 " - {} [{}] owner={} -> {}",
-                display_project_path(&reasoning_tree.package_root, &module.path),
-                roles.join(", "),
-                owner,
+                display_project_path(&reasoning_tree.package_root, &branch.path),
+                owner_branch_role_labels(branch).join(", "),
+                display_owner_namespace(branch),
                 display_child_edges(
                     &reasoning_tree.package_root,
-                    &module.declared_child_edges,
+                    &branch.declared_child_edges,
                     "-"
                 )
             )
@@ -191,39 +172,29 @@ fn parse_scope(
         .collect()
 }
 
-fn module_roles(module: &crate::parser::RustReasoningModuleFacts) -> Vec<String> {
-    let mut roles = Vec::new();
-    if module.is_module_tree_root {
-        roles.push("root".to_string());
+fn owner_branch_role_labels(branch: &RustReasoningOwnerBranchFacts) -> Vec<String> {
+    branch
+        .roles
+        .iter()
+        .map(|role| match role {
+            RustReasoningOwnerBranchRole::Root => "root".to_string(),
+            RustReasoningOwnerBranchRole::Facade => "facade".to_string(),
+            RustReasoningOwnerBranchRole::Interface => "interface".to_string(),
+            RustReasoningOwnerBranchRole::Binary => "binary".to_string(),
+            RustReasoningOwnerBranchRole::PackageEntrypoint => "package-entrypoint".to_string(),
+            RustReasoningOwnerBranchRole::RepeatedNamespace(segments) => {
+                format!("repeated:{}", segments.join(","))
+            }
+            RustReasoningOwnerBranchRole::Branch => "branch".to_string(),
+        })
+        .collect()
+}
+
+fn display_owner_namespace(branch: &RustReasoningOwnerBranchFacts) -> String {
+    if branch.owner_namespace.is_empty() {
+        return "-".to_string();
     }
-    if module.source_path.is_crate_facade {
-        roles.push("facade".to_string());
-    }
-    if module.source_path.is_interface_mod {
-        roles.push("interface".to_string());
-    }
-    if module.source_path.is_binary_entrypoint {
-        roles.push("binary".to_string());
-    }
-    if module.source_path.is_package_entrypoint {
-        roles.push("package-entrypoint".to_string());
-    }
-    if !module.source_path.repeated_namespace_segments.is_empty() {
-        roles.push(format!(
-            "repeated:{}",
-            module
-                .source_path
-                .repeated_namespace_segments
-                .iter()
-                .cloned()
-                .collect::<Vec<_>>()
-                .join(",")
-        ));
-    }
-    if roles.is_empty() {
-        roles.push("branch".to_string());
-    }
-    roles
+    branch.owner_namespace.join("/")
 }
 
 fn grouped_findings(package_root: &Path, findings: &[RustHarnessFinding]) -> Vec<String> {

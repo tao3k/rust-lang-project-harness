@@ -17,6 +17,7 @@ pub(crate) struct RustReasoningTreeFacts {
     pub(crate) source_roots: Vec<PathBuf>,
     pub(crate) package_entrypoints: Vec<PathBuf>,
     pub(crate) modules: Vec<RustReasoningModuleFacts>,
+    pub(crate) owner_branches: Vec<RustReasoningOwnerBranchFacts>,
     pub(crate) shadowed_module_sources: Vec<RustModuleSourceShadow>,
     pub(crate) unreachable_source_files: Vec<PathBuf>,
 }
@@ -28,6 +29,25 @@ pub(crate) struct RustReasoningModuleFacts {
     pub(crate) is_source_module: bool,
     pub(crate) is_module_tree_root: bool,
     pub(crate) declared_child_edges: Vec<RustModuleChildEdge>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RustReasoningOwnerBranchFacts {
+    pub(crate) path: PathBuf,
+    pub(crate) owner_namespace: Vec<String>,
+    pub(crate) roles: Vec<RustReasoningOwnerBranchRole>,
+    pub(crate) declared_child_edges: Vec<RustModuleChildEdge>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum RustReasoningOwnerBranchRole {
+    Root,
+    Facade,
+    Interface,
+    Binary,
+    PackageEntrypoint,
+    RepeatedNamespace(Vec<String>),
+    Branch,
 }
 
 impl RustReasoningTreeFacts {
@@ -68,15 +88,77 @@ pub(crate) fn rust_reasoning_tree_facts(
                 },
             }
         })
-        .collect();
+        .collect::<Vec<_>>();
+    let owner_branches = owner_branch_facts(&module_facts);
     RustReasoningTreeFacts {
         package_root: scope.project_root.clone(),
         source_roots: scope.source_paths.clone(),
         package_entrypoints: scope.package_paths.clone(),
         modules: module_facts,
+        owner_branches,
         shadowed_module_sources: module_tree.shadowed_module_sources,
         unreachable_source_files: module_tree.unreachable_source_files,
     }
+}
+
+fn owner_branch_facts(modules: &[RustReasoningModuleFacts]) -> Vec<RustReasoningOwnerBranchFacts> {
+    let mut branches = modules
+        .iter()
+        .filter(|module| module.is_source_module)
+        .filter(|module| {
+            module.is_module_tree_root
+                || !module.declared_child_edges.is_empty()
+                || module.source_path.is_special_entrypoint
+                || !module.source_path.repeated_namespace_segments.is_empty()
+        })
+        .map(|module| RustReasoningOwnerBranchFacts {
+            path: module.path.clone(),
+            owner_namespace: module.source_path.namespace_components.clone(),
+            roles: owner_branch_roles(module),
+            declared_child_edges: module.declared_child_edges.clone(),
+        })
+        .collect::<Vec<_>>();
+    branches.sort_by(|left, right| {
+        right
+            .roles
+            .contains(&RustReasoningOwnerBranchRole::Root)
+            .cmp(&left.roles.contains(&RustReasoningOwnerBranchRole::Root))
+            .then_with(|| left.path.cmp(&right.path))
+    });
+    branches
+}
+
+fn owner_branch_roles(module: &RustReasoningModuleFacts) -> Vec<RustReasoningOwnerBranchRole> {
+    let mut roles = Vec::new();
+    if module.is_module_tree_root {
+        roles.push(RustReasoningOwnerBranchRole::Root);
+    }
+    if module.source_path.is_crate_facade {
+        roles.push(RustReasoningOwnerBranchRole::Facade);
+    }
+    if module.source_path.is_interface_mod {
+        roles.push(RustReasoningOwnerBranchRole::Interface);
+    }
+    if module.source_path.is_binary_entrypoint {
+        roles.push(RustReasoningOwnerBranchRole::Binary);
+    }
+    if module.source_path.is_package_entrypoint {
+        roles.push(RustReasoningOwnerBranchRole::PackageEntrypoint);
+    }
+    if !module.source_path.repeated_namespace_segments.is_empty() {
+        roles.push(RustReasoningOwnerBranchRole::RepeatedNamespace(
+            module
+                .source_path
+                .repeated_namespace_segments
+                .iter()
+                .cloned()
+                .collect(),
+        ));
+    }
+    if roles.is_empty() {
+        roles.push(RustReasoningOwnerBranchRole::Branch);
+    }
+    roles
 }
 
 fn is_under_any_dir(path: &Path, dirs: &[PathBuf]) -> bool {
