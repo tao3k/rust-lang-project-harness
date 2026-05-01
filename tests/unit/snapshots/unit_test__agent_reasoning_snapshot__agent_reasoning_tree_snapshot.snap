@@ -1,0 +1,16 @@
+---
+source: tests/unit/agent_reasoning_snapshot.rs
+expression: "normalize_temp_root(&rendered, root)"
+---
+[agent:snapshot] $TEMP rust
+Packages: 1
+
+Package: .
+SourceRoots: src
+PackageEntrypoints: -
+Modules: source=3 roots=1 branches=2 shadowed=0 orphaned=0
+OwnerBranches:
+ - src/lib.rs [root, facade] owner=src -> src/domain.rs
+ - src/domain.rs [branch] owner=src/domain -> src/domain/leaf.rs
+FindingGroups:
+ - none

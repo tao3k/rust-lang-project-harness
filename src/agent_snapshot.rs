@@ -125,7 +125,7 @@ fn render_package_snapshot(
         reasoning_tree.unreachable_source_files.len()
     );
     rendered.push_str("OwnerBranches:\n");
-    let branch_lines = reasoning_tree
+    let mut branch_modules = reasoning_tree
         .modules
         .iter()
         .filter(|module| module.is_source_module)
@@ -135,6 +135,15 @@ fn render_package_snapshot(
                 || module.source_path.is_special_entrypoint
                 || !module.source_path.repeated_namespace_segments.is_empty()
         })
+        .collect::<Vec<_>>();
+    branch_modules.sort_by(|left, right| {
+        right
+            .is_module_tree_root
+            .cmp(&left.is_module_tree_root)
+            .then_with(|| left.path.cmp(&right.path))
+    });
+    let branch_lines = branch_modules
+        .into_iter()
         .map(|module| {
             let roles = module_roles(module);
             let owner = if module.source_path.namespace_components.is_empty() {

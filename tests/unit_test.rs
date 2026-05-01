@@ -27,6 +27,9 @@ mod mod_policy_snapshot;
 #[path = "unit/agent_policy_snapshot.rs"]
 mod agent_policy_snapshot;
 
+#[path = "unit/agent_reasoning_snapshot.rs"]
+mod agent_reasoning_snapshot;
+
 #[path = "unit/runner_config/mod.rs"]
 mod runner_config;
 
