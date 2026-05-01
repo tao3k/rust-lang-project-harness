@@ -145,6 +145,28 @@ fn module_tree_reachability_lives_under_parser_module() {
 }
 
 #[test]
+fn cargo_test_target_parsing_lives_under_parser_module() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let parser_source = fs::read_to_string(root.join("src/parser/cargo_test_targets.rs"))
+        .expect("read cargo test target parser");
+    assert!(parser_source.contains("pub(crate) fn parse_cargo_test_targets"));
+    assert!(parser_source.contains("parse_rust_file(&path)"));
+
+    let rule_source = fs::read_to_string(root.join("src/rules/project_policy/test_targets.rs"))
+        .expect("read test target rules");
+    for forbidden in [
+        "parse_rust_file(",
+        "collect_test_target_files",
+        "fs::read_dir",
+    ] {
+        assert!(
+            !rule_source.contains(forbidden),
+            "Cargo test target rules must consume parser-owned target modules, not `{forbidden}`"
+        );
+    }
+}
+
+#[test]
 fn library_target_mounts_source_backed_self_apply_gate() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let lib_rs = fs::read_to_string(root.join("src/lib.rs")).expect("read src/lib.rs");

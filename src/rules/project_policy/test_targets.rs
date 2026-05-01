@@ -1,28 +1,26 @@
 //! Cargo test target policy.
 
-use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::collections::BTreeMap;
+use std::path::Path;
 
 use crate::parser::{
-    CargoManifestFacts, ParsedRustModule, RustTopLevelItemSyntax, file_location, parse_rust_file,
+    CargoManifestFacts, ParsedRustModule, RustTopLevelItemSyntax, file_location,
     path_line_location, source_line,
 };
 use crate::{RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
 use super::config::{LayoutPolicy, is_allowed_test_suite_path};
-use super::support::{display_project_path, is_rust_file, resolve_path_attr};
+use super::support::{display_project_path, resolve_path_attr};
 use super::{RUST_PROJ_R006, RUST_PROJ_R007, RUST_PROJ_R008, RUST_PROJ_R009};
 
 pub(super) fn test_target_gate_findings(
     project_root: &Path,
-    cargo_manifest: &CargoManifestFacts,
+    cargo_test_targets: &[ParsedRustModule],
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     let mut findings = Vec::new();
     let rule = &rules[RUST_PROJ_R006];
-    for target in collect_test_target_files(project_root, cargo_manifest) {
-        let parsed = parse_rust_file(&target);
+    for parsed in cargo_test_targets {
         if parsed
             .syntax_facts
             .contains_invocation_named(ROOT_HARNESS_GATE_INVOCATIONS)
@@ -33,9 +31,9 @@ pub(super) fn test_target_gate_findings(
             rule,
             format!(
                 "{} does not mount the Rust project harness gate.",
-                display_project_path(project_root, &target)
+                display_project_path(project_root, &parsed.report.path)
             ),
-            file_location(target),
+            file_location(&parsed.report.path),
             None,
             "add rust_project_harness_gate!() to this Cargo test target",
         ));
@@ -77,13 +75,12 @@ pub(super) fn library_cargo_test_gate_findings(
 
 pub(super) fn test_target_aggregate_findings(
     project_root: &Path,
-    cargo_manifest: &CargoManifestFacts,
+    cargo_test_targets: &[ParsedRustModule],
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     let mut findings = Vec::new();
     let rule = &rules[RUST_PROJ_R007];
-    for target in collect_test_target_files(project_root, cargo_manifest) {
-        let parsed = parse_rust_file(&target);
+    for parsed in cargo_test_targets {
         for item in parsed
             .syntax_facts
             .top_level_items
@@ -94,10 +91,10 @@ pub(super) fn test_target_aggregate_findings(
                 rule,
                 format!(
                     "{} contains top-level implementation item `{}`.",
-                    display_project_path(project_root, &target),
+                    display_project_path(project_root, &parsed.report.path),
                     item.kind
                 ),
-                path_line_location(&target, item.line),
+                path_line_location(&parsed.report.path, item.line),
                 source_line(&parsed.source, item.line),
                 "move test implementation into a suite module and mount it from the root target",
             ));
@@ -108,14 +105,13 @@ pub(super) fn test_target_aggregate_findings(
 
 pub(super) fn test_target_module_mount_findings(
     project_root: &Path,
-    cargo_manifest: &CargoManifestFacts,
+    cargo_test_targets: &[ParsedRustModule],
     policy: &LayoutPolicy,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     let mut findings = Vec::new();
     let rule = &rules[RUST_PROJ_R008];
-    for target in collect_test_target_files(project_root, cargo_manifest) {
-        let parsed = parse_rust_file(&target);
+    for parsed in cargo_test_targets {
         for item_mod in parsed
             .syntax_facts
             .top_level_items
@@ -128,25 +124,25 @@ pub(super) fn test_target_module_mount_findings(
                     rule,
                     format!(
                         "{} declares root module `{}` without an explicit #[path].",
-                        display_project_path(project_root, &target),
+                        display_project_path(project_root, &parsed.report.path),
                         item_mod.ident
                     ),
-                    path_line_location(&target, item_mod.line),
+                    path_line_location(&parsed.report.path, item_mod.line),
                     source_line(&parsed.source, item_mod.line),
                     "mount this root test module with #[path = \"suite/file.rs\"]",
                 ));
                 continue;
             };
-            let resolved = resolve_path_attr(&target, path_value);
+            let resolved = resolve_path_attr(&parsed.report.path, path_value);
             let project_relative = resolved.strip_prefix(project_root).unwrap_or(&resolved);
             if !resolved.exists() || !is_allowed_test_suite_path(project_relative, policy) {
                 findings.push(RustHarnessFinding::from_rule(
                     rule,
                     format!(
                         "{} mounts `{path_value}`, but root test modules must resolve under an allowed tests suite directory.",
-                        display_project_path(project_root, &target)
+                        display_project_path(project_root, &parsed.report.path)
                     ),
-                    path_line_location(&target, item_mod.line),
+                    path_line_location(&parsed.report.path, item_mod.line),
                     source_line(&parsed.source, item_mod.line),
                     "point this root test module at tests/unit, tests/integration, or a documented suite",
                 ));
@@ -154,24 +150,6 @@ pub(super) fn test_target_module_mount_findings(
         }
     }
     findings
-}
-
-fn collect_test_target_files(
-    project_root: &Path,
-    cargo_manifest: &CargoManifestFacts,
-) -> Vec<PathBuf> {
-    let mut targets = BTreeSet::new();
-    let tests_dir = project_root.join("tests");
-    if let Ok(entries) = fs::read_dir(&tests_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_file() && is_rust_file(&path) {
-                targets.insert(path);
-            }
-        }
-    }
-    targets.extend(cargo_manifest.test_target_files.iter().cloned());
-    targets.into_iter().collect()
 }
 
 fn project_uses_harness_gate(

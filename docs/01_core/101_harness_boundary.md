@@ -32,6 +32,10 @@ Cargo manifest policy follows the same boundary discipline for non-Rust input:
 or project-policy rules inspect workspace members, test targets, or harness
 dependencies. Comments and prose in the manifest do not count as dependency
 evidence.
+Root Cargo test targets follow that parser boundary too: conventional
+`tests/*.rs` targets and manifest-declared `[[test]]` paths are collected and
+parsed under `src/parser/` before `RUST-PROJ-R006`, `RUST-PROJ-R007`, and
+`RUST-PROJ-R008` render findings.
 
 Custom project source roots configured through `RustHarnessConfig` are treated
 as source ownership roots by project, modularity, and agent policy packs.
