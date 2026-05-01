@@ -115,6 +115,36 @@ fn cargo_manifest_parser_lives_under_parser_module() {
 }
 
 #[test]
+fn module_tree_reachability_lives_under_parser_module() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let parser_source = fs::read_to_string(root.join("src/parser/module_tree.rs"))
+        .expect("read module tree parser");
+    assert!(parser_source.contains("pub(crate) fn rust_module_tree_facts"));
+
+    let forbidden_rule_fragments = [
+        "external_child_module_paths",
+        "child_module_base_dir",
+        "is_module_tree_root",
+        "include_target",
+    ];
+    let mut offenders = Vec::new();
+    for path in rust_files_under(&root.join("src/rules")) {
+        let source = fs::read_to_string(&path).expect("read rule source");
+        if forbidden_rule_fragments
+            .iter()
+            .any(|fragment| source.contains(fragment))
+        {
+            offenders.push(relative_path(&root, &path));
+        }
+    }
+
+    assert!(
+        offenders.is_empty(),
+        "module-tree reachability must be parser facts, not rule-local path reconstruction: {offenders:?}"
+    );
+}
+
+#[test]
 fn library_target_mounts_source_backed_self_apply_gate() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let lib_rs = fs::read_to_string(root.join("src/lib.rs")).expect("read src/lib.rs");

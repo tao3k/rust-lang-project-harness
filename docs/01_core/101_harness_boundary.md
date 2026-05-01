@@ -53,6 +53,11 @@ escapes and all glob imports, including `use super::*`. Agent advice reports
 repeated namespace segments across the default package surface, including test
 helpers and ordinary Rust file stems.
 
+Reasoning-tree reachability uses the same parser boundary: `mod` declarations,
+`#[path]` attributes, and literal `include!` source shards are resolved into
+module-tree facts under `src/parser/` before `RUST-MOD-R007` and
+`RUST-MOD-R009` render findings.
+
 ## Self-Apply Contract
 
 The package is also self-hosted by its own default policy. The library target

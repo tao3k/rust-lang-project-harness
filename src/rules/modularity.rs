@@ -4,9 +4,8 @@ mod catalog;
 mod entrypoints;
 mod reasoning_tree;
 mod source_shape;
-mod support;
 
-use crate::parser::ParsedRustModule;
+use crate::parser::{ParsedRustModule, rust_module_tree_facts};
 use crate::{RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
 use super::is_under_any_dir;
@@ -53,8 +52,9 @@ pub(crate) fn evaluate(
     };
     let rules = rules_by_id();
     let mut findings = Vec::new();
-    findings.extend(module_source_shadow_findings(scope, modules, &rules));
-    findings.extend(orphan_source_module_findings(scope, modules, &rules));
+    let module_tree = rust_module_tree_facts(&scope.source_paths, modules);
+    findings.extend(module_source_shadow_findings(&module_tree, &rules));
+    findings.extend(orphan_source_module_findings(&module_tree, &rules));
     for module in modules {
         let is_source_module = is_under_any_dir(&module.report.path, &scope.source_paths);
         let is_package_entrypoint = is_package_entrypoint_file(scope, &module.report.path);
