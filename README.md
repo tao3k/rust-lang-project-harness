@@ -212,12 +212,15 @@ let config = default_rust_harness_config()
     )
     .with_verification_responsibility_task_kinds(
         RustOwnerResponsibility::LatencySensitive,
-        [RustVerificationTaskKind::Stress],
+        [RustVerificationTaskKind::Performance],
     )
     .with_verification_skill_binding(
         RustVerificationTaskKind::Performance,
         RustVerificationSkillBinding::new("rust-verification-performance")
             .with_adapter("criterion"),
+    )
+    .with_verification_skill_descriptor(
+        RustVerificationSkillDescriptor::criterion_performance(),
     )
     .with_verification_skill_binding(
         RustVerificationTaskKind::Stress,
@@ -257,6 +260,13 @@ the task fingerprint, so changing the adapter contract invalidates stale
 receipts without reintroducing long Markdown manuals into the hot prompt path.
 Descriptor rendering is scoped to active tasks, so a passed receipt or complete
 waiver also removes the on-demand contract expansion for that task.
+
+The built-in descriptors keep stress and Rust-native performance separate.
+`RustVerificationSkillDescriptor::k6_stress()` is for service-boundary pressure
+and SLA evidence. `criterion_performance()`, `divan_performance()`, and
+`iai_callgrind_performance()` are for Rust code-level benchmark, allocation,
+instruction, cache, and profiling evidence through the `performance` task
+family.
 
 For workspaces, profile hint paths can be package-relative (`src/api.rs`) or
 workspace-root-relative (`crates/api/src/api.rs`). Task fingerprints include the

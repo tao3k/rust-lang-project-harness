@@ -73,7 +73,7 @@ Verification config stays library-first. It does not introduce CLI flags or
 TOML precedence. Embedding projects can adjust the verification contract through
 `RustHarnessConfig` or `RustVerificationPolicy`.
 
-There are four configurable layers:
+There are five configurable layers:
 
 - Responsibility mapping: choose which task kinds a declared responsibility
   triggers. Mapping a responsibility to an empty set suppresses the default
@@ -118,12 +118,15 @@ let config = default_rust_harness_config()
     )
     .with_verification_responsibility_task_kinds(
         RustOwnerResponsibility::LatencySensitive,
-        [RustVerificationTaskKind::Stress],
+        [RustVerificationTaskKind::Performance],
     )
     .with_verification_skill_binding(
         RustVerificationTaskKind::Performance,
         RustVerificationSkillBinding::new("rust-verification-performance")
             .with_adapter("criterion"),
+    )
+    .with_verification_skill_descriptor(
+        RustVerificationSkillDescriptor::criterion_performance(),
     )
     .with_verification_skill_binding(
         RustVerificationTaskKind::Stress,
@@ -170,11 +173,17 @@ and receipt fields. The compact verification renderer only emits
 descriptor. Agents expand the reference through
 `render_rust_verification_skill_contracts(&plan)` only when they need dispatch
 details. Descriptor material participates in the task fingerprint, so changing
-the k6 script contract, threshold standard, or expected receipt fields forces a
+the adapter command, threshold standard, or expected receipt fields forces a
 fresh receipt instead of silently clearing the old task.
 Descriptor expansion is also active-task scoped: once a matching receipt or
 complete waiver clears the task, the compact verification render and the
 optional descriptor render both go quiet.
+
+Descriptors also keep stress and Rust-native performance separate. `k6` belongs
+to the `stress` family for service-boundary pressure, p50/p99/p999, and SLA
+evidence. Criterion, Divan, and iai-callgrind belong to the `performance`
+family for Rust code-level benchmark, allocation, instruction, cache, and
+profiling evidence.
 
 ## Task Families
 
@@ -266,7 +275,37 @@ only adds a reference:
    |stress: pending phase=after_unit_tests_pass fingerprint=rustv:... skill=rust-verification-stress@k6 contract_ref=rust-verification-stress@k6
 ```
 
-The optional contract renderer expands that reference on demand:
+Rust-native performance descriptors expand on demand as compact execution
+contracts:
+
+```text
+[skill-contract] rust-verification-performance@criterion
+   |tool: criterion
+   |run: cargo bench
+   |standard: statistical benchmark baseline detects runtime regression
+   |inputs: bench_target,baseline,regression_threshold
+   |pass: regression<=threshold
+   |receipt: benchmark_command,baseline,regression_threshold,latency_or_throughput,allocation_profile,profile_artifact
+
+[skill-contract] rust-verification-performance@divan
+   |tool: divan
+   |run: cargo bench
+   |standard: sampled Rust benchmark summary stays within regression threshold
+   |inputs: bench_target,baseline,regression_threshold
+   |pass: median_or_mean_delta<=threshold
+   |receipt: benchmark_command,baseline,regression_threshold,latency_or_throughput,allocation_profile,profile_artifact,samples,iters
+
+[skill-contract] rust-verification-performance@iai-callgrind
+   |tool: iai-callgrind
+   |run: cargo bench
+   |standard: instruction/cache/allocation metrics stay within regression threshold
+   |inputs: bench_target,baseline,metric,regression_threshold
+   |pass: metric_delta<=threshold
+   |receipt: benchmark_command,baseline,regression_threshold,latency_or_throughput,allocation_profile,profile_artifact,instructions,cache_misses
+```
+
+The optional contract renderer can also expand a service-boundary stress
+descriptor:
 
 ```text
 [skill-contract] rust-verification-stress@k6
@@ -278,6 +317,14 @@ The optional contract renderer expands that reference on demand:
    |receipt: p50,p99,p999,load_steps,sla_result,artifact
 ```
 
+The Rust-native descriptors follow the ecosystem split between Cargo's
+benchmark entrypoint, statistical benchmarks, deterministic CI profiling, and
+profiling-first optimization. See the official docs for
+[`cargo bench`](https://doc.rust-lang.org/beta/cargo/commands/cargo-bench.html),
+[Criterion.rs](https://bheisler.github.io/criterion.rs/book/index.html),
+[Divan](https://docs.rs/divan/latest/divan/),
+[iai-callgrind](https://docs.rs/iai-callgrind/latest/iai_callgrind/), and the
+[Rust Performance Book profiling chapter](https://nnethercote.github.io/perf-book/profiling.html).
 The built-in k6 descriptor follows Grafana k6's model: `k6 run <script>` is the
 local execution command, scenarios describe load shape, and thresholds define
 pass/fail behavior with a zero exit code on pass and nonzero exit code on

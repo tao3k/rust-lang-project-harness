@@ -1,9 +1,12 @@
 use rust_lang_project_harness::{
-    RustVerificationReceipt, RustVerificationSkillBinding, RustVerificationSkillDescriptor,
-    RustVerificationTaskKind, RustVerificationTaskState,
-    plan_rust_project_verification_with_config, render_rust_verification_plan,
-    render_rust_verification_plan_json, render_rust_verification_skill_contracts,
+    RustOwnerResponsibility, RustVerificationPhase, RustVerificationPlan,
+    RustVerificationProfileHint, RustVerificationReceipt, RustVerificationSkillBinding,
+    RustVerificationSkillDescriptor, RustVerificationTaskKind, RustVerificationTaskState,
+    default_rust_harness_config, plan_rust_project_verification_with_config,
+    render_rust_verification_plan, render_rust_verification_plan_json,
+    render_rust_verification_skill_contracts,
 };
+use std::path::PathBuf;
 use tempfile::TempDir;
 
 use crate::verification::support::{
@@ -147,4 +150,62 @@ fn verification_skill_contracts_clear_with_receipt() {
     assert_eq!(render_rust_verification_plan(&resolved_plan), "");
     assert_eq!(render_rust_verification_skill_contracts(&resolved_plan), "");
     assert!(resolved_plan.skill_descriptors.is_empty());
+}
+
+#[test]
+fn rust_native_performance_skill_descriptors_snapshot() {
+    let plan = RustVerificationPlan {
+        project_root: PathBuf::new(),
+        tasks: Vec::new(),
+        skill_descriptors: vec![
+            RustVerificationSkillDescriptor::criterion_performance(),
+            RustVerificationSkillDescriptor::divan_performance(),
+            RustVerificationSkillDescriptor::iai_callgrind_performance(),
+        ],
+    };
+
+    insta::assert_snapshot!(
+        "rust_native_performance_skill_descriptors",
+        render_rust_verification_skill_contracts(&plan)
+    );
+}
+
+#[test]
+fn verification_performance_skill_binding_uses_rust_native_descriptor_snapshot() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_api_project(root);
+    let config = default_rust_harness_config()
+        .with_verification_profile_hint(RustVerificationProfileHint::new(
+            "src/api.rs",
+            [RustOwnerResponsibility::LatencySensitive],
+        ))
+        .with_verification_skill_binding(
+            RustVerificationTaskKind::Performance,
+            RustVerificationSkillBinding::new("rust-verification-performance")
+                .with_adapter("criterion"),
+        )
+        .with_verification_skill_descriptor(
+            RustVerificationSkillDescriptor::criterion_performance(),
+        );
+
+    let plan = plan_rust_project_verification_with_config(root, &config).expect("plan");
+    let task = plan.active_tasks()[0];
+    let rendered = normalize_temp_root(&render_rust_verification_plan(&plan), root);
+    let contracts = render_rust_verification_skill_contracts(&plan);
+
+    assert_eq!(task.kind, RustVerificationTaskKind::Performance);
+    assert_eq!(task.phase, RustVerificationPhase::AfterUnitTestsPass);
+    assert_eq!(
+        task.skill_contract_ref.as_deref(),
+        Some("rust-verification-performance@criterion")
+    );
+    assert!(!rendered.contains("|why:"), "{rendered}");
+    assert!(!rendered.contains("|requires:"), "{rendered}");
+    assert!(!rendered.contains("|fact:"), "{rendered}");
+    assert!(!rendered.contains("|contract:"), "{rendered}");
+    insta::assert_snapshot!(
+        "verification_performance_skill_binding_uses_rust_native_descriptor",
+        format!("{rendered}\n{contracts}")
+    );
 }

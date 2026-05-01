@@ -213,7 +213,8 @@ impl RustVerificationTaskContract {
 pub struct RustVerificationSkillBinding {
     /// Stable local or external skill id.
     pub skill_id: String,
-    /// Optional adapter name such as `criterion`, `k6`, or `semgrep`.
+    /// Optional adapter name such as `criterion`, `divan`, `iai-callgrind`,
+    /// `k6`, or `semgrep`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub adapter: Option<String>,
 }
@@ -260,7 +261,8 @@ impl RustVerificationSkillBinding {
 pub struct RustVerificationSkillDescriptor {
     /// Stable local or external skill id.
     pub skill_id: String,
-    /// Optional adapter name such as `criterion`, `k6`, or `semgrep`.
+    /// Optional adapter name such as `criterion`, `divan`, `iai-callgrind`,
+    /// `k6`, or `semgrep`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub adapter: Option<String>,
     /// Tool or runtime family used by the adapter.
@@ -311,6 +313,81 @@ impl RustVerificationSkillDescriptor {
             .with_required_inputs(["script", "target_url", "scenario", "thresholds"])
             .with_pass_criteria(["exit=0", "thresholds=pass"])
             .with_receipt_fields(["p50", "p99", "p999", "load_steps", "sla_result", "artifact"])
+    }
+
+    /// Built-in compact descriptor for Criterion-based Rust performance checks.
+    ///
+    /// Criterion is the statistics-oriented Rust benchmark adapter. Use it for
+    /// code-level latency, throughput, and allocation-regression evidence rather
+    /// than service-boundary stress tests.
+    #[must_use]
+    pub fn criterion_performance() -> Self {
+        Self::new("rust-verification-performance")
+            .with_adapter("criterion")
+            .with_tool("criterion")
+            .with_command("cargo bench")
+            .with_standard("statistical benchmark baseline detects runtime regression")
+            .with_required_inputs(["bench_target", "baseline", "regression_threshold"])
+            .with_pass_criteria(["regression<=threshold"])
+            .with_receipt_fields([
+                "benchmark_command",
+                "baseline",
+                "regression_threshold",
+                "latency_or_throughput",
+                "allocation_profile",
+                "profile_artifact",
+            ])
+    }
+
+    /// Built-in compact descriptor for Divan-based Rust performance checks.
+    ///
+    /// Divan is a modern Rust benchmark adapter over `cargo bench`; keep it in
+    /// the Rust-native performance lane rather than the service stress lane.
+    #[must_use]
+    pub fn divan_performance() -> Self {
+        Self::new("rust-verification-performance")
+            .with_adapter("divan")
+            .with_tool("divan")
+            .with_command("cargo bench")
+            .with_standard("sampled Rust benchmark summary stays within regression threshold")
+            .with_required_inputs(["bench_target", "baseline", "regression_threshold"])
+            .with_pass_criteria(["median_or_mean_delta<=threshold"])
+            .with_receipt_fields([
+                "benchmark_command",
+                "baseline",
+                "regression_threshold",
+                "latency_or_throughput",
+                "allocation_profile",
+                "profile_artifact",
+                "samples",
+                "iters",
+            ])
+    }
+
+    /// Built-in compact descriptor for iai-callgrind Rust performance checks.
+    ///
+    /// iai-callgrind is the deterministic CI-oriented adapter for instruction,
+    /// cache, and allocation profiles. It complements wall-clock benchmarks when
+    /// the Agent needs lower-noise regression evidence.
+    #[must_use]
+    pub fn iai_callgrind_performance() -> Self {
+        Self::new("rust-verification-performance")
+            .with_adapter("iai-callgrind")
+            .with_tool("iai-callgrind")
+            .with_command("cargo bench")
+            .with_standard("instruction/cache/allocation metrics stay within regression threshold")
+            .with_required_inputs(["bench_target", "baseline", "metric", "regression_threshold"])
+            .with_pass_criteria(["metric_delta<=threshold"])
+            .with_receipt_fields([
+                "benchmark_command",
+                "baseline",
+                "regression_threshold",
+                "latency_or_throughput",
+                "allocation_profile",
+                "profile_artifact",
+                "instructions",
+                "cache_misses",
+            ])
     }
 
     /// Attach an adapter label for this descriptor.

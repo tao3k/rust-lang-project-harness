@@ -182,14 +182,20 @@ Harness implications:
    command, standard, inputs, and receipt fields define that adapter?" The
    default verification render should expose only `contract_ref` and let Agents
    expand descriptors on demand.
-7. The actionbook type-driven skill maps cleanly to advisory parser policy when
+7. Keep service pressure and Rust-native performance separate. `k6` is a good
+   `stress` adapter for HTTP/API/service-boundary SLA evidence, but it is not
+   the Rust performance baseline. The `performance` task should prefer
+   `cargo bench`, Criterion, Divan, iai-callgrind, and profiling artifacts for
+   Rust code-level latency, throughput, allocation, instruction, and cache
+   regression evidence.
+8. The actionbook type-driven skill maps cleanly to advisory parser policy when
    it is restricted to semantic API boundaries. `AGENT-R012` therefore records
    public function parameters through `syn` and flags `id` or `*_id` parameters
    carried by `String`, `&str`, integer primitives, or `Option` wrappers. This
    keeps the useful "primitive obsession" signal without turning clone usage,
    unwraps, index loops, or other Clippy-shaped anti-pattern examples into
    harness rules.
-8. The actionbook error-handling skill maps to parser policy at the public
+9. The actionbook error-handling skill maps to parser policy at the public
    boundary, not at every `unwrap` or `?` site. `AGENT-R013` records public
    function return types through `syn` and flags application-style catch-all
    boundaries such as `anyhow::Result`, `eyre::Result`, and
