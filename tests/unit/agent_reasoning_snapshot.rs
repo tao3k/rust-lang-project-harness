@@ -104,6 +104,36 @@ fn agent_reasoning_tree_snapshot_ignores_test_context_owner_dependencies() {
     insta::assert_snapshot!("agent_reasoning_tree_ignores_test_context_deps", rendered);
 }
 
+#[test]
+fn agent_reasoning_tree_snapshot_caps_large_sections() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "agent-snapshot-large");
+    fs::create_dir_all(root.join("src")).expect("create src");
+    let mut lib = String::from("//! Test crate.\nmod target;\n");
+    for index in 0..30 {
+        lib.push_str(&format!("mod owner_{index};\n"));
+        fs::write(
+            root.join(format!("src/owner_{index}.rs")),
+            "//! Owner leaf.\nuse crate::target::Target;\nfn use_target(_: Target) {}\n",
+        )
+        .expect("write owner");
+    }
+    fs::write(root.join("src/lib.rs"), lib).expect("write lib");
+    fs::write(
+        root.join("src/target.rs"),
+        "//! Target leaf.\nstruct Target;\n",
+    )
+    .expect("write target");
+
+    let rendered = render_rust_project_harness_agent_snapshot(root).expect("render snapshot");
+    let rendered = normalize_temp_root(&rendered, root);
+
+    assert!(rendered.contains("... +23 children"), "{rendered}");
+    assert!(rendered.contains("... +6 owner deps"), "{rendered}");
+    insta::assert_snapshot!("agent_reasoning_tree_large_sections_are_capped", rendered);
+}
+
 fn normalize_temp_root(rendered: &str, root: &Path) -> String {
     let root_text = root.display().to_string();
     rendered

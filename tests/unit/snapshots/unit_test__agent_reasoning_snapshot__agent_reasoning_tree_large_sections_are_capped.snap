@@ -1,0 +1,33 @@
+---
+source: tests/unit/agent_reasoning_snapshot.rs
+expression: rendered
+---
+Modules: source=32 branches=1 deps=30
+OwnerBranches:
+ - src/lib.rs [root, facade] owner=src -> mod:src/target.rs, mod:src/owner_0.rs, mod:src/owner_1.rs, mod:src/owner_2.rs, mod:src/owner_3.rs, mod:src/owner_4.rs, mod:src/owner_5.rs, mod:src/owner_6.rs, ... +23 children
+OwnerDependencies:
+ - src/owner_0.rs --crate--> src/target.rs
+ - src/owner_1.rs --crate--> src/target.rs
+ - src/owner_10.rs --crate--> src/target.rs
+ - src/owner_11.rs --crate--> src/target.rs
+ - src/owner_12.rs --crate--> src/target.rs
+ - src/owner_13.rs --crate--> src/target.rs
+ - src/owner_14.rs --crate--> src/target.rs
+ - src/owner_15.rs --crate--> src/target.rs
+ - src/owner_16.rs --crate--> src/target.rs
+ - src/owner_17.rs --crate--> src/target.rs
+ - src/owner_18.rs --crate--> src/target.rs
+ - src/owner_19.rs --crate--> src/target.rs
+ - src/owner_2.rs --crate--> src/target.rs
+ - src/owner_20.rs --crate--> src/target.rs
+ - src/owner_21.rs --crate--> src/target.rs
+ - src/owner_22.rs --crate--> src/target.rs
+ - src/owner_23.rs --crate--> src/target.rs
+ - src/owner_24.rs --crate--> src/target.rs
+ - src/owner_25.rs --crate--> src/target.rs
+ - src/owner_26.rs --crate--> src/target.rs
+ - src/owner_27.rs --crate--> src/target.rs
+ - src/owner_28.rs --crate--> src/target.rs
+ - src/owner_29.rs --crate--> src/target.rs
+ - src/owner_3.rs --crate--> src/target.rs
+ - ... +6 owner deps

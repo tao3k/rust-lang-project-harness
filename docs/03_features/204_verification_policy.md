@@ -76,8 +76,11 @@ Verification config stays library-first. It does not introduce CLI flags or
 TOML precedence. Embedding projects can adjust the verification contract through
 `RustHarnessConfig` or `RustVerificationPolicy`.
 
-There are five configurable layers:
+There are six configurable layers:
 
+- Profile index: derive a compact owner-profile draft from parser facts before
+  the Agent writes config. It renders only missing or drifting hints, then goes
+  quiet after matching `RustVerificationProfileHint` entries exist.
 - Responsibility mapping: choose which task kinds a declared responsibility
   triggers. Mapping a responsibility to an empty set suppresses the default
   task for that responsibility.
@@ -93,6 +96,25 @@ There are five configurable layers:
 - Skill descriptor: define the compact execution contract for a configured
   skill adapter. Descriptors stay out of default verification output and expand
   only through `render_rust_verification_skill_contracts(&plan)`.
+
+```rust
+use std::path::Path;
+
+use rust_lang_project_harness::{
+    build_rust_verification_profile_index, render_rust_verification_profile_index,
+};
+
+let index = build_rust_verification_profile_index(Path::new("."))?;
+let compact_profile_advice = render_rust_verification_profile_index(&index);
+let suggested_hints = index.active_profile_hints();
+```
+
+The profile index is not a human audit report. It is the Agent's configuration
+draft for diverse crates: owner path, suggested responsibilities, implied task
+kinds, and parser evidence such as public items, local owner dependencies,
+runtime import roots, and path signals. `active_profile_hints()` gives the
+Agent code-level config material; after those hints are supplied through
+`RustHarnessConfig`, the compact profile advice becomes empty.
 
 ```rust
 use rust_lang_project_harness::{
@@ -280,6 +302,21 @@ fields as resolution feedback.
 The compact verification renderer is not a human audit header. It does not print
 package counts, source roots, success summaries, or empty sections. It starts at
 the active obligation:
+
+```text
+[verify-profile] src/api.rs
+   |owner: src/api
+   |state: missing_profile
+   |suggest: public_api,external_dependency,availability_critical
+   |tasks: stress,chaos
+   |hint_path: src/api.rs
+   |fact: public_items=1
+   |fact: network_roots=axum::Router
+```
+
+Profile advice appears before task planning when the Agent still needs to
+configure crate-specific responsibilities. It also stays compact: no package
+counts, no empty sections, and no long skill text.
 
 ```text
 [verify] src/api.rs

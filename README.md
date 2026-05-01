@@ -186,6 +186,31 @@ Agent say "this owner is a public API, but this change needs security
 evidence, not stress evidence", or "this owner has no external verification
 task in this slice", without changing unrelated owners.
 
+When an Agent does not yet know which owners need those profile hints, build a
+parser-native profile index first. The index is a low-token configuration
+draft: it inspects owner modules, public surfaces, local owner dependencies,
+runtime imports, and source-path signals, then renders only missing or drifting
+profile hints. Once the project supplies a matching `RustVerificationProfileHint`,
+the compact profile reminder disappears.
+
+```rust
+use std::path::Path;
+
+use rust_lang_project_harness::{
+    build_rust_verification_profile_index, render_rust_verification_profile_index,
+};
+
+let index = build_rust_verification_profile_index(Path::new("."))?;
+let compact_profile_advice = render_rust_verification_profile_index(&index);
+let suggested_hints = index.active_profile_hints();
+```
+
+This is the intended Agent loop for diverse workspaces: inspect the profile
+index, add or adjust owner-local hints through `RustHarnessConfig`, run the
+verification planner, then satisfy tasks with receipts or waivers. The harness
+does not force every crate into one testing shape; it gives the Agent compact
+parser facts so crate-specific responsibilities can be configured deliberately.
+
 ```rust
 use rust_lang_project_harness::{
     RustOwnerResponsibility, RustVerificationPhase, RustVerificationProfileHint,

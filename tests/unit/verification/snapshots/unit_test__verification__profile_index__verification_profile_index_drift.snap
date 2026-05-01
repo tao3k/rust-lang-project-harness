@@ -1,0 +1,14 @@
+---
+source: tests/unit/verification/profile_index.rs
+expression: rendered
+---
+[verify-profile] src/api.rs
+   |owner: src/api
+   |state: profile_drift
+   |configured: public_api
+   |suggest: public_api,external_dependency,availability_critical
+   |tasks: stress,chaos
+   |hint_path: src/api.rs
+   |fact: public_items=1
+   |fact: public_fns=1
+   |fact: network_roots=axum::Router

@@ -16,6 +16,10 @@ use crate::parser::{
 use crate::rules::evaluate_default_rule_packs_with_config;
 use crate::{RustDiagnosticSeverity, RustHarnessFinding, RustProjectHarnessScope};
 
+const MAX_AGENT_SNAPSHOT_BRANCH_LINES: usize = 24;
+const MAX_AGENT_SNAPSHOT_DEPENDENCY_LINES: usize = 24;
+const MAX_AGENT_SNAPSHOT_CHILD_EDGES: usize = 8;
+
 /// Render a compact project-structure snapshot for repair-oriented agents.
 ///
 /// The snapshot is derived from parser reasoning-tree facts and intentionally
@@ -148,7 +152,14 @@ fn render_package_snapshot(
         .collect::<Vec<_>>();
     if !branch_lines.is_empty() {
         rendered.push_str("OwnerBranches:\n");
-        rendered.push_str(&branch_lines.join("\n"));
+        rendered.push_str(
+            &compact_lines(
+                &branch_lines,
+                MAX_AGENT_SNAPSHOT_BRANCH_LINES,
+                "owner branches",
+            )
+            .join("\n"),
+        );
         rendered.push('\n');
     }
     let dependency_lines = owner_dependencies
@@ -157,7 +168,14 @@ fn render_package_snapshot(
         .collect::<Vec<_>>();
     if !dependency_lines.is_empty() {
         rendered.push_str("OwnerDependencies:\n");
-        rendered.push_str(&dependency_lines.join("\n"));
+        rendered.push_str(
+            &compact_lines(
+                &dependency_lines,
+                MAX_AGENT_SNAPSHOT_DEPENDENCY_LINES,
+                "owner deps",
+            )
+            .join("\n"),
+        );
         rendered.push('\n');
     }
     let finding_lines = grouped_findings(&reasoning_tree.package_root, findings);
@@ -317,8 +335,9 @@ fn display_child_edges(package_root: &Path, edges: &[RustModuleChildEdge], empty
     if edges.is_empty() {
         return empty.to_string();
     }
-    edges
+    let mut labels = edges
         .iter()
+        .take(MAX_AGENT_SNAPSHOT_CHILD_EDGES)
         .map(|edge| {
             format!(
                 "{}:{}",
@@ -326,8 +345,23 @@ fn display_child_edges(package_root: &Path, edges: &[RustModuleChildEdge], empty
                 display_project_path(package_root, &edge.child_path)
             )
         })
-        .collect::<Vec<_>>()
-        .join(", ")
+        .collect::<Vec<_>>();
+    if edges.len() > MAX_AGENT_SNAPSHOT_CHILD_EDGES {
+        labels.push(format!(
+            "... +{} children",
+            edges.len() - MAX_AGENT_SNAPSHOT_CHILD_EDGES
+        ));
+    }
+    labels.join(", ")
+}
+
+fn compact_lines(lines: &[String], max_lines: usize, label: &str) -> Vec<String> {
+    if lines.len() <= max_lines {
+        return lines.to_vec();
+    }
+    let mut compacted = lines.iter().take(max_lines).cloned().collect::<Vec<_>>();
+    compacted.push(format!(" - ... +{} {label}", lines.len() - max_lines));
+    compacted
 }
 
 fn display_project_path(package_root: &Path, path: &Path) -> String {

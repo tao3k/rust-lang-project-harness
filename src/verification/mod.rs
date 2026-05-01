@@ -5,6 +5,7 @@ mod model;
 mod performance;
 mod planner;
 mod profile;
+mod profile_index;
 mod render;
 
 pub use model::{
@@ -23,6 +24,13 @@ pub use performance::{
 pub use planner::{
     plan_rust_project_verification, plan_rust_project_verification_with_config,
     plan_rust_project_verification_with_policy,
+};
+pub use profile_index::{
+    RustVerificationProfileCandidate, RustVerificationProfileCandidateState,
+    RustVerificationProfileIndex, build_rust_verification_profile_index,
+    build_rust_verification_profile_index_with_config,
+    build_rust_verification_profile_index_with_policy, render_rust_verification_profile_index,
+    render_rust_verification_profile_index_json,
 };
 pub use render::{
     render_rust_verification_plan, render_rust_verification_plan_json,
