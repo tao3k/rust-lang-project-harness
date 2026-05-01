@@ -176,3 +176,10 @@ Harness implications:
 5. Keep the Markdown under top-level `skills/` passive and progressive. It is
    useful for onboarding or repairing configuration, but a healthy configured
    project should not need to reread it on every run.
+6. The actionbook type-driven skill maps cleanly to advisory parser policy when
+   it is restricted to semantic API boundaries. `AGENT-R012` therefore records
+   public function parameters through `syn` and flags `id` or `*_id` parameters
+   carried by `String`, `&str`, integer primitives, or `Option` wrappers. This
+   keeps the useful "primitive obsession" signal without turning clone usage,
+   unwraps, index loops, or other Clippy-shaped anti-pattern examples into
+   harness rules.

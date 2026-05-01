@@ -71,3 +71,43 @@ fn native_syntax_facts_record_cfg_and_module_declaring_macros() {
     assert!(macro_rules.macro_declares_module);
     assert!(!macro_rules.macro_body_is_facade_boundary);
 }
+
+#[test]
+fn native_syntax_facts_record_public_function_params() {
+    let temp = TempDir::new().expect("temp dir");
+    let source = temp.path().join("api.rs");
+    fs::write(
+        &source,
+        "pub struct UserId(String);\n\
+         pub fn load_user(user_id: String, id: Option<u64>, count: usize, typed: UserId) {}\n\
+         fn private_user(user_id: String) {}\n\
+         #[cfg(test)]\n\
+         pub fn fixture_user(user_id: String) {}\n",
+    )
+    .expect("write source");
+
+    let module = parse_rust_file(&source);
+
+    let params = module.syntax_facts.public_function_params;
+    assert_eq!(
+        params
+            .iter()
+            .map(|param| (param.function_name.as_str(), param.param_name.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("load_user", "user_id"),
+            ("load_user", "id"),
+            ("load_user", "count"),
+            ("load_user", "typed"),
+            ("fixture_user", "user_id"),
+        ]
+    );
+    assert_eq!(params[0].primitive_contract_type.as_deref(), Some("String"));
+    assert_eq!(
+        params[1].primitive_contract_type.as_deref(),
+        Some("Option<u64>")
+    );
+    assert_eq!(params[2].primitive_contract_type.as_deref(), Some("usize"));
+    assert_eq!(params[3].primitive_contract_type, None);
+    assert!(params[4].is_test_context);
+}

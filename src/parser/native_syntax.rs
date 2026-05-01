@@ -3,6 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use proc_macro2::{TokenStream, TokenTree};
+use quote::ToTokens;
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
 
@@ -16,6 +17,7 @@ pub(crate) struct RustNativeSyntaxFacts {
     pub cfg_test_modules: Vec<RustModuleDeclarationSyntax>,
     pub test_function_count: usize,
     pub use_statements: Vec<RustUseStatementSyntax>,
+    pub public_function_params: Vec<RustFunctionParamSyntax>,
     pub macro_invocations: Vec<RustInvocationSyntax>,
     pub function_calls: Vec<RustInvocationSyntax>,
 }
@@ -50,6 +52,16 @@ pub(crate) struct RustModuleDeclarationSyntax {
     pub resolved_path_attr: Option<PathBuf>,
     pub is_inline: bool,
     pub is_cfg_test: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RustFunctionParamSyntax {
+    pub line: usize,
+    pub function_name: String,
+    pub param_name: String,
+    pub type_text: String,
+    pub primitive_contract_type: Option<String>,
+    pub is_test_context: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -91,6 +103,11 @@ pub(crate) fn rust_native_syntax_facts(
         .items
         .iter()
         .map(|item| top_level_item_syntax(item, source_file))
+        .collect();
+    collector.facts.public_function_params = syntax
+        .items
+        .iter()
+        .flat_map(public_function_param_syntax)
         .collect();
     collector.facts
 }
@@ -189,6 +206,93 @@ fn top_level_item_syntax(item: &syn::Item, source_file: &Path) -> RustTopLevelIt
         include_target: include_target_syntax(item),
         module: module_declaration_syntax(item, source_file),
     }
+}
+
+fn public_function_param_syntax(item: &syn::Item) -> Vec<RustFunctionParamSyntax> {
+    let syn::Item::Fn(item_fn) = item else {
+        return Vec::new();
+    };
+    if !is_public_visibility(&item_fn.vis) {
+        return Vec::new();
+    }
+    let function_name = item_fn.sig.ident.to_string();
+    let is_test_context = attrs_have_cfg_test(&item_fn.attrs);
+    item_fn
+        .sig
+        .inputs
+        .iter()
+        .filter_map(|arg| {
+            let syn::FnArg::Typed(pat_type) = arg else {
+                return None;
+            };
+            let syn::Pat::Ident(pat_ident) = pat_type.pat.as_ref() else {
+                return None;
+            };
+            Some(RustFunctionParamSyntax {
+                line: pat_ident.span().start().line.max(1),
+                function_name: function_name.clone(),
+                param_name: pat_ident.ident.to_string(),
+                type_text: pat_type.ty.to_token_stream().to_string(),
+                primitive_contract_type: primitive_contract_type_name(&pat_type.ty),
+                is_test_context,
+            })
+        })
+        .collect()
+}
+
+fn primitive_contract_type_name(ty: &syn::Type) -> Option<String> {
+    match ty {
+        syn::Type::Path(type_path) => primitive_contract_path_name(type_path),
+        syn::Type::Reference(reference) => {
+            primitive_contract_type_name(&reference.elem).map(|inner| format!("&{inner}"))
+        }
+        _ => None,
+    }
+}
+
+fn primitive_contract_path_name(type_path: &syn::TypePath) -> Option<String> {
+    let terminal = type_path.path.segments.last()?;
+    let terminal_name = terminal.ident.to_string();
+    if is_string_or_integer_primitive(&terminal_name) {
+        return Some(terminal_name);
+    }
+    let syn::PathArguments::AngleBracketed(args) = &terminal.arguments else {
+        return None;
+    };
+    if terminal_name != "Option" {
+        return None;
+    }
+    let mut generic_types = args.args.iter().filter_map(|arg| {
+        let syn::GenericArgument::Type(ty) = arg else {
+            return None;
+        };
+        primitive_contract_type_name(ty)
+    });
+    let inner = generic_types.next()?;
+    generic_types
+        .next()
+        .is_none()
+        .then_some(format!("{terminal_name}<{inner}>"))
+}
+
+fn is_string_or_integer_primitive(name: &str) -> bool {
+    matches!(
+        name,
+        "String"
+            | "str"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "u64"
+            | "u128"
+            | "usize"
+            | "i8"
+            | "i16"
+            | "i32"
+            | "i64"
+            | "i128"
+            | "isize"
+    )
 }
 
 fn item_name(item: &syn::Item) -> Option<String> {

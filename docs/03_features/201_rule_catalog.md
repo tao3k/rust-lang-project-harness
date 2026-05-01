@@ -101,6 +101,7 @@ and are not blocking by default.
 - `AGENT-R009`: owner dependency graph contains a local owner cycle
 - `AGENT-R010`: owner branch imports another owner's leaf implementation module
 - `AGENT-R011`: branch module fans out to three or more local owners without an intent doc
+- `AGENT-R012`: public semantic identifier parameter uses a primitive string or integer type
 
 ## Rendered Diagnostic Policy
 
@@ -146,10 +147,11 @@ ignored. The parser also records whether a `use` statement is inside an inline
 `#[cfg(test)]` module or a conventional `tests/` root, so glob findings can name
 test context without weakening the default no-glob harness contract.
 
-`AGENT-R001`, `AGENT-R002`, `AGENT-R004`, `AGENT-R005`, `AGENT-R006`, and
-`AGENT-R008` consume native facts from `src/parser/`, including file-level inner
-doc attributes, public names, public item doc attributes, public re-export
-groups, and resolved reasoning-tree child edges. `AGENT-R003` evaluates the
+`AGENT-R001`, `AGENT-R002`, `AGENT-R004`, `AGENT-R005`, `AGENT-R006`,
+`AGENT-R008`, and `AGENT-R012` consume native facts from `src/parser/`,
+including file-level inner doc attributes, public names, public item doc
+attributes, public re-export groups, public function parameters, and resolved
+reasoning-tree child edges. `AGENT-R003` evaluates the
 default package harness surface, including `src/` and `tests/`. It treats
 normal Rust file stems as namespace segments, so both `src/domain/domain.rs` and
 `tests/unit/unit/helper.rs` produce advisory path clarity findings.
@@ -163,7 +165,12 @@ private. `AGENT-R009`, `AGENT-R010`, and `AGENT-R011` consume parser-derived
 owner dependency edges. They stay advisory because Rust permits these import
 shapes, but they are high-signal LLM repair risks: circular owner reasoning,
 reaching into another owner's leaf module, and fan-out branches without local
-intent documentation.
+intent documentation. `AGENT-R012` is derived from type-driven Rust practice:
+when a public function exposes a parameter named `id` or `*_id` as `String`,
+`&str`, an integer primitive, or `Option` around those primitive carriers, the
+harness asks for an owner-named newtype or an explicit primitive-boundary
+rationale. Clippy cannot know that a primitive is a semantic identifier, but the
+parser can expose the native signature fact for agent repair.
 
 ## Reasoning Tree Policy
 

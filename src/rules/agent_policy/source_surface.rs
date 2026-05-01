@@ -13,6 +13,7 @@ use crate::rules::display_path;
 
 use super::{
     AGENT_R001, AGENT_R002, AGENT_R003, AGENT_R004, AGENT_R005, AGENT_R006, AGENT_R007, AGENT_R008,
+    AGENT_R012,
 };
 
 const MAX_FACADE_REEXPORTS: usize = 28;
@@ -32,6 +33,7 @@ pub(super) fn source_module_findings(
     findings.extend(facade_reexport_findings(reasoning_tree, module, rules));
     findings.extend(generic_public_module_findings(module, rules));
     findings.extend(branch_module_intent_findings(reasoning_tree, module, rules));
+    findings.extend(public_primitive_identifier_findings(module, rules));
     findings
 }
 
@@ -289,6 +291,36 @@ fn branch_module_intent_findings(
     )]
 }
 
+fn public_primitive_identifier_findings(
+    module: &ParsedRustModule,
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let rule = &rules[AGENT_R012];
+    module
+        .syntax_facts
+        .public_function_params
+        .iter()
+        .filter_map(|param| {
+            if param.is_test_context || !is_semantic_identifier_param(&param.param_name) {
+                return None;
+            }
+            let primitive_type = param.primitive_contract_type.as_ref()?;
+            Some(RustHarnessFinding::from_rule(
+                rule,
+                format!(
+                    "{} exposes public function `{}` parameter `{}` as primitive `{primitive_type}`.",
+                    display_path(&module.report.path),
+                    param.function_name,
+                    param.param_name
+                ),
+                path_line_location(&module.report.path, param.line),
+                source_line(&module.source, param.line),
+                "wrap this identifier in an owner-named newtype or document why the primitive boundary is intentional",
+            ))
+        })
+        .collect()
+}
+
 fn has_public_surface(module: &ParsedRustModule) -> bool {
     module
         .syntax_facts
@@ -303,4 +335,8 @@ fn public_named_item(item: &RustTopLevelItemSyntax) -> Option<&str> {
 
 fn is_generic_module_name(name: &str) -> bool {
     GENERIC_MODULE_NAMES.contains(&name)
+}
+
+fn is_semantic_identifier_param(name: &str) -> bool {
+    name == "id" || name.ends_with("_id")
 }

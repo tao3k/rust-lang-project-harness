@@ -215,3 +215,53 @@ fn duplicated_public_names_are_reported_as_agent_advice() {
     assert_eq!(findings_for_rule(&report, "AGENT-R004").len(), 2);
     assert!(report.is_clean(), "{:?}", report.findings);
 }
+
+#[test]
+fn public_primitive_identifier_params_are_agent_advice() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "primitive-identifier-param");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod api;\n").expect("write lib");
+    fs::write(
+        root.join("src/api.rs"),
+        "//! Public API owner.\n\
+         /// Loads a user.\n\
+         pub fn load_user(user_id: String, count: usize) {}\n",
+    )
+    .expect("write api");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    let findings = findings_for_rule(&report, "AGENT-R012");
+    assert_eq!(findings.len(), 1, "{:?}", report.findings);
+    assert!(findings[0].summary.contains("`load_user`"));
+    assert!(findings[0].summary.contains("`user_id`"));
+    assert!(findings[0].summary.contains("`String`"));
+    assert!(report.is_clean(), "{:?}", report.findings);
+}
+
+#[test]
+fn public_typed_identifier_params_are_not_agent_advice() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "typed-identifier-param");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod api;\n").expect("write lib");
+    fs::write(
+        root.join("src/api.rs"),
+        "//! Public API owner.\n\
+         /// User identifier.\n\
+         pub struct UserId(String);\n\
+         /// Loads a user.\n\
+         pub fn load_user(user_id: UserId) {}\n\
+         #[cfg(test)]\n\
+         pub fn fixture_user(user_id: String) {}\n",
+    )
+    .expect("write api");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    assert!(findings_for_rule(&report, "AGENT-R012").is_empty());
+    assert!(report.is_clean(), "{:?}", report.findings);
+}
