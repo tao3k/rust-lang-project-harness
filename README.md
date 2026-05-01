@@ -155,6 +155,7 @@ use std::path::Path;
 use rust_lang_project_harness::{
     RustOwnerResponsibility, RustVerificationProfileHint, default_rust_harness_config,
     plan_rust_project_verification_with_config, render_rust_verification_plan,
+    render_rust_verification_skill_contracts,
 };
 
 let config = default_rust_harness_config().with_verification_profile_hint(
@@ -166,6 +167,7 @@ let config = default_rust_harness_config().with_verification_profile_hint(
 let plan =
     plan_rust_project_verification_with_config(Path::new("."), &config).expect("plan");
 let compact = render_rust_verification_plan(&plan);
+let contract_tree = render_rust_verification_skill_contracts(&plan);
 ```
 
 The compact verification renderer prints only active owner obligations such as
@@ -187,7 +189,7 @@ task in this slice", without changing unrelated owners.
 ```rust
 use rust_lang_project_harness::{
     RustOwnerResponsibility, RustVerificationPhase, RustVerificationProfileHint,
-    RustVerificationRequirement, RustVerificationSkillBinding,
+    RustVerificationRequirement, RustVerificationSkillBinding, RustVerificationSkillDescriptor,
     RustVerificationTaskContract, RustVerificationTaskKind, default_rust_harness_config,
 };
 
@@ -216,6 +218,13 @@ let config = default_rust_harness_config()
         RustVerificationTaskKind::Performance,
         RustVerificationSkillBinding::new("rust-verification-performance")
             .with_adapter("criterion"),
+    )
+    .with_verification_skill_binding(
+        RustVerificationTaskKind::Stress,
+        RustVerificationSkillBinding::new("rust-verification-stress").with_adapter("k6"),
+    )
+    .with_verification_skill_descriptor(
+        RustVerificationSkillDescriptor::k6_stress(),
     );
 ```
 
@@ -237,6 +246,17 @@ keeps the full structured contract for tooling. When no binding exists, compact
 text falls back to the passive progressive contract so an Agent can learn what
 must be configured or executed. The binding label participates in the task
 fingerprint, so changing adapters invalidates stale receipts.
+
+`RustVerificationSkillDescriptor` is the next layer: a compact, typed execution
+contract for a configured binding. It is not rendered by default. The default
+verification line only adds `contract_ref=<skill>@<adapter>` when a descriptor
+exists, and an Agent can call `render_rust_verification_skill_contracts(&plan)`
+only when it needs to expand that reference into tool, command, pass/fail
+standard, inputs, and receipt fields. Descriptor material also participates in
+the task fingerprint, so changing the adapter contract invalidates stale
+receipts without reintroducing long Markdown manuals into the hot prompt path.
+Descriptor rendering is scoped to active tasks, so a passed receipt or complete
+waiver also removes the on-demand contract expansion for that task.
 
 For workspaces, profile hint paths can be package-relative (`src/api.rs`) or
 workspace-root-relative (`crates/api/src/api.rs`). Task fingerprints include the

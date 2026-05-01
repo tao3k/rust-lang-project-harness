@@ -4,24 +4,29 @@ use std::path::Path;
 
 use super::{RustVerificationEvidence, RustVerificationRequirement, RustVerificationTaskKind};
 
-pub(crate) fn verification_task_fingerprint(
-    kind: RustVerificationTaskKind,
-    project_root: &Path,
-    package_root: &Path,
-    owner_path: &Path,
-    line: Option<usize>,
-    required_evidence: &[RustVerificationRequirement],
-    evidence: &[RustVerificationEvidence],
-) -> String {
-    let relative_package = package_root
-        .strip_prefix(project_root)
-        .unwrap_or(package_root)
+pub(crate) struct VerificationFingerprintInput<'a> {
+    pub(crate) kind: RustVerificationTaskKind,
+    pub(crate) project_root: &'a Path,
+    pub(crate) package_root: &'a Path,
+    pub(crate) owner_path: &'a Path,
+    pub(crate) line: Option<usize>,
+    pub(crate) required_evidence: &'a [RustVerificationRequirement],
+    pub(crate) evidence: &'a [RustVerificationEvidence],
+    pub(crate) skill_contract_material: Option<&'a str>,
+}
+
+pub(crate) fn verification_task_fingerprint(source: VerificationFingerprintInput<'_>) -> String {
+    let relative_package = source
+        .package_root
+        .strip_prefix(source.project_root)
+        .unwrap_or(source.package_root)
         .display()
         .to_string()
         .replace('\\', "/");
-    let relative_owner = owner_path
-        .strip_prefix(package_root)
-        .unwrap_or(owner_path)
+    let relative_owner = source
+        .owner_path
+        .strip_prefix(source.package_root)
+        .unwrap_or(source.owner_path)
         .display()
         .to_string()
         .replace('\\', "/");
@@ -30,25 +35,30 @@ pub(crate) fn verification_task_fingerprint(
     } else {
         relative_package.as_str()
     };
-    let mut input = format!(
+    let mut material = format!(
         "kind={};package={package_label};owner={relative_owner};",
-        kind.as_str()
+        source.kind.as_str()
     );
-    if let Some(line) = line {
-        input.push_str(&format!("line={line};"));
+    if let Some(line) = source.line {
+        material.push_str(&format!("line={line};"));
     }
-    for requirement in required_evidence {
-        input.push_str("requires=");
-        input.push_str(&requirement.key);
-        input.push(';');
+    for requirement in source.required_evidence {
+        material.push_str("requires=");
+        material.push_str(&requirement.key);
+        material.push(';');
     }
-    for fact in evidence {
-        input.push_str(&fact.label);
-        input.push('=');
-        input.push_str(&fact.value);
-        input.push(';');
+    for fact in source.evidence {
+        material.push_str(&fact.label);
+        material.push('=');
+        material.push_str(&fact.value);
+        material.push(';');
     }
-    format!("rustv:{:016x}", fnv1a_64(input.as_bytes()))
+    if let Some(contract_material) = source.skill_contract_material {
+        material.push_str("skill_contract=");
+        material.push_str(contract_material);
+        material.push(';');
+    }
+    format!("rustv:{:016x}", fnv1a_64(material.as_bytes()))
 }
 
 fn fnv1a_64(bytes: &[u8]) -> u64 {

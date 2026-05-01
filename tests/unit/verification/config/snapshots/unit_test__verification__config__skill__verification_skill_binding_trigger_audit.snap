@@ -1,6 +1,6 @@
 ---
 source: tests/unit/verification/config/skill.rs
-assertion_line: 99
+assertion_line: 106
 expression: compact_audit
 ---
 [verification-skill-trigger] src/api.rs
@@ -11,4 +11,12 @@ expression: compact_audit
 
 [verify] src/api.rs
    |owner: src/api
-   |stress: pending phase=after_unit_tests_pass fingerprint=rustv:f5966fb522a92f96 skill=rust-verification-stress@k6
+   |stress: pending phase=after_unit_tests_pass fingerprint=rustv:b9654e9e1352f015 skill=rust-verification-stress@k6 contract_ref=rust-verification-stress@k6
+
+[skill-contract] rust-verification-stress@k6
+   |tool: k6
+   |run: k6 run <script>
+   |standard: scenarios define load shape; thresholds define pass/fail
+   |inputs: script,target_url,scenario,thresholds
+   |pass: exit=0,thresholds=pass
+   |receipt: p50,p99,p999,load_steps,sla_result,artifact

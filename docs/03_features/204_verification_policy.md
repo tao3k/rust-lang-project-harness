@@ -30,6 +30,7 @@ use std::path::Path;
 use rust_lang_project_harness::{
     RustOwnerResponsibility, RustVerificationProfileHint, default_rust_harness_config,
     plan_rust_project_verification_with_config, render_rust_verification_plan,
+    render_rust_verification_skill_contracts,
 };
 
 let config = default_rust_harness_config().with_verification_profile_hint(
@@ -45,6 +46,7 @@ let config = default_rust_harness_config().with_verification_profile_hint(
 let plan =
     plan_rust_project_verification_with_config(Path::new("."), &config).expect("plan");
 let compact = render_rust_verification_plan(&plan);
+let contract_tree = render_rust_verification_skill_contracts(&plan);
 ```
 
 Relative profile paths are matched against parser-known modules. In a single
@@ -85,11 +87,14 @@ There are four configurable layers:
 - Skill binding: bind a task kind to a configured Agent skill adapter. This is
   the quiet dispatch layer; once present, compact output no longer repeats the
   skill manual every run.
+- Skill descriptor: define the compact execution contract for a configured
+  skill adapter. Descriptors stay out of default verification output and expand
+  only through `render_rust_verification_skill_contracts(&plan)`.
 
 ```rust
 use rust_lang_project_harness::{
     RustOwnerResponsibility, RustVerificationPhase, RustVerificationProfileHint,
-    RustVerificationRequirement, RustVerificationSkillBinding,
+    RustVerificationRequirement, RustVerificationSkillBinding, RustVerificationSkillDescriptor,
     RustVerificationTaskContract, RustVerificationTaskKind, default_rust_harness_config,
 };
 
@@ -119,6 +124,13 @@ let config = default_rust_harness_config()
         RustVerificationTaskKind::Performance,
         RustVerificationSkillBinding::new("rust-verification-performance")
             .with_adapter("criterion"),
+    )
+    .with_verification_skill_binding(
+        RustVerificationTaskKind::Stress,
+        RustVerificationSkillBinding::new("rust-verification-stress").with_adapter("k6"),
+    )
+    .with_verification_skill_descriptor(
+        RustVerificationSkillDescriptor::k6_stress(),
     );
 ```
 
@@ -149,6 +161,20 @@ the task fingerprint, so switching adapters invalidates stale receipts.
 Snapshot tests for configured skill triggers should stay compact-first as well:
 the agent-facing baseline is short text, while JSON is asserted only as a
 secondary structured contract.
+
+Skill descriptors are intentionally separate from bindings. A binding routes
+the task to `skill=<id>@<adapter>`. A descriptor explains that adapter as a
+small reasoning-tree node: tool, command template, pass/fail standard, inputs,
+and receipt fields. The compact verification renderer only emits
+`contract_ref=<id>@<adapter>` when a descriptor exists; it does not inline the
+descriptor. Agents expand the reference through
+`render_rust_verification_skill_contracts(&plan)` only when they need dispatch
+details. Descriptor material participates in the task fingerprint, so changing
+the k6 script contract, threshold standard, or expected receipt fields forces a
+fresh receipt instead of silently clearing the old task.
+Descriptor expansion is also active-task scoped: once a matching receipt or
+complete waiver clears the task, the compact verification render and the
+optional descriptor render both go quiet.
 
 ## Task Families
 
@@ -230,3 +256,32 @@ With a configured skill binding, the same active obligation is shorter:
    |owner: src/api
    |performance: pending phase=after_unit_tests_pass fingerprint=rustv:... skill=rust-verification-performance@criterion
 ```
+
+With a configured skill descriptor, the default line still stays compact and
+only adds a reference:
+
+```text
+[verify] src/api.rs
+   |owner: src/api
+   |stress: pending phase=after_unit_tests_pass fingerprint=rustv:... skill=rust-verification-stress@k6 contract_ref=rust-verification-stress@k6
+```
+
+The optional contract renderer expands that reference on demand:
+
+```text
+[skill-contract] rust-verification-stress@k6
+   |tool: k6
+   |run: k6 run <script>
+   |standard: scenarios define load shape; thresholds define pass/fail
+   |inputs: script,target_url,scenario,thresholds
+   |pass: exit=0,thresholds=pass
+   |receipt: p50,p99,p999,load_steps,sla_result,artifact
+```
+
+The built-in k6 descriptor follows Grafana k6's model: `k6 run <script>` is the
+local execution command, scenarios describe load shape, and thresholds define
+pass/fail behavior with a zero exit code on pass and nonzero exit code on
+threshold failure. See the official k6 docs for
+[running k6](https://grafana.com/docs/k6/latest/get-started/running-k6/),
+[scenarios](https://grafana.com/docs/k6/latest/using-k6/scenarios/), and
+[thresholds](https://grafana.com/docs/k6/latest/using-k6/thresholds/).

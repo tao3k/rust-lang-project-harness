@@ -13,7 +13,7 @@ use crate::parser::{
     rust_reasoning_tree_facts,
 };
 
-use super::fingerprint::verification_task_fingerprint;
+use super::fingerprint::{VerificationFingerprintInput, verification_task_fingerprint};
 use super::profile::{
     hint_rationale_is_empty, profile_evidence, profile_task_reason, responsibility_labels,
     task_contract_for_profile, task_kind_labels, task_kinds_for_profile,
@@ -124,9 +124,11 @@ pub fn plan_rust_project_verification_with_policy(
         );
     }
     collect_unmatched_profile_hints(project_root, policy, &matched_profile_hints, &mut tasks);
+    let mut task_values = tasks.into_values().collect::<Vec<_>>();
     let mut plan = RustVerificationPlan {
         project_root: project_root.to_path_buf(),
-        tasks: tasks.into_values().collect(),
+        skill_descriptors: skill_descriptors_for_tasks(policy, &task_values),
+        tasks: std::mem::take(&mut task_values),
     };
     plan.tasks.sort_by(|left, right| {
         left.package_root
@@ -506,6 +508,12 @@ fn new_skill_task(
     policy: &RustVerificationPolicy,
 ) -> RustVerificationTask {
     let skill_binding = skill_binding_for_task(policy, spec.kind);
+    let skill_descriptor = skill_binding
+        .as_ref()
+        .and_then(|binding| skill_descriptor_for_binding(policy, binding));
+    let skill_contract_ref = skill_descriptor.map(|descriptor| descriptor.compact_label());
+    let skill_contract_material =
+        skill_descriptor.map(|descriptor| descriptor.fingerprint_material());
     let mut evidence = spec.evidence;
     if let Some(binding) = &skill_binding {
         evidence.push(RustVerificationEvidence::new(
@@ -513,15 +521,16 @@ fn new_skill_task(
             binding.compact_label(),
         ));
     }
-    let fingerprint = verification_task_fingerprint(
-        spec.kind,
+    let fingerprint = verification_task_fingerprint(VerificationFingerprintInput {
+        kind: spec.kind,
         project_root,
         package_root,
-        &spec.owner_path,
-        spec.line,
-        &spec.contract.required_evidence,
-        &evidence,
-    );
+        owner_path: &spec.owner_path,
+        line: spec.line,
+        required_evidence: &spec.contract.required_evidence,
+        evidence: &evidence,
+        skill_contract_material: skill_contract_material.as_deref(),
+    });
     let mut task = RustVerificationTask {
         fingerprint,
         kind: spec.kind,
@@ -534,6 +543,7 @@ fn new_skill_task(
         reason: spec.reason,
         required_receipt: spec.contract.required_receipt,
         skill_binding,
+        skill_contract_ref,
         required_evidence: spec.contract.required_evidence,
         evidence,
         resolution_notes: Vec::new(),
@@ -553,6 +563,32 @@ fn skill_binding_for_task(
         .get(&kind)
         .filter(|binding| binding.is_configured())
         .cloned()
+}
+
+fn skill_descriptor_for_binding<'a>(
+    policy: &'a RustVerificationPolicy,
+    binding: &super::RustVerificationSkillBinding,
+) -> Option<&'a super::RustVerificationSkillDescriptor> {
+    policy
+        .skill_descriptors
+        .get(&binding.compact_label())
+        .or_else(|| policy.skill_descriptors.get(&binding.skill_id))
+}
+
+fn skill_descriptors_for_tasks(
+    policy: &RustVerificationPolicy,
+    tasks: &[RustVerificationTask],
+) -> Vec<super::RustVerificationSkillDescriptor> {
+    let mut descriptors = tasks
+        .iter()
+        .filter(|task| task.is_active())
+        .filter_map(|task| task.skill_contract_ref.as_ref())
+        .filter_map(|contract_ref| policy.skill_descriptors.get(contract_ref))
+        .cloned()
+        .collect::<Vec<_>>();
+    descriptors.sort_by_key(|descriptor| descriptor.compact_label());
+    descriptors.dedup_by_key(|descriptor| descriptor.compact_label());
+    descriptors
 }
 
 fn apply_task_resolution(task: &mut RustVerificationTask, policy: &RustVerificationPolicy) {

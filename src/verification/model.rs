@@ -251,6 +251,153 @@ impl RustVerificationSkillBinding {
     }
 }
 
+/// Compact contract that explains how an Agent skill binding is executed.
+///
+/// Bindings keep the default verification render quiet. Descriptors are the
+/// optional reasoning-tree node an agent can expand when it needs the adapter's
+/// execution standard without loading a long Markdown skill.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct RustVerificationSkillDescriptor {
+    /// Stable local or external skill id.
+    pub skill_id: String,
+    /// Optional adapter name such as `criterion`, `k6`, or `semgrep`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub adapter: Option<String>,
+    /// Tool or runtime family used by the adapter.
+    pub tool: String,
+    /// Compact command template.
+    pub command: String,
+    /// Short pass/fail standard.
+    pub standard: String,
+    /// Inputs the Agent must resolve before dispatch.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub required_inputs: Vec<String>,
+    /// Criteria that make the run pass.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pass_criteria: Vec<String>,
+    /// Receipt fields expected after the run.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub receipt_fields: Vec<String>,
+}
+
+impl RustVerificationSkillDescriptor {
+    /// Build a descriptor for a configured skill.
+    #[must_use]
+    pub fn new(skill_id: impl Into<String>) -> Self {
+        Self {
+            skill_id: skill_id.into(),
+            adapter: None,
+            tool: String::new(),
+            command: String::new(),
+            standard: String::new(),
+            required_inputs: Vec::new(),
+            pass_criteria: Vec::new(),
+            receipt_fields: Vec::new(),
+        }
+    }
+
+    /// Built-in compact descriptor for the k6 stress adapter.
+    ///
+    /// The contract intentionally stays short: k6 scenarios define load shape,
+    /// thresholds define pass/fail, and the receipt records the latency and SLA
+    /// fields the harness already requires.
+    #[must_use]
+    pub fn k6_stress() -> Self {
+        Self::new("rust-verification-stress")
+            .with_adapter("k6")
+            .with_tool("k6")
+            .with_command("k6 run <script>")
+            .with_standard("scenarios define load shape; thresholds define pass/fail")
+            .with_required_inputs(["script", "target_url", "scenario", "thresholds"])
+            .with_pass_criteria(["exit=0", "thresholds=pass"])
+            .with_receipt_fields(["p50", "p99", "p999", "load_steps", "sla_result", "artifact"])
+    }
+
+    /// Attach an adapter label for this descriptor.
+    #[must_use]
+    pub fn with_adapter(mut self, adapter: impl Into<String>) -> Self {
+        self.adapter = Some(adapter.into());
+        self
+    }
+
+    /// Set the tool family.
+    #[must_use]
+    pub fn with_tool(mut self, tool: impl Into<String>) -> Self {
+        self.tool = tool.into();
+        self
+    }
+
+    /// Set the command template.
+    #[must_use]
+    pub fn with_command(mut self, command: impl Into<String>) -> Self {
+        self.command = command.into();
+        self
+    }
+
+    /// Set the compact execution standard.
+    #[must_use]
+    pub fn with_standard(mut self, standard: impl Into<String>) -> Self {
+        self.standard = standard.into();
+        self
+    }
+
+    /// Set required adapter inputs.
+    #[must_use]
+    pub fn with_required_inputs<I, S>(mut self, inputs: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.required_inputs = inputs.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// Set pass criteria.
+    #[must_use]
+    pub fn with_pass_criteria<I, S>(mut self, criteria: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.pass_criteria = criteria.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// Set receipt fields.
+    #[must_use]
+    pub fn with_receipt_fields<I, S>(mut self, fields: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.receipt_fields = fields.into_iter().map(Into::into).collect();
+        self
+    }
+
+    pub(crate) fn compact_label(&self) -> String {
+        self.adapter
+            .as_deref()
+            .map(str::trim)
+            .filter(|adapter| !adapter.is_empty())
+            .map_or_else(
+                || self.skill_id.clone(),
+                |adapter| format!("{}@{adapter}", self.skill_id),
+            )
+    }
+
+    pub(crate) fn fingerprint_material(&self) -> String {
+        format!(
+            "tool={};command={};standard={};inputs={};pass={};receipt={}",
+            self.tool,
+            self.command,
+            self.standard,
+            self.required_inputs.join(","),
+            self.pass_criteria.join(","),
+            self.receipt_fields.join(",")
+        )
+    }
+}
+
 /// Verification task generated from parser facts and optional profile hints.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RustVerificationTask {
@@ -277,6 +424,9 @@ pub struct RustVerificationTask {
     /// Configured skill adapter for quiet dispatch, when available.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skill_binding: Option<RustVerificationSkillBinding>,
+    /// Contract descriptor key for expanding a configured skill, when available.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skill_contract_ref: Option<String>,
     /// Structured evidence fields expected from the external skill.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub required_evidence: Vec<RustVerificationRequirement>,
@@ -506,6 +656,9 @@ pub struct RustVerificationPolicy {
     /// Per-kind Agent skill bindings used for quiet dispatch.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub skill_bindings: BTreeMap<RustVerificationTaskKind, RustVerificationSkillBinding>,
+    /// Compact skill descriptors keyed by `skill_id` or `skill_id@adapter`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub skill_descriptors: BTreeMap<String, RustVerificationSkillDescriptor>,
     /// Per-responsibility task mapping overrides.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub responsibility_task_overrides:
@@ -522,6 +675,7 @@ impl RustVerificationPolicy {
             && self.disabled_task_kinds.is_empty()
             && self.task_contract_overrides.is_empty()
             && self.skill_bindings.is_empty()
+            && self.skill_descriptors.is_empty()
             && self.responsibility_task_overrides.is_empty()
     }
 
@@ -575,6 +729,14 @@ impl RustVerificationPolicy {
         self
     }
 
+    /// Return a policy with one verification skill descriptor configured.
+    #[must_use]
+    pub fn with_skill_descriptor(mut self, descriptor: RustVerificationSkillDescriptor) -> Self {
+        self.skill_descriptors
+            .insert(descriptor.compact_label(), descriptor);
+        self
+    }
+
     /// Return a policy with one responsibility mapped to explicit task kinds.
     #[must_use]
     pub fn with_responsibility_task_kinds<I>(
@@ -599,6 +761,9 @@ pub struct RustVerificationPlan {
     pub project_root: PathBuf,
     /// All generated tasks, including satisfied or waived tasks.
     pub tasks: Vec<RustVerificationTask>,
+    /// Compact descriptors referenced by tasks in this plan.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub skill_descriptors: Vec<RustVerificationSkillDescriptor>,
 }
 
 impl RustVerificationPlan {

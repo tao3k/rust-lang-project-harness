@@ -176,14 +176,20 @@ Harness implications:
 5. Keep the Markdown under top-level `skills/` passive and progressive. It is
    useful for onboarding or repairing configuration, but a healthy configured
    project should not need to reread it on every run.
-6. The actionbook type-driven skill maps cleanly to advisory parser policy when
+6. Split skill routing from skill execution contracts. A
+   `RustVerificationSkillBinding` answers "which configured skill handles this
+   task?", while a `RustVerificationSkillDescriptor` answers "what compact tool,
+   command, standard, inputs, and receipt fields define that adapter?" The
+   default verification render should expose only `contract_ref` and let Agents
+   expand descriptors on demand.
+7. The actionbook type-driven skill maps cleanly to advisory parser policy when
    it is restricted to semantic API boundaries. `AGENT-R012` therefore records
    public function parameters through `syn` and flags `id` or `*_id` parameters
    carried by `String`, `&str`, integer primitives, or `Option` wrappers. This
    keeps the useful "primitive obsession" signal without turning clone usage,
    unwraps, index loops, or other Clippy-shaped anti-pattern examples into
    harness rules.
-7. The actionbook error-handling skill maps to parser policy at the public
+8. The actionbook error-handling skill maps to parser policy at the public
    boundary, not at every `unwrap` or `?` site. `AGENT-R013` records public
    function return types through `syn` and flags application-style catch-all
    boundaries such as `anyhow::Result`, `eyre::Result`, and
