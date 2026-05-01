@@ -176,6 +176,32 @@ config hints, so incorrect responsibility declarations become
 `responsibility_review` tasks instead of silently changing what the harness
 believes.
 
+The verification surface is configurable through the same library config. A
+project can remap a responsibility to different task kinds, suppress a default
+task by mapping to an empty set, or override a task contract with project-owned
+evidence keys:
+
+```rust
+use rust_lang_project_harness::{
+    RustOwnerResponsibility, RustVerificationPhase, RustVerificationRequirement,
+    RustVerificationTaskContract, RustVerificationTaskKind, default_rust_harness_config,
+};
+
+let config = default_rust_harness_config()
+    .with_verification_responsibility_task_kinds(
+        RustOwnerResponsibility::PublicApi,
+        [RustVerificationTaskKind::Security],
+    )
+    .with_verification_task_contract(
+        RustVerificationTaskKind::Security,
+        RustVerificationTaskContract::new(
+            RustVerificationPhase::BeforeRelease,
+            "security skill must report tenant authz probes for this fingerprint",
+            [RustVerificationRequirement::new("tenant_authz", "tenant authz probe result")],
+        ),
+    );
+```
+
 For workspaces, profile hint paths can be package-relative (`src/api.rs`) or
 workspace-root-relative (`crates/api/src/api.rs`). Task fingerprints include the
 owning package path, so two members with the same owner path do not collide.

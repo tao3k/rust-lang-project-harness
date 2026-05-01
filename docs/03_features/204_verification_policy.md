@@ -65,6 +65,49 @@ Compact text is grouped by owner path. If one owner needs stress, chaos, and
 security verification, the renderer emits one `[verify] owner.rs` block with
 task-specific lines instead of three repeated owner cards.
 
+## Configurable Surface
+
+Verification config stays library-first. It does not introduce CLI flags or
+TOML precedence. Embedding projects can adjust the verification contract through
+`RustHarnessConfig` or `RustVerificationPolicy`.
+
+There are two configurable layers:
+
+- Responsibility mapping: choose which task kinds a declared responsibility
+  triggers. Mapping a responsibility to an empty set suppresses the default
+  task for that responsibility.
+- Task contract: override the phase, receipt contract, and structured evidence
+  keys for a task kind.
+
+```rust
+use rust_lang_project_harness::{
+    RustOwnerResponsibility, RustVerificationPhase, RustVerificationProfileHint,
+    RustVerificationRequirement, RustVerificationTaskContract, RustVerificationTaskKind,
+    default_rust_harness_config,
+};
+
+let config = default_rust_harness_config()
+    .with_verification_profile_hint(RustVerificationProfileHint::new(
+        "src/api.rs",
+        [RustOwnerResponsibility::PublicApi],
+    ))
+    .with_verification_responsibility_task_kinds(
+        RustOwnerResponsibility::PublicApi,
+        [RustVerificationTaskKind::Security],
+    )
+    .with_verification_task_contract(
+        RustVerificationTaskKind::Security,
+        RustVerificationTaskContract::new(
+            RustVerificationPhase::BeforeRelease,
+            "security skill must report tenant authz probes for this fingerprint",
+            [RustVerificationRequirement::new(
+                "tenant_authz",
+                "tenant authz probe result",
+            )],
+        ),
+    );
+```
+
 ## Task Families
 
 - `stress`: high-concurrency load, p50/p99/p999, SLA break detection

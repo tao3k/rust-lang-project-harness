@@ -18,19 +18,17 @@ use super::{
     RustOwnerResponsibility, RustVerificationEvidence, RustVerificationPhase, RustVerificationPlan,
     RustVerificationPolicy, RustVerificationProfileHint, RustVerificationReceipt,
     RustVerificationReceiptStatus, RustVerificationRequirement, RustVerificationResolutionNote,
-    RustVerificationTask, RustVerificationTaskKind, RustVerificationTaskState,
-    RustVerificationWaiver,
+    RustVerificationTask, RustVerificationTaskContract, RustVerificationTaskKind,
+    RustVerificationTaskState, RustVerificationWaiver,
 };
 
 struct VerificationTaskSpec {
     kind: RustVerificationTaskKind,
-    phase: RustVerificationPhase,
     owner_path: PathBuf,
     owner_namespace: Vec<String>,
     line: Option<usize>,
-    reason: &'static str,
-    required_receipt: &'static str,
-    required_evidence: Vec<RustVerificationRequirement>,
+    reason: String,
+    contract: RustVerificationTaskContract,
     evidence: Vec<RustVerificationEvidence>,
 }
 
@@ -228,9 +226,7 @@ fn collect_skill_tasks_from_profile(
     tasks: &mut BTreeMap<String, RustVerificationTask>,
 ) {
     let responsibilities = &hint.responsibilities;
-    if responsibilities.contains(&RustOwnerResponsibility::PublicApi)
-        || responsibilities.contains(&RustOwnerResponsibility::LatencySensitive)
-    {
+    for kind in task_kinds_for_responsibilities(responsibilities, policy) {
         push_task(
             tasks,
             policy,
@@ -238,67 +234,12 @@ fn collect_skill_tasks_from_profile(
                 project_root,
                 package_root,
                 VerificationTaskSpec {
-                    kind: RustVerificationTaskKind::Stress,
-                    phase: RustVerificationPhase::AfterUnitTestsPass,
+                    kind,
                     owner_path: module.path.clone(),
                     owner_namespace: module.source_path.namespace_components.clone(),
                     line: None,
-                    reason: "profile declares public or latency-sensitive surface",
-                    required_receipt: "stress skill must report p50/p99/p999, load steps, and SLA result for this fingerprint",
-                    required_evidence: stress_requirements(),
-                    evidence: vec![RustVerificationEvidence::new(
-                        "profile",
-                        responsibility_labels(responsibilities),
-                    )],
-                },
-                policy,
-            ),
-        );
-    }
-    if responsibilities.contains(&RustOwnerResponsibility::ExternalDependency)
-        || responsibilities.contains(&RustOwnerResponsibility::Persistence)
-        || responsibilities.contains(&RustOwnerResponsibility::AvailabilityCritical)
-    {
-        push_task(
-            tasks,
-            policy,
-            new_skill_task(
-                project_root,
-                package_root,
-                VerificationTaskSpec {
-                    kind: RustVerificationTaskKind::Chaos,
-                    phase: RustVerificationPhase::BeforeRelease,
-                    owner_path: module.path.clone(),
-                    owner_namespace: module.source_path.namespace_components.clone(),
-                    line: None,
-                    reason: "profile declares dependency, persistence, or availability responsibility",
-                    required_receipt: "chaos skill must report injected failures, degradation behavior, and recovery result for this fingerprint",
-                    required_evidence: chaos_requirements(),
-                    evidence: vec![RustVerificationEvidence::new(
-                        "profile",
-                        responsibility_labels(responsibilities),
-                    )],
-                },
-                policy,
-            ),
-        );
-    }
-    if responsibilities.contains(&RustOwnerResponsibility::SecurityBoundary) {
-        push_task(
-            tasks,
-            policy,
-            new_skill_task(
-                project_root,
-                package_root,
-                VerificationTaskSpec {
-                    kind: RustVerificationTaskKind::Security,
-                    phase: RustVerificationPhase::BeforeRelease,
-                    owner_path: module.path.clone(),
-                    owner_namespace: module.source_path.namespace_components.clone(),
-                    line: None,
-                    reason: "profile declares auth, authorization, secret, or trust-boundary logic",
-                    required_receipt: "security skill must report scanned attack classes and authorization-boundary result for this fingerprint",
-                    required_evidence: security_requirements(),
+                    reason: profile_task_reason(kind, responsibilities),
+                    contract: task_contract(policy, kind),
                     evidence: vec![RustVerificationEvidence::new(
                         "profile",
                         responsibility_labels(responsibilities),
@@ -334,13 +275,12 @@ fn collect_regression_tasks(
                 package_root,
                 VerificationTaskSpec {
                     kind: RustVerificationTaskKind::Regression,
-                    phase: RustVerificationPhase::ScheduledRegression,
                     owner_path: branch.path.clone(),
                     owner_namespace: branch.owner_namespace.clone(),
                     line: None,
-                    reason: "parser facts show a branch coordinating several child modules or local owners",
-                    required_receipt: "regression skill must report source growth, dependency drift, and module-cycle status for this fingerprint",
-                    required_evidence: regression_requirements(),
+                    reason: "parser facts show a branch coordinating several child modules or local owners"
+                        .to_string(),
+                    contract: task_contract(policy, RustVerificationTaskKind::Regression),
                     evidence: vec![
                         RustVerificationEvidence::new("child_modules", child_count.to_string()),
                         RustVerificationEvidence::new("owner_deps", dependency_count.to_string()),
@@ -366,13 +306,11 @@ fn new_profile_review_task(
         package_root,
         VerificationTaskSpec {
             kind: RustVerificationTaskKind::ResponsibilityReview,
-            phase: RustVerificationPhase::BeforeVerification,
             owner_path,
             owner_namespace,
             line: None,
-            reason,
-            required_receipt: "update the verification profile hint to match parser facts, or attach a complete waiver",
-            required_evidence: responsibility_review_requirements(),
+            reason: reason.to_string(),
+            contract: task_contract(policy, RustVerificationTaskKind::ResponsibilityReview),
             evidence,
         },
         policy,
@@ -391,7 +329,7 @@ fn new_skill_task(
         package_root,
         &spec.owner_path,
         spec.line,
-        &spec.required_evidence,
+        &spec.contract.required_evidence,
         &spec.evidence,
     );
     let mut task = RustVerificationTask {
@@ -402,10 +340,10 @@ fn new_skill_task(
         owner_path: spec.owner_path,
         owner_namespace: spec.owner_namespace,
         line: spec.line,
-        phase: spec.phase,
-        reason: spec.reason.to_string(),
-        required_receipt: spec.required_receipt.to_string(),
-        required_evidence: spec.required_evidence,
+        phase: spec.contract.phase,
+        reason: spec.reason,
+        required_receipt: spec.contract.required_receipt,
+        required_evidence: spec.contract.required_evidence,
         evidence: spec.evidence,
         resolution_notes: Vec::new(),
         receipt_summary: None,
@@ -556,6 +494,116 @@ fn should_run_member_scopes(project_root: &Path, package_roots: &[PathBuf]) -> b
         || package_roots
             .first()
             .is_some_and(|root| root != project_root)
+}
+
+fn task_kinds_for_responsibilities(
+    responsibilities: &BTreeSet<RustOwnerResponsibility>,
+    policy: &RustVerificationPolicy,
+) -> BTreeSet<RustVerificationTaskKind> {
+    responsibilities
+        .iter()
+        .flat_map(|responsibility| {
+            policy
+                .responsibility_task_overrides
+                .get(responsibility)
+                .cloned()
+                .unwrap_or_else(|| default_task_kinds_for_responsibility(*responsibility))
+        })
+        .collect()
+}
+
+fn default_task_kinds_for_responsibility(
+    responsibility: RustOwnerResponsibility,
+) -> BTreeSet<RustVerificationTaskKind> {
+    match responsibility {
+        RustOwnerResponsibility::PublicApi | RustOwnerResponsibility::LatencySensitive => {
+            BTreeSet::from([RustVerificationTaskKind::Stress])
+        }
+        RustOwnerResponsibility::ExternalDependency
+        | RustOwnerResponsibility::Persistence
+        | RustOwnerResponsibility::AvailabilityCritical => {
+            BTreeSet::from([RustVerificationTaskKind::Chaos])
+        }
+        RustOwnerResponsibility::SecurityBoundary => {
+            BTreeSet::from([RustVerificationTaskKind::Security])
+        }
+        RustOwnerResponsibility::PureDomainLogic => BTreeSet::new(),
+    }
+}
+
+fn profile_task_reason(
+    kind: RustVerificationTaskKind,
+    responsibilities: &BTreeSet<RustOwnerResponsibility>,
+) -> String {
+    if responsibilities.iter().any(|responsibility| {
+        default_task_kinds_for_responsibility(*responsibility).contains(&kind)
+    }) {
+        default_profile_task_reason(kind).to_string()
+    } else {
+        format!(
+            "profile config maps responsibilities to {} verification",
+            kind.as_str()
+        )
+    }
+}
+
+fn default_profile_task_reason(kind: RustVerificationTaskKind) -> &'static str {
+    match kind {
+        RustVerificationTaskKind::Stress => "profile declares public or latency-sensitive surface",
+        RustVerificationTaskKind::Chaos => {
+            "profile declares dependency, persistence, or availability responsibility"
+        }
+        RustVerificationTaskKind::Security => {
+            "profile declares auth, authorization, secret, or trust-boundary logic"
+        }
+        RustVerificationTaskKind::Regression => {
+            "profile config maps responsibilities to regression verification"
+        }
+        RustVerificationTaskKind::ResponsibilityReview => {
+            "profile config maps responsibilities to responsibility review"
+        }
+    }
+}
+
+fn task_contract(
+    policy: &RustVerificationPolicy,
+    kind: RustVerificationTaskKind,
+) -> RustVerificationTaskContract {
+    policy
+        .task_contract_overrides
+        .get(&kind)
+        .cloned()
+        .unwrap_or_else(|| default_task_contract(kind))
+}
+
+fn default_task_contract(kind: RustVerificationTaskKind) -> RustVerificationTaskContract {
+    match kind {
+        RustVerificationTaskKind::Stress => RustVerificationTaskContract::new(
+            RustVerificationPhase::AfterUnitTestsPass,
+            "stress skill must report p50/p99/p999, load steps, and SLA result for this fingerprint",
+            stress_requirements(),
+        ),
+        RustVerificationTaskKind::Chaos => RustVerificationTaskContract::new(
+            RustVerificationPhase::BeforeRelease,
+            "chaos skill must report injected failures, degradation behavior, and recovery result for this fingerprint",
+            chaos_requirements(),
+        ),
+        RustVerificationTaskKind::Security => RustVerificationTaskContract::new(
+            RustVerificationPhase::BeforeRelease,
+            "security skill must report scanned attack classes and authorization-boundary result for this fingerprint",
+            security_requirements(),
+        ),
+        RustVerificationTaskKind::Regression => RustVerificationTaskContract::new(
+            RustVerificationPhase::ScheduledRegression,
+            "regression skill must report source growth, dependency drift, and module-cycle status for this fingerprint",
+            regression_requirements(),
+        ),
+        RustVerificationTaskKind::ResponsibilityReview => RustVerificationTaskContract::new(
+            RustVerificationPhase::BeforeVerification,
+            "update the verification profile hint to match parser facts, or attach a complete waiver",
+            responsibility_review_requirements(),
+        ),
+    }
 }
 
 fn stress_requirements() -> Vec<RustVerificationRequirement> {

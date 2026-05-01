@@ -7,7 +7,8 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::verification::{
-    RustVerificationPolicy, RustVerificationProfileHint, RustVerificationReceipt,
+    RustOwnerResponsibility, RustVerificationPolicy, RustVerificationProfileHint,
+    RustVerificationReceipt, RustVerificationTaskContract, RustVerificationTaskKind,
     RustVerificationWaiver,
 };
 
@@ -423,6 +424,35 @@ impl RustHarnessConfig {
     #[must_use]
     pub fn with_verification_waiver(mut self, waiver: RustVerificationWaiver) -> Self {
         self.verification_policy.waivers.push(waiver);
+        self
+    }
+
+    /// Return a config with one verification task contract overridden.
+    #[must_use]
+    pub fn with_verification_task_contract(
+        mut self,
+        kind: RustVerificationTaskKind,
+        contract: RustVerificationTaskContract,
+    ) -> Self {
+        self.verification_policy
+            .task_contract_overrides
+            .insert(kind, contract);
+        self
+    }
+
+    /// Return a config with one responsibility mapped to explicit task kinds.
+    #[must_use]
+    pub fn with_verification_responsibility_task_kinds<I>(
+        mut self,
+        responsibility: RustOwnerResponsibility,
+        task_kinds: I,
+    ) -> Self
+    where
+        I: IntoIterator<Item = RustVerificationTaskKind>,
+    {
+        self.verification_policy
+            .responsibility_task_overrides
+            .insert(responsibility, task_kinds.into_iter().collect());
         self
     }
 }

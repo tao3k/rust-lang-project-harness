@@ -1,6 +1,6 @@
 //! Public verification contract types.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -169,6 +169,34 @@ impl RustVerificationRequirement {
         Self {
             key: key.into(),
             description: description.into(),
+        }
+    }
+}
+
+/// Configurable execution contract for one verification task family.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RustVerificationTaskContract {
+    /// Suggested lifecycle phase for the external skill.
+    pub phase: RustVerificationPhase,
+    /// Receipt contract expected from the external skill.
+    pub required_receipt: String,
+    /// Structured evidence fields expected from the external skill.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub required_evidence: Vec<RustVerificationRequirement>,
+}
+
+impl RustVerificationTaskContract {
+    /// Build one verification task contract.
+    #[must_use]
+    pub fn new(
+        phase: RustVerificationPhase,
+        required_receipt: impl Into<String>,
+        required_evidence: impl IntoIterator<Item = RustVerificationRequirement>,
+    ) -> Self {
+        Self {
+            phase,
+            required_receipt: required_receipt.into(),
+            required_evidence: required_evidence.into_iter().collect(),
         }
     }
 }
@@ -377,6 +405,13 @@ pub struct RustVerificationPolicy {
     /// Verification task kinds disabled by the embedding project.
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub disabled_task_kinds: BTreeSet<RustVerificationTaskKind>,
+    /// Per-kind verification contract overrides.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub task_contract_overrides: BTreeMap<RustVerificationTaskKind, RustVerificationTaskContract>,
+    /// Per-responsibility task mapping overrides.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub responsibility_task_overrides:
+        BTreeMap<RustOwnerResponsibility, BTreeSet<RustVerificationTaskKind>>,
 }
 
 impl RustVerificationPolicy {
@@ -387,6 +422,8 @@ impl RustVerificationPolicy {
             && self.receipts.is_empty()
             && self.waivers.is_empty()
             && self.disabled_task_kinds.is_empty()
+            && self.task_contract_overrides.is_empty()
+            && self.responsibility_task_overrides.is_empty()
     }
 
     /// Return a policy with one profile hint appended.
@@ -414,6 +451,32 @@ impl RustVerificationPolicy {
     #[must_use]
     pub fn with_disabled_task_kind(mut self, kind: RustVerificationTaskKind) -> Self {
         self.disabled_task_kinds.insert(kind);
+        self
+    }
+
+    /// Return a policy with one verification task contract overridden.
+    #[must_use]
+    pub fn with_task_contract(
+        mut self,
+        kind: RustVerificationTaskKind,
+        contract: RustVerificationTaskContract,
+    ) -> Self {
+        self.task_contract_overrides.insert(kind, contract);
+        self
+    }
+
+    /// Return a policy with one responsibility mapped to explicit task kinds.
+    #[must_use]
+    pub fn with_responsibility_task_kinds<I>(
+        mut self,
+        responsibility: RustOwnerResponsibility,
+        task_kinds: I,
+    ) -> Self
+    where
+        I: IntoIterator<Item = RustVerificationTaskKind>,
+    {
+        self.responsibility_task_overrides
+            .insert(responsibility, task_kinds.into_iter().collect());
         self
     }
 }
