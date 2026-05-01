@@ -8,6 +8,7 @@ pub(crate) struct RustSourcePathFacts {
     pub(crate) namespace_components: Vec<String>,
     pub(crate) repeated_namespace_segments: BTreeSet<String>,
     pub(crate) repeated_namespace_branch: Option<PathBuf>,
+    pub(crate) is_special_entrypoint: bool,
     pub(crate) is_crate_facade: bool,
     pub(crate) is_interface_mod: bool,
     pub(crate) is_binary_entrypoint: bool,
@@ -30,6 +31,7 @@ pub(crate) fn rust_source_path_facts(
         namespace_components,
         repeated_namespace_segments,
         repeated_namespace_branch,
+        is_special_entrypoint: file_name_matches(path, &["lib.rs", "main.rs", "mod.rs"]),
         is_crate_facade: file_name_is(path, "lib.rs"),
         is_interface_mod: file_name_is(path, "mod.rs"),
         is_binary_entrypoint: is_binary_entrypoint(source_paths, path),
@@ -102,4 +104,10 @@ fn file_name_is(path: &Path, name: &str) -> bool {
     path.file_name()
         .and_then(|file_name| file_name.to_str())
         .is_some_and(|file_name| file_name == name)
+}
+
+fn file_name_matches(path: &Path, names: &[&str]) -> bool {
+    path.file_name()
+        .and_then(|file_name| file_name.to_str())
+        .is_some_and(|file_name| names.contains(&file_name))
 }

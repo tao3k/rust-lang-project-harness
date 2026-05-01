@@ -43,6 +43,11 @@ components, repeated namespace branches, crate facades, `mod.rs` interfaces,
 binary entrypoints, and root `build.rs` entrypoints are derived under
 `src/parser/` before agent or modularity policies decide whether those facts are
 acceptable.
+Those lower-level facts are assembled into a parser-owned reasoning tree before
+policy execution. The reasoning tree gives each parsed module a source role,
+owner namespace, module-tree-root marker, declared child edges, and
+shadow/orphan reachability state, so policy packs and future agent snapshots do
+not have to infer project structure from a massive file list.
 
 Custom project source roots configured through `RustHarnessConfig` are treated
 as source ownership roots by project, modularity, and agent policy packs.

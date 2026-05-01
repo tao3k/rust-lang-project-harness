@@ -41,7 +41,7 @@ pub(crate) fn rust_module_tree_facts(
     }
 }
 
-pub(crate) fn is_special_rust_entrypoint_path(path: &Path) -> bool {
+fn is_special_rust_entrypoint_path(path: &Path) -> bool {
     path.file_name()
         .and_then(|name| name.to_str())
         .is_some_and(|name| matches!(name, "lib.rs" | "main.rs" | "mod.rs"))
@@ -104,7 +104,7 @@ fn reachable_source_files(
     reachable
 }
 
-fn external_child_module_paths(
+pub(in crate::parser) fn external_child_module_paths(
     module: &ParsedRustModule,
     source_files: &BTreeSet<PathBuf>,
 ) -> Vec<PathBuf> {
@@ -154,7 +154,7 @@ fn child_module_base_dir(module_path: &Path) -> PathBuf {
     parent.join(stem)
 }
 
-fn is_module_tree_root(source_paths: &[PathBuf], path: &Path) -> bool {
+pub(in crate::parser) fn is_module_tree_root(source_paths: &[PathBuf], path: &Path) -> bool {
     source_paths.iter().any(|source_root| {
         if path == source_root.join("lib.rs") || path == source_root.join("main.rs") {
             return true;

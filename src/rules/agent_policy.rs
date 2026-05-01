@@ -4,12 +4,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use crate::parser::{
-    ParsedRustModule, RustSourcePathFacts, RustTopLevelItemSyntax, file_location,
-    path_line_location, rust_source_path_facts, source_line,
+    ParsedRustModule, RustReasoningTreeFacts, RustTopLevelItemSyntax, file_location,
+    path_line_location, rust_reasoning_tree_facts, source_line,
 };
 use crate::{RustDiagnosticSeverity, RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
-use super::{display_path, is_under_any_dir, labels};
+use super::{display_path, labels};
 
 const PACK_ID: &str = "rust.agent_policy";
 const AGENT_R001: &str = "AGENT-R001";
@@ -42,9 +42,14 @@ pub(crate) fn evaluate(
     };
     let rules = rules_by_id();
     let mut findings = Vec::new();
+    let reasoning_tree = rust_reasoning_tree_facts(scope, modules);
     let source_modules = modules
         .iter()
-        .filter(|module| is_under_any_dir(&module.report.path, &scope.source_paths))
+        .filter(|module| {
+            reasoning_tree
+                .module(&module.report.path)
+                .is_some_and(|module_facts| module_facts.is_source_module)
+        })
         .collect::<Vec<_>>();
     for module in &source_modules {
         if !module.report.is_valid {
@@ -52,12 +57,20 @@ pub(crate) fn evaluate(
         };
         findings.extend(module_intent_findings(module, &rules));
         findings.extend(public_doc_findings(module, &rules));
-        findings.extend(facade_reexport_findings(scope, module, &rules));
+        findings.extend(facade_reexport_findings(&reasoning_tree, module, &rules));
         findings.extend(generic_public_module_findings(module, &rules));
         findings.extend(branch_module_intent_findings(module, &rules));
     }
-    findings.extend(repeated_namespace_findings(scope, modules, &rules));
-    findings.extend(generic_module_path_findings(scope, &source_modules, &rules));
+    findings.extend(repeated_namespace_findings(
+        &reasoning_tree,
+        modules,
+        &rules,
+    ));
+    findings.extend(generic_module_path_findings(
+        &reasoning_tree,
+        &source_modules,
+        &rules,
+    ));
     findings.extend(public_name_conflict_findings(&source_modules, &rules));
     findings
 }
@@ -112,12 +125,14 @@ fn public_doc_findings(
 }
 
 fn facade_reexport_findings(
-    scope: &RustProjectHarnessScope,
+    reasoning_tree: &RustReasoningTreeFacts,
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let path_facts = module_source_path_facts(scope, &module.report.path);
-    if !path_facts.is_crate_facade {
+    if !reasoning_tree
+        .module(&module.report.path)
+        .is_some_and(|module_facts| module_facts.source_path.is_crate_facade)
+    {
         return Vec::new();
     }
     let reexport_count = module
@@ -175,7 +190,7 @@ fn generic_public_module_findings(
 }
 
 fn generic_module_path_findings(
-    scope: &RustProjectHarnessScope,
+    reasoning_tree: &RustReasoningTreeFacts,
     modules: &[&ParsedRustModule],
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
@@ -183,8 +198,9 @@ fn generic_module_path_findings(
     modules
         .iter()
         .filter_map(|module| {
-            let path_facts = module_source_path_facts(scope, &module.report.path);
-            let generic_segment = path_facts
+            let module_facts = reasoning_tree.module(&module.report.path)?;
+            let generic_segment = module_facts
+                .source_path
                 .namespace_components
                 .iter()
                 .find(|component| is_generic_module_name(component.as_str()))?;
@@ -227,24 +243,30 @@ fn branch_module_intent_findings(
 }
 
 fn repeated_namespace_findings(
-    scope: &RustProjectHarnessScope,
+    reasoning_tree: &RustReasoningTreeFacts,
     modules: &[ParsedRustModule],
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     let rule = &rules[AGENT_R003];
     let mut branches = BTreeMap::<PathBuf, (PathBuf, BTreeSet<String>)>::new();
     for module in modules {
-        let path_facts = module_source_path_facts(scope, &module.report.path);
-        let Some(branch) = path_facts.repeated_namespace_branch else {
+        let Some(module_facts) = reasoning_tree.module(&module.report.path) else {
             continue;
         };
-        if path_facts.repeated_namespace_segments.is_empty() {
+        let Some(branch) = module_facts.source_path.repeated_namespace_branch.clone() else {
+            continue;
+        };
+        if module_facts
+            .source_path
+            .repeated_namespace_segments
+            .is_empty()
+        {
             continue;
         }
         let (_, branch_repeated) = branches
             .entry(branch)
             .or_insert_with(|| (module.report.path.clone(), BTreeSet::new()));
-        branch_repeated.extend(path_facts.repeated_namespace_segments);
+        branch_repeated.extend(module_facts.source_path.repeated_namespace_segments.clone());
     }
     branches
         .into_iter()
@@ -332,18 +354,6 @@ fn is_generic_public_module_name(name: &str) -> bool {
 
 fn is_generic_module_name(name: &str) -> bool {
     GENERIC_MODULE_NAMES.contains(&name)
-}
-
-fn module_source_path_facts(
-    scope: &RustProjectHarnessScope,
-    path: &std::path::Path,
-) -> RustSourcePathFacts {
-    rust_source_path_facts(
-        &scope.project_root,
-        &scope.source_paths,
-        &scope.package_paths,
-        path,
-    )
 }
 
 fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {

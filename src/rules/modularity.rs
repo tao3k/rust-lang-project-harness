@@ -5,10 +5,9 @@ mod entrypoints;
 mod reasoning_tree;
 mod source_shape;
 
-use crate::parser::{ParsedRustModule, rust_module_tree_facts, rust_source_path_facts};
+use crate::parser::{ParsedRustModule, rust_reasoning_tree_facts};
 use crate::{RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
-use super::is_under_any_dir;
 use catalog::rules_by_id;
 use entrypoints::{
     binary_entrypoint_findings, build_script_entrypoint_findings, crate_facade_findings,
@@ -52,34 +51,30 @@ pub(crate) fn evaluate(
     };
     let rules = rules_by_id();
     let mut findings = Vec::new();
-    let module_tree = rust_module_tree_facts(&scope.source_paths, modules);
-    findings.extend(module_source_shadow_findings(&module_tree, &rules));
-    findings.extend(orphan_source_module_findings(&module_tree, &rules));
+    let reasoning_tree = rust_reasoning_tree_facts(scope, modules);
+    findings.extend(module_source_shadow_findings(&reasoning_tree, &rules));
+    findings.extend(orphan_source_module_findings(&reasoning_tree, &rules));
     for module in modules {
-        let path_facts = rust_source_path_facts(
-            &scope.project_root,
-            &scope.source_paths,
-            &scope.package_paths,
-            &module.report.path,
-        );
-        let is_source_module = is_under_any_dir(&module.report.path, &scope.source_paths);
-        if !is_source_module && !path_facts.is_package_entrypoint {
+        let Some(module_facts) = reasoning_tree.module(&module.report.path) else {
+            continue;
+        };
+        if !module_facts.is_source_module && !module_facts.source_path.is_package_entrypoint {
             continue;
         }
         if !module.report.is_valid {
             continue;
         }
-        if is_source_module {
-            findings.extend(crate_facade_findings(&path_facts, module, &rules));
-            findings.extend(binary_entrypoint_findings(&path_facts, module, &rules));
-            findings.extend(interface_mod_findings(&path_facts, module, &rules));
-            findings.extend(inline_source_module_findings(module, &rules));
+        if module_facts.is_source_module {
+            findings.extend(crate_facade_findings(module_facts, module, &rules));
+            findings.extend(binary_entrypoint_findings(module_facts, module, &rules));
+            findings.extend(interface_mod_findings(module_facts, module, &rules));
+            findings.extend(inline_source_module_findings(module_facts, module, &rules));
             findings.extend(source_file_bloat_findings(module, &rules));
             findings.extend(deep_relative_import_findings(module, &rules));
             findings.extend(glob_import_findings(module, &rules));
         }
         findings.extend(build_script_entrypoint_findings(
-            &path_facts,
+            module_facts,
             module,
             &rules,
         ));

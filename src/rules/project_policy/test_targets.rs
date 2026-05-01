@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use crate::parser::{
-    CargoManifestFacts, ParsedRustModule, RustTopLevelItemSyntax, file_location,
-    path_line_location, rust_source_path_facts, source_line,
+    CargoManifestFacts, ParsedRustModule, RustReasoningTreeFacts, RustTopLevelItemSyntax,
+    file_location, path_line_location, source_line,
 };
 use crate::{RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
@@ -42,16 +42,17 @@ pub(super) fn test_target_gate_findings(
 }
 
 pub(super) fn library_cargo_test_gate_findings(
+    reasoning_tree: &RustReasoningTreeFacts,
     scope: &RustProjectHarnessScope,
     modules: &[ParsedRustModule],
     cargo_manifest: &CargoManifestFacts,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let Some(lib_path) = library_target_path(scope, modules) else {
+    let Some(lib_path) = library_target_path(reasoning_tree) else {
         return Vec::new();
     };
     if !project_uses_harness_gate(cargo_manifest, modules)
-        || source_tree_contains_cargo_test_gate(scope, modules)
+        || source_tree_contains_cargo_test_gate(reasoning_tree, modules)
     {
         return Vec::new();
     }
@@ -68,20 +69,9 @@ pub(super) fn library_cargo_test_gate_findings(
     )]
 }
 
-fn library_target_path(
-    scope: &RustProjectHarnessScope,
-    modules: &[ParsedRustModule],
-) -> Option<std::path::PathBuf> {
-    modules.iter().find_map(|module| {
-        let path_facts = rust_source_path_facts(
-            &scope.project_root,
-            &scope.source_paths,
-            &scope.package_paths,
-            &module.report.path,
-        );
-        path_facts
-            .is_crate_facade
-            .then(|| module.report.path.clone())
+fn library_target_path(reasoning_tree: &RustReasoningTreeFacts) -> Option<std::path::PathBuf> {
+    reasoning_tree.modules.iter().find_map(|module| {
+        (module.is_source_module && module.source_path.is_crate_facade).then(|| module.path.clone())
     })
 }
 
@@ -174,14 +164,13 @@ fn project_uses_harness_gate(
 }
 
 fn source_tree_contains_cargo_test_gate(
-    scope: &RustProjectHarnessScope,
+    reasoning_tree: &RustReasoningTreeFacts,
     modules: &[ParsedRustModule],
 ) -> bool {
     modules.iter().any(|module| {
-        scope
-            .source_paths
-            .iter()
-            .any(|source_root| module.report.path.starts_with(source_root))
+        reasoning_tree
+            .module(&module.report.path)
+            .is_some_and(|module_facts| module_facts.is_source_module)
             && module_syntax_contains_cargo_test_gate(module)
     })
 }

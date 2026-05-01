@@ -22,6 +22,10 @@ mod discovery_tests;
 #[path = "../tests/unit/parser_source_path.rs"]
 mod parser_source_path_tests;
 
+#[cfg(test)]
+#[path = "../tests/unit/parser_reasoning_tree.rs"]
+mod parser_reasoning_tree_tests;
+
 pub use cli::run_cli_from_env;
 pub use discovery::{DEFAULT_IGNORED_DIR_NAMES, discover_rust_files, rust_project_harness_scope};
 pub use model::{

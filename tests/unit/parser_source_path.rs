@@ -39,6 +39,7 @@ fn source_path_facts_identify_special_rust_entrypoints() {
         &source_root.join("lib.rs"),
     );
     assert!(lib.is_crate_facade);
+    assert!(lib.is_special_entrypoint);
     assert!(!lib.is_binary_entrypoint);
 
     let interface = rust_source_path_facts(
@@ -48,6 +49,7 @@ fn source_path_facts_identify_special_rust_entrypoints() {
         &source_root.join("domain/mod.rs"),
     );
     assert!(interface.is_interface_mod);
+    assert!(interface.is_special_entrypoint);
 
     let main = rust_source_path_facts(
         &root,
@@ -56,6 +58,7 @@ fn source_path_facts_identify_special_rust_entrypoints() {
         &source_root.join("main.rs"),
     );
     assert!(main.is_binary_entrypoint);
+    assert!(main.is_special_entrypoint);
 
     let bin_file = rust_source_path_facts(
         &root,

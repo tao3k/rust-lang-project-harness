@@ -7,6 +7,9 @@ use rust_lang_project_harness::{
     run_rust_project_harness, rust_agent_policy_rules,
 };
 
+#[path = "policy_contract/reasoning_tree.rs"]
+mod reasoning_tree;
+
 #[test]
 fn default_policy_blocks_only_warning_and_error() {
     let config = default_rust_harness_config();

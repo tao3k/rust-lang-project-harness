@@ -3,7 +3,8 @@
 use std::collections::BTreeMap;
 
 use crate::parser::{
-    ParsedRustModule, RustSourcePathFacts, RustTopLevelItemSyntax, path_line_location, source_line,
+    ParsedRustModule, RustReasoningModuleFacts, RustTopLevelItemSyntax, path_line_location,
+    source_line,
 };
 use crate::rules::display_path;
 use crate::{RustHarnessFinding, RustHarnessRule};
@@ -11,11 +12,11 @@ use crate::{RustHarnessFinding, RustHarnessRule};
 use super::{RUST_MOD_R001, RUST_MOD_R004, RUST_MOD_R005, RUST_MOD_R006};
 
 pub(super) fn crate_facade_findings(
-    path_facts: &RustSourcePathFacts,
+    module_facts: &RustReasoningModuleFacts,
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    if !path_facts.is_crate_facade {
+    if !module_facts.source_path.is_crate_facade {
         return Vec::new();
     }
     let rule = &rules[RUST_MOD_R004];
@@ -41,11 +42,11 @@ pub(super) fn crate_facade_findings(
 }
 
 pub(super) fn binary_entrypoint_findings(
-    path_facts: &RustSourcePathFacts,
+    module_facts: &RustReasoningModuleFacts,
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    if !path_facts.is_binary_entrypoint {
+    if !module_facts.source_path.is_binary_entrypoint {
         return Vec::new();
     }
     let rule = &rules[RUST_MOD_R005];
@@ -71,11 +72,11 @@ pub(super) fn binary_entrypoint_findings(
 }
 
 pub(super) fn build_script_entrypoint_findings(
-    path_facts: &RustSourcePathFacts,
+    module_facts: &RustReasoningModuleFacts,
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    if !path_facts.is_build_script_entrypoint {
+    if !module_facts.source_path.is_build_script_entrypoint {
         return Vec::new();
     }
     let rule = &rules[RUST_MOD_R006];
@@ -101,11 +102,11 @@ pub(super) fn build_script_entrypoint_findings(
 }
 
 pub(super) fn interface_mod_findings(
-    path_facts: &RustSourcePathFacts,
+    module_facts: &RustReasoningModuleFacts,
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    if !path_facts.is_interface_mod {
+    if !module_facts.source_path.is_interface_mod {
         return Vec::new();
     }
     let rule = &rules[RUST_MOD_R001];
