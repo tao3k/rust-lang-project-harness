@@ -250,7 +250,7 @@ fn import_summary(
             if import.is_glob {
                 summary.glob_imports += 1;
             }
-            if import.parent_hops >= 2 || import.contains_super_super {
+            if import.parent_hops >= 2 {
                 summary.deep_relative_imports += 1;
             }
             if import.is_prelude_import {

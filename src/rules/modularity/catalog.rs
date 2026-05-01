@@ -89,7 +89,7 @@ pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             PACK_ID,
             RustDiagnosticSeverity::Warning,
             "Glob import hides owner scope",
-            "Avoid Rust glob imports; import the owner names explicitly so module dependencies stay visible.",
+            "Avoid every Rust glob import, including absolute crate globs; import owner names explicitly so module dependencies stay visible.",
             labels("modularity"),
         ),
     ]

@@ -22,6 +22,33 @@ fn policy_rules_consume_parser_facts_not_syn_directly() {
 }
 
 #[test]
+fn native_use_scope_facts_stay_in_parser_layer() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let parser_source =
+        fs::read_to_string(root.join("src/parser/use_tree.rs")).expect("read use tree parser");
+    assert!(parser_source.contains("syn::UseTree::Glob"));
+    assert!(parser_source.contains("RustUseGlobScopeKind"));
+    assert!(parser_source.contains("RustUseDeepRelativeImportSyntax"));
+    assert!(parser_source.contains("fn is_deep_relative_import"));
+
+    let rule_source = fs::read_to_string(root.join("src/rules/modularity/source_shape.rs"))
+        .expect("read modularity source-shape rules");
+    assert!(rule_source.contains("RustUseGlobScopeKind::CrateOwner"));
+    assert!(rule_source.contains("deep_relative_imports"));
+
+    for forbidden in [
+        "UseTree::Glob",
+        "has_super_super",
+        "contains_deep_relative_import",
+    ] {
+        assert!(
+            !rule_source.contains(forbidden),
+            "modularity rules must consume parser-owned use scope facts, not `{forbidden}`"
+        );
+    }
+}
+
+#[test]
 fn syn_parse_file_entrypoint_stays_inside_parser_module() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let parser_entrypoints = rust_files_under(&root.join("src"))

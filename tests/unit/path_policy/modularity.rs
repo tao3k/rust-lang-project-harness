@@ -22,6 +22,13 @@ fn deep_relative_import_policy_uses_native_use_trees() {
 
     let findings = findings_for_rule(&report, "RUST-MOD-R003");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
+    assert!(
+        findings[0]
+            .summary
+            .contains("deep relative import `super::super::MissingOwner`"),
+        "{}",
+        findings[0].summary
+    );
     let source_line = findings[0].source_line.as_deref().expect("source line");
     assert!(source_line.contains("super::{super::MissingOwner, sibling::Thing}"));
 }
@@ -93,6 +100,36 @@ fn glob_import_policy_reports_cfg_test_context_from_parser_stack() {
     assert_eq!(
         findings[0].label,
         "replace parent-scope glob with explicit imports"
+    );
+}
+
+#[test]
+fn glob_import_policy_flags_absolute_crate_owner_glob() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "absolute-crate-owner-glob");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod domain;\n").expect("write lib");
+    fs::write(
+        root.join("src/domain.rs"),
+        "//! Domain module.\nuse crate::gateway::studio::studio_repo_sync_api_tests::*;\n",
+    )
+    .expect("write domain");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    let findings = findings_for_rule(&report, "RUST-MOD-R010");
+    assert_eq!(findings.len(), 1, "{:?}", report.findings);
+    assert!(
+        findings[0].summary.contains(
+            "crate-owner glob import `crate::gateway::studio::studio_repo_sync_api_tests::*`"
+        ),
+        "{}",
+        findings[0].summary
+    );
+    assert_eq!(
+        findings[0].label,
+        "replace glob import with explicit owner imports"
     );
 }
 

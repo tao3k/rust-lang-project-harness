@@ -30,4 +30,6 @@ pub(crate) use reasoning_tree::{
 };
 pub(crate) use source_metrics::RustSourceMetrics;
 pub(crate) use source_path::{RustSourcePathFacts, rust_source_path_facts};
-pub(crate) use use_tree::{RustUseImportRootKind, RustUseImportSyntax, RustUseStatementSyntax};
+pub(crate) use use_tree::{
+    RustUseGlobScopeKind, RustUseImportRootKind, RustUseImportSyntax, RustUseStatementSyntax,
+};

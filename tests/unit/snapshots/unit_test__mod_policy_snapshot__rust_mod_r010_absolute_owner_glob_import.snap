@@ -4,7 +4,7 @@ expression: rendered
 ---
 [RUST-MOD-R010] Warning: Glob import hides owner scope
    ,-[ $TEMP/src/domain.rs:2:1 ]
- 2 | use super::*;
-   | `- replace parent-scope glob with explicit imports
-   |Help: $TEMP/src/domain.rs uses parent-scope glob import `super::*`.
+ 2 | use crate::gateway::studio::studio_repo_sync_api_tests::*;
+   | `- replace glob import with explicit owner imports
+   |Help: $TEMP/src/domain.rs uses crate-owner glob import `crate::gateway::studio::studio_repo_sync_api_tests::*`.
    |Contract: Avoid every Rust glob import, including absolute crate globs; import owner names explicitly so module dependencies stay visible.

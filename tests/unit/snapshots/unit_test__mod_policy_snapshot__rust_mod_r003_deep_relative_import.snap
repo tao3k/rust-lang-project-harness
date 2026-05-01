@@ -6,5 +6,5 @@ expression: rendered
    ,-[ $TEMP/src/domain.rs:2:1 ]
  2 | pub use super::{super::MissingOwner, sibling::Thing};
    | `- replace deep relative import with a clearer owner boundary
-   |Help: $TEMP/src/domain.rs uses deep relative import `super::super`.
+   |Help: $TEMP/src/domain.rs uses deep relative import `super::super::MissingOwner`.
    |Contract: Avoid super::super imports in library code; expose a clearer owner-level API instead.

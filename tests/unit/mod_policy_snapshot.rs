@@ -157,6 +157,26 @@ fn mod_r010_glob_import_snapshot() {
     assert_mod_snapshot(root, "RUST-MOD-R010", "rust_mod_r010_glob_import");
 }
 
+#[test]
+fn mod_r010_absolute_owner_glob_import_snapshot() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "mod-r010-absolute-owner-glob-import");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod domain;\n").expect("write lib");
+    fs::write(
+        root.join("src/domain.rs"),
+        "//! Domain module.\nuse crate::gateway::studio::studio_repo_sync_api_tests::*;\n",
+    )
+    .expect("write domain");
+
+    assert_mod_snapshot(
+        root,
+        "RUST-MOD-R010",
+        "rust_mod_r010_absolute_owner_glob_import",
+    );
+}
+
 fn assert_mod_snapshot(root: &Path, rule_id: &str, snapshot_name: &'static str) {
     let mut report = run_rust_project_harness(root).expect("run project harness");
     report.findings.retain(|finding| finding.rule_id == rule_id);

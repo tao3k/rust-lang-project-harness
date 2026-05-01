@@ -3,8 +3,8 @@
 use std::collections::BTreeMap;
 
 use crate::parser::{
-    ParsedRustModule, RustReasoningModuleFacts, RustUseStatementSyntax, file_location,
-    path_line_location, source_line,
+    ParsedRustModule, RustReasoningModuleFacts, RustUseGlobScopeKind, RustUseStatementSyntax,
+    file_location, path_line_location, source_line,
 };
 use crate::rules::display_path;
 use crate::{RustHarnessFinding, RustHarnessRule};
@@ -62,12 +62,13 @@ pub(super) fn deep_relative_import_findings(
         .use_statements
         .iter()
         .filter_map(|use_syntax| {
-            if use_syntax.contains_deep_relative_import {
+            if !use_syntax.deep_relative_imports.is_empty() {
                 Some(RustHarnessFinding::from_rule(
                     rule,
                     format!(
-                        "{} uses deep relative import `super::super`.",
-                        display_path(&module.report.path)
+                        "{} uses {}.",
+                        display_path(&module.report.path),
+                        deep_relative_import_descriptor(use_syntax)
                     ),
                     path_line_location(&module.report.path, use_syntax.line),
                     source_line(&module.source, use_syntax.line),
@@ -78,6 +79,25 @@ pub(super) fn deep_relative_import_findings(
             }
         })
         .collect()
+}
+
+fn deep_relative_import_descriptor(use_syntax: &RustUseStatementSyntax) -> String {
+    let imports = &use_syntax.deep_relative_imports;
+    let Some(first_import) = imports.first() else {
+        return "deep relative import".to_string();
+    };
+    if imports.len() > 1 {
+        return format!(
+            "{} deep relative imports ({})",
+            imports.len(),
+            imports
+                .iter()
+                .map(|import| import.rendered_path())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+    }
+    format!("deep relative import `{}`", first_import.rendered_path())
 }
 
 pub(super) fn glob_import_findings(
@@ -144,6 +164,9 @@ fn glob_import_descriptor(use_syntax: &RustUseStatementSyntax) -> String {
     }
     if first_import.is_prelude_glob {
         return format!("prelude glob import `{rendered_path}`");
+    }
+    if first_import.scope_kind == RustUseGlobScopeKind::CrateOwner {
+        return format!("crate-owner glob import `{rendered_path}`");
     }
     format!("Rust glob import `{rendered_path}`")
 }

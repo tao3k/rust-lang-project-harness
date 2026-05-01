@@ -7,7 +7,7 @@ pub(crate) struct RustUseStatementSyntax {
     pub line: usize,
     pub context: RustUseStatementContext,
     pub imports: Vec<RustUseImportSyntax>,
-    pub contains_deep_relative_import: bool,
+    pub deep_relative_imports: Vec<RustUseDeepRelativeImportSyntax>,
     pub contains_glob_import: bool,
     pub glob_imports: Vec<RustUseGlobImportSyntax>,
 }
@@ -24,9 +24,16 @@ pub(crate) struct RustUseStatementContext {
 pub(crate) struct RustUseGlobImportSyntax {
     pub prefix_segments: Vec<String>,
     pub is_absolute: bool,
+    pub scope_kind: RustUseGlobScopeKind,
     pub is_direct_parent_scope_glob: bool,
     pub is_parent_relative_glob: bool,
     pub is_prelude_glob: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RustUseDeepRelativeImportSyntax {
+    pub prefix_segments: Vec<String>,
+    pub parent_hops: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,7 +43,6 @@ pub(crate) struct RustUseImportSyntax {
     pub root_kind: RustUseImportRootKind,
     pub parent_hops: usize,
     pub is_glob: bool,
-    pub contains_super_super: bool,
     pub is_prelude_import: bool,
 }
 
@@ -46,6 +52,16 @@ pub(crate) enum RustUseImportRootKind {
     Crate,
     SelfScope,
     Parent,
+    External,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum RustUseGlobScopeKind {
+    Absolute,
+    CrateOwner,
+    SelfScope,
+    ParentScope,
     External,
     Unknown,
 }
@@ -75,22 +91,32 @@ impl RustUseGlobImportSyntax {
     }
 }
 
+impl RustUseDeepRelativeImportSyntax {
+    pub(crate) fn rendered_path(&self) -> String {
+        self.prefix_segments.join("::")
+    }
+}
+
 pub(crate) fn rust_use_statement_syntax(
     item_use: &syn::ItemUse,
     context: RustUseStatementContext,
 ) -> RustUseStatementSyntax {
     let imports = use_item_imports(item_use);
+    let deep_relative_imports = imports
+        .iter()
+        .filter(|import| is_deep_relative_import(import))
+        .map(deep_relative_import_syntax)
+        .collect::<Vec<_>>();
     let glob_imports = imports
         .iter()
         .filter(|import| import.is_glob)
         .map(glob_import_syntax)
         .collect::<Vec<_>>();
-    let contains_deep_relative_import = imports.iter().any(|import| import.contains_super_super);
     RustUseStatementSyntax {
         line: item_use.span().start().line.max(1),
         context,
         imports,
-        contains_deep_relative_import,
+        deep_relative_imports,
         contains_glob_import: !glob_imports.is_empty(),
         glob_imports,
     }
@@ -152,13 +178,23 @@ fn import_syntax(segments: Vec<String>, is_absolute: bool, is_glob: bool) -> Rus
     let root_kind = import_root_kind(is_absolute, &segments);
     RustUseImportSyntax {
         parent_hops: parent_hops(&segments),
-        contains_super_super: has_super_super(&segments),
         is_prelude_import: segments.iter().any(|segment| segment == "prelude"),
         segments,
         is_absolute,
         root_kind,
         is_glob,
     }
+}
+
+fn deep_relative_import_syntax(import: &RustUseImportSyntax) -> RustUseDeepRelativeImportSyntax {
+    RustUseDeepRelativeImportSyntax {
+        prefix_segments: import.segments.clone(),
+        parent_hops: import.parent_hops,
+    }
+}
+
+fn is_deep_relative_import(import: &RustUseImportSyntax) -> bool {
+    import.root_kind == RustUseImportRootKind::Parent && import.parent_hops >= 2
 }
 
 fn glob_import_syntax(import: &RustUseImportSyntax) -> RustUseGlobImportSyntax {
@@ -175,9 +211,21 @@ fn glob_import_syntax(import: &RustUseImportSyntax) -> RustUseGlobImportSyntax {
     RustUseGlobImportSyntax {
         prefix_segments: import.segments.clone(),
         is_absolute: import.is_absolute,
+        scope_kind: glob_scope_kind(import.root_kind),
         is_direct_parent_scope_glob,
         is_parent_relative_glob,
         is_prelude_glob,
+    }
+}
+
+fn glob_scope_kind(root_kind: RustUseImportRootKind) -> RustUseGlobScopeKind {
+    match root_kind {
+        RustUseImportRootKind::Absolute => RustUseGlobScopeKind::Absolute,
+        RustUseImportRootKind::Crate => RustUseGlobScopeKind::CrateOwner,
+        RustUseImportRootKind::SelfScope => RustUseGlobScopeKind::SelfScope,
+        RustUseImportRootKind::Parent => RustUseGlobScopeKind::ParentScope,
+        RustUseImportRootKind::External => RustUseGlobScopeKind::External,
+        RustUseImportRootKind::Unknown => RustUseGlobScopeKind::Unknown,
     }
 }
 
@@ -201,10 +249,4 @@ fn parent_hops(segments: &[String]) -> usize {
         .iter()
         .take_while(|segment| segment.as_str() == "super")
         .count()
-}
-
-fn has_super_super(segments: &[String]) -> bool {
-    segments
-        .windows(2)
-        .any(|window| window[0] == "super" && window[1] == "super")
 }

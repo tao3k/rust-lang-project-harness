@@ -2,7 +2,7 @@ use std::fs;
 
 use tempfile::TempDir;
 
-use crate::parser::parse_rust_file;
+use crate::parser::{RustUseGlobScopeKind, parse_rust_file};
 
 #[test]
 fn native_syntax_facts_record_cfg_and_module_declaring_macros() {
@@ -70,6 +70,69 @@ fn native_syntax_facts_record_cfg_and_module_declaring_macros() {
         .expect("macro_rules macro fact");
     assert!(macro_rules.macro_declares_module);
     assert!(!macro_rules.macro_body_is_facade_boundary);
+}
+
+#[test]
+fn native_syntax_facts_record_glob_scope_kinds() {
+    let temp = TempDir::new().expect("temp dir");
+    let source = temp.path().join("lib.rs");
+    fs::write(
+        &source,
+        "use crate::gateway::studio::studio_repo_sync_api_tests::*;\n\
+         use super::*;\n\
+         use external::prelude::*;\n",
+    )
+    .expect("write source");
+
+    let module = parse_rust_file(&source);
+
+    let glob_scopes = module
+        .syntax_facts
+        .use_statements
+        .iter()
+        .flat_map(|use_statement| &use_statement.glob_imports)
+        .map(|glob| (glob.rendered_path(), glob.scope_kind))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        glob_scopes,
+        vec![
+            (
+                "crate::gateway::studio::studio_repo_sync_api_tests::*".to_string(),
+                RustUseGlobScopeKind::CrateOwner,
+            ),
+            ("super::*".to_string(), RustUseGlobScopeKind::ParentScope,),
+            (
+                "external::prelude::*".to_string(),
+                RustUseGlobScopeKind::External,
+            ),
+        ]
+    );
+}
+
+#[test]
+fn native_syntax_facts_record_deep_relative_scope_imports() {
+    let temp = TempDir::new().expect("temp dir");
+    let source = temp.path().join("domain.rs");
+    fs::write(
+        &source,
+        "pub use super::{super::MissingOwner, sibling::Thing};\n\
+         use self::leaf::Leaf;\n",
+    )
+    .expect("write source");
+
+    let module = parse_rust_file(&source);
+
+    let deep_relative_imports = module
+        .syntax_facts
+        .use_statements
+        .iter()
+        .flat_map(|use_statement| &use_statement.deep_relative_imports)
+        .map(|import| (import.rendered_path(), import.parent_hops))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        deep_relative_imports,
+        vec![("super::super::MissingOwner".to_string(), 2)]
+    );
 }
 
 #[test]
