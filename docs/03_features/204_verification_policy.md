@@ -146,6 +146,9 @@ fallback contract lines. If a binding is present, compact text emits only the
 task line with `skill=<id>` while JSON keeps `required_evidence` and
 `required_receipt` for structured consumers. The binding label participates in
 the task fingerprint, so switching adapters invalidates stale receipts.
+Snapshot tests for configured skill triggers should stay compact-first as well:
+the agent-facing baseline is short text, while JSON is asserted only as a
+secondary structured contract.
 
 ## Task Families
 

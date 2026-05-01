@@ -57,28 +57,26 @@ fn verification_skill_binding_trigger_audit_snapshot() {
     let rendered = normalize_temp_root(&render_rust_verification_plan(&plan), root);
     let json = render_rust_verification_plan_json(&plan).expect("json");
     let value: serde_json::Value = serde_json::from_str(&json).expect("parse json");
-    let owner = task
-        .owner_path
-        .strip_prefix(root)
-        .expect("owner relative to root")
-        .display()
-        .to_string()
-        .replace('\\', "/");
     let required_evidence = task
         .required_evidence
         .iter()
         .map(|requirement| requirement.key.as_str())
-        .collect::<Vec<_>>();
+        .collect::<Vec<_>>()
+        .join(",");
     let trigger_evidence = task
         .evidence
         .iter()
-        .map(|evidence| {
-            serde_json::json!({
-                "label": evidence.label.as_str(),
-                "value": evidence.value.as_str(),
-            })
-        })
-        .collect::<Vec<_>>();
+        .map(|evidence| format!("{}={}", evidence.label, evidence.value))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let skill_binding = task.skill_binding.as_ref().expect("skill binding");
+    let skill_label = skill_binding.adapter.as_ref().map_or_else(
+        || skill_binding.skill_id.clone(),
+        |adapter| format!("{}@{adapter}", skill_binding.skill_id),
+    );
+    let phase = value["tasks"][0]["phase"]
+        .as_str()
+        .expect("serialized phase");
 
     assert_eq!(
         value["tasks"][0]["skill_binding"]["skill_id"],
@@ -90,20 +88,13 @@ fn verification_skill_binding_trigger_audit_snapshot() {
         "rust-verification-stress@k6"
     );
     assert_eq!(value["tasks"][0]["required_evidence"][0]["key"], "p50");
-    let audit = serde_json::to_string_pretty(&serde_json::json!({
-        "kind": task.kind.as_str(),
-        "owner": owner,
-        "skill_binding": task.skill_binding.as_ref(),
-        "trigger_evidence": trigger_evidence,
-        "required_evidence": required_evidence,
-        "quiet_compact": {
-            "rendered": rendered,
-            "omits_why": !rendered.contains("|why:"),
-            "omits_requires": !rendered.contains("|requires:"),
-            "omits_fact": !rendered.contains("|fact:"),
-            "omits_contract": !rendered.contains("|contract:"),
-        },
-    }))
-    .expect("serialize audit");
-    insta::assert_snapshot!("verification_skill_binding_trigger_audit", audit);
+    assert!(!rendered.contains("|why:"), "{rendered}");
+    assert!(!rendered.contains("|requires:"), "{rendered}");
+    assert!(!rendered.contains("|fact:"), "{rendered}");
+    assert!(!rendered.contains("|contract:"), "{rendered}");
+    let compact_audit = format!(
+        "[verification-skill-trigger] src/api.rs\n   |{}: phase={phase} skill={skill_label}\n   |trigger: {trigger_evidence}\n   |requires: {required_evidence}\n   |quiet: omits=why,requires,fact,contract\n\n{rendered}",
+        task.kind.as_str(),
+    );
+    insta::assert_snapshot!("verification_skill_binding_trigger_audit", compact_audit);
 }
