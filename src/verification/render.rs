@@ -1,7 +1,8 @@
 //! Compact rendering for verification tasks.
 
+use std::collections::BTreeMap;
 use std::fmt::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use super::{RustVerificationPlan, RustVerificationTask};
 
@@ -16,9 +17,23 @@ pub fn render_rust_verification_plan(plan: &RustVerificationPlan) -> String {
     } else {
         Some(plan.project_root.as_path())
     };
-    plan.active_tasks()
+    let mut groups = BTreeMap::<VerificationOwnerKey, Vec<&RustVerificationTask>>::new();
+    for task in plan.active_tasks() {
+        groups
+            .entry(VerificationOwnerKey::from_task(task))
+            .or_default()
+            .push(task);
+    }
+    groups
         .into_iter()
-        .map(|task| render_task(task, display_root.unwrap_or(&task.package_root)))
+        .map(|(key, mut tasks)| {
+            tasks.sort_by(|left, right| {
+                left.kind
+                    .cmp(&right.kind)
+                    .then_with(|| left.fingerprint.cmp(&right.fingerprint))
+            });
+            render_owner_group(&key, &tasks, display_root.unwrap_or(&key.package_root))
+        })
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -34,33 +49,77 @@ pub fn render_rust_verification_plan_json(
     serde_json::to_string(plan)
 }
 
-fn render_task(task: &RustVerificationTask, display_root: &Path) -> String {
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct VerificationOwnerKey {
+    package_root: PathBuf,
+    owner_path: PathBuf,
+    owner_namespace: Vec<String>,
+}
+
+impl VerificationOwnerKey {
+    fn from_task(task: &RustVerificationTask) -> Self {
+        Self {
+            package_root: task.package_root.clone(),
+            owner_path: task.owner_path.clone(),
+            owner_namespace: task.owner_namespace.clone(),
+        }
+    }
+}
+
+fn render_owner_group(
+    key: &VerificationOwnerKey,
+    tasks: &[&RustVerificationTask],
+    display_root: &Path,
+) -> String {
     let mut rendered = format!(
-        "[verify:{}] {} {}\n",
-        task.kind.as_str(),
+        "[verify] {}\n",
+        display_project_path(display_root, &key.owner_path)
+    );
+    if !key.owner_namespace.is_empty() {
+        let _ = writeln!(rendered, "   |owner: {}", key.owner_namespace.join("/"));
+    }
+    for task in tasks {
+        render_task(task, &mut rendered);
+    }
+    rendered
+}
+
+fn render_task(task: &RustVerificationTask, rendered: &mut String) {
+    let kind = task.kind.as_str();
+    let _ = writeln!(
+        rendered,
+        "   |{kind}: {} phase={} fingerprint={}",
         task.state.as_str(),
-        display_project_path(display_root, &task.owner_path)
+        task.phase.as_str(),
+        task.fingerprint
     );
     if let Some(line) = task.line {
-        let _ = writeln!(rendered, "   |line: {line}");
+        let _ = writeln!(rendered, "   |line: {kind}={line}");
     }
-    if !task.owner_namespace.is_empty() {
-        let _ = writeln!(rendered, "   |owner: {}", task.owner_namespace.join("/"));
-    }
-    let _ = writeln!(rendered, "   |phase: {}", task.phase.as_str());
-    let _ = writeln!(rendered, "   |why: {}", task.reason);
+    let _ = writeln!(rendered, "   |why: {kind}={}", task.reason);
     if let Some(summary) = &task.receipt_summary {
-        let _ = writeln!(rendered, "   |receipt: {summary}");
+        let _ = writeln!(rendered, "   |receipt: {kind}={summary}");
     }
     for note in &task.resolution_notes {
-        let _ = writeln!(rendered, "   |resolution: {}={}", note.label, note.detail);
+        let _ = writeln!(
+            rendered,
+            "   |resolution: {kind}.{}={}",
+            note.label, note.detail
+        );
+    }
+    if !task.required_evidence.is_empty() {
+        let required = task
+            .required_evidence
+            .iter()
+            .map(|requirement| requirement.key.as_str())
+            .collect::<Vec<_>>()
+            .join(",");
+        let _ = writeln!(rendered, "   |requires: {kind}={required}");
     }
     for fact in &task.evidence {
-        let _ = writeln!(rendered, "   |fact: {}={}", fact.label, fact.value);
+        let _ = writeln!(rendered, "   |fact: {kind}.{}={}", fact.label, fact.value);
     }
-    let _ = writeln!(rendered, "   |contract: {}", task.required_receipt);
-    let _ = writeln!(rendered, "   |fingerprint: {}", task.fingerprint);
-    rendered
+    let _ = writeln!(rendered, "   |contract: {kind}={}", task.required_receipt);
 }
 
 fn display_project_path(project_root: &Path, path: &Path) -> String {

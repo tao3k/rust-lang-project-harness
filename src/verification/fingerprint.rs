@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use super::{RustVerificationEvidence, RustVerificationTaskKind};
+use super::{RustVerificationEvidence, RustVerificationRequirement, RustVerificationTaskKind};
 
 pub(crate) fn verification_task_fingerprint(
     kind: RustVerificationTaskKind,
@@ -10,6 +10,7 @@ pub(crate) fn verification_task_fingerprint(
     package_root: &Path,
     owner_path: &Path,
     line: Option<usize>,
+    required_evidence: &[RustVerificationRequirement],
     evidence: &[RustVerificationEvidence],
 ) -> String {
     let relative_package = package_root
@@ -35,6 +36,11 @@ pub(crate) fn verification_task_fingerprint(
     );
     if let Some(line) = line {
         input.push_str(&format!("line={line};"));
+    }
+    for requirement in required_evidence {
+        input.push_str("requires=");
+        input.push_str(&requirement.key);
+        input.push(';');
     }
     for fact in evidence {
         input.push_str(&fact.label);

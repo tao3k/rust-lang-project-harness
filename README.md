@@ -144,7 +144,9 @@ configured `blocking_severities` still decide whether the final report fails.
 Verification skills use a separate library-first contract. The harness does not
 execute k6, locust, chaos injection, security scanners, or regression probes; it
 plans parser-native obligations for external Agent skills and accepts receipts or
-waivers that clear the compact reminder for the current task fingerprint:
+waivers that clear the compact reminder for the current task fingerprint. Each
+task carries structured evidence requirements in JSON and an owner-grouped
+contract in compact text:
 
 ```rust
 use std::path::Path;
@@ -165,12 +167,14 @@ let plan =
 let compact = render_rust_verification_plan(&plan);
 ```
 
-The compact verification renderer prints only active tasks such as
-`[verify:stress] pending src/api.rs`. A passed `RustVerificationReceipt` or a
-complete `RustVerificationWaiver` tied to the same fingerprint removes that task
-from compact output. Parser facts outrank config hints, so incorrect
-responsibility declarations become `responsibility_review` tasks instead of
-silently changing what the harness believes.
+The compact verification renderer prints only active owner obligations such as
+`[verify] src/api.rs` with task lines like
+`|stress: pending phase=after_unit_tests_pass fingerprint=...`. A passed
+`RustVerificationReceipt` or a complete `RustVerificationWaiver` tied to the
+same fingerprint removes that task from compact output. Parser facts outrank
+config hints, so incorrect responsibility declarations become
+`responsibility_review` tasks instead of silently changing what the harness
+believes.
 
 For workspaces, profile hint paths can be package-relative (`src/api.rs`) or
 workspace-root-relative (`crates/api/src/api.rs`). Task fingerprints include the

@@ -85,7 +85,7 @@ fn failed_verification_receipt_remains_active() {
     let rendered = normalize_temp_root(&render_rust_verification_plan(&failed_plan), root);
 
     assert!(!failed_plan.is_clear());
-    assert!(rendered.contains("[verify:stress] failed"), "{rendered}");
+    assert!(rendered.contains("|stress: failed"), "{rendered}");
     assert!(
         rendered.contains("p99 exceeded SLA at step 4"),
         "{rendered}"
@@ -145,7 +145,8 @@ fn incomplete_verification_waiver_keeps_task_active_with_resolution_note() {
     assert_eq!(stress.state, RustVerificationTaskState::Pending);
     assert!(!plan.is_clear());
     assert!(
-        rendered.contains("resolution: waiver=incomplete: missing owner, reason, expires_at"),
+        rendered
+            .contains("resolution: stress.waiver=incomplete: missing owner, reason, expires_at"),
         "{rendered}"
     );
     insta::assert_snapshot!("verification_incomplete_waiver_resolution", rendered);
@@ -224,6 +225,11 @@ fn verification_json_preserves_structured_plan_fields() {
     assert!(value["project_root"].as_str().is_some());
     assert_eq!(value["tasks"][0]["kind"], "stress");
     assert_eq!(value["tasks"][0]["state"], "pending");
+    assert_eq!(value["tasks"][0]["required_evidence"][0]["key"], "p50");
+    assert_eq!(
+        value["tasks"][0]["required_evidence"][4]["key"],
+        "sla_result"
+    );
     assert_eq!(value["tasks"][0]["owner_namespace"][0], "src");
     assert_eq!(value["tasks"][0]["owner_namespace"][1], "api");
     assert!(value["tasks"][0]["resolution_notes"].is_null());

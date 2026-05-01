@@ -3,9 +3,9 @@ source: tests/unit/verification/workspace.rs
 assertion_line: 75
 expression: rendered
 ---
-[verify:responsibility_review] pending crates/missing/src/api.rs
-   |phase: before_verification
-   |why: profile hint target is not a parser-known Rust source module
-   |fact: hint=responsibilities=public_api
-   |contract: update the verification profile hint to match parser facts, or attach a complete waiver
-   |fingerprint: rustv:dfbebe55d76c856d
+[verify] crates/missing/src/api.rs
+   |responsibility_review: pending phase=before_verification fingerprint=rustv:d3390899cb57ec59
+   |why: responsibility_review=profile hint target is not a parser-known Rust source module
+   |requires: responsibility_review=profile_resolution
+   |fact: responsibility_review.hint=responsibilities=public_api
+   |contract: responsibility_review=update the verification profile hint to match parser facts, or attach a complete waiver

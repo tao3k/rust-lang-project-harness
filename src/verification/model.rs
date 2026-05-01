@@ -153,6 +153,26 @@ impl RustVerificationEvidence {
     }
 }
 
+/// Structured evidence field required from an external verification skill.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct RustVerificationRequirement {
+    /// Stable machine-readable requirement key.
+    pub key: String,
+    /// Compact agent-readable requirement description.
+    pub description: String,
+}
+
+impl RustVerificationRequirement {
+    /// Build one structured verification requirement.
+    #[must_use]
+    pub fn new(key: impl Into<String>, description: impl Into<String>) -> Self {
+        Self {
+            key: key.into(),
+            description: description.into(),
+        }
+    }
+}
+
 /// Verification task generated from parser facts and optional profile hints.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RustVerificationTask {
@@ -176,6 +196,9 @@ pub struct RustVerificationTask {
     pub reason: String,
     /// Receipt contract expected from the external skill.
     pub required_receipt: String,
+    /// Structured evidence fields expected from the external skill.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub required_evidence: Vec<RustVerificationRequirement>,
     /// Parser/profile evidence used to produce the task.
     pub evidence: Vec<RustVerificationEvidence>,
     /// Why supplied resolution inputs did not clear the task.

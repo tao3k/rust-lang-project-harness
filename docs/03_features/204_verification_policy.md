@@ -2,9 +2,10 @@
 
 Verification policy is a parser-native task contract for external Agent skills.
 It does not run stress, chaos, security, or regression tools by itself. The
-harness decides when a task is structurally relevant, renders a compact reminder
-for the Agent, and accepts a receipt or waiver that removes the reminder for the
-current parser-fact fingerprint.
+harness decides when a task is structurally relevant, attaches structured
+evidence requirements, renders a compact owner-level reminder for the Agent, and
+accepts a receipt or waiver that removes the reminder for the current
+parser-fact fingerprint.
 
 The authority order is:
 
@@ -60,6 +61,10 @@ If a receipt or waiver is present but cannot clear the task, the active task
 keeps rendering with a `resolution:` line so the Agent knows what still needs to
 be fixed.
 
+Compact text is grouped by owner path. If one owner needs stress, chaos, and
+security verification, the renderer emits one `[verify] owner.rs` block with
+task-specific lines instead of three repeated owner cards.
+
 ## Task Families
 
 - `stress`: high-concurrency load, p50/p99/p999, SLA break detection
@@ -71,13 +76,16 @@ be fixed.
 
 Verification tasks are not harness findings. A finding means a policy violation
 inside the Rust project. A verification task means an external Agent skill should
-produce evidence before the task is considered handled.
+produce evidence before the task is considered handled. Each task also carries
+`required_evidence` for structured consumers. For example, stress verification
+requires keys such as `p50`, `p99`, `p999`, `load_steps`, and `sla_result`.
 
 ## Receipt And Waiver Lifecycle
 
-Each task has a stable `fingerprint` derived from the task kind, owner path, and
-parser/profile evidence. When the code or responsibility evidence changes, the
-fingerprint changes and old receipts no longer clear the task.
+Each task has a stable `fingerprint` derived from the task kind, owner path,
+structured requirement keys, and parser/profile evidence. When the code,
+responsibility evidence, or verification contract changes, the fingerprint
+changes and old receipts no longer clear the task.
 
 Use a receipt when the external skill ran:
 
@@ -113,13 +121,13 @@ package counts, source roots, success summaries, or empty sections. It starts at
 the active obligation:
 
 ```text
-[verify:stress] pending src/api.rs
+[verify] src/api.rs
    |owner: src/api
-   |phase: after_unit_tests_pass
-   |why: profile declares public or latency-sensitive surface
-   |fact: profile=public_api,latency_sensitive
-   |contract: stress skill must report p50/p99/p999, load steps, and SLA result for this fingerprint
-   |fingerprint: rustv:...
+   |stress: pending phase=after_unit_tests_pass fingerprint=rustv:...
+   |why: stress=profile declares public or latency-sensitive surface
+   |requires: stress=p50,p99,p999,load_steps,sla_result
+   |fact: stress.profile=public_api,latency_sensitive
+   |contract: stress=stress skill must report p50/p99/p999, load steps, and SLA result for this fingerprint
 ```
 
 When there are no active tasks, the compact string is empty.

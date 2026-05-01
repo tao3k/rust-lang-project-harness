@@ -1,13 +1,13 @@
 ---
 source: tests/unit/verification/lifecycle.rs
-assertion_line: 162
+assertion_line: 192
 expression: rendered
 ---
-[verify:regression] pending src/domain.rs
+[verify] src/domain.rs
    |owner: src/domain
-   |phase: scheduled_regression
-   |why: parser facts show a branch coordinating several child modules or local owners
-   |fact: child_modules=3
-   |fact: owner_deps=0
-   |contract: regression skill must report source growth, dependency drift, and module-cycle status for this fingerprint
-   |fingerprint: rustv:bc6b6809aece96da
+   |regression: pending phase=scheduled_regression fingerprint=rustv:0986ee8b44d80048
+   |why: regression=parser facts show a branch coordinating several child modules or local owners
+   |requires: regression=source_growth,dependency_drift,module_cycles
+   |fact: regression.child_modules=3
+   |fact: regression.owner_deps=0
+   |contract: regression=regression skill must report source growth, dependency drift, and module-cycle status for this fingerprint

@@ -68,7 +68,7 @@ fn unmatched_workspace_profile_hint_renders_once() {
 
     assert_eq!(plan.active_tasks().len(), 1, "{rendered}");
     assert!(
-        rendered.contains("[verify:responsibility_review]"),
+        rendered.contains("|responsibility_review: pending"),
         "{rendered}"
     );
     assert!(rendered.contains("crates/missing/src/api.rs"), "{rendered}");

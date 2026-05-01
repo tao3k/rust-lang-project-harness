@@ -17,8 +17,9 @@ use super::fingerprint::verification_task_fingerprint;
 use super::{
     RustOwnerResponsibility, RustVerificationEvidence, RustVerificationPhase, RustVerificationPlan,
     RustVerificationPolicy, RustVerificationProfileHint, RustVerificationReceipt,
-    RustVerificationReceiptStatus, RustVerificationResolutionNote, RustVerificationTask,
-    RustVerificationTaskKind, RustVerificationTaskState, RustVerificationWaiver,
+    RustVerificationReceiptStatus, RustVerificationRequirement, RustVerificationResolutionNote,
+    RustVerificationTask, RustVerificationTaskKind, RustVerificationTaskState,
+    RustVerificationWaiver,
 };
 
 struct VerificationTaskSpec {
@@ -29,6 +30,7 @@ struct VerificationTaskSpec {
     line: Option<usize>,
     reason: &'static str,
     required_receipt: &'static str,
+    required_evidence: Vec<RustVerificationRequirement>,
     evidence: Vec<RustVerificationEvidence>,
 }
 
@@ -243,6 +245,7 @@ fn collect_skill_tasks_from_profile(
                     line: None,
                     reason: "profile declares public or latency-sensitive surface",
                     required_receipt: "stress skill must report p50/p99/p999, load steps, and SLA result for this fingerprint",
+                    required_evidence: stress_requirements(),
                     evidence: vec![RustVerificationEvidence::new(
                         "profile",
                         responsibility_labels(responsibilities),
@@ -270,6 +273,7 @@ fn collect_skill_tasks_from_profile(
                     line: None,
                     reason: "profile declares dependency, persistence, or availability responsibility",
                     required_receipt: "chaos skill must report injected failures, degradation behavior, and recovery result for this fingerprint",
+                    required_evidence: chaos_requirements(),
                     evidence: vec![RustVerificationEvidence::new(
                         "profile",
                         responsibility_labels(responsibilities),
@@ -294,6 +298,7 @@ fn collect_skill_tasks_from_profile(
                     line: None,
                     reason: "profile declares auth, authorization, secret, or trust-boundary logic",
                     required_receipt: "security skill must report scanned attack classes and authorization-boundary result for this fingerprint",
+                    required_evidence: security_requirements(),
                     evidence: vec![RustVerificationEvidence::new(
                         "profile",
                         responsibility_labels(responsibilities),
@@ -335,6 +340,7 @@ fn collect_regression_tasks(
                     line: None,
                     reason: "parser facts show a branch coordinating several child modules or local owners",
                     required_receipt: "regression skill must report source growth, dependency drift, and module-cycle status for this fingerprint",
+                    required_evidence: regression_requirements(),
                     evidence: vec![
                         RustVerificationEvidence::new("child_modules", child_count.to_string()),
                         RustVerificationEvidence::new("owner_deps", dependency_count.to_string()),
@@ -366,6 +372,7 @@ fn new_profile_review_task(
             line: None,
             reason,
             required_receipt: "update the verification profile hint to match parser facts, or attach a complete waiver",
+            required_evidence: responsibility_review_requirements(),
             evidence,
         },
         policy,
@@ -384,6 +391,7 @@ fn new_skill_task(
         package_root,
         &spec.owner_path,
         spec.line,
+        &spec.required_evidence,
         &spec.evidence,
     );
     let mut task = RustVerificationTask {
@@ -397,6 +405,7 @@ fn new_skill_task(
         phase: spec.phase,
         reason: spec.reason.to_string(),
         required_receipt: spec.required_receipt.to_string(),
+        required_evidence: spec.required_evidence,
         evidence: spec.evidence,
         resolution_notes: Vec::new(),
         receipt_summary: None,
@@ -547,4 +556,72 @@ fn should_run_member_scopes(project_root: &Path, package_roots: &[PathBuf]) -> b
         || package_roots
             .first()
             .is_some_and(|root| root != project_root)
+}
+
+fn stress_requirements() -> Vec<RustVerificationRequirement> {
+    requirements([
+        ("p50", "median latency under the chosen load step"),
+        ("p99", "p99 latency under the chosen load step"),
+        (
+            "p999",
+            "p999 latency when available or explicitly unsupported",
+        ),
+        (
+            "load_steps",
+            "pressure staircase and concurrency/request rates",
+        ),
+        ("sla_result", "whether the declared SLA was held or broken"),
+    ])
+}
+
+fn chaos_requirements() -> Vec<RustVerificationRequirement> {
+    requirements([
+        (
+            "injected_failures",
+            "dependencies and failure modes injected",
+        ),
+        ("degradation", "observed degraded behavior during the fault"),
+        (
+            "recovery",
+            "recovery signal and time after the fault is removed",
+        ),
+    ])
+}
+
+fn security_requirements() -> Vec<RustVerificationRequirement> {
+    requirements([
+        ("attack_classes", "common attack classes scanned"),
+        (
+            "authorization_boundary",
+            "authorization or trust-boundary result",
+        ),
+        ("findings", "confirmed findings or explicit none result"),
+    ])
+}
+
+fn regression_requirements() -> Vec<RustVerificationRequirement> {
+    requirements([
+        ("source_growth", "source growth or owner bloat trend"),
+        (
+            "dependency_drift",
+            "owner dependency drift or fan-out change",
+        ),
+        ("module_cycles", "module or owner-cycle status"),
+    ])
+}
+
+fn responsibility_review_requirements() -> Vec<RustVerificationRequirement> {
+    requirements([(
+        "profile_resolution",
+        "updated responsibility hint or complete waiver rationale",
+    )])
+}
+
+fn requirements<const N: usize>(
+    requirements: [(&'static str, &'static str); N],
+) -> Vec<RustVerificationRequirement> {
+    requirements
+        .into_iter()
+        .map(|(key, description)| RustVerificationRequirement::new(key, description))
+        .collect()
 }
