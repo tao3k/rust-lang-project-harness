@@ -29,6 +29,7 @@ pub(crate) struct RustTopLevelItemSyntax {
     pub is_public_use: bool,
     pub is_use: bool,
     pub is_macro: bool,
+    pub has_proc_macro_export_attr: bool,
     pub is_implementation_item: bool,
     pub function_name: Option<String>,
     pub macro_name: Option<String>,
@@ -172,6 +173,7 @@ fn top_level_item_syntax(item: &syn::Item, source_file: &Path) -> RustTopLevelIt
         is_public_use: is_public_use(item),
         is_use: matches!(item, syn::Item::Use(_)),
         is_macro: matches!(item, syn::Item::Macro(_)),
+        has_proc_macro_export_attr: item_attrs(item).iter().any(attribute_is_proc_macro_export),
         is_implementation_item: is_implementation_item(item),
         function_name: function_name_syntax(item),
         macro_name: macro_name_syntax(item),
@@ -293,6 +295,12 @@ fn attrs_have_test(attrs: &[syn::Attribute]) -> bool {
 
 fn attrs_have_doc(attrs: &[syn::Attribute]) -> bool {
     attrs.iter().any(|attr| attr.path().is_ident("doc"))
+}
+
+fn attribute_is_proc_macro_export(attr: &syn::Attribute) -> bool {
+    attr.path().is_ident("proc_macro")
+        || attr.path().is_ident("proc_macro_attribute")
+        || attr.path().is_ident("proc_macro_derive")
 }
 
 fn attribute_has_cfg_test(attr: &syn::Attribute) -> bool {

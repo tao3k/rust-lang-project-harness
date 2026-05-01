@@ -138,6 +138,7 @@ fn is_interface_item(item: &RustTopLevelItemSyntax) -> bool {
 fn is_crate_facade_item(item: &RustTopLevelItemSyntax) -> bool {
     item.module.as_ref().is_some_and(|module| !module.is_inline)
         || item.is_use
+        || item.has_proc_macro_export_attr
         || item
             .macro_name
             .as_deref()
