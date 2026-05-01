@@ -1,8 +1,8 @@
 use std::fs;
 use std::path::Path;
 
+use rust_lang_project_harness::run_rust_project_harness;
 use tempfile::TempDir;
-use xiuxian_harness_rust_lang_project::run_rust_project_harness;
 
 #[test]
 fn layout_policy_requires_explanations_for_root_file_exceptions() {
@@ -11,7 +11,7 @@ fn layout_policy_requires_explanations_for_root_file_exceptions() {
     write_minimal_project(root);
     fs::write(
         root.join("tests/custom_gate.rs"),
-        "xiuxian_harness_rust_lang_project::rust_project_harness_gate!();\n",
+        "rust_lang_project_harness::rust_project_harness_gate!();\n",
     )
     .expect("write custom gate");
 
@@ -70,7 +70,7 @@ fn write_policy(root: &Path, content: &str) {
         .expect("write policy config");
 }
 
-fn has_rule(report: &xiuxian_harness_rust_lang_project::RustHarnessReport, rule_id: &str) -> bool {
+fn has_rule(report: &rust_lang_project_harness::RustHarnessReport, rule_id: &str) -> bool {
     report
         .findings
         .iter()

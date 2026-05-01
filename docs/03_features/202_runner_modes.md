@@ -19,6 +19,14 @@ exists, so this is the crate package-level gate:
 This is the mode used by `rust_project_harness_gate!` and
 `rust_project_harness_cargo_test_gate!`.
 
+When the requested root is a Cargo workspace or a directory that contains
+multiple nested `Cargo.toml` package manifests, the project runner evaluates
+each package as its own member scope. Test layout, `lib.rs` facade policy,
+source-backed test mounts, and module reachability are therefore checked against
+the owning crate root instead of the workspace directory. Workspace package
+facts come from the shared Cargo manifest parser, so discovery and policy use
+the same `Cargo.toml` interpretation.
+
 ## Cargo Test Embedding
 
 Downstream crates can load the harness as a dev-dependency and mount it from the
@@ -26,7 +34,7 @@ library target:
 
 ```rust
 #[cfg(test)]
-xiuxian_harness_rust_lang_project::rust_project_harness_cargo_test_gate!();
+rust_lang_project_harness::rust_project_harness_cargo_test_gate!();
 ```
 
 Place that line in `src/lib.rs`, or in a source module that `src/lib.rs`
@@ -60,6 +68,19 @@ package-level harness. `include_tests = false` is an explicit downgrade that
 removes configured test roots from recursive parsing. It does not disable
 filesystem-level project policy such as root test-layout and test-target gate
 checks. Use the explicit-path runner for syntax-only probes.
+
+Policy findings are configurable through `RustHarnessConfig` after rule
+evaluation and before the report is returned. `disabled_rules` removes matching
+rule ids from the final finding list, while `rule_severity_overrides` changes a
+matching finding's severity for that run. The `with_disabled_rule`,
+`with_disabled_rules`, `with_disabled_rule_pack`, `with_rule_severity`,
+`with_rule_pack_severity`, and `with_blocking_severities` builder methods
+provide the stable library API for those controls. Pack-level helpers use the
+`RustRulePack` enum and expand into the same rule-id collections, so the
+serialized config shape remains unchanged. This keeps the default catalogs
+deterministic while giving downstream crates a narrow way to turn a rule or pack
+into advisory output or suppress rules they have intentionally replaced with
+local policy.
 
 ## Explicit-Path Runner
 

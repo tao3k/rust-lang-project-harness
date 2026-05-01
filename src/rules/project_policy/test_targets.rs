@@ -1,55 +1,39 @@
 //! Cargo test target policy.
 
-use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::collections::BTreeMap;
+use std::path::Path;
 
-use serde::Deserialize;
-use syn::Item;
-use syn::spanned::Spanned;
-
-use crate::parser::ParsedRustModule;
-use crate::parser::{file_location, path_line_location, source_line};
+use crate::parser::{
+    CargoManifestFacts, ParsedRustModule, RustReasoningTreeFacts, RustTopLevelItemSyntax,
+    file_location, path_line_location, source_line,
+};
 use crate::{RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
 use super::config::{LayoutPolicy, is_allowed_test_suite_path};
-use super::support::{
-    display_project_path, is_rust_file, item_kind, path_attr_value, resolve_path_attr,
-};
+use super::support::display_project_path;
 use super::{RUST_PROJ_R006, RUST_PROJ_R007, RUST_PROJ_R008, RUST_PROJ_R009};
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
-struct CargoManifestToml {
-    test: Vec<CargoTestTargetToml>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
-struct CargoTestTargetToml {
-    path: String,
-}
 
 pub(super) fn test_target_gate_findings(
     project_root: &Path,
+    cargo_test_targets: &[ParsedRustModule],
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     let mut findings = Vec::new();
     let rule = &rules[RUST_PROJ_R006];
-    for target in collect_test_target_files(project_root) {
-        let Ok(content) = fs::read_to_string(&target) else {
-            continue;
-        };
-        if file_contains_harness_gate(&content) {
+    for parsed in cargo_test_targets {
+        if parsed
+            .syntax_facts
+            .contains_invocation_named(ROOT_HARNESS_GATE_INVOCATIONS)
+        {
             continue;
         }
         findings.push(RustHarnessFinding::from_rule(
             rule,
             format!(
                 "{} does not mount the Rust project harness gate.",
-                display_project_path(project_root, &target)
+                display_project_path(project_root, &parsed.report.path)
             ),
-            file_location(target),
+            file_location(&parsed.report.path),
             None,
             "add rust_project_harness_gate!() to this Cargo test target",
         ));
@@ -58,20 +42,17 @@ pub(super) fn test_target_gate_findings(
 }
 
 pub(super) fn library_cargo_test_gate_findings(
+    reasoning_tree: &RustReasoningTreeFacts,
     scope: &RustProjectHarnessScope,
     modules: &[ParsedRustModule],
+    cargo_manifest: &CargoManifestFacts,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let Some(lib_path) = scope
-        .source_paths
-        .iter()
-        .map(|source_root| source_root.join("lib.rs"))
-        .find(|path| path.exists())
-    else {
+    let Some(lib_path) = library_target_path(reasoning_tree) else {
         return Vec::new();
     };
-    if !project_uses_harness_gate(&scope.project_root, modules)
-        || source_tree_contains_cargo_test_gate(scope, modules)
+    if !project_uses_harness_gate(cargo_manifest, modules)
+        || source_tree_contains_cargo_test_gate(reasoning_tree, modules)
     {
         return Vec::new();
     }
@@ -84,38 +65,39 @@ pub(super) fn library_cargo_test_gate_findings(
         ),
         file_location(lib_path),
         None,
-        "add #[cfg(test)] xiuxian_harness_rust_lang_project::rust_project_harness_cargo_test_gate!()",
+        "add #[cfg(test)] rust_lang_project_harness::rust_project_harness_cargo_test_gate!()",
     )]
+}
+
+fn library_target_path(reasoning_tree: &RustReasoningTreeFacts) -> Option<std::path::PathBuf> {
+    reasoning_tree.modules.iter().find_map(|module| {
+        (module.is_source_module && module.source_path.is_crate_facade).then(|| module.path.clone())
+    })
 }
 
 pub(super) fn test_target_aggregate_findings(
     project_root: &Path,
+    cargo_test_targets: &[ParsedRustModule],
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     let mut findings = Vec::new();
     let rule = &rules[RUST_PROJ_R007];
-    for target in collect_test_target_files(project_root) {
-        let Ok(content) = fs::read_to_string(&target) else {
-            continue;
-        };
-        let Ok(syntax) = syn::parse_file(&content) else {
-            continue;
-        };
-        for item in syntax
-            .items
+    for parsed in cargo_test_targets {
+        for item in parsed
+            .syntax_facts
+            .top_level_items
             .iter()
-            .filter(|item| !is_test_target_aggregate_item(item))
+            .filter(|item| !is_test_target_aggregate_item_syntax(item))
         {
-            let line = item.span().start().line.max(1);
             findings.push(RustHarnessFinding::from_rule(
                 rule,
                 format!(
                     "{} contains top-level implementation item `{}`.",
-                    display_project_path(project_root, &target),
-                    item_kind(item)
+                    display_project_path(project_root, &parsed.report.path),
+                    item.kind
                 ),
-                path_line_location(&target, line),
-                source_line(&content, line),
+                path_line_location(&parsed.report.path, item.line),
+                source_line(&parsed.source, item.line),
                 "move test implementation into a suite module and mount it from the root target",
             ));
         }
@@ -125,51 +107,47 @@ pub(super) fn test_target_aggregate_findings(
 
 pub(super) fn test_target_module_mount_findings(
     project_root: &Path,
+    cargo_test_targets: &[ParsedRustModule],
     policy: &LayoutPolicy,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     let mut findings = Vec::new();
     let rule = &rules[RUST_PROJ_R008];
-    for target in collect_test_target_files(project_root) {
-        let Ok(content) = fs::read_to_string(&target) else {
-            continue;
-        };
-        let Ok(syntax) = syn::parse_file(&content) else {
-            continue;
-        };
-        for item_mod in syntax.items.iter().filter_map(|item| match item {
-            Item::Mod(item_mod) if item_mod.content.is_none() => Some(item_mod),
-            _ => None,
-        }) {
-            let line = item_mod.attrs.first().map_or_else(
-                || item_mod.span().start().line.max(1),
-                |attr| attr.span().start().line.max(1),
-            );
-            let Some(path_value) = path_attr_value(&item_mod.attrs) else {
+    for parsed in cargo_test_targets {
+        for item_mod in parsed
+            .syntax_facts
+            .top_level_items
+            .iter()
+            .filter_map(|item| item.module.as_ref())
+            .filter(|item_mod| !item_mod.is_inline)
+        {
+            let Some(path_value) = item_mod.path_attr.as_deref() else {
                 findings.push(RustHarnessFinding::from_rule(
                     rule,
                     format!(
                         "{} declares root module `{}` without an explicit #[path].",
-                        display_project_path(project_root, &target),
+                        display_project_path(project_root, &parsed.report.path),
                         item_mod.ident
                     ),
-                    path_line_location(&target, line),
-                    source_line(&content, line),
+                    path_line_location(&parsed.report.path, item_mod.line),
+                    source_line(&parsed.source, item_mod.line),
                     "mount this root test module with #[path = \"suite/file.rs\"]",
                 ));
                 continue;
             };
-            let resolved = resolve_path_attr(&target, &path_value);
-            let project_relative = resolved.strip_prefix(project_root).unwrap_or(&resolved);
+            let Some(resolved) = item_mod.resolved_path_attr.as_ref() else {
+                continue;
+            };
+            let project_relative = resolved.strip_prefix(project_root).unwrap_or(resolved);
             if !resolved.exists() || !is_allowed_test_suite_path(project_relative, policy) {
                 findings.push(RustHarnessFinding::from_rule(
                     rule,
                     format!(
                         "{} mounts `{path_value}`, but root test modules must resolve under an allowed tests suite directory.",
-                        display_project_path(project_root, &target)
+                        display_project_path(project_root, &parsed.report.path)
                     ),
-                    path_line_location(&target, line),
-                    source_line(&content, line),
+                    path_line_location(&parsed.report.path, item_mod.line),
+                    source_line(&parsed.source, item_mod.line),
                     "point this root test module at tests/unit, tests/integration, or a documented suite",
                 ));
             }
@@ -178,102 +156,48 @@ pub(super) fn test_target_module_mount_findings(
     findings
 }
 
-fn collect_test_target_files(project_root: &Path) -> Vec<PathBuf> {
-    let mut targets = BTreeSet::new();
-    let tests_dir = project_root.join("tests");
-    if let Ok(entries) = fs::read_dir(&tests_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_file() && is_rust_file(&path) {
-                targets.insert(path);
-            }
-        }
-    }
-    let manifest_path = project_root.join("Cargo.toml");
-    if let Ok(content) = fs::read_to_string(&manifest_path)
-        && let Ok(parsed) = toml::from_str::<CargoManifestToml>(&content)
-    {
-        for target in parsed.test {
-            let target_path = target.path.trim();
-            if !target_path.is_empty() {
-                targets.insert(project_root.join(target_path));
-            }
-        }
-    }
-    targets.into_iter().collect()
-}
-
-fn file_contains_harness_gate(content: &str) -> bool {
-    [
-        "rust_project_harness_gate!(",
-        "rust_project_harness_cargo_test_gate!(",
-        "rust_project_harness_source_gate!(",
-        "assert_rust_project_harness_clean(",
-        "run_rust_project_harness(",
-        "crate_testing_gate!(",
-        "crate_test_policy_harness!(",
-    ]
-    .iter()
-    .any(|needle| content.contains(needle))
-}
-
-fn project_uses_harness_gate(project_root: &Path, modules: &[ParsedRustModule]) -> bool {
-    manifest_mentions_harness(project_root)
-        || modules.iter().any(module_syntax_contains_any_harness_gate)
-}
-
-fn manifest_mentions_harness(project_root: &Path) -> bool {
-    let Ok(content) = fs::read_to_string(project_root.join("Cargo.toml")) else {
-        return false;
-    };
-    content.contains("xiuxian-harness-rust-lang-project")
-        || content.contains("xiuxian_harness_rust_lang_project")
+fn project_uses_harness_gate(
+    cargo_manifest: &CargoManifestFacts,
+    modules: &[ParsedRustModule],
+) -> bool {
+    cargo_manifest.references_harness || modules.iter().any(module_syntax_contains_any_harness_gate)
 }
 
 fn source_tree_contains_cargo_test_gate(
-    scope: &RustProjectHarnessScope,
+    reasoning_tree: &RustReasoningTreeFacts,
     modules: &[ParsedRustModule],
 ) -> bool {
     modules.iter().any(|module| {
-        scope
-            .source_paths
-            .iter()
-            .any(|source_root| module.report.path.starts_with(source_root))
+        reasoning_tree
+            .module(&module.report.path)
+            .is_some_and(|module_facts| module_facts.is_source_module)
             && module_syntax_contains_cargo_test_gate(module)
     })
 }
 
 fn module_syntax_contains_any_harness_gate(module: &ParsedRustModule) -> bool {
     module
-        .syntax
-        .as_ref()
-        .is_some_and(|syntax| items_contain_macro_gate(&syntax.items, ANY_HARNESS_GATE_MACROS))
+        .syntax_facts
+        .contains_macro_named(ANY_HARNESS_GATE_MACROS)
 }
 
 fn module_syntax_contains_cargo_test_gate(module: &ParsedRustModule) -> bool {
-    module.syntax.as_ref().is_some_and(|syntax| {
-        items_contain_macro_gate(&syntax.items, SOURCE_CARGO_TEST_GATE_MACROS)
-    })
+    module
+        .syntax_facts
+        .contains_macro_named(SOURCE_CARGO_TEST_GATE_MACROS)
 }
 
-fn items_contain_macro_gate(items: &[Item], macro_names: &[&str]) -> bool {
-    items.iter().any(|item| match item {
-        Item::Macro(item_macro) => macro_path_matches(&item_macro.mac.path, macro_names),
-        Item::Mod(item_mod) => item_mod
-            .content
-            .as_ref()
-            .is_some_and(|(_, items)| items_contain_macro_gate(items, macro_names)),
-        _ => false,
-    })
-}
-
-fn macro_path_matches(path: &syn::Path, macro_names: &[&str]) -> bool {
-    let Some(segment) = path.segments.last() else {
-        return false;
-    };
-    let ident = segment.ident.to_string();
-    macro_names.contains(&ident.as_str())
-}
+const ROOT_HARNESS_GATE_INVOCATIONS: &[&str] = &[
+    "rust_project_harness_gate",
+    "rust_project_harness_cargo_test_gate",
+    "rust_project_harness_source_gate",
+    "assert_rust_project_harness_clean",
+    "run_rust_project_harness",
+    "crate_testing_gate",
+    "crate_test_policy_harness",
+    "crate_test_policy_source_harness",
+    "crate_testing_source_gate",
+];
 
 const ANY_HARNESS_GATE_MACROS: &[&str] = &[
     "rust_project_harness_gate",
@@ -281,18 +205,20 @@ const ANY_HARNESS_GATE_MACROS: &[&str] = &[
     "rust_project_harness_source_gate",
     "crate_testing_gate",
     "crate_test_policy_harness",
+    "crate_test_policy_source_harness",
+    "crate_testing_source_gate",
 ];
 
 const SOURCE_CARGO_TEST_GATE_MACROS: &[&str] = &[
     "rust_project_harness_cargo_test_gate",
     "rust_project_harness_source_gate",
     "rust_project_harness_gate",
+    "crate_test_policy_source_harness",
+    "crate_testing_source_gate",
+    "crate_testing_gate",
+    "crate_test_policy_harness",
 ];
 
-fn is_test_target_aggregate_item(item: &Item) -> bool {
-    match item {
-        Item::Macro(_) | Item::Use(_) => true,
-        Item::Mod(item_mod) => item_mod.content.is_none(),
-        _ => false,
-    }
+fn is_test_target_aggregate_item_syntax(item: &RustTopLevelItemSyntax) -> bool {
+    item.is_macro || item.is_use || item.module.as_ref().is_some_and(|module| !module.is_inline)
 }

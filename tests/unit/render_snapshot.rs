@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
-use xiuxian_harness_rust_lang_project::{
+use rust_lang_project_harness::{
     RustDiagnosticSeverity, RustHarnessFinding, RustHarnessReport, RustModuleReport,
     SourceLocation, render_rust_project_harness, render_rust_project_harness_json,
 };
@@ -55,5 +55,6 @@ fn snapshot_report() -> RustHarnessReport {
             RustDiagnosticSeverity::Error,
         ]),
         project_scope: None,
+        workspace_member_scopes: Vec::new(),
     }
 }

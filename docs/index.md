@@ -7,4 +7,5 @@ This package is the Rust-language counterpart to
 - [Rule Catalog](03_features/201_rule_catalog.md)
 - [Runner Modes](03_features/202_runner_modes.md)
 - [CLI](03_features/203_cli.md)
+- [Rust Ecosystem Policy Survey](04_research/2026-05-01-rust-ecosystem-policy-survey.md)
 - [Self-Apply Policy Design](superpowers/specs/2026-04-30-rust-harness-self-apply-policy-design.md)

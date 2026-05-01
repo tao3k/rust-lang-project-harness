@@ -1,15 +1,15 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tempfile::TempDir;
-use xiuxian_harness_rust_lang_project::{
+use rust_lang_project_harness::{
     RustDiagnosticSeverity, default_rust_harness_config, render_rust_project_harness,
-    render_rust_project_harness_advice, render_rust_project_harness_json, run_rust_lang_harness,
-    run_rust_project_harness,
+    render_rust_project_harness_advice, render_rust_project_harness_agent_snapshot,
+    render_rust_project_harness_json, run_rust_lang_harness, run_rust_project_harness,
 };
+use tempfile::TempDir;
 
 mod embedded_cargo_test_gate_macro_smoke {
-    xiuxian_harness_rust_lang_project::rust_project_harness_cargo_test_gate!();
+    rust_lang_project_harness::rust_project_harness_cargo_test_gate!();
 }
 
 #[test]
@@ -21,8 +21,7 @@ fn explicit_path_runner_returns_compact_report() {
     assert_eq!(report.file_count(), 1);
     assert!(report.parsed_count() == 1);
     let rendered = render_rust_project_harness(&report);
-    assert!(rendered.contains("[ok]"));
-    assert!(rendered.contains("No blocking issues found."));
+    assert_eq!(rendered, "[ok] rust\n");
 }
 
 #[test]
@@ -83,7 +82,7 @@ fn advice_renderer_selects_info_findings() {
     let report = run_rust_lang_harness(&paths).expect("run harness over lib.rs");
     let rendered = render_rust_project_harness_advice(&report);
 
-    assert!(rendered.contains("rust"));
+    assert!(rendered.is_empty(), "{rendered}");
 }
 
 #[test]
@@ -107,11 +106,49 @@ fn default_renderer_keeps_info_advice_visible_without_blocking() {
     let rendered = render_rust_project_harness(&report);
 
     assert!(report.is_clean(), "{rendered}");
-    assert!(rendered.contains("[advice]"));
     assert!(rendered.contains("AGENT-R001"));
     assert!(rendered.contains("AGENT-R002"));
     assert!(rendered.contains("Help:"));
     assert!(rendered.contains("Contract:"));
+    assert!(!rendered.contains("[ok]"), "{rendered}");
+    assert!(!rendered.contains("[advice]"), "{rendered}");
+    assert!(
+        !rendered.contains("No blocking issues found."),
+        "{rendered}"
+    );
+}
+
+#[test]
+fn agent_snapshot_renderer_exposes_reasoning_tree_shape() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"snapshot-shape\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write manifest");
+    fs::create_dir_all(root.join("src/domain")).expect("create domain");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod domain;\n").expect("write lib");
+    fs::write(
+        root.join("src/domain.rs"),
+        "//! Domain branch.\nmod leaf;\n",
+    )
+    .expect("write domain");
+    fs::write(root.join("src/domain/leaf.rs"), "//! Domain leaf.\n").expect("write leaf");
+
+    let rendered = render_rust_project_harness_agent_snapshot(root).expect("render snapshot");
+
+    assert!(rendered.starts_with("Modules:"), "{rendered}");
+    assert!(!rendered.contains("[agent:snapshot]"), "{rendered}");
+    assert!(!rendered.contains("SourceRoots:"), "{rendered}");
+    assert!(!rendered.contains("PackageEntrypoints:"), "{rendered}");
+    assert!(!rendered.contains("shadowed=0"), "{rendered}");
+    assert!(!rendered.contains("orphaned=0"), "{rendered}");
+    assert!(
+        rendered.contains("src/lib.rs [root, facade] owner=src -> mod:src/domain.rs"),
+        "{rendered}"
+    );
+    assert!(!rendered.contains("FindingGroups:"), "{rendered}");
 }
 
 #[test]

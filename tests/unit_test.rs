@@ -1,9 +1,9 @@
-xiuxian_harness_rust_lang_project::rust_project_harness_gate!();
+rust_lang_project_harness::rust_project_harness_gate!();
 
 #[path = "unit/cli.rs"]
 mod cli;
 
-#[path = "unit/public_api.rs"]
+#[path = "unit/public_api/mod.rs"]
 mod public_api;
 
 #[path = "unit/policy_contract.rs"]
@@ -27,7 +27,10 @@ mod mod_policy_snapshot;
 #[path = "unit/agent_policy_snapshot.rs"]
 mod agent_policy_snapshot;
 
-#[path = "unit/runner_config.rs"]
+#[path = "unit/agent_reasoning_snapshot.rs"]
+mod agent_reasoning_snapshot;
+
+#[path = "unit/runner_config/mod.rs"]
 mod runner_config;
 
 #[path = "unit/sample_project.rs"]

@@ -1,11 +1,11 @@
 # Harness Boundary
 
-`xiuxian-harness-rust-lang-project` owns project-level Rust harness behavior:
+`rust-lang-project-harness` owns project-level Rust harness behavior:
 
 1. discovering conventional Rust project paths
 2. parsing Rust files with native Rust syntax
 3. emitting deterministic findings from small rule packs
-4. rendering compact diagnostics for humans and repair-oriented agents
+4. rendering compact diagnostics for repair-oriented agents
 5. exposing assertion helpers that can be mounted in Cargo test targets
 
 The package is deliberately library-like. It does not know about a specific
@@ -19,6 +19,41 @@ source-only.
 Explicit-path runners have no project scope and therefore act as focused Rust
 syntax probes. See
 [`Runner Modes`](../03_features/202_runner_modes.md) for the exact split.
+
+Native Rust syntax parsing is a core substrate, not a rule-local detail. Policy
+packs must parse Rust through `src/parser/`; rule modules consume parsed modules,
+source locations, source metrics, and native syntax facts from that layer
+instead of calling `syn::parse_file` or duplicating source scans themselves.
+This keeps comments, strings, macro text, and real Rust AST nodes separated
+before policy logic runs.
+
+Cargo manifest policy follows the same boundary discipline for non-Rust input:
+`Cargo.toml` is parsed into facts under `src/parser/` before project discovery
+or project-policy rules inspect workspace members, test targets, or harness
+dependencies. Comments and prose in the manifest do not count as dependency
+evidence.
+Root Cargo test targets follow that parser boundary too: conventional
+`tests/*.rs` targets and manifest-declared `[[test]]` paths are collected and
+parsed under `src/parser/` before `RUST-PROJ-R006`, `RUST-PROJ-R007`, and
+`RUST-PROJ-R008` render findings.
+Rust `#[path]` attributes are also resolved there, so project policy consumes
+both the native attribute text and its normalized target path as parser facts.
+Rust source path interpretation follows the same contract: namespace
+components, repeated namespace branches, crate facades, `mod.rs` interfaces,
+binary entrypoints, and root `build.rs` entrypoints are derived under
+`src/parser/` before agent or modularity policies decide whether those facts are
+acceptable.
+Those lower-level facts are assembled into a parser-owned reasoning tree before
+policy execution. The reasoning tree gives each parsed module a source role,
+owner namespace, module-tree-root marker, import-root summary, local owner
+dependency edges, declared child edges, and shadow/orphan reachability state. It also
+derives owner-branch facts that group branch roots, roles, owner namespaces,
+import roots, local dependencies, and child edges together. Package-level owner
+dependency edges are exposed separately, so policy packs and agent snapshots do
+not have to infer project structure from a massive file list. Child edges retain
+their native relation kind: ordinary `mod`, explicit `#[path] mod`, or literal
+`include!`.
+
 Custom project source roots configured through `RustHarnessConfig` are treated
 as source ownership roots by project, modularity, and agent policy packs.
 Within those roots, `lib.rs` is treated as a crate facade: it should declare
@@ -33,10 +68,18 @@ Root `build.rs` has the same thin-entrypoint contract for Cargo build-script
 logic: keep imports and `fn main` there, and move larger build behavior behind a
 build dependency.
 
-The path-clarity surface is also project-scoped. Modularity policy detects
-native Rust `use` trees that cross upward through `super::super`, and agent
-advice reports repeated namespace segments across the default package surface,
-including test helpers and ordinary Rust file stems.
+The path-clarity surface is also project-scoped. Modularity policy consumes
+native Rust `use` tree facts from the parser to reject `super::super` owner
+escapes and all glob imports, including `use super::*`. Those facts include
+inline-module and `#[cfg(test)]` context, and import clarity policy runs over
+both `src/` and conventional `tests/` roots. Agent advice reports repeated
+namespace segments across the default package surface, including test helpers
+and ordinary Rust file stems.
+
+Reasoning-tree reachability uses the same parser boundary: `mod` declarations,
+`#[path]` attributes, and literal `include!` source shards are resolved into
+module-tree facts under `src/parser/` before `RUST-MOD-R007` and
+`RUST-MOD-R009` render findings.
 
 ## Self-Apply Contract
 

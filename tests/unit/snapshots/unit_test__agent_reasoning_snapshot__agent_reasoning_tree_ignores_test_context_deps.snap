@@ -1,0 +1,9 @@
+---
+source: tests/unit/agent_reasoning_snapshot.rs
+expression: rendered
+---
+Modules: source=5 branches=3
+OwnerBranches:
+ - src/lib.rs [root, facade] owner=src -> mod:src/alpha.rs, mod:src/beta.rs
+ - src/alpha.rs [branch] owner=src/alpha imports=crate:1,test:1 -> mod:src/alpha/core.rs
+ - src/beta.rs [branch] owner=src/beta imports=crate:1,test:1 -> mod:src/beta/core.rs

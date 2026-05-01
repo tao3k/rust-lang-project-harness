@@ -1,15 +1,12 @@
 //! Test leaf bloat policy.
 
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::Path;
 
-use crate::parser::file_location;
+use crate::parser::{file_location, parse_rust_file};
 use crate::{RustHarnessFinding, RustHarnessRule};
 
-use super::support::{
-    collect_rust_files, count_effective_code_lines, count_test_functions, display_project_path,
-};
+use super::support::{collect_rust_files, display_project_path};
 use super::{
     MAX_INTEGRATION_TEST_EFFECTIVE_LINES, MAX_UNIT_TEST_EFFECTIVE_LINES,
     MIN_INTEGRATION_TEST_FUNCTIONS, MIN_UNIT_TEST_FUNCTIONS, RUST_PROJ_R005,
@@ -51,17 +48,12 @@ fn collect_leaf_bloat_findings(
     let mut files = Vec::new();
     collect_rust_files(&suite_dir, &mut files);
     for path in files {
-        let Ok(content) = fs::read_to_string(&path) else {
-            continue;
-        };
-        let effective_lines = count_effective_code_lines(&content);
+        let parsed = parse_rust_file(&path);
+        let effective_lines = parsed.source_metrics.effective_code_lines;
         if effective_lines < max_effective_lines {
             continue;
         }
-        let Ok(syntax) = syn::parse_file(&content) else {
-            continue;
-        };
-        let test_functions = count_test_functions(&syntax.items);
+        let test_functions = parsed.syntax_facts.test_function_count;
         if test_functions < min_test_functions {
             continue;
         }

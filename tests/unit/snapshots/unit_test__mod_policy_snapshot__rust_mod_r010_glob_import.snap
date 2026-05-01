@@ -1,0 +1,10 @@
+---
+source: tests/unit/mod_policy_snapshot.rs
+expression: rendered
+---
+[RUST-MOD-R010] Warning: Glob import hides owner scope
+   ,-[ $TEMP/src/domain.rs:2:1 ]
+ 2 | use super::*;
+   | `- replace parent-scope glob with explicit imports
+   |Help: $TEMP/src/domain.rs uses parent-scope glob import `super::*`.
+   |Contract: Avoid Rust glob imports; import the owner names explicitly so module dependencies stay visible.

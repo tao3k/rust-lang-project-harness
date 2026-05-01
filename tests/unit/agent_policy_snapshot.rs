@@ -1,8 +1,8 @@
 use std::fs;
 use std::path::Path;
 
+use rust_lang_project_harness::{render_rust_project_harness, run_rust_project_harness};
 use tempfile::TempDir;
-use xiuxian_harness_rust_lang_project::{render_rust_project_harness, run_rust_project_harness};
 
 #[test]
 fn agent_r001_public_module_intent_snapshot() {
@@ -130,6 +130,36 @@ fn agent_r008_branch_intent_snapshot() {
     assert_agent_snapshot(root, "AGENT-R008", 1, "agent_r008_branch_intent");
 }
 
+#[test]
+fn agent_r009_owner_dependency_cycle_snapshot() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "agent-r009-cycle");
+    write_owner_cycle_fixture(root);
+
+    assert_agent_snapshot(root, "AGENT-R009", 1, "agent_r009_owner_dependency_cycle");
+}
+
+#[test]
+fn agent_r010_cross_owner_leaf_snapshot() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "agent-r010-leaf");
+    write_cross_owner_leaf_fixture(root);
+
+    assert_agent_snapshot(root, "AGENT-R010", 1, "agent_r010_cross_owner_leaf");
+}
+
+#[test]
+fn agent_r011_owner_fan_out_snapshot() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "agent-r011-fan-out");
+    write_owner_fan_out_fixture(root);
+
+    assert_agent_snapshot(root, "AGENT-R011", 1, "agent_r011_owner_fan_out");
+}
+
 fn assert_agent_snapshot(
     root: &Path,
     rule_id: &str,
@@ -169,4 +199,84 @@ fn facade_reexports() -> String {
         source.push_str(&format!("pub use owner_{index}::Thing{index};\n"));
     }
     source
+}
+
+fn write_owner_cycle_fixture(root: &Path) {
+    fs::create_dir_all(root.join("src/alpha")).expect("create alpha dir");
+    fs::create_dir_all(root.join("src/beta")).expect("create beta dir");
+    fs::write(
+        root.join("src/lib.rs"),
+        "//! Test crate.\nmod alpha;\nmod beta;\n",
+    )
+    .expect("write lib");
+    fs::write(
+        root.join("src/alpha.rs"),
+        "//! Alpha owner.\nuse crate::beta::Beta;\nmod core;\npub struct Alpha;\n",
+    )
+    .expect("write alpha");
+    fs::write(
+        root.join("src/beta.rs"),
+        "//! Beta owner.\nuse crate::alpha::Alpha;\nmod core;\npub struct Beta;\n",
+    )
+    .expect("write beta");
+    fs::write(root.join("src/alpha/core.rs"), "//! Alpha core.\n").expect("write alpha core");
+    fs::write(root.join("src/beta/core.rs"), "//! Beta core.\n").expect("write beta core");
+}
+
+fn write_cross_owner_leaf_fixture(root: &Path) {
+    fs::create_dir_all(root.join("src/domain")).expect("create domain dir");
+    fs::create_dir_all(root.join("src/ui")).expect("create ui dir");
+    fs::write(
+        root.join("src/lib.rs"),
+        "//! Test crate.\nmod domain;\nmod ui;\n",
+    )
+    .expect("write lib");
+    fs::write(root.join("src/domain.rs"), "//! Domain owner.\nmod leaf;\n").expect("write domain");
+    fs::write(
+        root.join("src/domain/leaf.rs"),
+        "//! Domain leaf.\npub struct Leaf;\n",
+    )
+    .expect("write leaf");
+    fs::write(
+        root.join("src/ui.rs"),
+        "//! Ui owner.\nuse crate::domain::leaf::Leaf;\nmod view;\n",
+    )
+    .expect("write ui");
+    fs::write(root.join("src/ui/view.rs"), "//! Ui view.\n").expect("write view");
+}
+
+fn write_owner_fan_out_fixture(root: &Path) {
+    fs::create_dir_all(root.join("src/alpha")).expect("create alpha dir");
+    fs::create_dir_all(root.join("src/beta")).expect("create beta dir");
+    fs::create_dir_all(root.join("src/gamma")).expect("create gamma dir");
+    fs::create_dir_all(root.join("src/orchestrator")).expect("create orchestrator dir");
+    fs::write(
+        root.join("src/lib.rs"),
+        "//! Test crate.\nmod alpha;\nmod beta;\nmod gamma;\nmod orchestrator;\n",
+    )
+    .expect("write lib");
+    fs::write(
+        root.join("src/alpha.rs"),
+        "//! Alpha owner.\nmod core;\npub struct Alpha;\n",
+    )
+    .expect("write alpha");
+    fs::write(
+        root.join("src/beta.rs"),
+        "//! Beta owner.\nmod core;\npub struct Beta;\n",
+    )
+    .expect("write beta");
+    fs::write(
+        root.join("src/gamma.rs"),
+        "//! Gamma owner.\nmod core;\npub struct Gamma;\n",
+    )
+    .expect("write gamma");
+    fs::write(
+        root.join("src/orchestrator.rs"),
+        "use crate::alpha::Alpha;\nuse crate::beta::Beta;\nuse crate::gamma::Gamma;\nmod task;\n",
+    )
+    .expect("write orchestrator");
+    fs::write(root.join("src/alpha/core.rs"), "//! Alpha core.\n").expect("write alpha core");
+    fs::write(root.join("src/beta/core.rs"), "//! Beta core.\n").expect("write beta core");
+    fs::write(root.join("src/gamma/core.rs"), "//! Gamma core.\n").expect("write gamma core");
+    fs::write(root.join("src/orchestrator/task.rs"), "//! Task.\n").expect("write task");
 }

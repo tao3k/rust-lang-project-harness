@@ -1,4 +1,4 @@
-use xiuxian_harness_rust_lang_project::{
+use rust_lang_project_harness::{
     RustDiagnosticSeverity, rust_agent_policy_rules, rust_modularity_rules,
     rust_project_policy_rules, rust_rule_pack_descriptors, rust_syntax_rules,
 };
@@ -52,6 +52,9 @@ fn rule_catalogs_expose_stable_rule_ids() {
             "AGENT-R006",
             "AGENT-R007",
             "AGENT-R008",
+            "AGENT-R009",
+            "AGENT-R010",
+            "AGENT-R011",
         ]
     );
 
@@ -90,6 +93,7 @@ fn rule_catalogs_expose_stable_rule_ids() {
             "RUST-MOD-R007",
             "RUST-MOD-R008",
             "RUST-MOD-R009",
+            "RUST-MOD-R010",
         ]
     );
 }

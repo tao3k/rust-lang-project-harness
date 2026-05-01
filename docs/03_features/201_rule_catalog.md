@@ -47,6 +47,7 @@ version labels, searchable domains, and default modes. The first three packs are
 - `RUST-MOD-R007`: a module owner should not have both `foo.rs` and `foo/mod.rs`
 - `RUST-MOD-R008`: source modules should not hide implementation in inline `mod name { ... }` blocks
 - `RUST-MOD-R009`: scanned source files must be reachable from a crate or binary module tree
+- `RUST-MOD-R010`: Rust glob imports should be replaced with explicit owner imports
 
 `lib.rs`, `mod.rs`, `src/main.rs`, `src/bin` entrypoints, and root `build.rs`
 are special Rust ownership files. They are treated as
@@ -71,11 +72,13 @@ create unclear root-level test structure.
 Library crates have one additional cargo-test escape hatch: `cargo test --lib`
 does not execute root test targets under `tests/*.rs`. `RUST-PROJ-R009` closes
 that path for harness-enabled projects by requiring a source-tree cargo-test
-mount, normally:
+mount. The harness-enabled decision comes from parsed Cargo manifest dependency
+tables or native Rust gate invocations, not comment or string matches. The mount
+normally looks like:
 
 ```rust
 #[cfg(test)]
-xiuxian_harness_rust_lang_project::rust_project_harness_cargo_test_gate!();
+rust_lang_project_harness::rust_project_harness_cargo_test_gate!();
 ```
 
 The mount should live in `src/lib.rs` or in a source module declared by
@@ -94,12 +97,15 @@ and are not blocking by default.
 - `AGENT-R005`: facade re-exports too many names without a tighter owner surface
 - `AGENT-R006`: public module name is a generic bucket such as `utils`, `common`, `helpers`, or `shared`
 - `AGENT-R007`: source module file or directory path uses a generic bucket segment
-- `AGENT-R008`: branch module declares multiple child modules without a reasoning-tree intent doc
+- `AGENT-R008`: branch module owns multiple resolved child edges without a reasoning-tree intent doc
+- `AGENT-R009`: owner dependency graph contains a local owner cycle
+- `AGENT-R010`: owner branch imports another owner's leaf implementation module
+- `AGENT-R011`: branch module fans out to three or more local owners without an intent doc
 
 ## Rendered Diagnostic Policy
 
-Rendered findings intentionally avoid large JSON payloads. The primary repair
-surface is compact text:
+Rendered findings intentionally avoid large JSON payloads and human audit
+headers. The primary repair surface is compact text for agents:
 
 1. stable rule id
 2. source location
@@ -108,10 +114,16 @@ surface is compact text:
 5. one `Help:` line from the concrete finding summary
 6. one `Contract:` line from the rule requirement
 
+When findings exist, compact text starts directly at those finding blocks. It
+does not prepend global `Source`, `Files`, `Parsed`, `Issues`, `advice`, or
+`No blocking issues` sections; those counters are audit metadata, not repair
+instructions. A fully clean render is the only case that emits a global status,
+and that status is just `[ok] rust`.
+
 `render_rust_project_harness()` includes advice by default. A report with only
-`Info` findings is still clean, but its advice remains visible. Use
-`render_rust_project_harness_advice()` when a caller wants only the non-blocking
-repair hints.
+`Info` findings is still clean, but its advice remains visible as ordinary
+finding blocks. Use `render_rust_project_harness_advice()` when a caller wants
+only the non-blocking repair hints.
 
 Structured consumers should use `render_rust_project_harness_json()` or the
 serializable `RustHarnessReport` for JSON output instead of parsing the compact
@@ -127,29 +139,47 @@ including multi-finding ambiguity cases such as duplicated public names.
 ## Path Clarity Policy
 
 Path clarity rules follow Rust syntax and project scope instead of raw text
-searches. `RUST-MOD-R003` inspects parsed `syn::UseTree` items, so grouped uses
-such as `use super::{super::Owner}` are caught while comments and strings are
-ignored.
+searches. `RUST-MOD-R003` and `RUST-MOD-R010` consume native `use` tree facts
+from `src/parser/`, so grouped uses such as `use super::{super::Owner}` and
+glob imports such as `use super::*` are caught while comments and strings are
+ignored. The parser also records whether a `use` statement is inside an inline
+`#[cfg(test)]` module or a conventional `tests/` root, so glob findings can name
+test context without weakening the default no-glob harness contract.
 
-`AGENT-R003` evaluates the default package harness surface, including `src/` and
-`tests/`. It treats normal Rust file stems as namespace segments, so both
-`src/domain/domain.rs` and `tests/unit/unit/helper.rs` produce advisory path
-clarity findings. `AGENT-R004` separately reports duplicated public item names
-across source modules as non-blocking ambiguity advice. `AGENT-R006` catches
-public generic bucket modules such as `pub mod utils;`; those names are often
-where LLM-generated code loses a real owner boundary without violating Rust
-syntax, rustfmt, or Clippy. `AGENT-R007` catches the same drift at the file
-system level, such as `src/helpers.rs` or `src/common/mod.rs`, even when the
-module is private.
+`AGENT-R001`, `AGENT-R002`, `AGENT-R004`, `AGENT-R005`, `AGENT-R006`, and
+`AGENT-R008` consume native facts from `src/parser/`, including file-level inner
+doc attributes, public names, public item doc attributes, public re-export
+groups, and resolved reasoning-tree child edges. `AGENT-R003` evaluates the
+default package harness surface, including `src/` and `tests/`. It treats
+normal Rust file stems as namespace segments, so both `src/domain/domain.rs` and
+`tests/unit/unit/helper.rs` produce advisory path clarity findings.
+`AGENT-R004` separately reports duplicated public item names across source
+modules as non-blocking ambiguity advice. `AGENT-R006` catches public generic
+bucket modules such as `pub mod utils;`; those names are often where
+LLM-generated code loses a real owner boundary without violating Rust syntax,
+rustfmt, or Clippy. `AGENT-R007` catches the same drift at the file system
+level, such as `src/helpers.rs` or `src/common/mod.rs`, even when the module is
+private. `AGENT-R009`, `AGENT-R010`, and `AGENT-R011` consume parser-derived
+owner dependency edges. They stay advisory because Rust permits these import
+shapes, but they are high-signal LLM repair risks: circular owner reasoning,
+reaching into another owner's leaf module, and fan-out branches without local
+intent documentation.
 
 ## Reasoning Tree Policy
 
 The harness treats a Rust project as a reasoning tree for agents: crate
 facades and branch modules point to owner modules, and owner modules point to
-leaf implementation files. `RUST-MOD-R008` keeps those branches file-backed by
-rejecting inline source modules outside special entrypoints and `#[cfg(test)]`
-test modules. `RUST-MOD-R009` then verifies that scanned source files are
-actually reachable from crate roots or binary roots by following external
-`mod` declarations. `AGENT-R008` adds non-blocking advice when a branch file
-declares multiple children without a `//!` intent doc, because agents need a
-local navigation summary before they choose which subtree to edit.
+leaf implementation files. Parser reasoning facts also summarize each owner
+branch's import roots (`crate`, `self`, `parent`, `external`, plus
+glob/deep/test markers) and local owner dependency edges for compact agent
+snapshots. The reasoning tree also exposes package-level owner dependency
+edges, such as `src/lib.rs --crate--> src/domain.rs`, while retaining source
+line and test-context metadata. `RUST-MOD-R008` keeps those branches file-backed
+by rejecting inline source modules outside special entrypoints and `#[cfg(test)]`
+test modules. `RUST-MOD-R009` then verifies parser-owned module-tree facts: a
+scanned source file must be reachable from crate roots or binary roots through
+external `mod` declarations, explicit `#[path]` mounts, or literal `include!`
+source shards. `AGENT-R008` adds non-blocking advice when a branch file has
+multiple resolved child edges without a `//!` intent doc, because agents need a
+local navigation summary before they choose which subtree to edit. Dependency
+graph agent rules ignore edges observed only inside `#[cfg(test)]` context.

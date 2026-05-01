@@ -1,4 +1,4 @@
-//! Compact text rendering for Rust harness diagnostics.
+//! Agent-first compact text rendering for Rust harness diagnostics.
 
 use std::collections::BTreeSet;
 use std::fmt::Write;
@@ -29,7 +29,7 @@ pub fn render_rust_project_harness_json(
 #[must_use]
 pub fn render_rust_project_harness_advice(report: &RustHarnessReport) -> String {
     let severities = BTreeSet::from([RustDiagnosticSeverity::Info]);
-    render_rust_project_harness_with_options(report, Some(&severities), false)
+    render_finding_list(&report.blocking_findings(Some(&severities)))
 }
 
 /// Render a compact diagnostic report with explicit severity and advice options.
@@ -40,46 +40,20 @@ pub fn render_rust_project_harness_with_options(
     include_advice: bool,
 ) -> String {
     let blocking_findings = report.blocking_findings(severities);
-    let mut rendered = render_header(report, &blocking_findings);
-    for finding in &blocking_findings {
-        rendered.push('\n');
-        rendered.push_str(&render_finding(finding));
-    }
-    if include_advice {
-        let advice = deduplicate_advice_findings(&report.advisory_findings(), &blocking_findings);
-        if !advice.is_empty() {
-            let _ = writeln!(rendered, "\n[advice]");
-            let _ = writeln!(rendered, "Issues: {}", advice.len());
-            for finding in advice {
-                rendered.push('\n');
-                rendered.push_str(&render_finding(finding));
-            }
-        }
-    }
-    rendered
-}
-
-fn render_header(report: &RustHarnessReport, blocking_findings: &[&RustHarnessFinding]) -> String {
-    let target = report
-        .root_paths
+    let advice = if include_advice {
+        deduplicate_advice_findings(&report.advisory_findings(), &blocking_findings)
+    } else {
+        Vec::new()
+    };
+    let findings = blocking_findings
         .iter()
-        .map(|path| display_path(path))
-        .collect::<Vec<_>>()
-        .join(", ");
-    if blocking_findings.is_empty() {
-        return format!(
-            "[ok] {target} rust\nSource: {target}\nFiles: {} Parsed: {}\nNo blocking issues found.\n",
-            report.file_count(),
-            report.parsed_count()
-        );
+        .chain(advice.iter())
+        .copied()
+        .collect::<Vec<_>>();
+    if findings.is_empty() {
+        return "[ok] rust\n".to_string();
     }
-    format!(
-        "[lint:{}] {target} rust\nSource: {target}\nFiles: {} Parsed: {}\nIssues: {}\n",
-        findings_status(blocking_findings),
-        report.file_count(),
-        report.parsed_count(),
-        blocking_findings.len()
-    )
+    render_finding_list(&findings)
 }
 
 fn render_finding(finding: &RustHarnessFinding) -> String {
@@ -114,22 +88,6 @@ fn render_finding(finding: &RustHarnessFinding) -> String {
     rendered
 }
 
-fn findings_status(findings: &[&RustHarnessFinding]) -> &'static str {
-    if findings
-        .iter()
-        .any(|finding| finding.severity == RustDiagnosticSeverity::Error)
-    {
-        return "error";
-    }
-    if findings
-        .iter()
-        .any(|finding| finding.severity == RustDiagnosticSeverity::Warning)
-    {
-        return "warning";
-    }
-    "info"
-}
-
 fn deduplicate_advice_findings<'a>(
     advice_findings: &[&'a RustHarnessFinding],
     blocking_findings: &[&RustHarnessFinding],
@@ -156,6 +114,14 @@ fn finding_key(finding: &RustHarnessFinding) -> (String, Option<String>, usize, 
         finding.location.line,
         finding.location.column,
     )
+}
+
+fn render_finding_list(findings: &[&RustHarnessFinding]) -> String {
+    findings
+        .iter()
+        .map(|finding| render_finding(finding))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn title_case(value: &str) -> String {

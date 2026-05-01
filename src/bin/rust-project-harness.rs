@@ -3,5 +3,5 @@
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
-    xiuxian_harness_rust_lang_project::run_cli_from_env()
+    rust_lang_project_harness::run_cli_from_env()
 }

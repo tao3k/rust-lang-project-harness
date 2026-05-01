@@ -2,11 +2,6 @@
 source: tests/unit/mod_policy_snapshot.rs
 expression: rendered
 ---
-[lint:warning] $TEMP/src rust
-Source: $TEMP/src
-Files: 2 Parsed: 2
-Issues: 1
-
 [RUST-MOD-R005] Warning: Binary entrypoint contains implementation
    ,-[ $TEMP/src/bin/tool.rs:2:1 ]
  2 | struct CliOptions;

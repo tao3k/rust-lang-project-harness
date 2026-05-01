@@ -1,0 +1,120 @@
+use std::fs;
+use std::path::Path;
+
+use rust_lang_project_harness::{
+    default_rust_harness_config, render_rust_project_harness_agent_snapshot,
+    render_rust_project_harness_agent_snapshot_with_config,
+};
+use tempfile::TempDir;
+
+#[test]
+fn agent_reasoning_tree_snapshot_groups_owner_branches() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "agent-reasoning-snapshot");
+    fs::create_dir_all(root.join("src/domain")).expect("create domain");
+    fs::create_dir_all(root.join("src/alt")).expect("create alternate source tree");
+    fs::write(
+        root.join("src/lib.rs"),
+        "//! Test crate.\nuse crate::domain::Thing;\nuse std::fmt;\nmod domain;\n#[path = \"alt/custom.rs\"]\nmod custom;\n",
+    )
+    .expect("write lib");
+    fs::write(
+        root.join("src/domain.rs"),
+        "//! Domain branch.\nuse self::leaf::Leaf;\nuse super::sibling::Thing;\nmod leaf;\ninclude!(\"domain/shard.rs\");\n",
+    )
+    .expect("write domain");
+    fs::write(root.join("src/domain/leaf.rs"), "//! Domain leaf.\n").expect("write leaf");
+    fs::write(root.join("src/alt/custom.rs"), "//! Custom path child.\n").expect("write custom");
+    fs::write(root.join("src/domain/shard.rs"), "//! Included shard.\n").expect("write shard");
+
+    let rendered = render_rust_project_harness_agent_snapshot(root).expect("render snapshot");
+
+    insta::assert_snapshot!(
+        "agent_reasoning_tree_snapshot",
+        normalize_temp_root(&rendered, root)
+    );
+}
+
+#[test]
+fn agent_reasoning_tree_snapshot_compacts_workspace_packages() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"crates/*\"]\n",
+    )
+    .expect("write workspace manifest");
+    let active = root.join("crates/active");
+    let empty = root.join("crates/empty");
+    fs::create_dir_all(active.join("src")).expect("create active src");
+    fs::create_dir_all(&empty).expect("create empty crate");
+    write_manifest(&active, "active");
+    write_manifest(&empty, "empty");
+    fs::write(
+        active.join("src/lib.rs"),
+        "//! Active crate.\nuse crate::domain::Thing;\nmod domain;\n",
+    )
+    .expect("write active lib");
+    fs::write(
+        active.join("src/domain.rs"),
+        "//! Domain owner.\n/// Domain thing.\npub struct Thing;\n",
+    )
+    .expect("write active domain");
+
+    let rendered = render_rust_project_harness_agent_snapshot(root).expect("render snapshot");
+    let rendered = normalize_temp_root(&rendered, root);
+
+    assert!(!rendered.contains("crates/empty"), "{rendered}");
+    insta::assert_snapshot!("agent_reasoning_tree_workspace_snapshot", rendered);
+}
+
+#[test]
+fn agent_reasoning_tree_snapshot_ignores_test_context_owner_dependencies() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "agent-snapshot-test-context");
+    fs::create_dir_all(root.join("src/alpha")).expect("create alpha");
+    fs::create_dir_all(root.join("src/beta")).expect("create beta");
+    fs::write(
+        root.join("src/lib.rs"),
+        "//! Test crate.\nmod alpha;\nmod beta;\n",
+    )
+    .expect("write lib");
+    fs::write(
+        root.join("src/alpha.rs"),
+        "//! Alpha owner.\nmod core;\n#[cfg(test)]\nmod tests {\n    use crate::beta::Beta;\n}\n/// Alpha handle.\npub struct Alpha;\n",
+    )
+    .expect("write alpha");
+    fs::write(
+        root.join("src/beta.rs"),
+        "//! Beta owner.\nmod core;\n#[cfg(test)]\nmod tests {\n    use crate::alpha::Alpha;\n}\n/// Beta handle.\npub struct Beta;\n",
+    )
+    .expect("write beta");
+    fs::write(root.join("src/alpha/core.rs"), "//! Alpha core.\n").expect("write alpha core");
+    fs::write(root.join("src/beta/core.rs"), "//! Beta core.\n").expect("write beta core");
+    let config = default_rust_harness_config().with_disabled_rule("RUST-PROJ-R003");
+
+    let rendered = render_rust_project_harness_agent_snapshot_with_config(root, &config)
+        .expect("render snapshot");
+    let rendered = normalize_temp_root(&rendered, root);
+
+    assert!(!rendered.contains("deps="), "{rendered}");
+    assert!(!rendered.contains("OwnerDependencies:"), "{rendered}");
+    insta::assert_snapshot!("agent_reasoning_tree_ignores_test_context_deps", rendered);
+}
+
+fn normalize_temp_root(rendered: &str, root: &Path) -> String {
+    let root_text = root.display().to_string();
+    rendered
+        .replace(&root_text, "$TEMP")
+        .replace(&root_text.replace('\\', "/"), "$TEMP")
+}
+
+fn write_manifest(root: &Path, name: &str) {
+    fs::write(
+        root.join("Cargo.toml"),
+        format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n"),
+    )
+    .expect("write manifest");
+}

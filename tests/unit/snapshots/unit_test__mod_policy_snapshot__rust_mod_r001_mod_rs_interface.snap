@@ -2,11 +2,6 @@
 source: tests/unit/mod_policy_snapshot.rs
 expression: rendered
 ---
-[lint:warning] $TEMP/src rust
-Source: $TEMP/src
-Files: 2 Parsed: 2
-Issues: 1
-
 [RUST-MOD-R001] Warning: mod.rs contains implementation
    ,-[ $TEMP/src/domain/mod.rs:2:1 ]
  2 | mod leaf { fn helper() {} }

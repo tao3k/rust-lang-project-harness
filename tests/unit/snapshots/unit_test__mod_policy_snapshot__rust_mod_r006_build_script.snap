@@ -2,11 +2,6 @@
 source: tests/unit/mod_policy_snapshot.rs
 expression: rendered
 ---
-[lint:warning] $TEMP/src, $TEMP/build.rs rust
-Source: $TEMP/src, $TEMP/build.rs
-Files: 2 Parsed: 2
-Issues: 1
-
 [RUST-MOD-R006] Warning: Build script contains implementation
    ,-[ $TEMP/build.rs:2:1 ]
  2 | fn helper() {}
