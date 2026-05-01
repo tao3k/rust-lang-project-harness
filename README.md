@@ -141,6 +141,37 @@ let report =
 Rule ids can be disabled for a run or reclassified to another severity. The
 configured `blocking_severities` still decide whether the final report fails.
 
+Verification skills use a separate library-first contract. The harness does not
+execute k6, locust, chaos injection, security scanners, or regression probes; it
+plans parser-native obligations for external Agent skills and accepts receipts or
+waivers that clear the compact reminder for the current task fingerprint:
+
+```rust
+use std::path::Path;
+
+use rust_lang_project_harness::{
+    RustOwnerResponsibility, RustVerificationProfileHint, default_rust_harness_config,
+    plan_rust_project_verification_with_config, render_rust_verification_plan,
+};
+
+let config = default_rust_harness_config().with_verification_profile_hint(
+    RustVerificationProfileHint::new(
+        "src/api.rs",
+        [RustOwnerResponsibility::PublicApi, RustOwnerResponsibility::LatencySensitive],
+    ),
+);
+let plan =
+    plan_rust_project_verification_with_config(Path::new("."), &config).expect("plan");
+let compact = render_rust_verification_plan(&plan);
+```
+
+The compact verification renderer prints only active tasks such as
+`[verify:stress] pending src/api.rs`. A passed `RustVerificationReceipt` or a
+complete `RustVerificationWaiver` tied to the same fingerprint removes that task
+from compact output. Parser facts outrank config hints, so incorrect
+responsibility declarations become `responsibility_review` tasks instead of
+silently changing what the harness believes.
+
 ## Current Rule Packs
 
 Use `rust_rule_pack_descriptors()` for stable pack-level metadata. Default

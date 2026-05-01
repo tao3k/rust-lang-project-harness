@@ -1,0 +1,28 @@
+---
+source: tests/unit/verification.rs
+assertion_line: 33
+expression: rendered
+---
+[verify:stress] pending src/api.rs
+   |owner: src/api
+   |phase: after_unit_tests_pass
+   |why: profile declares public or latency-sensitive surface
+   |fact: profile=public_api,external_dependency,security_boundary,latency_sensitive
+   |contract: stress skill must report p50/p99/p999, load steps, and SLA result for this fingerprint
+   |fingerprint: rustv:36d91fa9346f6598
+
+[verify:chaos] pending src/api.rs
+   |owner: src/api
+   |phase: before_release
+   |why: profile declares dependency, persistence, or availability responsibility
+   |fact: profile=public_api,external_dependency,security_boundary,latency_sensitive
+   |contract: chaos skill must report injected failures, degradation behavior, and recovery result for this fingerprint
+   |fingerprint: rustv:f6195c30b102f944
+
+[verify:security] pending src/api.rs
+   |owner: src/api
+   |phase: before_release
+   |why: profile declares auth, authorization, secret, or trust-boundary logic
+   |fact: profile=public_api,external_dependency,security_boundary,latency_sensitive
+   |contract: security skill must report scanned attack classes and authorization-boundary result for this fingerprint
+   |fingerprint: rustv:2a4b3d8da6025696

@@ -14,6 +14,7 @@ mod render;
 mod rules;
 mod runner;
 mod self_policy;
+mod verification;
 
 #[cfg(test)]
 #[path = "../tests/unit/discovery.rs"]
@@ -50,4 +51,12 @@ pub use runner::{
     assert_rust_lang_harness_clean, assert_rust_project_harness_clean, default_rust_harness_config,
     run_rust_lang_harness, run_rust_lang_harness_with_config, run_rust_project_harness,
     run_rust_project_harness_with_config,
+};
+pub use verification::{
+    RustOwnerResponsibility, RustVerificationEvidence, RustVerificationPhase, RustVerificationPlan,
+    RustVerificationPolicy, RustVerificationProfileHint, RustVerificationReceipt,
+    RustVerificationReceiptStatus, RustVerificationTask, RustVerificationTaskKind,
+    RustVerificationTaskState, RustVerificationWaiver, plan_rust_project_verification,
+    plan_rust_project_verification_with_config, plan_rust_project_verification_with_policy,
+    render_rust_verification_plan, render_rust_verification_plan_json,
 };

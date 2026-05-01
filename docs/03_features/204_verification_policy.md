@@ -1,0 +1,113 @@
+# Verification Policy
+
+Verification policy is a parser-native task contract for external Agent skills.
+It does not run stress, chaos, security, or regression tools by itself. The
+harness decides when a task is structurally relevant, renders a compact reminder
+for the Agent, and accepts a receipt or waiver that removes the reminder for the
+current parser-fact fingerprint.
+
+The authority order is:
+
+1. parser facts from the Rust syntax/reasoning tree
+2. external skill receipts tied to a current task fingerprint
+3. complete waivers tied to a current task fingerprint
+4. library config profile hints
+5. LLM prose
+
+Profile hints are useful, but they are not facts. If a hint says an owner is
+pure domain logic while the parser sees external imports or local owner
+dependencies, the harness emits a `responsibility_review` task instead of
+trusting the hint.
+
+## Library API
+
+The surface is library-first:
+
+```rust
+use std::path::Path;
+
+use rust_lang_project_harness::{
+    RustOwnerResponsibility, RustVerificationProfileHint, default_rust_harness_config,
+    plan_rust_project_verification_with_config, render_rust_verification_plan,
+};
+
+let config = default_rust_harness_config().with_verification_profile_hint(
+    RustVerificationProfileHint::new(
+        "src/api.rs",
+        [
+            RustOwnerResponsibility::PublicApi,
+            RustOwnerResponsibility::LatencySensitive,
+        ],
+    ),
+);
+
+let plan =
+    plan_rust_project_verification_with_config(Path::new("."), &config).expect("plan");
+let compact = render_rust_verification_plan(&plan);
+```
+
+The compact renderer only prints active tasks. A passed receipt or complete
+waiver makes the matching task disappear from this channel. Structured callers
+can keep the full task state through `render_rust_verification_plan_json()`.
+
+## Task Families
+
+- `stress`: high-concurrency load, p50/p99/p999, SLA break detection
+- `chaos`: dependency kill, delay, packet loss, degradation, recovery
+- `security`: common attack-surface probes and authorization-boundary checks
+- `regression`: architecture drift checks such as branch growth, owner fan-out,
+  and cycle health
+- `responsibility_review`: config/profile does not match parser facts
+
+Verification tasks are not harness findings. A finding means a policy violation
+inside the Rust project. A verification task means an external Agent skill should
+produce evidence before the task is considered handled.
+
+## Receipt And Waiver Lifecycle
+
+Each task has a stable `fingerprint` derived from the task kind, owner path, and
+parser/profile evidence. When the code or responsibility evidence changes, the
+fingerprint changes and old receipts no longer clear the task.
+
+Use a receipt when the external skill ran:
+
+```rust
+use rust_lang_project_harness::{RustVerificationReceipt, RustVerificationTaskKind};
+
+let receipt = RustVerificationReceipt::passed(task.fingerprint.clone(), RustVerificationTaskKind::Stress);
+```
+
+Use a waiver when the task is intentionally out of scope for the current work:
+
+```rust
+use rust_lang_project_harness::RustVerificationWaiver;
+
+let waiver = RustVerificationWaiver::new(
+    task.fingerprint.clone(),
+    "platform",
+    "covered by upstream gateway test for this release",
+    "2026-06-01",
+);
+```
+
+Waivers must carry an owner, reason, and expiry string. In this stage the harness
+checks completeness and fingerprint identity; expiry interpretation remains owned
+by the embedding project.
+
+## Agent-First Output
+
+The compact verification renderer is not a human audit header. It does not print
+package counts, source roots, success summaries, or empty sections. It starts at
+the active obligation:
+
+```text
+[verify:stress] pending src/api.rs
+   |owner: src/api
+   |phase: after_unit_tests_pass
+   |why: profile declares public or latency-sensitive surface
+   |fact: profile=public_api,latency_sensitive
+   |contract: stress skill must report p50/p99/p999, load steps, and SLA result for this fingerprint
+   |fingerprint: rustv:...
+```
+
+When there are no active tasks, the compact string is empty.

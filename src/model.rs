@@ -6,6 +6,11 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::verification::{
+    RustVerificationPolicy, RustVerificationProfileHint, RustVerificationReceipt,
+    RustVerificationWaiver,
+};
+
 /// Finding severity used by the Rust project harness.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -297,6 +302,9 @@ pub struct RustHarnessConfig {
     pub source_dir_names: Vec<String>,
     /// Test directory names, relative to the project root.
     pub test_dir_names: Vec<String>,
+    /// Library-first verification policy used to plan external skill tasks.
+    #[serde(default, skip_serializing_if = "RustVerificationPolicy::is_empty")]
+    pub verification_policy: RustVerificationPolicy,
 }
 
 impl Default for RustHarnessConfig {
@@ -315,6 +323,7 @@ impl Default for RustHarnessConfig {
             include_tests: true,
             source_dir_names: vec!["src".to_string()],
             test_dir_names: vec!["tests".to_string()],
+            verification_policy: RustVerificationPolicy::default(),
         }
     }
 }
@@ -386,6 +395,34 @@ impl RustHarnessConfig {
         I: IntoIterator<Item = RustDiagnosticSeverity>,
     {
         self.blocking_severities = severities.into_iter().collect();
+        self
+    }
+
+    /// Return a config with an explicit verification policy.
+    #[must_use]
+    pub fn with_verification_policy(mut self, policy: RustVerificationPolicy) -> Self {
+        self.verification_policy = policy;
+        self
+    }
+
+    /// Return a config with one verification profile hint appended.
+    #[must_use]
+    pub fn with_verification_profile_hint(mut self, hint: RustVerificationProfileHint) -> Self {
+        self.verification_policy.profile_hints.push(hint);
+        self
+    }
+
+    /// Return a config with one verification receipt appended.
+    #[must_use]
+    pub fn with_verification_receipt(mut self, receipt: RustVerificationReceipt) -> Self {
+        self.verification_policy.receipts.push(receipt);
+        self
+    }
+
+    /// Return a config with one verification waiver appended.
+    #[must_use]
+    pub fn with_verification_waiver(mut self, waiver: RustVerificationWaiver) -> Self {
+        self.verification_policy.waivers.push(waiver);
         self
     }
 }
