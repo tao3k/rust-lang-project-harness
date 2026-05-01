@@ -9,7 +9,7 @@ use super::module_tree::{
     RustModuleChildEdge, RustModuleSourceShadow, external_child_module_edges, is_module_tree_root,
     rust_module_tree_facts,
 };
-use super::{ParsedRustModule, RustSourcePathFacts, rust_source_path_facts};
+use super::{ParsedRustModule, RustSourcePathFacts, RustUseImportRootKind, rust_source_path_facts};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct RustReasoningTreeFacts {
@@ -26,6 +26,7 @@ pub(crate) struct RustReasoningTreeFacts {
 pub(crate) struct RustReasoningModuleFacts {
     pub(crate) path: PathBuf,
     pub(crate) source_path: RustSourcePathFacts,
+    pub(crate) import_summary: RustReasoningImportFacts,
     pub(crate) is_source_module: bool,
     pub(crate) is_module_tree_root: bool,
     pub(crate) declared_child_edges: Vec<RustModuleChildEdge>,
@@ -36,7 +37,23 @@ pub(crate) struct RustReasoningOwnerBranchFacts {
     pub(crate) path: PathBuf,
     pub(crate) owner_namespace: Vec<String>,
     pub(crate) roles: Vec<RustReasoningOwnerBranchRole>,
+    pub(crate) import_summary: RustReasoningImportFacts,
     pub(crate) declared_child_edges: Vec<RustModuleChildEdge>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct RustReasoningImportFacts {
+    pub(crate) total_imports: usize,
+    pub(crate) crate_imports: usize,
+    pub(crate) self_imports: usize,
+    pub(crate) parent_imports: usize,
+    pub(crate) external_imports: usize,
+    pub(crate) absolute_imports: usize,
+    pub(crate) unknown_imports: usize,
+    pub(crate) glob_imports: usize,
+    pub(crate) deep_relative_imports: usize,
+    pub(crate) prelude_imports: usize,
+    pub(crate) test_context_imports: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -79,6 +96,7 @@ pub(crate) fn rust_reasoning_tree_facts(
                     &scope.package_paths,
                     &module.report.path,
                 ),
+                import_summary: import_summary(module),
                 is_source_module,
                 is_module_tree_root: is_source_module
                     && is_module_tree_root(&scope.source_paths, &module.report.path),
@@ -116,6 +134,7 @@ fn owner_branch_facts(modules: &[RustReasoningModuleFacts]) -> Vec<RustReasoning
             path: module.path.clone(),
             owner_namespace: module.source_path.namespace_components.clone(),
             roles: owner_branch_roles(module),
+            import_summary: module.import_summary.clone(),
             declared_child_edges: module.declared_child_edges.clone(),
         })
         .collect::<Vec<_>>();
@@ -127,6 +146,37 @@ fn owner_branch_facts(modules: &[RustReasoningModuleFacts]) -> Vec<RustReasoning
             .then_with(|| left.path.cmp(&right.path))
     });
     branches
+}
+
+fn import_summary(module: &ParsedRustModule) -> RustReasoningImportFacts {
+    let mut summary = RustReasoningImportFacts::default();
+    for use_statement in &module.syntax_facts.use_statements {
+        let import_count = use_statement.imports.len();
+        summary.total_imports += import_count;
+        if use_statement.context.is_inside_cfg_test_module {
+            summary.test_context_imports += import_count;
+        }
+        for import in &use_statement.imports {
+            match import.root_kind {
+                RustUseImportRootKind::Absolute => summary.absolute_imports += 1,
+                RustUseImportRootKind::Crate => summary.crate_imports += 1,
+                RustUseImportRootKind::SelfScope => summary.self_imports += 1,
+                RustUseImportRootKind::Parent => summary.parent_imports += 1,
+                RustUseImportRootKind::External => summary.external_imports += 1,
+                RustUseImportRootKind::Unknown => summary.unknown_imports += 1,
+            }
+            if import.is_glob {
+                summary.glob_imports += 1;
+            }
+            if import.parent_hops >= 2 || import.contains_super_super {
+                summary.deep_relative_imports += 1;
+            }
+            if import.is_prelude_import {
+                summary.prelude_imports += 1;
+            }
+        }
+    }
+    summary
 }
 
 fn owner_branch_roles(module: &RustReasoningModuleFacts) -> Vec<RustReasoningOwnerBranchRole> {

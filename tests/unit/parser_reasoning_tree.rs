@@ -17,10 +17,14 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
     fs::create_dir_all(src.join("alt")).expect("create alternate source tree");
     fs::write(
         src.join("lib.rs"),
-        "//! Crate facade.\nmod domain;\n#[path = \"alt/custom.rs\"]\nmod custom;\ninclude!(\"shard.rs\");\n",
+        "//! Crate facade.\nuse crate::domain::Thing;\nuse std::fmt;\nmod domain;\n#[path = \"alt/custom.rs\"]\nmod custom;\ninclude!(\"shard.rs\");\n",
     )
     .expect("write lib");
-    fs::write(src.join("domain.rs"), "//! Domain branch.\nmod leaf;\n").expect("write domain");
+    fs::write(
+        src.join("domain.rs"),
+        "//! Domain branch.\nuse self::leaf::Leaf;\nuse super::sibling::Thing;\nmod leaf;\n",
+    )
+    .expect("write domain");
     fs::write(src.join("domain/leaf.rs"), "//! Domain leaf.\n").expect("write leaf");
     fs::write(src.join("alt/custom.rs"), "//! Custom path child.\n").expect("write custom");
     fs::write(src.join("shard.rs"), "//! Included shard.\n").expect("write shard");
@@ -54,6 +58,8 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
     assert!(lib.is_source_module);
     assert!(lib.is_module_tree_root);
     assert!(lib.source_path.is_crate_facade);
+    assert_eq!(lib.import_summary.crate_imports, 1);
+    assert_eq!(lib.import_summary.external_imports, 1);
     assert_eq!(
         child_edges(lib),
         vec![
@@ -76,6 +82,8 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
         branch.source_path.namespace_components,
         vec!["src".to_string(), "domain".to_string()]
     );
+    assert_eq!(branch.import_summary.self_imports, 1);
+    assert_eq!(branch.import_summary.parent_imports, 1);
     assert_eq!(
         child_edges(branch),
         vec![(RustModuleChildEdgeKind::Mod, src.join("domain/leaf.rs"))]
@@ -108,6 +116,18 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
             ),
         ]
     );
+    assert_eq!(
+        reasoning_tree.owner_branches[0]
+            .import_summary
+            .crate_imports,
+        1
+    );
+    assert_eq!(
+        reasoning_tree.owner_branches[0]
+            .import_summary
+            .external_imports,
+        1
+    );
     assert_eq!(reasoning_tree.owner_branches[1].path, src.join("domain.rs"));
     assert_eq!(
         reasoning_tree.owner_branches[1].roles,
@@ -116,6 +136,16 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
     assert_eq!(
         reasoning_tree.owner_branches[1].owner_namespace,
         vec!["src".to_string(), "domain".to_string()]
+    );
+    assert_eq!(
+        reasoning_tree.owner_branches[1].import_summary.self_imports,
+        1
+    );
+    assert_eq!(
+        reasoning_tree.owner_branches[1]
+            .import_summary
+            .parent_imports,
+        1
     );
 
     assert!(reasoning_tree.shadowed_module_sources.is_empty());

@@ -10,7 +10,7 @@ SourceRoots: src
 PackageEntrypoints: -
 Modules: source=5 roots=1 branches=2 shadowed=0 orphaned=0
 OwnerBranches:
- - src/lib.rs [root, facade] owner=src -> mod:src/domain.rs, path-mod:src/alt/custom.rs
- - src/domain.rs [branch] owner=src/domain -> mod:src/domain/leaf.rs, include:src/domain/shard.rs
+ - src/lib.rs [root, facade] owner=src imports=crate:1,external:1 -> mod:src/domain.rs, path-mod:src/alt/custom.rs
+ - src/domain.rs [branch] owner=src/domain imports=self:1,parent:1 -> mod:src/domain/leaf.rs, include:src/domain/shard.rs
 FindingGroups:
  - none

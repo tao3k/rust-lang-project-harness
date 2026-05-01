@@ -156,11 +156,14 @@ private.
 
 The harness treats a Rust project as a reasoning tree for agents: crate
 facades and branch modules point to owner modules, and owner modules point to
-leaf implementation files. `RUST-MOD-R008` keeps those branches file-backed by
-rejecting inline source modules outside special entrypoints and `#[cfg(test)]`
-test modules. `RUST-MOD-R009` then verifies parser-owned module-tree facts: a
-scanned source file must be reachable from crate roots or binary roots through
-external `mod` declarations, explicit `#[path]` mounts, or literal `include!`
-source shards. `AGENT-R008` adds non-blocking advice when a branch file
-has multiple resolved child edges without a `//!` intent doc, because agents
-need a local navigation summary before they choose which subtree to edit.
+leaf implementation files. Parser reasoning facts also summarize each owner
+branch's import roots (`crate`, `self`, `parent`, `external`, plus glob/deep/test
+markers) for compact agent snapshots. `RUST-MOD-R008` keeps those branches
+file-backed by rejecting inline source modules outside special entrypoints and
+`#[cfg(test)]` test modules. `RUST-MOD-R009` then verifies parser-owned
+module-tree facts: a scanned source file must be reachable from crate roots or
+binary roots through external `mod` declarations, explicit `#[path]` mounts, or
+literal `include!` source shards. `AGENT-R008` adds non-blocking advice when a
+branch file has multiple resolved child edges without a `//!` intent doc,
+because agents need a local navigation summary before they choose which subtree
+to edit.

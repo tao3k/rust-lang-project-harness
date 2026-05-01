@@ -9,8 +9,8 @@ use crate::discovery::{
 };
 use crate::model::RustHarnessConfig;
 use crate::parser::{
-    RustModuleChildEdge, RustReasoningOwnerBranchFacts, RustReasoningOwnerBranchRole,
-    parse_rust_file, rust_reasoning_tree_facts,
+    RustModuleChildEdge, RustReasoningImportFacts, RustReasoningOwnerBranchFacts,
+    RustReasoningOwnerBranchRole, parse_rust_file, rust_reasoning_tree_facts,
 };
 use crate::rules::evaluate_default_rule_packs_with_config;
 use crate::{RustDiagnosticSeverity, RustHarnessFinding, RustProjectHarnessScope};
@@ -137,7 +137,7 @@ fn render_package_snapshot(
                 " - {} [{}] owner={} -> {}",
                 display_project_path(&reasoning_tree.package_root, &branch.path),
                 owner_branch_role_labels(branch).join(", "),
-                display_owner_namespace(branch),
+                display_owner_namespace(branch) + &display_import_summary(&branch.import_summary),
                 display_child_edges(
                     &reasoning_tree.package_root,
                     &branch.declared_child_edges,
@@ -196,6 +196,30 @@ fn display_owner_namespace(branch: &RustReasoningOwnerBranchFacts) -> String {
         return "-".to_string();
     }
     branch.owner_namespace.join("/")
+}
+
+fn display_import_summary(summary: &RustReasoningImportFacts) -> String {
+    if summary.total_imports == 0 {
+        return String::new();
+    }
+    let mut parts = Vec::new();
+    push_count(&mut parts, "crate", summary.crate_imports);
+    push_count(&mut parts, "self", summary.self_imports);
+    push_count(&mut parts, "parent", summary.parent_imports);
+    push_count(&mut parts, "external", summary.external_imports);
+    push_count(&mut parts, "absolute", summary.absolute_imports);
+    push_count(&mut parts, "unknown", summary.unknown_imports);
+    push_count(&mut parts, "glob", summary.glob_imports);
+    push_count(&mut parts, "deep", summary.deep_relative_imports);
+    push_count(&mut parts, "prelude", summary.prelude_imports);
+    push_count(&mut parts, "test", summary.test_context_imports);
+    format!(" imports={}", parts.join(","))
+}
+
+fn push_count(parts: &mut Vec<String>, label: &str, count: usize) {
+    if count > 0 {
+        parts.push(format!("{label}:{count}"));
+    }
 }
 
 fn grouped_findings(package_root: &Path, findings: &[RustHarnessFinding]) -> Vec<String> {

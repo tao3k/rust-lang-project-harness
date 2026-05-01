@@ -21,9 +21,9 @@ pub(crate) use module_tree::RustModuleChildEdgeKind;
 pub(crate) use native_syntax::{RustNativeSyntaxFacts, RustTopLevelItemSyntax};
 pub(crate) use parsed_module::{ParsedRustModule, parse_rust_file};
 pub(crate) use reasoning_tree::{
-    RustReasoningModuleFacts, RustReasoningOwnerBranchFacts, RustReasoningOwnerBranchRole,
-    RustReasoningTreeFacts, rust_reasoning_tree_facts,
+    RustReasoningImportFacts, RustReasoningModuleFacts, RustReasoningOwnerBranchFacts,
+    RustReasoningOwnerBranchRole, RustReasoningTreeFacts, rust_reasoning_tree_facts,
 };
 pub(crate) use source_metrics::RustSourceMetrics;
 pub(crate) use source_path::{RustSourcePathFacts, rust_source_path_facts};
-pub(crate) use use_tree::RustUseStatementSyntax;
+pub(crate) use use_tree::{RustUseImportRootKind, RustUseStatementSyntax};

@@ -13,12 +13,12 @@ fn agent_reasoning_tree_snapshot_groups_owner_branches() {
     fs::create_dir_all(root.join("src/alt")).expect("create alternate source tree");
     fs::write(
         root.join("src/lib.rs"),
-        "//! Test crate.\nmod domain;\n#[path = \"alt/custom.rs\"]\nmod custom;\n",
+        "//! Test crate.\nuse crate::domain::Thing;\nuse std::fmt;\nmod domain;\n#[path = \"alt/custom.rs\"]\nmod custom;\n",
     )
     .expect("write lib");
     fs::write(
         root.join("src/domain.rs"),
-        "//! Domain branch.\nmod leaf;\ninclude!(\"domain/shard.rs\");\n",
+        "//! Domain branch.\nuse self::leaf::Leaf;\nuse super::sibling::Thing;\nmod leaf;\ninclude!(\"domain/shard.rs\");\n",
     )
     .expect("write domain");
     fs::write(root.join("src/domain/leaf.rs"), "//! Domain leaf.\n").expect("write leaf");
