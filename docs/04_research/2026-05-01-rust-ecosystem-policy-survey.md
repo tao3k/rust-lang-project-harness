@@ -125,3 +125,24 @@ Observed workspace pattern:
 4. Do not add Clippy-shaped rules. The harness should avoid style rules that
    rustfmt, rustc, or Clippy already own. It should focus on project facts that
    help agents choose the correct owner, branch, and edit surface.
+
+## Follow-up: Facade Boundary Macros
+
+A second pass against official docs and live GitHub source samples sharpened the
+`lib.rs` policy boundary:
+
+- Cargo defines `src/lib.rs` as the library target root, but it does not require
+  that file to be only `mod` and `pub use`.
+- Mature crates often keep crate-level feature contracts in `lib.rs`. Tokio uses
+  cfg-gated `compile_error!` items plus feature-gated module and re-export
+  macros; Serde keeps docs.rs/cross-crate re-export shims in the crate root;
+  Cargo exposes some boundary error helpers in its library root.
+- Those forms are different from LLM drift where the facade grows local business
+  structs, helper functions, or `macro_rules!` implementations.
+
+Harness implication: `RUST-MOD-R004` should continue to reject implementation
+items in `lib.rs`, but parser-native facade exceptions are valid when the
+top-level macro is a cfg-gated `compile_error!` contract or when `syn` can parse
+the macro body as facade-only items (`mod`, `use`, `extern crate`, or recursively
+facade-only macro invocations). Local `macro_rules!` definitions still remain
+implementation and should stay outside the facade.

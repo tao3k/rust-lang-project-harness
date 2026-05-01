@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
+use proc_macro2::{TokenStream, TokenTree};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
 
@@ -28,11 +29,15 @@ pub(crate) struct RustTopLevelItemSyntax {
     pub is_public: bool,
     pub is_public_use: bool,
     pub is_use: bool,
+    pub is_extern_crate: bool,
     pub is_macro: bool,
     pub has_proc_macro_export_attr: bool,
+    pub has_cfg_attr: bool,
     pub is_implementation_item: bool,
     pub function_name: Option<String>,
     pub macro_name: Option<String>,
+    pub macro_declares_module: bool,
+    pub macro_body_is_facade_boundary: bool,
     pub include_target: Option<String>,
     pub module: Option<RustModuleDeclarationSyntax>,
 }
@@ -172,11 +177,15 @@ fn top_level_item_syntax(item: &syn::Item, source_file: &Path) -> RustTopLevelIt
         is_public: item_visibility(item).is_some_and(is_public_visibility),
         is_public_use: is_public_use(item),
         is_use: matches!(item, syn::Item::Use(_)),
+        is_extern_crate: matches!(item, syn::Item::ExternCrate(_)),
         is_macro: matches!(item, syn::Item::Macro(_)),
         has_proc_macro_export_attr: item_attrs(item).iter().any(attribute_is_proc_macro_export),
+        has_cfg_attr: item_attrs(item).iter().any(attribute_is_cfg),
         is_implementation_item: is_implementation_item(item),
         function_name: function_name_syntax(item),
         macro_name: macro_name_syntax(item),
+        macro_declares_module: macro_declares_module_syntax(item),
+        macro_body_is_facade_boundary: macro_body_is_facade_boundary_syntax(item),
         include_target: include_target_syntax(item),
         module: module_declaration_syntax(item, source_file),
     }
@@ -186,6 +195,7 @@ fn item_name(item: &syn::Item) -> Option<String> {
     match item {
         syn::Item::Const(item) => Some(item.ident.to_string()),
         syn::Item::Enum(item) => Some(item.ident.to_string()),
+        syn::Item::ExternCrate(item) => Some(item.ident.to_string()),
         syn::Item::Fn(item) => Some(item.sig.ident.to_string()),
         syn::Item::Mod(item) => Some(item.ident.to_string()),
         syn::Item::Static(item) => Some(item.ident.to_string()),
@@ -202,7 +212,9 @@ fn item_attrs(item: &syn::Item) -> &[syn::Attribute] {
     match item {
         syn::Item::Const(item) => &item.attrs,
         syn::Item::Enum(item) => &item.attrs,
+        syn::Item::ExternCrate(item) => &item.attrs,
         syn::Item::Fn(item) => &item.attrs,
+        syn::Item::Macro(item) => &item.attrs,
         syn::Item::Mod(item) => &item.attrs,
         syn::Item::Static(item) => &item.attrs,
         syn::Item::Struct(item) => &item.attrs,
@@ -226,6 +238,61 @@ fn macro_name_syntax(item: &syn::Item) -> Option<String> {
         return None;
     };
     invocation_syntax(&item_macro.mac.path).map(|invocation| invocation.terminal_name)
+}
+
+fn macro_declares_module_syntax(item: &syn::Item) -> bool {
+    let syn::Item::Macro(item_macro) = item else {
+        return false;
+    };
+    token_stream_declares_module(&item_macro.mac.tokens)
+}
+
+fn macro_body_is_facade_boundary_syntax(item: &syn::Item) -> bool {
+    let syn::Item::Macro(item_macro) = item else {
+        return false;
+    };
+    token_stream_is_facade_boundary(&item_macro.mac.tokens)
+}
+
+fn token_stream_is_facade_boundary(tokens: &TokenStream) -> bool {
+    let Ok(file) = syn::parse2::<syn::File>(tokens.clone()) else {
+        return false;
+    };
+    !file.items.is_empty() && file.items.iter().all(item_is_facade_boundary)
+}
+
+fn item_is_facade_boundary(item: &syn::Item) -> bool {
+    match item {
+        syn::Item::ExternCrate(_) | syn::Item::Use(_) => true,
+        syn::Item::Mod(item_mod) => item_mod.content.is_none(),
+        syn::Item::Macro(item_macro) => {
+            invocation_syntax(&item_macro.mac.path)
+                .is_some_and(|invocation| invocation.terminal_name != "macro_rules")
+                && token_stream_is_facade_boundary(&item_macro.mac.tokens)
+        }
+        _ => false,
+    }
+}
+
+fn token_stream_declares_module(tokens: &TokenStream) -> bool {
+    let mut iter = tokens.clone().into_iter().peekable();
+    while let Some(token) = iter.next() {
+        match token {
+            TokenTree::Group(group) if token_stream_declares_module(&group.stream()) => {
+                return true;
+            }
+            TokenTree::Ident(ident)
+                if ident == "mod"
+                    && iter
+                        .peek()
+                        .is_some_and(|next| matches!(next, TokenTree::Ident(_))) =>
+            {
+                return true;
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 fn include_target_syntax(item: &syn::Item) -> Option<String> {
@@ -301,6 +368,10 @@ fn attribute_is_proc_macro_export(attr: &syn::Attribute) -> bool {
     attr.path().is_ident("proc_macro")
         || attr.path().is_ident("proc_macro_attribute")
         || attr.path().is_ident("proc_macro_derive")
+}
+
+fn attribute_is_cfg(attr: &syn::Attribute) -> bool {
+    attr.path().is_ident("cfg")
 }
 
 fn attribute_has_cfg_test(attr: &syn::Attribute) -> bool {

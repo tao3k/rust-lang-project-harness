@@ -40,5 +40,8 @@ fn project_runner_reports_blocking_policy_and_agent_advice() {
 }
 
 fn normalize_temp_root(rendered: &str, root: &Path) -> String {
-    rendered.replace(&root.display().to_string(), "$TEMP")
+    let root_text = root.display().to_string();
+    rendered
+        .replace(&root_text, "$TEMP")
+        .replace(&root_text.replace('\\', "/"), "$TEMP")
 }

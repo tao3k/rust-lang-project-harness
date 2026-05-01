@@ -58,9 +58,12 @@ Custom project source roots configured through `RustHarnessConfig` are treated
 as source ownership roots by project, modularity, and agent policy packs.
 Within those roots, `lib.rs` is treated as a crate facade: it should declare
 external modules and re-export public API, while macro implementations and other
-owned logic live in leaf modules. `mod.rs` has the same special-file treatment
-at module boundaries: it should expose declarations and re-exports, not own
-implementation bodies.
+owned logic live in leaf modules. Parser-native facade exceptions cover
+crate-root boundary forms seen in mature Rust crates: `extern crate`,
+cfg-gated `compile_error!`, and macro invocations whose token body parses as
+facade-only module declarations or re-exports. `mod.rs` has the same
+special-file treatment at module boundaries: it should expose declarations and
+re-exports, not own implementation bodies.
 Binary entrypoints have the matching adapter contract: `src/main.rs` and
 `src/bin` files should contain imports and `fn main`, while CLI parsing and
 execution logic live in owned modules.

@@ -138,11 +138,9 @@ fn is_interface_item(item: &RustTopLevelItemSyntax) -> bool {
 fn is_crate_facade_item(item: &RustTopLevelItemSyntax) -> bool {
     item.module.as_ref().is_some_and(|module| !module.is_inline)
         || item.is_use
+        || item.is_extern_crate
         || item.has_proc_macro_export_attr
-        || item
-            .macro_name
-            .as_deref()
-            .is_some_and(is_source_gate_macro_name)
+        || is_crate_boundary_macro(item)
 }
 
 fn is_binary_entrypoint_item(item: &RustTopLevelItemSyntax) -> bool {
@@ -164,4 +162,13 @@ fn is_source_gate_macro_name(name: &str) -> bool {
             | "crate_testing_gate"
             | "crate_test_policy_harness"
     )
+}
+
+fn is_crate_boundary_macro(item: &RustTopLevelItemSyntax) -> bool {
+    let Some(name) = item.macro_name.as_deref() else {
+        return false;
+    };
+    is_source_gate_macro_name(name)
+        || (name == "compile_error" && item.has_cfg_attr)
+        || (name != "macro_rules" && item.macro_body_is_facade_boundary)
 }

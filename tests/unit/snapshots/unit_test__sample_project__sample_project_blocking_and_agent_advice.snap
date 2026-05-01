@@ -34,14 +34,14 @@ expression: rendered
  1 | pub fn public_api() {}
    | `- move facade implementation out of lib.rs into an owned module
    |Help: $TEMP/src/lib.rs contains implementation item `fn` inside lib.rs.
-   |Contract: Keep lib.rs as a crate facade with external module declarations and re-exports only.
+   |Contract: Keep lib.rs as a crate facade with external module declarations, re-exports, and parser-proven boundary macros only.
 
 [RUST-MOD-R004] Warning: lib.rs contains implementation
    ,-[ $TEMP/src/lib.rs:2:1 ]
  2 | #[cfg(test)] mod tests { #[test] fn it_works() {} }
    | `- move facade implementation out of lib.rs into an owned module
    |Help: $TEMP/src/lib.rs contains implementation item `mod` inside lib.rs.
-   |Contract: Keep lib.rs as a crate facade with external module declarations and re-exports only.
+   |Contract: Keep lib.rs as a crate facade with external module declarations, re-exports, and parser-proven boundary macros only.
 
 [AGENT-R001] Info: Public module lacks an intent doc
    ,-[ $TEMP/src/lib.rs:1:1 ]

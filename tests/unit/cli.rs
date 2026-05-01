@@ -140,5 +140,8 @@ fn write_clean_source(root: &Path) {
 }
 
 fn normalize_temp_root(rendered: &str, root: &Path) -> String {
-    rendered.replace(&root.display().to_string(), "$TEMP")
+    let root_text = root.display().to_string();
+    rendered
+        .replace(&root_text, "$TEMP")
+        .replace(&root_text.replace('\\', "/"), "$TEMP")
 }

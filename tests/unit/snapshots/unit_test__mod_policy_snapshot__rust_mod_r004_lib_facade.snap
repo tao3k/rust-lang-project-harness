@@ -1,5 +1,6 @@
 ---
 source: tests/unit/mod_policy_snapshot.rs
+assertion_line: 170
 expression: rendered
 ---
 [RUST-MOD-R004] Warning: lib.rs contains implementation
@@ -7,4 +8,4 @@ expression: rendered
  3 | macro_rules! local_macro { () => {} }
    | `- move facade implementation out of lib.rs into an owned module
    |Help: $TEMP/src/lib.rs contains implementation item `macro` inside lib.rs.
-   |Contract: Keep lib.rs as a crate facade with external module declarations and re-exports only.
+   |Contract: Keep lib.rs as a crate facade with external module declarations, re-exports, and parser-proven boundary macros only.

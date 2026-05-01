@@ -28,6 +28,10 @@ mod parser_source_path_tests;
 #[path = "../tests/unit/parser_reasoning_tree.rs"]
 mod parser_reasoning_tree_tests;
 
+#[cfg(test)]
+#[path = "../tests/unit/parser_native_syntax.rs"]
+mod parser_native_syntax_tests;
+
 pub use agent_snapshot::{
     render_rust_project_harness_agent_snapshot,
     render_rust_project_harness_agent_snapshot_with_config,

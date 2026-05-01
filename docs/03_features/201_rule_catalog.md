@@ -41,7 +41,7 @@ version labels, searchable domains, and default modes. The first three packs are
 - `RUST-MOD-R001`: `mod.rs` should stay interface-only with external module declarations and re-exports
 - `RUST-MOD-R002`: oversized source file should split by responsibility, including private implementation piles
 - `RUST-MOD-R003`: native `use` trees containing `super::super` should move behind a clearer owner boundary
-- `RUST-MOD-R004`: `lib.rs` should stay a crate facade with module declarations and re-exports only
+- `RUST-MOD-R004`: `lib.rs` should stay a crate facade with module declarations, re-exports, and parser-proven boundary macros only
 - `RUST-MOD-R005`: `src/main.rs` and `src/bin` entrypoints should stay thin
 - `RUST-MOD-R006`: root `build.rs` should stay a thin Cargo build-script entrypoint
 - `RUST-MOD-R007`: a module owner should not have both `foo.rs` and `foo/mod.rs`

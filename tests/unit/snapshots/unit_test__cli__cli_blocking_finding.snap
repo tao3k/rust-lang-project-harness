@@ -1,6 +1,6 @@
 ---
 source: tests/unit/cli.rs
-assertion_line: 106
+assertion_line: 115
 expression: stdout
 ---
 [RUST-PROJ-R003] Warning: Inline source test module
@@ -15,4 +15,4 @@ expression: stdout
  2 | #[cfg(test)] mod tests { #[test] fn it_works() {} }
    | `- move facade implementation out of lib.rs into an owned module
    |Help: $TEMP/src/lib.rs contains implementation item `mod` inside lib.rs.
-   |Contract: Keep lib.rs as a crate facade with external module declarations and re-exports only.
+   |Contract: Keep lib.rs as a crate facade with external module declarations, re-exports, and parser-proven boundary macros only.
