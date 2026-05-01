@@ -30,7 +30,7 @@ mod agent_policy_snapshot;
 #[path = "unit/agent_reasoning_snapshot.rs"]
 mod agent_reasoning_snapshot;
 
-#[path = "unit/verification.rs"]
+#[path = "unit/verification/mod.rs"]
 mod verification;
 
 #[path = "unit/runner_config/mod.rs"]

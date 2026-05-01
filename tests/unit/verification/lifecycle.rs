@@ -1,13 +1,16 @@
-use std::fs;
-use std::path::Path;
-
 use rust_lang_project_harness::{
     RustOwnerResponsibility, RustVerificationPolicy, RustVerificationProfileHint,
     RustVerificationReceipt, RustVerificationTaskKind, RustVerificationTaskState,
     RustVerificationWaiver, default_rust_harness_config,
     plan_rust_project_verification_with_config, render_rust_verification_plan,
+    render_rust_verification_plan_json,
 };
 use tempfile::TempDir;
+
+use super::support::{
+    normalize_temp_root, public_api_profile_config, write_api_project, write_branch_project,
+    write_external_dependency_project,
+};
 
 #[test]
 fn verification_profile_tasks_render_compact_snapshot() {
@@ -177,60 +180,20 @@ fn verification_policy_can_disable_task_kind() {
     assert!(plan.tasks.is_empty(), "{plan:?}");
 }
 
-fn public_api_profile_config() -> rust_lang_project_harness::RustHarnessConfig {
-    default_rust_harness_config().with_verification_profile_hint(RustVerificationProfileHint::new(
-        "src/api.rs",
-        [RustOwnerResponsibility::PublicApi],
-    ))
-}
+#[test]
+fn verification_json_preserves_structured_plan_fields() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_api_project(root);
+    let plan = plan_rust_project_verification_with_config(root, &public_api_profile_config())
+        .expect("plan");
 
-fn write_manifest(root: &Path, name: &str) {
-    fs::write(
-        root.join("Cargo.toml"),
-        format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n"),
-    )
-    .expect("write manifest");
-}
+    let json = render_rust_verification_plan_json(&plan).expect("json");
+    let value: serde_json::Value = serde_json::from_str(&json).expect("parse json");
 
-fn write_api_project(root: &Path) {
-    write_manifest(root, "verification-api");
-    fs::create_dir(root.join("src")).expect("create src");
-    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod api;\n").expect("write lib");
-    fs::write(
-        root.join("src/api.rs"),
-        "//! API owner.\npub fn handle_request() {}\n",
-    )
-    .expect("write api");
-}
-
-fn write_external_dependency_project(root: &Path) {
-    write_manifest(root, "verification-external");
-    fs::create_dir(root.join("src")).expect("create src");
-    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod domain;\n").expect("write lib");
-    fs::write(
-        root.join("src/domain.rs"),
-        "//! Domain owner.\nuse std::fs;\npub fn read_state() {}\n",
-    )
-    .expect("write domain");
-}
-
-fn write_branch_project(root: &Path) {
-    write_manifest(root, "verification-branch");
-    fs::create_dir_all(root.join("src/domain")).expect("create domain");
-    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod domain;\n").expect("write lib");
-    fs::write(
-        root.join("src/domain.rs"),
-        "//! Domain branch.\nmod alpha;\nmod beta;\nmod gamma;\n",
-    )
-    .expect("write domain");
-    fs::write(root.join("src/domain/alpha.rs"), "//! Alpha.\n").expect("write alpha");
-    fs::write(root.join("src/domain/beta.rs"), "//! Beta.\n").expect("write beta");
-    fs::write(root.join("src/domain/gamma.rs"), "//! Gamma.\n").expect("write gamma");
-}
-
-fn normalize_temp_root(rendered: &str, root: &Path) -> String {
-    let root_text = root.display().to_string();
-    rendered
-        .replace(&root_text, "$TEMP")
-        .replace(&root_text.replace('\\', "/"), "$TEMP")
+    assert!(value["project_root"].as_str().is_some());
+    assert_eq!(value["tasks"][0]["kind"], "stress");
+    assert_eq!(value["tasks"][0]["state"], "pending");
+    assert_eq!(value["tasks"][0]["owner_namespace"][0], "src");
+    assert_eq!(value["tasks"][0]["owner_namespace"][1], "api");
 }

@@ -172,6 +172,10 @@ from compact output. Parser facts outrank config hints, so incorrect
 responsibility declarations become `responsibility_review` tasks instead of
 silently changing what the harness believes.
 
+For workspaces, profile hint paths can be package-relative (`src/api.rs`) or
+workspace-root-relative (`crates/api/src/api.rs`). Task fingerprints include the
+owning package path, so two members with the same owner path do not collide.
+
 ## Current Rule Packs
 
 Use `rust_rule_pack_descriptors()` for stable pack-level metadata. Default

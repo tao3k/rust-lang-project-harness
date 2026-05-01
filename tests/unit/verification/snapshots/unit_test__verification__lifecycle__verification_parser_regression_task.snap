@@ -1,6 +1,6 @@
 ---
-source: tests/unit/verification.rs
-assertion_line: 159
+source: tests/unit/verification/lifecycle.rs
+assertion_line: 162
 expression: rendered
 ---
 [verify:regression] pending src/domain.rs
@@ -10,4 +10,4 @@ expression: rendered
    |fact: child_modules=3
    |fact: owner_deps=0
    |contract: regression skill must report source growth, dependency drift, and module-cycle status for this fingerprint
-   |fingerprint: rustv:996b231eafa51dfa
+   |fingerprint: rustv:bc6b6809aece96da

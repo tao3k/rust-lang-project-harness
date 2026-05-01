@@ -1,6 +1,6 @@
 //! Verification task planner derived from parser reasoning-tree facts.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use crate::discovery::{
@@ -77,6 +77,7 @@ pub fn plan_rust_project_verification_with_policy(
         vec![project_root.to_path_buf()]
     };
     let mut tasks = BTreeMap::new();
+    let mut matched_profile_hints = BTreeSet::new();
     for package_root in package_roots {
         let scope = rust_project_harness_scope(
             &package_root,
@@ -87,18 +88,22 @@ pub fn plan_rust_project_verification_with_policy(
         let parsed_modules = parse_scope(&scope, config);
         let reasoning_tree = rust_reasoning_tree_facts(&scope, &parsed_modules);
         collect_profile_tasks(
+            project_root,
             &reasoning_tree.package_root,
             &reasoning_tree.modules,
             policy,
+            &mut matched_profile_hints,
             &mut tasks,
         );
         collect_regression_tasks(
+            project_root,
             &reasoning_tree.package_root,
             &reasoning_tree.owner_branches,
             policy,
             &mut tasks,
         );
     }
+    collect_unmatched_profile_hints(project_root, policy, &matched_profile_hints, &mut tasks);
     let mut plan = RustVerificationPlan {
         project_root: project_root.to_path_buf(),
         tasks: tasks.into_values().collect(),
@@ -114,48 +119,67 @@ pub fn plan_rust_project_verification_with_policy(
 }
 
 fn collect_profile_tasks(
+    project_root: &Path,
     package_root: &Path,
     modules: &[RustReasoningModuleFacts],
     policy: &RustVerificationPolicy,
+    matched_profile_hints: &mut BTreeSet<usize>,
     tasks: &mut BTreeMap<String, RustVerificationTask>,
 ) {
     let source_modules = modules
         .iter()
         .filter(|module| module.is_source_module)
         .collect::<Vec<_>>();
-    for hint in &policy.profile_hints {
-        let owner_path = resolve_hint_owner_path(package_root, hint);
-        let Some(module) = source_modules
-            .iter()
-            .find(|module| module.path == owner_path)
-            .copied()
+    for (hint_index, hint) in policy.profile_hints.iter().enumerate() {
+        let Some(module) = matching_hint_module(project_root, package_root, &source_modules, hint)
         else {
-            push_task(
-                tasks,
-                policy,
-                new_profile_review_task(
-                    package_root,
-                    owner_path,
-                    Vec::new(),
-                    "profile hint target is not a parser-known Rust source module",
-                    vec![RustVerificationEvidence::new(
-                        "hint",
-                        format!(
-                            "responsibilities={}",
-                            responsibility_labels(&hint.responsibilities)
-                        ),
-                    )],
-                    policy,
-                ),
-            );
             continue;
         };
-        collect_profile_conflict_task(package_root, module, hint, policy, tasks);
-        collect_skill_tasks_from_profile(package_root, module, hint, policy, tasks);
+        matched_profile_hints.insert(hint_index);
+        collect_profile_conflict_task(project_root, package_root, module, hint, policy, tasks);
+        collect_skill_tasks_from_profile(project_root, package_root, module, hint, policy, tasks);
+    }
+}
+
+fn collect_unmatched_profile_hints(
+    project_root: &Path,
+    policy: &RustVerificationPolicy,
+    matched_profile_hints: &BTreeSet<usize>,
+    tasks: &mut BTreeMap<String, RustVerificationTask>,
+) {
+    for (hint_index, hint) in policy.profile_hints.iter().enumerate() {
+        if matched_profile_hints.contains(&hint_index) {
+            continue;
+        }
+        let owner_path = if hint.owner_path.is_absolute() {
+            hint.owner_path.clone()
+        } else {
+            project_root.join(&hint.owner_path)
+        };
+        push_task(
+            tasks,
+            policy,
+            new_profile_review_task(
+                project_root,
+                project_root,
+                owner_path,
+                Vec::new(),
+                "profile hint target is not a parser-known Rust source module",
+                vec![RustVerificationEvidence::new(
+                    "hint",
+                    format!(
+                        "responsibilities={}",
+                        responsibility_labels(&hint.responsibilities)
+                    ),
+                )],
+                policy,
+            ),
+        );
     }
 }
 
 fn collect_profile_conflict_task(
+    project_root: &Path,
     package_root: &Path,
     module: &RustReasoningModuleFacts,
     hint: &RustVerificationProfileHint,
@@ -173,6 +197,7 @@ fn collect_profile_conflict_task(
         return;
     }
     let task = new_profile_review_task(
+        project_root,
         package_root,
         module.path.clone(),
         module.source_path.namespace_components.clone(),
@@ -193,6 +218,7 @@ fn collect_profile_conflict_task(
 }
 
 fn collect_skill_tasks_from_profile(
+    project_root: &Path,
     package_root: &Path,
     module: &RustReasoningModuleFacts,
     hint: &RustVerificationProfileHint,
@@ -207,6 +233,7 @@ fn collect_skill_tasks_from_profile(
             tasks,
             policy,
             new_skill_task(
+                project_root,
                 package_root,
                 VerificationTaskSpec {
                     kind: RustVerificationTaskKind::Stress,
@@ -233,6 +260,7 @@ fn collect_skill_tasks_from_profile(
             tasks,
             policy,
             new_skill_task(
+                project_root,
                 package_root,
                 VerificationTaskSpec {
                     kind: RustVerificationTaskKind::Chaos,
@@ -256,6 +284,7 @@ fn collect_skill_tasks_from_profile(
             tasks,
             policy,
             new_skill_task(
+                project_root,
                 package_root,
                 VerificationTaskSpec {
                     kind: RustVerificationTaskKind::Security,
@@ -277,6 +306,7 @@ fn collect_skill_tasks_from_profile(
 }
 
 fn collect_regression_tasks(
+    project_root: &Path,
     package_root: &Path,
     branches: &[RustReasoningOwnerBranchFacts],
     policy: &RustVerificationPolicy,
@@ -295,6 +325,7 @@ fn collect_regression_tasks(
             tasks,
             policy,
             new_skill_task(
+                project_root,
                 package_root,
                 VerificationTaskSpec {
                     kind: RustVerificationTaskKind::Regression,
@@ -316,6 +347,7 @@ fn collect_regression_tasks(
 }
 
 fn new_profile_review_task(
+    project_root: &Path,
     package_root: &Path,
     owner_path: PathBuf,
     owner_namespace: Vec<String>,
@@ -324,6 +356,7 @@ fn new_profile_review_task(
     policy: &RustVerificationPolicy,
 ) -> RustVerificationTask {
     new_skill_task(
+        project_root,
         package_root,
         VerificationTaskSpec {
             kind: RustVerificationTaskKind::ResponsibilityReview,
@@ -340,12 +373,14 @@ fn new_profile_review_task(
 }
 
 fn new_skill_task(
+    project_root: &Path,
     package_root: &Path,
     spec: VerificationTaskSpec,
     policy: &RustVerificationPolicy,
 ) -> RustVerificationTask {
     let fingerprint = verification_task_fingerprint(
         spec.kind,
+        project_root,
         package_root,
         &spec.owner_path,
         spec.line,
@@ -437,11 +472,24 @@ fn parse_scope(
         .collect()
 }
 
-fn resolve_hint_owner_path(package_root: &Path, hint: &RustVerificationProfileHint) -> PathBuf {
-    if hint.owner_path.is_absolute() {
-        return hint.owner_path.clone();
+fn matching_hint_module<'a>(
+    project_root: &Path,
+    package_root: &Path,
+    modules: &[&'a RustReasoningModuleFacts],
+    hint: &RustVerificationProfileHint,
+) -> Option<&'a RustReasoningModuleFacts> {
+    modules.iter().copied().find(|module| {
+        path_matches_hint(&module.path, project_root, &hint.owner_path)
+            || path_matches_hint(&module.path, package_root, &hint.owner_path)
+    })
+}
+
+fn path_matches_hint(path: &Path, root: &Path, hint_path: &Path) -> bool {
+    if hint_path.is_absolute() {
+        return path == hint_path;
     }
-    package_root.join(&hint.owner_path)
+    path.strip_prefix(root)
+        .is_ok_and(|relative_path| relative_path == hint_path)
 }
 
 fn non_test_owner_dependency_count(imports: &RustReasoningImportFacts) -> usize {

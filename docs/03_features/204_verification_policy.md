@@ -46,6 +46,13 @@ let plan =
 let compact = render_rust_verification_plan(&plan);
 ```
 
+Relative profile paths are matched against parser-known modules. In a single
+package, `src/api.rs` is package-relative. In a workspace, `src/api.rs` can match
+that path in every member package, while `crates/api/src/api.rs` targets a
+single member from the workspace root. This keeps compact renders useful for
+multi-package projects and keeps task fingerprints package-aware when different
+members have the same owner path.
+
 The compact renderer only prints active tasks. A passed receipt or complete
 waiver makes the matching task disappear from this channel. Structured callers
 can keep the full task state through `render_rust_verification_plan_json()`.

@@ -1,6 +1,6 @@
 ---
-source: tests/unit/verification.rs
-assertion_line: 141
+source: tests/unit/verification/lifecycle.rs
+assertion_line: 144
 expression: rendered
 ---
 [verify:responsibility_review] pending src/domain.rs
@@ -10,4 +10,4 @@ expression: rendered
    |fact: profile=pure_domain_logic
    |fact: parser=external_imports=1 owner_deps=0
    |contract: update the verification profile hint to match parser facts, or attach a complete waiver
-   |fingerprint: rustv:a6b69a69e019ad5c
+   |fingerprint: rustv:8b80f6fc9d43afb8
