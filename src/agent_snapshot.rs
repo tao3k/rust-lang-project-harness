@@ -52,13 +52,8 @@ pub fn render_rust_project_harness_agent_snapshot_with_config(
     } else {
         vec![project_root.to_path_buf()]
     };
-    let mut rendered = String::new();
-    let _ = writeln!(
-        rendered,
-        "[agent:snapshot] {} rust",
-        display_path(project_root)
-    );
-    let _ = writeln!(rendered, "Packages: {}", package_roots.len());
+    let include_package_heading = package_roots.len() > 1;
+    let mut package_snapshots = Vec::new();
     for package_root in package_roots {
         let scope = rust_project_harness_scope(
             &package_root,
@@ -69,16 +64,21 @@ pub fn render_rust_project_harness_agent_snapshot_with_config(
         let parsed_modules = parse_scope(&scope, config);
         let findings =
             evaluate_default_rule_packs_with_config(Some(&scope), &parsed_modules, config);
-        rendered.push('\n');
-        rendered.push_str(&render_package_snapshot(&scope, &parsed_modules, &findings));
+        package_snapshots.push(render_package_snapshot(
+            &scope,
+            &parsed_modules,
+            &findings,
+            include_package_heading,
+        ));
     }
-    Ok(rendered)
+    Ok(package_snapshots.join("\n"))
 }
 
 fn render_package_snapshot(
     scope: &RustProjectHarnessScope,
     parsed_modules: &[crate::parser::ParsedRustModule],
     findings: &[RustHarnessFinding],
+    include_package_heading: bool,
 ) -> String {
     let reasoning_tree = rust_reasoning_tree_facts(scope, parsed_modules);
     let source_module_count = reasoning_tree
@@ -97,29 +97,13 @@ fn render_package_snapshot(
         .filter(|module| module.is_source_module && !module.declared_child_edges.is_empty())
         .count();
     let mut rendered = String::new();
-    let _ = writeln!(
-        rendered,
-        "Package: {}",
-        display_project_path(&reasoning_tree.package_root, &reasoning_tree.package_root)
-    );
-    let _ = writeln!(
-        rendered,
-        "SourceRoots: {}",
-        display_paths(
-            &reasoning_tree.package_root,
-            &reasoning_tree.source_roots,
-            "-"
-        )
-    );
-    let _ = writeln!(
-        rendered,
-        "PackageEntrypoints: {}",
-        display_paths(
-            &reasoning_tree.package_root,
-            &reasoning_tree.package_entrypoints,
-            "-"
-        )
-    );
+    if include_package_heading {
+        let _ = writeln!(
+            rendered,
+            "Package: {}",
+            display_project_path(&reasoning_tree.package_root, &reasoning_tree.package_root)
+        );
+    }
     let _ = writeln!(
         rendered,
         "Modules: source={} roots={} branches={} deps={} shadowed={} orphaned={}",
@@ -296,17 +280,6 @@ fn grouped_findings(package_root: &Path, findings: &[RustHarnessFinding]) -> Vec
 struct FindingGroup {
     count: usize,
     first_path: Option<PathBuf>,
-}
-
-fn display_paths(package_root: &Path, paths: &[PathBuf], empty: &str) -> String {
-    if paths.is_empty() {
-        return empty.to_string();
-    }
-    paths
-        .iter()
-        .map(|path| display_project_path(package_root, path))
-        .collect::<Vec<_>>()
-        .join(", ")
 }
 
 fn display_child_edges(package_root: &Path, edges: &[RustModuleChildEdge], empty: &str) -> String {

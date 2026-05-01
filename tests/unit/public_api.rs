@@ -205,9 +205,10 @@ fn agent_snapshot_renderer_exposes_reasoning_tree_shape() {
 
     let rendered = render_rust_project_harness_agent_snapshot(root).expect("render snapshot");
 
-    assert!(rendered.starts_with("[agent:snapshot]"), "{rendered}");
-    assert!(rendered.contains("Package: ."), "{rendered}");
-    assert!(rendered.contains("SourceRoots: src"), "{rendered}");
+    assert!(rendered.starts_with("Modules:"), "{rendered}");
+    assert!(!rendered.contains("[agent:snapshot]"), "{rendered}");
+    assert!(!rendered.contains("SourceRoots:"), "{rendered}");
+    assert!(!rendered.contains("PackageEntrypoints:"), "{rendered}");
     assert!(
         rendered.contains("src/lib.rs [root, facade] owner=src -> mod:src/domain.rs"),
         "{rendered}"

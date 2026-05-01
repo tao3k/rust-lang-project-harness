@@ -156,9 +156,11 @@ highlighted source line when available, one short source pointer, `Help:`, and
 `RustHarnessReport` shape through `render_rust_project_harness_json()`.
 Agents that need project shape rather than diagnostic cards can use
 `render_rust_project_harness_agent_snapshot()` or the `--agent-snapshot` CLI
-mode; that output is grouped by package, source roots, owner branches, and
-finding groups. Owner branches render parser-labeled child edges such as
-`mod:src/domain.rs`, `path-mod:src/custom.rs`, and `include:src/shard.rs`.
+mode; that output starts with the module/owner facts agents need and omits
+singleton package boilerplate. Owner branches render parser-labeled child edges
+such as `mod:src/domain.rs`, `path-mod:src/custom.rs`, and
+`include:src/shard.rs`, and package-level owner dependencies render as compact
+edges such as `src/lib.rs --crate--> src/domain.rs`.
 
 ## Docs
 

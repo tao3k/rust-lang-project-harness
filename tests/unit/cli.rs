@@ -54,7 +54,7 @@ fn cli_agent_snapshot_renders_reasoning_tree_summary() {
 
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert!(stdout.starts_with("[agent:snapshot]"), "{stdout}");
+    assert!(stdout.starts_with("Modules:"), "{stdout}");
     assert!(stdout.contains("OwnerBranches:"), "{stdout}");
     assert!(stdout.contains("FindingGroups:\n - none"), "{stdout}");
     assert!(!stdout.trim_start().starts_with('{'), "{stdout}");
