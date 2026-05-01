@@ -1,0 +1,16 @@
+---
+source: tests/unit/verification/config/skill.rs
+assertion_line: 207
+expression: "format!(\"{rendered}\\n{contracts}\")"
+---
+[verify] src/api.rs
+   |owner: src/api
+   |performance: pending phase=after_unit_tests_pass fingerprint=rustv:07c5fef10ad0d802 skill=rust-verification-performance@criterion contract_ref=rust-verification-performance@criterion
+
+[skill-contract] rust-verification-performance@criterion
+   |tool: criterion
+   |run: cargo bench
+   |standard: statistical benchmark baseline detects runtime regression
+   |inputs: bench_target,baseline,regression_threshold
+   |pass: regression<=threshold
+   |receipt: benchmark_command,baseline,regression_threshold,latency_or_throughput,allocation_profile,profile_artifact

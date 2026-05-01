@@ -125,3 +125,79 @@ Observed workspace pattern:
 4. Do not add Clippy-shaped rules. The harness should avoid style rules that
    rustfmt, rustc, or Clippy already own. It should focus on project facts that
    help agents choose the correct owner, branch, and edit surface.
+
+## Follow-up: Facade Boundary Macros
+
+A second pass against official docs and live GitHub source samples sharpened the
+`lib.rs` policy boundary:
+
+- Cargo defines `src/lib.rs` as the library target root, but it does not require
+  that file to be only `mod` and `pub use`.
+- Mature crates often keep crate-level feature contracts in `lib.rs`. Tokio uses
+  cfg-gated `compile_error!` items plus feature-gated module and re-export
+  macros; Serde keeps docs.rs/cross-crate re-export shims in the crate root;
+  Cargo exposes some boundary error helpers in its library root.
+- Those forms are different from LLM drift where the facade grows local business
+  structs, helper functions, or `macro_rules!` implementations.
+
+Harness implication: `RUST-MOD-R004` should continue to reject implementation
+items in `lib.rs`, but parser-native facade exceptions are valid when the
+top-level macro is a cfg-gated `compile_error!` contract or when `syn` can parse
+the macro body as facade-only items (`mod`, `use`, `extern crate`, or recursively
+facade-only macro invocations). Local `macro_rules!` definitions still remain
+implementation and should stay outside the facade.
+
+## Follow-up: Rust Skill Catalogs
+
+Two Rust skill repositories were shallow-cloned on 2026-05-01:
+
+| Repository | Commit | Useful Pattern |
+| --- | --- | --- |
+| [leonardomso/rust-skills](https://github.com/leonardomso/rust-skills/tree/89910e858533) | `89910e858533` | Compact rule-catalog folders such as `perf-*`, `mem-*`, `async-*`, `proj-*`, and `test-*`. |
+| [actionbook/rust-skills](https://github.com/actionbook/rust-skills/tree/1f4becdcb88d) | `1f4becdcb88d` | Skill routing, skill folders, performance skill triggers, and adapter-oriented Agent workflow. |
+
+Harness implications:
+
+1. Do not migrate large Rust skill Markdown into the active prompt path. That
+   would recreate the token-noise problem the harness is meant to solve.
+2. Convert useful rule-catalog content into typed contracts, evidence keys,
+   parser facts, or configurable policy helpers. For example, performance
+   guidance becomes `RustVerificationTaskKind::Performance` evidence such as
+   `benchmark_command`, `baseline`, `regression_threshold`,
+   `latency_or_throughput`, `allocation_profile`, and `profile_artifact`.
+3. Convert skill routing into configuration, not prose. The harness now exposes
+   `RustVerificationSkillBinding` so a project can bind a task kind to a
+   configured Agent skill adapter. Once configured, compact output emits only a
+   short `skill=<id>` dispatch hint while structured JSON keeps the full
+   contract.
+4. Treat the binding as part of the verification task fingerprint. If an Agent
+   switches from one adapter to another, stale receipts should not silently clear
+   the new obligation.
+5. Keep the Markdown under top-level `skills/` passive and progressive. It is
+   useful for onboarding or repairing configuration, but a healthy configured
+   project should not need to reread it on every run.
+6. Split skill routing from skill execution contracts. A
+   `RustVerificationSkillBinding` answers "which configured skill handles this
+   task?", while a `RustVerificationSkillDescriptor` answers "what compact tool,
+   command, standard, inputs, and receipt fields define that adapter?" The
+   default verification render should expose only `contract_ref` and let Agents
+   expand descriptors on demand.
+7. Keep service pressure and Rust-native performance separate. `k6` is a good
+   `stress` adapter for HTTP/API/service-boundary SLA evidence, but it is not
+   the Rust performance baseline. The `performance` task should prefer
+   `cargo bench`, Criterion, Divan, iai-callgrind, and profiling artifacts for
+   Rust code-level latency, throughput, allocation, instruction, and cache
+   regression evidence.
+8. The actionbook type-driven skill maps cleanly to advisory parser policy when
+   it is restricted to semantic API boundaries. `AGENT-R012` therefore records
+   public function parameters through `syn` and flags `id` or `*_id` parameters
+   carried by `String`, `&str`, integer primitives, or `Option` wrappers. This
+   keeps the useful "primitive obsession" signal without turning clone usage,
+   unwraps, index loops, or other Clippy-shaped anti-pattern examples into
+   harness rules.
+9. The actionbook error-handling skill maps to parser policy at the public
+   boundary, not at every `unwrap` or `?` site. `AGENT-R013` records public
+   function return types through `syn` and flags application-style catch-all
+   boundaries such as `anyhow::Result`, `eyre::Result`, and
+   `Result<_, Box<dyn Error>>`. This preserves the library-vs-application
+   signal while avoiding Clippy-shaped panic, unwrap, and ignored-error rules.

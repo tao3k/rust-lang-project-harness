@@ -1,11 +1,12 @@
+use std::collections::BTreeSet;
 use std::fs;
 
 use tempfile::TempDir;
 
 use crate::RustProjectHarnessScope;
 use crate::parser::{
-    RustModuleChildEdgeKind, RustReasoningOwnerBranchRole, RustUseImportRootKind, parse_rust_file,
-    rust_reasoning_tree_facts,
+    RustModuleChildEdgeKind, RustReasoningOwnerBranchRole, RustUseImportRootKind,
+    parse_cargo_dependency_facts, parse_rust_file, rust_reasoning_tree_facts,
 };
 
 type DependencyEdge = (
@@ -17,6 +18,93 @@ type DependencyEdge = (
     usize,
     bool,
 );
+
+#[test]
+fn cargo_manifest_parser_records_dependency_facts() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"cargo-facts\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\naxum = \"0.1\"\narrow-flight = \"0.1\"\nflight = { package = \"arrow-flight\", version = \"0.1\", optional = true, features = [\"tls\", \"flight-sql\", \"tls\"] }\n\n[dev-dependencies]\ntokio = { version = \"1\", features = [\"rt\"] }\n\n[build-dependencies]\ncc = \"1\"\n\n[target.'cfg(windows)'.dependencies]\nwinapi = \"0.3\"\n",
+    )
+    .expect("write manifest");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
+
+    let dependency_facts = parse_cargo_dependency_facts(root)
+        .iter()
+        .map(|dependency| {
+            format!(
+                "{}|{}|{}|{:?}|{}|{}|{}",
+                dependency.dependency_key,
+                dependency.import_name,
+                dependency.package_name,
+                dependency.kind,
+                dependency.target.as_deref().unwrap_or("-"),
+                dependency.optional,
+                dependency.features.join("+")
+            )
+        })
+        .collect::<BTreeSet<_>>();
+
+    assert_eq!(
+        dependency_facts,
+        [
+            "arrow-flight|arrow_flight|arrow-flight|Normal|-|false|",
+            "axum|axum|axum|Normal|-|false|",
+            "cc|cc|cc|Build|-|false|",
+            "flight|flight|arrow-flight|Normal|-|true|flight-sql+tls",
+            "tokio|tokio|tokio|Dev|-|false|rt",
+            "winapi|winapi|winapi|Normal|cfg(windows)|false|",
+        ]
+        .into_iter()
+        .map(ToOwned::to_owned)
+        .collect::<BTreeSet<_>>()
+    );
+}
+
+#[test]
+fn cargo_manifest_parser_records_workspace_inherited_dependency_facts() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"crates/api\"]\n\n[workspace.dependencies]\nflight = { package = \"arrow-flight\", version = \"0.1\", features = [\"flight-sql\"] }\n",
+    )
+    .expect("write workspace manifest");
+    let package_root = root.join("crates/api");
+    fs::create_dir_all(package_root.join("src")).expect("create package source");
+    fs::write(
+        package_root.join("Cargo.toml"),
+        "[package]\nname = \"api\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nflight = { workspace = true }\n",
+    )
+    .expect("write package manifest");
+    fs::write(package_root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
+
+    let dependency_facts = parse_cargo_dependency_facts(&package_root)
+        .iter()
+        .map(|dependency| {
+            format!(
+                "{}|{}|{}|{:?}|{}|{}|{}",
+                dependency.dependency_key,
+                dependency.import_name,
+                dependency.package_name,
+                dependency.kind,
+                dependency.target.as_deref().unwrap_or("-"),
+                dependency.optional,
+                dependency.features.join("+")
+            )
+        })
+        .collect::<BTreeSet<_>>();
+
+    assert_eq!(
+        dependency_facts,
+        ["flight|flight|arrow-flight|Normal|-|false|flight-sql"]
+            .into_iter()
+            .map(ToOwned::to_owned)
+            .collect::<BTreeSet<_>>()
+    );
+}
 
 #[test]
 fn reasoning_tree_interprets_modules_owners_and_child_edges() {

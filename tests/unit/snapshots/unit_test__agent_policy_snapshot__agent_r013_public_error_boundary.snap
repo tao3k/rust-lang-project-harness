@@ -1,0 +1,11 @@
+---
+source: tests/unit/agent_policy_snapshot.rs
+assertion_line: 184
+expression: rendered
+---
+[AGENT-R013] Info: Public error boundary uses an application error type
+   ,-[ $TEMP/src/api.rs:3:1 ]
+ 3 | pub fn load_user() -> anyhow::Result<String> { todo!() }
+   | `- return a crate-owned typed error at the public boundary or document why this is an application boundary
+   |Help: $TEMP/src/api.rs exposes public function `load_user` with application error boundary `anyhow::Result`.
+   |Contract: Keep public library error boundaries typed so agents and callers can handle recovery without inspecting application error context.

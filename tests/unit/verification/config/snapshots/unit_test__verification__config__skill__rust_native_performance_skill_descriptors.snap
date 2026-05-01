@@ -1,0 +1,28 @@
+---
+source: tests/unit/verification/config/skill.rs
+assertion_line: 167
+expression: render_rust_verification_skill_contracts(&plan)
+---
+[skill-contract] rust-verification-performance@criterion
+   |tool: criterion
+   |run: cargo bench
+   |standard: statistical benchmark baseline detects runtime regression
+   |inputs: bench_target,baseline,regression_threshold
+   |pass: regression<=threshold
+   |receipt: benchmark_command,baseline,regression_threshold,latency_or_throughput,allocation_profile,profile_artifact
+
+[skill-contract] rust-verification-performance@divan
+   |tool: divan
+   |run: cargo bench
+   |standard: sampled Rust benchmark summary stays within regression threshold
+   |inputs: bench_target,baseline,regression_threshold
+   |pass: median_or_mean_delta<=threshold
+   |receipt: benchmark_command,baseline,regression_threshold,latency_or_throughput,allocation_profile,profile_artifact,samples,iters
+
+[skill-contract] rust-verification-performance@iai-callgrind
+   |tool: iai-callgrind
+   |run: cargo bench
+   |standard: instruction/cache/allocation metrics stay within regression threshold
+   |inputs: bench_target,baseline,metric,regression_threshold
+   |pass: metric_delta<=threshold
+   |receipt: benchmark_command,baseline,regression_threshold,latency_or_throughput,allocation_profile,profile_artifact,instructions,cache_misses

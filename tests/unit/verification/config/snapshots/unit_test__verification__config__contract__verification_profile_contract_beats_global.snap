@@ -1,0 +1,12 @@
+---
+source: tests/unit/verification/config/contract.rs
+expression: rendered
+---
+[verify] src/api.rs
+   |owner: src/api
+   |security: pending phase=after_unit_tests_pass fingerprint=rustv:072ec8eb36c4b05a
+   |why: security=owner profile explicitly requests security verification
+   |requires: security=route_authz_matrix
+   |fact: security.profile=public_api
+   |fact: security.rationale=owner route authorization differs from global default
+   |contract: security=owner security skill must report route-level authz matrix

@@ -1,0 +1,11 @@
+---
+source: tests/unit/verification/config/profile_review.rs
+expression: rendered
+---
+[verify] src/api.rs
+   |owner: src/api
+   |responsibility_review: pending phase=before_verification fingerprint=rustv:ad35e34639e01cad
+   |why: responsibility_review=profile hint declares no responsibilities for owner
+   |requires: responsibility_review=profile_resolution
+   |fact: responsibility_review.profile=responsibilities=<none>
+   |contract: responsibility_review=update the verification profile hint to match parser facts, or attach a complete waiver

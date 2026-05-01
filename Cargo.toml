@@ -8,6 +8,7 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+cargo_toml = "0.22.3"
 proc-macro2 = { version = "1", features = ["span-locations"] }
 quote = "1"
 serde = { version = "1", features = ["derive"] }

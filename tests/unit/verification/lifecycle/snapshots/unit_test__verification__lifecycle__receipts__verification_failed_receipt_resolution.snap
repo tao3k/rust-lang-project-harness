@@ -1,0 +1,13 @@
+---
+source: tests/unit/verification/lifecycle/receipts.rs
+assertion_line: 146
+expression: rendered
+---
+[verify] src/api.rs
+   |owner: src/api
+   |stress: failed phase=after_unit_tests_pass fingerprint=rustv:745d9b51631431fd
+   |why: stress=profile declares public API or integration surface
+   |receipt: stress=p99 exceeded SLA at step 4
+   |requires: stress=p50,p99,p999,load_steps,sla_result
+   |fact: stress.profile=public_api
+   |contract: stress=stress skill must report p50/p99/p999, load steps, and SLA result for this fingerprint

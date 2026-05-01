@@ -1,0 +1,11 @@
+---
+source: tests/unit/verification/workspace.rs
+expression: rendered
+---
+[verify] crates/api/src/api.rs
+   |owner: src/api
+   |stress: pending phase=after_unit_tests_pass fingerprint=rustv:d8c16d400a158ada
+   |why: stress=profile declares public API or integration surface
+   |requires: stress=p50,p99,p999,load_steps,sla_result
+   |fact: stress.profile=public_api
+   |contract: stress=stress skill must report p50/p99/p999, load steps, and SLA result for this fingerprint

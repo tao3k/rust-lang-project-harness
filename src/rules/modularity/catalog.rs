@@ -41,7 +41,7 @@ pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             PACK_ID,
             RustDiagnosticSeverity::Warning,
             "lib.rs contains implementation",
-            "Keep lib.rs as a crate facade with external module declarations and re-exports only.",
+            "Keep lib.rs as a crate facade with external module declarations, re-exports, and parser-proven boundary macros only.",
             labels("modularity"),
         ),
         RustHarnessRule::new(

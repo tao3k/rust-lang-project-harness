@@ -22,6 +22,8 @@ pub(super) const AGENT_R008: &str = "AGENT-R008";
 pub(super) const AGENT_R009: &str = "AGENT-R009";
 pub(super) const AGENT_R010: &str = "AGENT-R010";
 pub(super) const AGENT_R011: &str = "AGENT-R011";
+pub(super) const AGENT_R012: &str = "AGENT-R012";
+pub(super) const AGENT_R013: &str = "AGENT-R013";
 
 /// Return compact metadata for agent-oriented Rust policy rules.
 #[must_use]
@@ -171,6 +173,22 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             RustDiagnosticSeverity::Info,
             "Owner fan-out lacks intent doc",
             "Document branch modules that coordinate several owner dependencies so agents know why the branch spans those owners.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R012,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Public semantic identifier uses a primitive type",
+            "Give public semantic identifiers a named domain type so agents can preserve invariants without guessing from parameter names.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R013,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Public error boundary uses an application error type",
+            "Keep public library error boundaries typed so agents and callers can handle recovery without inspecting application error context.",
             labels("agent-policy"),
         ),
     ]

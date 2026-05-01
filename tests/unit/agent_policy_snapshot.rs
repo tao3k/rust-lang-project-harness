@@ -4,6 +4,12 @@ use std::path::Path;
 use rust_lang_project_harness::{render_rust_project_harness, run_rust_project_harness};
 use tempfile::TempDir;
 
+#[path = "agent_policy_snapshot/primitive_api.rs"]
+mod primitive_api;
+
+#[path = "agent_policy_snapshot/error_boundary.rs"]
+mod error_boundary;
+
 #[test]
 fn agent_r001_public_module_intent_snapshot() {
     let temp = TempDir::new().expect("temp dir");

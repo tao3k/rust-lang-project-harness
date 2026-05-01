@@ -2,6 +2,8 @@
 
 use std::path::{Path, PathBuf};
 
+use proc_macro2::{TokenStream, TokenTree};
+use quote::ToTokens;
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
 
@@ -15,6 +17,8 @@ pub(crate) struct RustNativeSyntaxFacts {
     pub cfg_test_modules: Vec<RustModuleDeclarationSyntax>,
     pub test_function_count: usize,
     pub use_statements: Vec<RustUseStatementSyntax>,
+    pub public_function_params: Vec<RustFunctionParamSyntax>,
+    pub public_function_returns: Vec<RustFunctionReturnSyntax>,
     pub macro_invocations: Vec<RustInvocationSyntax>,
     pub function_calls: Vec<RustInvocationSyntax>,
 }
@@ -28,10 +32,15 @@ pub(crate) struct RustTopLevelItemSyntax {
     pub is_public: bool,
     pub is_public_use: bool,
     pub is_use: bool,
+    pub is_extern_crate: bool,
     pub is_macro: bool,
+    pub has_proc_macro_export_attr: bool,
+    pub has_cfg_attr: bool,
     pub is_implementation_item: bool,
     pub function_name: Option<String>,
     pub macro_name: Option<String>,
+    pub macro_declares_module: bool,
+    pub macro_body_is_facade_boundary: bool,
     pub include_target: Option<String>,
     pub module: Option<RustModuleDeclarationSyntax>,
 }
@@ -44,6 +53,25 @@ pub(crate) struct RustModuleDeclarationSyntax {
     pub resolved_path_attr: Option<PathBuf>,
     pub is_inline: bool,
     pub is_cfg_test: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RustFunctionParamSyntax {
+    pub line: usize,
+    pub function_name: String,
+    pub param_name: String,
+    pub type_text: String,
+    pub primitive_contract_type: Option<String>,
+    pub is_test_context: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RustFunctionReturnSyntax {
+    pub line: usize,
+    pub function_name: String,
+    pub type_text: String,
+    pub application_error_boundary: Option<String>,
+    pub is_test_context: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -85,6 +113,16 @@ pub(crate) fn rust_native_syntax_facts(
         .items
         .iter()
         .map(|item| top_level_item_syntax(item, source_file))
+        .collect();
+    collector.facts.public_function_params = syntax
+        .items
+        .iter()
+        .flat_map(public_function_param_syntax)
+        .collect();
+    collector.facts.public_function_returns = syntax
+        .items
+        .iter()
+        .filter_map(public_function_return_syntax)
         .collect();
     collector.facts
 }
@@ -171,19 +209,236 @@ fn top_level_item_syntax(item: &syn::Item, source_file: &Path) -> RustTopLevelIt
         is_public: item_visibility(item).is_some_and(is_public_visibility),
         is_public_use: is_public_use(item),
         is_use: matches!(item, syn::Item::Use(_)),
+        is_extern_crate: matches!(item, syn::Item::ExternCrate(_)),
         is_macro: matches!(item, syn::Item::Macro(_)),
+        has_proc_macro_export_attr: item_attrs(item).iter().any(attribute_is_proc_macro_export),
+        has_cfg_attr: item_attrs(item).iter().any(attribute_is_cfg),
         is_implementation_item: is_implementation_item(item),
         function_name: function_name_syntax(item),
         macro_name: macro_name_syntax(item),
+        macro_declares_module: macro_declares_module_syntax(item),
+        macro_body_is_facade_boundary: macro_body_is_facade_boundary_syntax(item),
         include_target: include_target_syntax(item),
         module: module_declaration_syntax(item, source_file),
     }
+}
+
+fn public_function_param_syntax(item: &syn::Item) -> Vec<RustFunctionParamSyntax> {
+    let syn::Item::Fn(item_fn) = item else {
+        return Vec::new();
+    };
+    if !is_public_visibility(&item_fn.vis) {
+        return Vec::new();
+    }
+    let function_name = item_fn.sig.ident.to_string();
+    let is_test_context = attrs_have_cfg_test(&item_fn.attrs);
+    item_fn
+        .sig
+        .inputs
+        .iter()
+        .filter_map(|arg| {
+            let syn::FnArg::Typed(pat_type) = arg else {
+                return None;
+            };
+            let syn::Pat::Ident(pat_ident) = pat_type.pat.as_ref() else {
+                return None;
+            };
+            Some(RustFunctionParamSyntax {
+                line: pat_ident.span().start().line.max(1),
+                function_name: function_name.clone(),
+                param_name: pat_ident.ident.to_string(),
+                type_text: pat_type.ty.to_token_stream().to_string(),
+                primitive_contract_type: primitive_contract_type_name(&pat_type.ty),
+                is_test_context,
+            })
+        })
+        .collect()
+}
+
+fn public_function_return_syntax(item: &syn::Item) -> Option<RustFunctionReturnSyntax> {
+    let syn::Item::Fn(item_fn) = item else {
+        return None;
+    };
+    if !is_public_visibility(&item_fn.vis) {
+        return None;
+    }
+    let syn::ReturnType::Type(_, return_type) = &item_fn.sig.output else {
+        return None;
+    };
+    Some(RustFunctionReturnSyntax {
+        line: item_fn.sig.ident.span().start().line.max(1),
+        function_name: item_fn.sig.ident.to_string(),
+        type_text: return_type.to_token_stream().to_string(),
+        application_error_boundary: application_error_return_type(return_type),
+        is_test_context: attrs_have_cfg_test(&item_fn.attrs),
+    })
+}
+
+fn primitive_contract_type_name(ty: &syn::Type) -> Option<String> {
+    match ty {
+        syn::Type::Path(type_path) => primitive_contract_path_name(type_path),
+        syn::Type::Reference(reference) => {
+            primitive_contract_type_name(&reference.elem).map(|inner| format!("&{inner}"))
+        }
+        _ => None,
+    }
+}
+
+fn application_error_return_type(ty: &syn::Type) -> Option<String> {
+    let syn::Type::Path(type_path) = ty else {
+        return None;
+    };
+    let terminal = type_path.path.segments.last()?;
+    if terminal.ident != "Result" {
+        return None;
+    }
+    let path_text = path_segments_text(&type_path.path);
+    if is_application_result_path(&path_text) {
+        return Some(path_text);
+    }
+    let err_type = result_error_type(terminal)?;
+    application_error_type_name(err_type).map(|err_name| format!("Result<_, {err_name}>"))
+}
+
+fn result_error_type(segment: &syn::PathSegment) -> Option<&syn::Type> {
+    let syn::PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return None;
+    };
+    let mut types = args.args.iter().filter_map(|arg| {
+        let syn::GenericArgument::Type(ty) = arg else {
+            return None;
+        };
+        Some(ty)
+    });
+    types.next()?;
+    types.next()
+}
+
+fn application_error_type_name(ty: &syn::Type) -> Option<String> {
+    match ty {
+        syn::Type::Path(type_path) if is_application_error_path(&type_path.path) => {
+            Some(path_segments_text(&type_path.path))
+        }
+        syn::Type::Path(type_path) if is_boxed_dyn_error_path(type_path) => {
+            Some("Box<dyn Error>".to_owned())
+        }
+        syn::Type::TraitObject(trait_object) if trait_object_contains_error(trait_object) => {
+            Some("dyn Error".to_owned())
+        }
+        _ => None,
+    }
+}
+
+fn is_application_result_path(path_text: &str) -> bool {
+    matches!(
+        path_text,
+        "anyhow::Result" | "eyre::Result" | "color_eyre::Result" | "color_eyre::eyre::Result"
+    )
+}
+
+fn is_application_error_path(path: &syn::Path) -> bool {
+    matches!(
+        path_segments_text(path).as_str(),
+        "anyhow::Error"
+            | "eyre::Report"
+            | "eyre::Error"
+            | "color_eyre::Report"
+            | "color_eyre::eyre::Report"
+    )
+}
+
+fn is_boxed_dyn_error_path(type_path: &syn::TypePath) -> bool {
+    let Some(segment) = type_path.path.segments.last() else {
+        return false;
+    };
+    if segment.ident != "Box" {
+        return false;
+    }
+    let syn::PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return false;
+    };
+    args.args.iter().any(|arg| {
+        let syn::GenericArgument::Type(syn::Type::TraitObject(trait_object)) = arg else {
+            return false;
+        };
+        trait_object_contains_error(trait_object)
+    })
+}
+
+fn trait_object_contains_error(trait_object: &syn::TypeTraitObject) -> bool {
+    trait_object.bounds.iter().any(|bound| {
+        let syn::TypeParamBound::Trait(trait_bound) = bound else {
+            return false;
+        };
+        trait_path_is_error_boundary(&trait_bound.path)
+    })
+}
+
+fn trait_path_is_error_boundary(path: &syn::Path) -> bool {
+    path.segments
+        .last()
+        .is_some_and(|segment| segment.ident == "Error")
+        && (path.segments.len() == 1 || path_segments_text(path) == "std::error::Error")
+}
+
+fn path_segments_text(path: &syn::Path) -> String {
+    path.segments
+        .iter()
+        .map(|segment| segment.ident.to_string())
+        .collect::<Vec<_>>()
+        .join("::")
+}
+
+fn primitive_contract_path_name(type_path: &syn::TypePath) -> Option<String> {
+    let terminal = type_path.path.segments.last()?;
+    let terminal_name = terminal.ident.to_string();
+    if is_string_or_integer_primitive(&terminal_name) {
+        return Some(terminal_name);
+    }
+    let syn::PathArguments::AngleBracketed(args) = &terminal.arguments else {
+        return None;
+    };
+    if terminal_name != "Option" {
+        return None;
+    }
+    let mut generic_types = args.args.iter().filter_map(|arg| {
+        let syn::GenericArgument::Type(ty) = arg else {
+            return None;
+        };
+        primitive_contract_type_name(ty)
+    });
+    let inner = generic_types.next()?;
+    generic_types
+        .next()
+        .is_none()
+        .then_some(format!("{terminal_name}<{inner}>"))
+}
+
+fn is_string_or_integer_primitive(name: &str) -> bool {
+    matches!(
+        name,
+        "String"
+            | "str"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "u64"
+            | "u128"
+            | "usize"
+            | "i8"
+            | "i16"
+            | "i32"
+            | "i64"
+            | "i128"
+            | "isize"
+    )
 }
 
 fn item_name(item: &syn::Item) -> Option<String> {
     match item {
         syn::Item::Const(item) => Some(item.ident.to_string()),
         syn::Item::Enum(item) => Some(item.ident.to_string()),
+        syn::Item::ExternCrate(item) => Some(item.ident.to_string()),
         syn::Item::Fn(item) => Some(item.sig.ident.to_string()),
         syn::Item::Mod(item) => Some(item.ident.to_string()),
         syn::Item::Static(item) => Some(item.ident.to_string()),
@@ -200,7 +455,9 @@ fn item_attrs(item: &syn::Item) -> &[syn::Attribute] {
     match item {
         syn::Item::Const(item) => &item.attrs,
         syn::Item::Enum(item) => &item.attrs,
+        syn::Item::ExternCrate(item) => &item.attrs,
         syn::Item::Fn(item) => &item.attrs,
+        syn::Item::Macro(item) => &item.attrs,
         syn::Item::Mod(item) => &item.attrs,
         syn::Item::Static(item) => &item.attrs,
         syn::Item::Struct(item) => &item.attrs,
@@ -224,6 +481,61 @@ fn macro_name_syntax(item: &syn::Item) -> Option<String> {
         return None;
     };
     invocation_syntax(&item_macro.mac.path).map(|invocation| invocation.terminal_name)
+}
+
+fn macro_declares_module_syntax(item: &syn::Item) -> bool {
+    let syn::Item::Macro(item_macro) = item else {
+        return false;
+    };
+    token_stream_declares_module(&item_macro.mac.tokens)
+}
+
+fn macro_body_is_facade_boundary_syntax(item: &syn::Item) -> bool {
+    let syn::Item::Macro(item_macro) = item else {
+        return false;
+    };
+    token_stream_is_facade_boundary(&item_macro.mac.tokens)
+}
+
+fn token_stream_is_facade_boundary(tokens: &TokenStream) -> bool {
+    let Ok(file) = syn::parse2::<syn::File>(tokens.clone()) else {
+        return false;
+    };
+    !file.items.is_empty() && file.items.iter().all(item_is_facade_boundary)
+}
+
+fn item_is_facade_boundary(item: &syn::Item) -> bool {
+    match item {
+        syn::Item::ExternCrate(_) | syn::Item::Use(_) => true,
+        syn::Item::Mod(item_mod) => item_mod.content.is_none(),
+        syn::Item::Macro(item_macro) => {
+            invocation_syntax(&item_macro.mac.path)
+                .is_some_and(|invocation| invocation.terminal_name != "macro_rules")
+                && token_stream_is_facade_boundary(&item_macro.mac.tokens)
+        }
+        _ => false,
+    }
+}
+
+fn token_stream_declares_module(tokens: &TokenStream) -> bool {
+    let mut iter = tokens.clone().into_iter().peekable();
+    while let Some(token) = iter.next() {
+        match token {
+            TokenTree::Group(group) if token_stream_declares_module(&group.stream()) => {
+                return true;
+            }
+            TokenTree::Ident(ident)
+                if ident == "mod"
+                    && iter
+                        .peek()
+                        .is_some_and(|next| matches!(next, TokenTree::Ident(_))) =>
+            {
+                return true;
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 fn include_target_syntax(item: &syn::Item) -> Option<String> {
@@ -293,6 +605,16 @@ fn attrs_have_test(attrs: &[syn::Attribute]) -> bool {
 
 fn attrs_have_doc(attrs: &[syn::Attribute]) -> bool {
     attrs.iter().any(|attr| attr.path().is_ident("doc"))
+}
+
+fn attribute_is_proc_macro_export(attr: &syn::Attribute) -> bool {
+    attr.path().is_ident("proc_macro")
+        || attr.path().is_ident("proc_macro_attribute")
+        || attr.path().is_ident("proc_macro_derive")
+}
+
+fn attribute_is_cfg(attr: &syn::Attribute) -> bool {
+    attr.path().is_ident("cfg")
 }
 
 fn attribute_has_cfg_test(attr: &syn::Attribute) -> bool {

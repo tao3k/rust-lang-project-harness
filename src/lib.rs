@@ -14,6 +14,7 @@ mod render;
 mod rules;
 mod runner;
 mod self_policy;
+mod verification;
 
 #[cfg(test)]
 #[path = "../tests/unit/discovery.rs"]
@@ -26,6 +27,10 @@ mod parser_source_path_tests;
 #[cfg(test)]
 #[path = "../tests/unit/parser_reasoning_tree.rs"]
 mod parser_reasoning_tree_tests;
+
+#[cfg(test)]
+#[path = "../tests/unit/parser_native_syntax.rs"]
+mod parser_native_syntax_tests;
 
 pub use agent_snapshot::{
     render_rust_project_harness_agent_snapshot,
@@ -50,4 +55,22 @@ pub use runner::{
     assert_rust_lang_harness_clean, assert_rust_project_harness_clean, default_rust_harness_config,
     run_rust_lang_harness, run_rust_lang_harness_with_config, run_rust_project_harness,
     run_rust_project_harness_with_config,
+};
+pub use verification::{
+    RustOwnerResponsibility, RustVerificationDependencySignal, RustVerificationEvidence,
+    RustVerificationPerformanceIndex, RustVerificationPerformanceRecord, RustVerificationPhase,
+    RustVerificationPlan, RustVerificationPolicy, RustVerificationProfileCandidate,
+    RustVerificationProfileCandidateState, RustVerificationProfileHint,
+    RustVerificationProfileIndex, RustVerificationReceipt, RustVerificationReceiptStatus,
+    RustVerificationRequirement, RustVerificationResolutionNote, RustVerificationSkillBinding,
+    RustVerificationSkillDescriptor, RustVerificationTask, RustVerificationTaskContract,
+    RustVerificationTaskKind, RustVerificationTaskState, RustVerificationWaiver,
+    build_rust_verification_performance_index, build_rust_verification_profile_index,
+    build_rust_verification_profile_index_with_config,
+    build_rust_verification_profile_index_with_policy, plan_rust_project_verification,
+    plan_rust_project_verification_with_config, plan_rust_project_verification_with_policy,
+    render_rust_verification_performance_index, render_rust_verification_performance_index_json,
+    render_rust_verification_plan, render_rust_verification_plan_json,
+    render_rust_verification_profile_index, render_rust_verification_profile_index_json,
+    render_rust_verification_skill_contracts,
 };

@@ -161,6 +161,7 @@ fn agent_snapshot_uses_policy_configured_findings() {
     assert!(!rendered.contains("RUST-MOD-R010"), "{rendered}");
     assert!(!rendered.contains("FindingGroups:"), "{rendered}");
     assert!(!rendered.contains(" - none"), "{rendered}");
+    insta::assert_snapshot!("public_api_configured_agent_snapshot", rendered);
 }
 
 fn write_glob_import_project(root: &std::path::Path) {

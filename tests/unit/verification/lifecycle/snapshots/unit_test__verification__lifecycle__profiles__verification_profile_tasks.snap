@@ -1,0 +1,27 @@
+---
+source: tests/unit/verification/lifecycle/profiles.rs
+assertion_line: 33
+expression: rendered
+---
+[verify] src/api.rs
+   |owner: src/api
+   |stress: pending phase=after_unit_tests_pass fingerprint=rustv:a862ed1714e4f40e
+   |why: stress=profile declares public API or integration surface
+   |requires: stress=p50,p99,p999,load_steps,sla_result
+   |fact: stress.profile=public_api,external_dependency,security_boundary,latency_sensitive
+   |contract: stress=stress skill must report p50/p99/p999, load steps, and SLA result for this fingerprint
+   |performance: pending phase=after_unit_tests_pass fingerprint=rustv:fc168c517832215e
+   |why: performance=profile declares latency-sensitive Rust owner
+   |requires: performance=benchmark_command,baseline,regression_threshold,latency_or_throughput,allocation_profile,profile_artifact
+   |fact: performance.profile=public_api,external_dependency,security_boundary,latency_sensitive
+   |contract: performance=performance skill must report benchmark command, baseline, regression threshold, latency or throughput, allocation profile, and profiling artifact for this fingerprint
+   |chaos: pending phase=before_release fingerprint=rustv:e3530bc24d926ee9
+   |why: chaos=profile declares dependency, persistence, or availability responsibility
+   |requires: chaos=injected_failures,degradation,recovery
+   |fact: chaos.profile=public_api,external_dependency,security_boundary,latency_sensitive
+   |contract: chaos=chaos skill must report injected failures, degradation behavior, and recovery result for this fingerprint
+   |security: pending phase=before_release fingerprint=rustv:8406c56558611a73
+   |why: security=profile declares auth, authorization, secret, or trust-boundary logic
+   |requires: security=attack_classes,authorization_boundary,findings
+   |fact: security.profile=public_api,external_dependency,security_boundary,latency_sensitive
+   |contract: security=security skill must report scanned attack classes and authorization-boundary result for this fingerprint

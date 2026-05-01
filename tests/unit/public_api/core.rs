@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use rust_lang_project_harness::{
     RustDiagnosticSeverity, default_rust_harness_config, render_rust_project_harness,
@@ -103,7 +103,7 @@ fn default_renderer_keeps_info_advice_visible_without_blocking() {
     fs::write(root.join("src/owned.rs"), "pub fn public_api() {}\n").expect("write owned module");
 
     let report = run_rust_project_harness(root).expect("run project harness");
-    let rendered = render_rust_project_harness(&report);
+    let rendered = normalize_temp_root(&render_rust_project_harness(&report), root);
 
     assert!(report.is_clean(), "{rendered}");
     assert!(rendered.contains("AGENT-R001"));
@@ -116,6 +116,7 @@ fn default_renderer_keeps_info_advice_visible_without_blocking() {
         !rendered.contains("No blocking issues found."),
         "{rendered}"
     );
+    insta::assert_snapshot!("public_api_default_advice_output", rendered);
 }
 
 #[test]
@@ -136,7 +137,10 @@ fn agent_snapshot_renderer_exposes_reasoning_tree_shape() {
     .expect("write domain");
     fs::write(root.join("src/domain/leaf.rs"), "//! Domain leaf.\n").expect("write leaf");
 
-    let rendered = render_rust_project_harness_agent_snapshot(root).expect("render snapshot");
+    let rendered = normalize_temp_root(
+        &render_rust_project_harness_agent_snapshot(root).expect("render snapshot"),
+        root,
+    );
 
     assert!(rendered.starts_with("Modules:"), "{rendered}");
     assert!(!rendered.contains("[agent:snapshot]"), "{rendered}");
@@ -149,6 +153,7 @@ fn agent_snapshot_renderer_exposes_reasoning_tree_shape() {
         "{rendered}"
     );
     assert!(!rendered.contains("FindingGroups:"), "{rendered}");
+    insta::assert_snapshot!("public_api_agent_snapshot_shape", rendered);
 }
 
 #[test]
@@ -176,4 +181,11 @@ fn json_renderer_preserves_structured_report_fields() {
     assert!(value["findings"][0]["summary"].as_str().is_some());
     assert!(value["findings"][0]["requirement"].as_str().is_some());
     assert!(value["project_scope"].is_object());
+}
+
+fn normalize_temp_root(rendered: &str, root: &Path) -> String {
+    let root_text = root.display().to_string();
+    rendered
+        .replace(&root_text, "$TEMP")
+        .replace(&root_text.replace('\\', "/"), "$TEMP")
 }

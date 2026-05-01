@@ -219,6 +219,28 @@ fn crate_facade_policy_rejects_implementation_in_lib_rs() {
 }
 
 #[test]
+fn crate_facade_policy_accepts_proc_macro_exports() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "proc-macro-facade");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(
+        root.join("src/lib.rs"),
+        "//! Test crate.\nmod owned;\n#[proc_macro]\npub fn export(input: proc_macro::TokenStream) -> proc_macro::TokenStream { owned::expand(input) }\n",
+    )
+    .expect("write lib");
+    fs::write(
+        root.join("src/owned.rs"),
+        "//! Owned module.\npub fn expand(input: proc_macro::TokenStream) -> proc_macro::TokenStream { input }\n",
+    )
+    .expect("write owned module");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    assert!(!has_rule(&report, "RUST-MOD-R004"), "{:?}", report.findings);
+}
+
+#[test]
 fn binary_entrypoint_policy_rejects_top_level_implementation() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();

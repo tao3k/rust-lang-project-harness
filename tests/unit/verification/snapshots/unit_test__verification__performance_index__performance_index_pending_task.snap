@@ -1,0 +1,9 @@
+---
+source: tests/unit/verification/performance_index.rs
+assertion_line: 95
+expression: rendered
+---
+[perf-state] src/api.rs
+   |owner: src/api
+   |state: pending phase=after_unit_tests_pass fingerprint=rustv:07c5fef10ad0d802 skill=rust-verification-performance@criterion contract_ref=rust-verification-performance@criterion
+   |missing: benchmark_command,baseline,regression_threshold,latency_or_throughput,allocation_profile,profile_artifact

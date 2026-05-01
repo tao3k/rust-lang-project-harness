@@ -1,0 +1,13 @@
+---
+source: tests/unit/verification/lifecycle/profiles.rs
+assertion_line: 56
+expression: rendered
+---
+[verify] src/domain.rs
+   |owner: src/domain
+   |responsibility_review: pending phase=before_verification fingerprint=rustv:f2a74ba781a69510
+   |why: responsibility_review=profile declares pure domain logic but parser facts show runtime or owner dependencies
+   |requires: responsibility_review=profile_resolution
+   |fact: responsibility_review.profile=pure_domain_logic
+   |fact: responsibility_review.parser=external_imports=1 owner_deps=0
+   |contract: responsibility_review=update the verification profile hint to match parser facts, or attach a complete waiver

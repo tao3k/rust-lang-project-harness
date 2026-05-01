@@ -1,0 +1,11 @@
+---
+source: tests/unit/verification/config/mapping.rs
+expression: rendered
+---
+[verify] src/api.rs
+   |owner: src/api
+   |performance: pending phase=after_unit_tests_pass fingerprint=rustv:705ee5a7e7640a64
+   |why: performance=profile declares latency-sensitive Rust owner
+   |requires: performance=benchmark_command,baseline,regression_threshold,latency_or_throughput,allocation_profile,profile_artifact
+   |fact: performance.profile=latency_sensitive
+   |contract: performance=performance skill must report benchmark command, baseline, regression threshold, latency or throughput, allocation profile, and profiling artifact for this fingerprint

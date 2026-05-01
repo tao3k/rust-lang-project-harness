@@ -41,7 +41,7 @@ version labels, searchable domains, and default modes. The first three packs are
 - `RUST-MOD-R001`: `mod.rs` should stay interface-only with external module declarations and re-exports
 - `RUST-MOD-R002`: oversized source file should split by responsibility, including private implementation piles
 - `RUST-MOD-R003`: native `use` trees containing `super::super` should move behind a clearer owner boundary
-- `RUST-MOD-R004`: `lib.rs` should stay a crate facade with module declarations and re-exports only
+- `RUST-MOD-R004`: `lib.rs` should stay a crate facade with module declarations, re-exports, and parser-proven boundary macros only
 - `RUST-MOD-R005`: `src/main.rs` and `src/bin` entrypoints should stay thin
 - `RUST-MOD-R006`: root `build.rs` should stay a thin Cargo build-script entrypoint
 - `RUST-MOD-R007`: a module owner should not have both `foo.rs` and `foo/mod.rs`
@@ -101,6 +101,8 @@ and are not blocking by default.
 - `AGENT-R009`: owner dependency graph contains a local owner cycle
 - `AGENT-R010`: owner branch imports another owner's leaf implementation module
 - `AGENT-R011`: branch module fans out to three or more local owners without an intent doc
+- `AGENT-R012`: public semantic identifier parameter uses a primitive string or integer type
+- `AGENT-R013`: public error boundary uses an application error type such as `anyhow::Result`
 
 ## Rendered Diagnostic Policy
 
@@ -146,10 +148,11 @@ ignored. The parser also records whether a `use` statement is inside an inline
 `#[cfg(test)]` module or a conventional `tests/` root, so glob findings can name
 test context without weakening the default no-glob harness contract.
 
-`AGENT-R001`, `AGENT-R002`, `AGENT-R004`, `AGENT-R005`, `AGENT-R006`, and
-`AGENT-R008` consume native facts from `src/parser/`, including file-level inner
-doc attributes, public names, public item doc attributes, public re-export
-groups, and resolved reasoning-tree child edges. `AGENT-R003` evaluates the
+`AGENT-R001`, `AGENT-R002`, `AGENT-R004`, `AGENT-R005`, `AGENT-R006`,
+`AGENT-R008`, `AGENT-R012`, and `AGENT-R013` consume native facts from
+`src/parser/`, including file-level inner doc attributes, public names, public
+item doc attributes, public re-export groups, public function parameters, public
+function return types, and resolved reasoning-tree child edges. `AGENT-R003` evaluates the
 default package harness surface, including `src/` and `tests/`. It treats
 normal Rust file stems as namespace segments, so both `src/domain/domain.rs` and
 `tests/unit/unit/helper.rs` produce advisory path clarity findings.
@@ -163,7 +166,17 @@ private. `AGENT-R009`, `AGENT-R010`, and `AGENT-R011` consume parser-derived
 owner dependency edges. They stay advisory because Rust permits these import
 shapes, but they are high-signal LLM repair risks: circular owner reasoning,
 reaching into another owner's leaf module, and fan-out branches without local
-intent documentation.
+intent documentation. `AGENT-R012` is derived from type-driven Rust practice:
+when a public function exposes a parameter named `id` or `*_id` as `String`,
+`&str`, an integer primitive, or `Option` around those primitive carriers, the
+harness asks for an owner-named newtype or an explicit primitive-boundary
+rationale. Clippy cannot know that a primitive is a semantic identifier, but the
+parser can expose the native signature fact for agent repair. `AGENT-R013` is
+derived from Rust error-boundary practice: public library functions should expose
+typed recovery contracts rather than application-level catch-all errors such as
+`anyhow::Result`, `eyre::Result`, or `Result<_, Box<dyn Error>>`. The rule stays
+advisory because binaries and application crates may choose that boundary
+intentionally.
 
 ## Reasoning Tree Policy
 

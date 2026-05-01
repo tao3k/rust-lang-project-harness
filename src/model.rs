@@ -6,6 +6,13 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::verification::{
+    RustOwnerResponsibility, RustVerificationDependencySignal, RustVerificationPolicy,
+    RustVerificationProfileHint, RustVerificationReceipt, RustVerificationSkillBinding,
+    RustVerificationSkillDescriptor, RustVerificationTaskContract, RustVerificationTaskKind,
+    RustVerificationWaiver,
+};
+
 /// Finding severity used by the Rust project harness.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -134,6 +141,8 @@ impl RustRulePack {
                 "AGENT-R009",
                 "AGENT-R010",
                 "AGENT-R011",
+                "AGENT-R012",
+                "AGENT-R013",
             ],
         }
     }
@@ -297,6 +306,9 @@ pub struct RustHarnessConfig {
     pub source_dir_names: Vec<String>,
     /// Test directory names, relative to the project root.
     pub test_dir_names: Vec<String>,
+    /// Library-first verification policy used to plan external skill tasks.
+    #[serde(default, skip_serializing_if = "RustVerificationPolicy::is_empty")]
+    pub verification_policy: RustVerificationPolicy,
 }
 
 impl Default for RustHarnessConfig {
@@ -315,6 +327,7 @@ impl Default for RustHarnessConfig {
             include_tests: true,
             source_dir_names: vec!["src".to_string()],
             test_dir_names: vec!["tests".to_string()],
+            verification_policy: RustVerificationPolicy::default(),
         }
     }
 }
@@ -386,6 +399,98 @@ impl RustHarnessConfig {
         I: IntoIterator<Item = RustDiagnosticSeverity>,
     {
         self.blocking_severities = severities.into_iter().collect();
+        self
+    }
+
+    /// Return a config with an explicit verification policy.
+    #[must_use]
+    pub fn with_verification_policy(mut self, policy: RustVerificationPolicy) -> Self {
+        self.verification_policy = policy;
+        self
+    }
+
+    /// Return a config with one verification profile hint appended.
+    #[must_use]
+    pub fn with_verification_profile_hint(mut self, hint: RustVerificationProfileHint) -> Self {
+        self.verification_policy.profile_hints.push(hint);
+        self
+    }
+
+    /// Return a config with one verification receipt appended.
+    #[must_use]
+    pub fn with_verification_receipt(mut self, receipt: RustVerificationReceipt) -> Self {
+        self.verification_policy.receipts.push(receipt);
+        self
+    }
+
+    /// Return a config with one verification waiver appended.
+    #[must_use]
+    pub fn with_verification_waiver(mut self, waiver: RustVerificationWaiver) -> Self {
+        self.verification_policy.waivers.push(waiver);
+        self
+    }
+
+    /// Return a config with one verification task contract overridden.
+    #[must_use]
+    pub fn with_verification_task_contract(
+        mut self,
+        kind: RustVerificationTaskKind,
+        contract: RustVerificationTaskContract,
+    ) -> Self {
+        self.verification_policy
+            .task_contract_overrides
+            .insert(kind, contract);
+        self
+    }
+
+    /// Return a config with one verification skill binding configured.
+    #[must_use]
+    pub fn with_verification_skill_binding(
+        mut self,
+        kind: RustVerificationTaskKind,
+        binding: RustVerificationSkillBinding,
+    ) -> Self {
+        self.verification_policy
+            .skill_bindings
+            .insert(kind, binding);
+        self
+    }
+
+    /// Return a config with one verification skill descriptor configured.
+    #[must_use]
+    pub fn with_verification_skill_descriptor(
+        mut self,
+        descriptor: RustVerificationSkillDescriptor,
+    ) -> Self {
+        self.verification_policy
+            .skill_descriptors
+            .insert(descriptor.compact_label(), descriptor);
+        self
+    }
+
+    /// Return a config with one responsibility mapped to explicit task kinds.
+    #[must_use]
+    pub fn with_verification_responsibility_task_kinds<I>(
+        mut self,
+        responsibility: RustOwnerResponsibility,
+        task_kinds: I,
+    ) -> Self
+    where
+        I: IntoIterator<Item = RustVerificationTaskKind>,
+    {
+        self.verification_policy
+            .responsibility_task_overrides
+            .insert(responsibility, task_kinds.into_iter().collect());
+        self
+    }
+
+    /// Return a config with one project-owned dependency signal appended.
+    #[must_use]
+    pub fn with_verification_dependency_signal(
+        mut self,
+        signal: RustVerificationDependencySignal,
+    ) -> Self {
+        self.verification_policy.dependency_signals.push(signal);
         self
     }
 }

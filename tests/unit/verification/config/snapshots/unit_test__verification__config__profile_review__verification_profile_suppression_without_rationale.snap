@@ -1,0 +1,13 @@
+---
+source: tests/unit/verification/config/profile_review.rs
+expression: rendered
+---
+[verify] src/api.rs
+   |owner: src/api
+   |responsibility_review: pending phase=before_verification fingerprint=rustv:9870c2d2f6031dd3
+   |why: responsibility_review=owner-local verification override needs compact rationale
+   |requires: responsibility_review=profile_resolution
+   |fact: responsibility_review.profile=public_api
+   |fact: responsibility_review.derived=stress
+   |fact: responsibility_review.configured=<none>
+   |contract: responsibility_review=update the verification profile hint to match parser facts, or attach a complete waiver

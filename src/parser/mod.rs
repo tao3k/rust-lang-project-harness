@@ -12,7 +12,10 @@ mod source_metrics;
 mod source_path;
 mod use_tree;
 
-pub(crate) use cargo_manifest::{CargoManifestFacts, parse_cargo_manifest};
+pub(crate) use cargo_manifest::{
+    CargoDependencyFacts, CargoDependencyKind, CargoManifestFacts, parse_cargo_dependency_facts,
+    parse_cargo_manifest,
+};
 pub(crate) use cargo_test_targets::parse_cargo_test_targets;
 pub(crate) use location::{file_location, path_line_location, source_line, span_location};
 pub(crate) use module_tree::RustModuleChildEdge;

@@ -1,0 +1,44 @@
+---
+source: tests/unit/verification/profile_index/candidates.rs
+expression: rendered
+---
+[verify-profile] src/api.rs
+   |owner: src/api
+   |state: missing_profile
+   |suggest: public_api,external_dependency,availability_critical
+   |tasks: stress,chaos
+   |fact: public_items=1
+   |fact: public_fns=1
+   |fact: configured_dependency_roots=axum
+   |fact: external_roots=axum::Router
+   |fact: network_roots=axum::Router
+
+[verify-profile] src/auth.rs
+   |owner: src/auth
+   |state: missing_profile
+   |suggest: public_api,security_boundary
+   |tasks: stress,security
+   |fact: public_items=1
+   |fact: public_fns=1
+   |fact: configured_dependency_roots=sha2
+   |fact: security_roots=sha2::Digest
+
+[verify-profile] src/search.rs
+   |owner: src/search
+   |state: missing_profile
+   |suggest: public_api,latency_sensitive
+   |tasks: stress,performance
+   |fact: public_items=1
+   |fact: public_fns=1
+   |fact: configured_dependency_roots=rayon
+   |fact: performance_roots=rayon::prelude
+
+[verify-profile] src/storage.rs
+   |owner: src/storage
+   |state: missing_profile
+   |suggest: public_api,external_dependency,persistence
+   |tasks: stress,chaos
+   |fact: public_items=1
+   |fact: public_fns=1
+   |fact: external_roots=std::fs
+   |fact: persistence_roots=std::fs
