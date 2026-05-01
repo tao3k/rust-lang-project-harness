@@ -10,3 +10,4 @@ This package is the Rust-language counterpart to
 - [Verification Policy](03_features/204_verification_policy.md)
 - [Rust Ecosystem Policy Survey](04_research/2026-05-01-rust-ecosystem-policy-survey.md)
 - [Self-Apply Policy Design](superpowers/specs/2026-04-30-rust-harness-self-apply-policy-design.md)
+- [Repo-Local Agent Skills](../skills/README.md)

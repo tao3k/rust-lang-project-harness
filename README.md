@@ -255,6 +255,14 @@ Owner branches render parser-labeled child edges such as `mod:src/domain.rs`,
 dependencies render as compact edges such as
 `src/lib.rs --crate--> src/domain.rs`.
 
+## Repo-Local Agent Skills
+
+Top-level [`skills/`](skills/README.md) contains the Agent-facing operating
+contracts for this repository. Load those skills before changing harness policy,
+verification profile config, or performance-sensitive Rust paths. They are
+original harness-specific guidance, not vendored copies of external Rust skill
+catalogs.
+
 ## Docs
 
 Detailed package material lives under [`docs/`](docs/index.md).
