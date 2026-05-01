@@ -158,7 +158,7 @@ The harness treats a Rust project as a reasoning tree for agents: crate
 facades and branch modules point to owner modules, and owner modules point to
 leaf implementation files. Parser reasoning facts also summarize each owner
 branch's import roots (`crate`, `self`, `parent`, `external`, plus
-glob/deep/test markers) and local owner import dependencies for compact agent
+glob/deep/test markers) and local owner dependency edges for compact agent
 snapshots. `RUST-MOD-R008` keeps those branches file-backed by rejecting inline
 source modules outside special entrypoints and `#[cfg(test)]` test modules.
 `RUST-MOD-R009` then verifies parser-owned module-tree facts: a scanned source

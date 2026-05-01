@@ -46,7 +46,7 @@ acceptable.
 Those lower-level facts are assembled into a parser-owned reasoning tree before
 policy execution. The reasoning tree gives each parsed module a source role,
 owner namespace, module-tree-root marker, import-root summary, local owner
-imports, declared child edges, and shadow/orphan reachability state. It also
+dependency edges, declared child edges, and shadow/orphan reachability state. It also
 derives owner-branch facts that group branch roots, roles, owner namespaces,
 import roots, local dependencies, and child edges together, so policy packs and
 agent snapshots do not have to infer project structure from a massive file list.

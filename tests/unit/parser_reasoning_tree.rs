@@ -4,9 +4,17 @@ use tempfile::TempDir;
 
 use crate::RustProjectHarnessScope;
 use crate::parser::{
-    RustModuleChildEdgeKind, RustReasoningOwnerBranchRole, parse_rust_file,
+    RustModuleChildEdgeKind, RustReasoningOwnerBranchRole, RustUseImportRootKind, parse_rust_file,
     rust_reasoning_tree_facts,
 };
+
+type DependencyEdge = (
+    std::path::PathBuf,
+    Vec<String>,
+    std::path::PathBuf,
+    Vec<String>,
+    RustUseImportRootKind,
+);
 
 #[test]
 fn reasoning_tree_interprets_modules_owners_and_child_edges() {
@@ -65,6 +73,16 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
         vec![vec!["src".to_string(), "domain".to_string()]]
     );
     assert_eq!(
+        dependency_edges(lib),
+        vec![(
+            src.join("lib.rs"),
+            vec!["src".to_string()],
+            src.join("domain.rs"),
+            vec!["src".to_string(), "domain".to_string()],
+            RustUseImportRootKind::Crate,
+        )]
+    );
+    assert_eq!(
         child_edges(lib),
         vec![
             (RustModuleChildEdgeKind::Mod, src.join("domain.rs")),
@@ -95,6 +113,16 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
             "domain".to_string(),
             "leaf".to_string()
         ]]
+    );
+    assert_eq!(
+        dependency_edges(branch),
+        vec![(
+            src.join("domain.rs"),
+            vec!["src".to_string(), "domain".to_string()],
+            src.join("domain/leaf.rs"),
+            vec!["src".to_string(), "domain".to_string(), "leaf".to_string()],
+            RustUseImportRootKind::SelfScope,
+        )]
     );
     assert_eq!(
         child_edges(branch),
@@ -235,5 +263,22 @@ fn owner_branch_child_edges(
         .declared_child_edges
         .iter()
         .map(|edge| (edge.kind, edge.child_path.clone()))
+        .collect()
+}
+
+fn dependency_edges(module: &crate::parser::RustReasoningModuleFacts) -> Vec<DependencyEdge> {
+    module
+        .import_summary
+        .local_owner_dependencies
+        .iter()
+        .map(|dependency| {
+            (
+                dependency.source_path.clone(),
+                dependency.source_namespace.clone(),
+                dependency.target_path.clone(),
+                dependency.target_namespace.clone(),
+                dependency.via_root,
+            )
+        })
         .collect()
 }

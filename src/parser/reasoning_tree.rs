@@ -1,6 +1,6 @@
 //! Project reasoning-tree facts derived from parsed Rust modules.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use crate::RustProjectHarnessScope;
@@ -58,6 +58,16 @@ pub(crate) struct RustReasoningImportFacts {
     pub(crate) prelude_imports: usize,
     pub(crate) test_context_imports: usize,
     pub(crate) local_owner_imports: Vec<Vec<String>>,
+    pub(crate) local_owner_dependencies: Vec<RustReasoningOwnerDependencyFacts>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct RustReasoningOwnerDependencyFacts {
+    pub(crate) source_path: PathBuf,
+    pub(crate) source_namespace: Vec<String>,
+    pub(crate) target_path: PathBuf,
+    pub(crate) target_namespace: Vec<String>,
+    pub(crate) via_root: RustUseImportRootKind,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -112,13 +122,13 @@ pub(crate) fn rust_reasoning_tree_facts(
             }
         })
         .collect::<Vec<_>>();
-    let known_module_namespaces = known_module_namespaces(&preliminary_modules);
+    let known_module_namespace_paths = known_module_namespace_paths(&preliminary_modules);
     let module_facts = preliminary_modules
         .into_iter()
         .zip(modules)
         .map(|(mut module_facts, module)| {
             module_facts.import_summary =
-                import_summary(module, &module_facts, &known_module_namespaces);
+                import_summary(module, &module_facts, &known_module_namespace_paths);
             module_facts
         })
         .collect::<Vec<_>>();
@@ -162,22 +172,30 @@ fn owner_branch_facts(modules: &[RustReasoningModuleFacts]) -> Vec<RustReasoning
     branches
 }
 
-fn known_module_namespaces(modules: &[RustReasoningModuleFacts]) -> BTreeSet<Vec<String>> {
+fn known_module_namespace_paths(
+    modules: &[RustReasoningModuleFacts],
+) -> BTreeMap<Vec<String>, PathBuf> {
     modules
         .iter()
         .filter(|module| module.is_source_module)
-        .map(|module| module.source_path.namespace_components.clone())
-        .filter(|namespace| !namespace.is_empty())
+        .filter(|module| !module.source_path.namespace_components.is_empty())
+        .map(|module| {
+            (
+                module.source_path.namespace_components.clone(),
+                module.path.clone(),
+            )
+        })
         .collect()
 }
 
 fn import_summary(
     module: &ParsedRustModule,
     module_facts: &RustReasoningModuleFacts,
-    known_module_namespaces: &BTreeSet<Vec<String>>,
+    known_module_namespace_paths: &BTreeMap<Vec<String>, PathBuf>,
 ) -> RustReasoningImportFacts {
     let mut summary = RustReasoningImportFacts::default();
     let mut local_owner_imports = BTreeSet::<Vec<String>>::new();
+    let mut local_owner_dependencies = BTreeSet::<RustReasoningOwnerDependencyFacts>::new();
     for use_statement in &module.syntax_facts.use_statements {
         let import_count = use_statement.imports.len();
         summary.total_imports += import_count;
@@ -202,30 +220,42 @@ fn import_summary(
             if import.is_prelude_import {
                 summary.prelude_imports += 1;
             }
-            if let Some(namespace) = local_owner_import_namespace(
+            if let Some(dependency) = local_owner_dependency(
+                &module_facts.path,
                 &module_facts.source_path.namespace_components,
                 import,
-                known_module_namespaces,
+                known_module_namespace_paths,
             ) {
-                local_owner_imports.insert(namespace);
+                local_owner_imports.insert(dependency.target_namespace.clone());
+                local_owner_dependencies.insert(dependency);
             }
         }
     }
     summary.local_owner_imports = local_owner_imports.into_iter().collect();
+    summary.local_owner_dependencies = local_owner_dependencies.into_iter().collect();
     summary
 }
 
-fn local_owner_import_namespace(
+fn local_owner_dependency(
+    current_path: &Path,
     current_namespace: &[String],
     import: &RustUseImportSyntax,
-    known_module_namespaces: &BTreeSet<Vec<String>>,
-) -> Option<Vec<String>> {
+    known_module_namespace_paths: &BTreeMap<Vec<String>, PathBuf>,
+) -> Option<RustReasoningOwnerDependencyFacts> {
     let candidate = local_import_candidate_namespace(current_namespace, import)?;
-    let namespace = longest_known_namespace_prefix(&candidate, known_module_namespaces)?;
-    if namespace.len() <= 1 || namespace.as_slice() == current_namespace {
+    let target_namespace =
+        longest_known_namespace_prefix(&candidate, known_module_namespace_paths)?;
+    if target_namespace.len() <= 1 || target_namespace.as_slice() == current_namespace {
         return None;
     }
-    Some(namespace)
+    let target_path = known_module_namespace_paths.get(&target_namespace)?.clone();
+    Some(RustReasoningOwnerDependencyFacts {
+        source_path: current_path.to_path_buf(),
+        source_namespace: current_namespace.to_vec(),
+        target_path,
+        target_namespace,
+        via_root: import.root_kind,
+    })
 }
 
 fn local_import_candidate_namespace(
@@ -264,11 +294,13 @@ fn local_import_candidate_namespace(
 
 fn longest_known_namespace_prefix(
     candidate: &[String],
-    known_module_namespaces: &BTreeSet<Vec<String>>,
+    known_module_namespace_paths: &BTreeMap<Vec<String>, PathBuf>,
 ) -> Option<Vec<String>> {
     (1..=candidate.len()).rev().find_map(|length| {
         let prefix = candidate.iter().take(length).cloned().collect::<Vec<_>>();
-        known_module_namespaces.contains(&prefix).then_some(prefix)
+        known_module_namespace_paths
+            .contains_key(&prefix)
+            .then_some(prefix)
     })
 }
 
