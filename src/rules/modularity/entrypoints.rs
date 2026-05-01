@@ -1,25 +1,21 @@
 //! Special Rust entrypoint and facade policies.
 
 use std::collections::BTreeMap;
-use std::path::Path;
 
-use crate::parser::{ParsedRustModule, RustTopLevelItemSyntax, path_line_location, source_line};
+use crate::parser::{
+    ParsedRustModule, RustSourcePathFacts, RustTopLevelItemSyntax, path_line_location, source_line,
+};
 use crate::rules::display_path;
-use crate::{RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
+use crate::{RustHarnessFinding, RustHarnessRule};
 
 use super::{RUST_MOD_R001, RUST_MOD_R004, RUST_MOD_R005, RUST_MOD_R006};
 
 pub(super) fn crate_facade_findings(
+    path_facts: &RustSourcePathFacts,
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    if module
-        .report
-        .path
-        .file_name()
-        .and_then(|name| name.to_str())
-        != Some("lib.rs")
-    {
+    if !path_facts.is_crate_facade {
         return Vec::new();
     }
     let rule = &rules[RUST_MOD_R004];
@@ -45,11 +41,11 @@ pub(super) fn crate_facade_findings(
 }
 
 pub(super) fn binary_entrypoint_findings(
-    scope: &RustProjectHarnessScope,
+    path_facts: &RustSourcePathFacts,
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    if !is_binary_entrypoint_file(scope, &module.report.path) {
+    if !path_facts.is_binary_entrypoint {
         return Vec::new();
     }
     let rule = &rules[RUST_MOD_R005];
@@ -75,11 +71,11 @@ pub(super) fn binary_entrypoint_findings(
 }
 
 pub(super) fn build_script_entrypoint_findings(
-    scope: &RustProjectHarnessScope,
+    path_facts: &RustSourcePathFacts,
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    if !is_build_script_entrypoint_file(scope, &module.report.path) {
+    if !path_facts.is_build_script_entrypoint {
         return Vec::new();
     }
     let rule = &rules[RUST_MOD_R006];
@@ -105,16 +101,11 @@ pub(super) fn build_script_entrypoint_findings(
 }
 
 pub(super) fn interface_mod_findings(
+    path_facts: &RustSourcePathFacts,
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    if module
-        .report
-        .path
-        .file_name()
-        .and_then(|name| name.to_str())
-        != Some("mod.rs")
-    {
+    if !path_facts.is_interface_mod {
         return Vec::new();
     }
     let rule = &rules[RUST_MOD_R001];
@@ -139,13 +130,6 @@ pub(super) fn interface_mod_findings(
         .collect()
 }
 
-pub(super) fn is_package_entrypoint_file(scope: &RustProjectHarnessScope, path: &Path) -> bool {
-    scope
-        .package_paths
-        .iter()
-        .any(|entrypoint| entrypoint == path)
-}
-
 fn is_interface_item(item: &RustTopLevelItemSyntax) -> bool {
     item.module.as_ref().is_some_and(|module| !module.is_inline) || item.is_use
 }
@@ -167,14 +151,6 @@ fn is_build_script_entrypoint_item(item: &RustTopLevelItemSyntax) -> bool {
     item.function_name.as_deref() == Some("main") || item.is_use
 }
 
-fn is_build_script_entrypoint_file(scope: &RustProjectHarnessScope, path: &Path) -> bool {
-    is_package_entrypoint_file(scope, path)
-        && path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .is_some_and(|name| name == "build.rs")
-}
-
 fn is_source_gate_macro_name(name: &str) -> bool {
     matches!(
         name,
@@ -186,26 +162,4 @@ fn is_source_gate_macro_name(name: &str) -> bool {
             | "crate_testing_gate"
             | "crate_test_policy_harness"
     )
-}
-
-fn is_binary_entrypoint_file(scope: &RustProjectHarnessScope, path: &Path) -> bool {
-    scope.source_paths.iter().any(|source_root| {
-        if path == source_root.join("main.rs") {
-            return true;
-        }
-        let Ok(relative) = path.strip_prefix(source_root) else {
-            return false;
-        };
-        let components = relative
-            .iter()
-            .map(|component| component.to_string_lossy())
-            .collect::<Vec<_>>();
-        matches!(
-            components.as_slice(),
-            [first, _] if first.as_ref() == "bin"
-        ) || matches!(
-            components.as_slice(),
-            [first, _, file] if first.as_ref() == "bin" && file.as_ref() == "main.rs"
-        )
-    })
 }

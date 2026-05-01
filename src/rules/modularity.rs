@@ -5,14 +5,14 @@ mod entrypoints;
 mod reasoning_tree;
 mod source_shape;
 
-use crate::parser::{ParsedRustModule, rust_module_tree_facts};
+use crate::parser::{ParsedRustModule, rust_module_tree_facts, rust_source_path_facts};
 use crate::{RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
 use super::is_under_any_dir;
 use catalog::rules_by_id;
 use entrypoints::{
     binary_entrypoint_findings, build_script_entrypoint_findings, crate_facade_findings,
-    interface_mod_findings, is_package_entrypoint_file,
+    interface_mod_findings,
 };
 use reasoning_tree::{
     inline_source_module_findings, module_source_shadow_findings, orphan_source_module_findings,
@@ -56,24 +56,33 @@ pub(crate) fn evaluate(
     findings.extend(module_source_shadow_findings(&module_tree, &rules));
     findings.extend(orphan_source_module_findings(&module_tree, &rules));
     for module in modules {
+        let path_facts = rust_source_path_facts(
+            &scope.project_root,
+            &scope.source_paths,
+            &scope.package_paths,
+            &module.report.path,
+        );
         let is_source_module = is_under_any_dir(&module.report.path, &scope.source_paths);
-        let is_package_entrypoint = is_package_entrypoint_file(scope, &module.report.path);
-        if !is_source_module && !is_package_entrypoint {
+        if !is_source_module && !path_facts.is_package_entrypoint {
             continue;
         }
         if !module.report.is_valid {
             continue;
         }
         if is_source_module {
-            findings.extend(crate_facade_findings(module, &rules));
-            findings.extend(binary_entrypoint_findings(scope, module, &rules));
-            findings.extend(interface_mod_findings(module, &rules));
+            findings.extend(crate_facade_findings(&path_facts, module, &rules));
+            findings.extend(binary_entrypoint_findings(&path_facts, module, &rules));
+            findings.extend(interface_mod_findings(&path_facts, module, &rules));
             findings.extend(inline_source_module_findings(module, &rules));
             findings.extend(source_file_bloat_findings(module, &rules));
             findings.extend(deep_relative_import_findings(module, &rules));
             findings.extend(glob_import_findings(module, &rules));
         }
-        findings.extend(build_script_entrypoint_findings(scope, module, &rules));
+        findings.extend(build_script_entrypoint_findings(
+            &path_facts,
+            module,
+            &rules,
+        ));
     }
     findings
 }

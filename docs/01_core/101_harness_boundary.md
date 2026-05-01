@@ -38,6 +38,11 @@ parsed under `src/parser/` before `RUST-PROJ-R006`, `RUST-PROJ-R007`, and
 `RUST-PROJ-R008` render findings.
 Rust `#[path]` attributes are also resolved there, so project policy consumes
 both the native attribute text and its normalized target path as parser facts.
+Rust source path interpretation follows the same contract: namespace
+components, repeated namespace branches, crate facades, `mod.rs` interfaces,
+binary entrypoints, and root `build.rs` entrypoints are derived under
+`src/parser/` before agent or modularity policies decide whether those facts are
+acceptable.
 
 Custom project source roots configured through `RustHarnessConfig` are treated
 as source ownership roots by project, modularity, and agent policy packs.

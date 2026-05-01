@@ -195,6 +195,39 @@ fn rust_path_attribute_resolution_lives_under_parser_module() {
 }
 
 #[test]
+fn rust_source_path_facts_live_under_parser_module() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let parser_source =
+        fs::read_to_string(root.join("src/parser/source_path.rs")).expect("read source path facts");
+    assert!(parser_source.contains("pub(crate) fn rust_source_path_facts"));
+    assert!(parser_source.contains("repeated_namespace_segments"));
+    assert!(parser_source.contains("is_binary_entrypoint"));
+
+    let forbidden_rule_fragments = [
+        "fn relative_namespace_components",
+        "fn repeated_segments",
+        "fn offending_branch",
+        "fn is_binary_entrypoint_file",
+        "fn is_build_script_entrypoint_file",
+    ];
+    let mut offenders = Vec::new();
+    for path in rust_files_under(&root.join("src/rules")) {
+        let source = fs::read_to_string(&path).expect("read rule source");
+        if forbidden_rule_fragments
+            .iter()
+            .any(|fragment| source.contains(fragment))
+        {
+            offenders.push(relative_path(&root, &path));
+        }
+    }
+
+    assert!(
+        offenders.is_empty(),
+        "Rust source path and namespace facts must live under src/parser/source_path.rs: {offenders:?}"
+    );
+}
+
+#[test]
 fn library_target_mounts_source_backed_self_apply_gate() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let lib_rs = fs::read_to_string(root.join("src/lib.rs")).expect("read src/lib.rs");

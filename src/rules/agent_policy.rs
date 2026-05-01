@@ -1,10 +1,11 @@
 //! Agent-oriented Rust policy rules.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::parser::{
-    ParsedRustModule, RustTopLevelItemSyntax, file_location, path_line_location, source_line,
+    ParsedRustModule, RustSourcePathFacts, RustTopLevelItemSyntax, file_location,
+    path_line_location, rust_source_path_facts, source_line,
 };
 use crate::{RustDiagnosticSeverity, RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
@@ -51,7 +52,7 @@ pub(crate) fn evaluate(
         };
         findings.extend(module_intent_findings(module, &rules));
         findings.extend(public_doc_findings(module, &rules));
-        findings.extend(facade_reexport_findings(module, &rules));
+        findings.extend(facade_reexport_findings(scope, module, &rules));
         findings.extend(generic_public_module_findings(module, &rules));
         findings.extend(branch_module_intent_findings(module, &rules));
     }
@@ -111,16 +112,12 @@ fn public_doc_findings(
 }
 
 fn facade_reexport_findings(
+    scope: &RustProjectHarnessScope,
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    if module
-        .report
-        .path
-        .file_name()
-        .and_then(|name| name.to_str())
-        != Some("lib.rs")
-    {
+    let path_facts = module_source_path_facts(scope, &module.report.path);
+    if !path_facts.is_crate_facade {
         return Vec::new();
     }
     let reexport_count = module
@@ -186,8 +183,9 @@ fn generic_module_path_findings(
     modules
         .iter()
         .filter_map(|module| {
-            let components = relative_namespace_components(scope, &module.report.path)?;
-            let generic_segment = components
+            let path_facts = module_source_path_facts(scope, &module.report.path);
+            let generic_segment = path_facts
+                .namespace_components
                 .iter()
                 .find(|component| is_generic_module_name(component.as_str()))?;
             Some(RustHarnessFinding::from_rule(
@@ -236,18 +234,17 @@ fn repeated_namespace_findings(
     let rule = &rules[AGENT_R003];
     let mut branches = BTreeMap::<PathBuf, (PathBuf, BTreeSet<String>)>::new();
     for module in modules {
-        let Some(components) = relative_namespace_components(scope, &module.report.path) else {
+        let path_facts = module_source_path_facts(scope, &module.report.path);
+        let Some(branch) = path_facts.repeated_namespace_branch else {
             continue;
         };
-        let repeated = repeated_segments(&components);
-        if repeated.is_empty() {
+        if path_facts.repeated_namespace_segments.is_empty() {
             continue;
         }
-        let branch = offending_branch(&components, &repeated);
         let (_, branch_repeated) = branches
             .entry(branch)
             .or_insert_with(|| (module.report.path.clone(), BTreeSet::new()));
-        branch_repeated.extend(repeated);
+        branch_repeated.extend(path_facts.repeated_namespace_segments);
     }
     branches
         .into_iter()
@@ -337,45 +334,16 @@ fn is_generic_module_name(name: &str) -> bool {
     GENERIC_MODULE_NAMES.contains(&name)
 }
 
-fn relative_namespace_components(
+fn module_source_path_facts(
     scope: &RustProjectHarnessScope,
-    path: &Path,
-) -> Option<Vec<String>> {
-    let relative = path.strip_prefix(&scope.project_root).ok()?;
-    let parent = relative.parent()?;
-    let mut components = parent
-        .iter()
-        .map(|component| component.to_string_lossy().to_string())
-        .collect::<Vec<_>>();
-    let file_stem = relative.file_stem()?.to_string_lossy();
-    if !matches!(file_stem.as_ref(), "lib" | "main" | "mod") {
-        components.push(file_stem.to_string());
-    }
-    (!components.is_empty()).then_some(components)
-}
-
-fn repeated_segments(components: &[String]) -> BTreeSet<String> {
-    let mut counts = BTreeMap::new();
-    for component in components {
-        *counts.entry(component.clone()).or_insert(0usize) += 1;
-    }
-    counts
-        .into_iter()
-        .filter_map(|(component, count)| (count > 1).then_some(component))
-        .collect()
-}
-
-fn offending_branch(components: &[String], repeated: &BTreeSet<String>) -> PathBuf {
-    let deepest_index = components
-        .iter()
-        .enumerate()
-        .filter_map(|(index, component)| repeated.contains(component).then_some(index))
-        .max()
-        .unwrap_or(components.len().saturating_sub(1));
-    components
-        .iter()
-        .take(deepest_index + 1)
-        .collect::<PathBuf>()
+    path: &std::path::Path,
+) -> RustSourcePathFacts {
+    rust_source_path_facts(
+        &scope.project_root,
+        &scope.source_paths,
+        &scope.package_paths,
+        path,
+    )
 }
 
 fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
