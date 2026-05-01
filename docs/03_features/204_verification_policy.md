@@ -111,19 +111,59 @@ let suggested_hints = index.active_profile_hints();
 
 The profile index is not a human audit report. It is the Agent's configuration
 draft for diverse crates: owner path, suggested responsibilities, implied task
-kinds, and parser evidence such as public items, local owner dependencies,
-runtime import roots, and path signals. `active_profile_hints()` gives the
-Agent code-level config material; after those hints are supplied through
-`RustHarnessConfig`, the compact profile advice becomes empty.
+kinds, and parser evidence such as public items, local owner dependencies, and
+Cargo dependency roots. Cargo roots are native parser facts:
+dependency key, Rust import root, `package = "..."` rename, optional flag,
+features, target table, and dev/build table are preserved before policy runs.
+The upstream harness does not decide that a third-party crate is persistence,
+security, network, or performance-sensitive. Projects declare those semantics
+through `RustVerificationDependencySignal`, and the profile index only applies
+them after a `use` root has matched a Cargo dependency fact. `active_profile_hints()`
+gives the Agent code-level config material; after those hints are supplied
+through `RustHarnessConfig`, the compact profile advice becomes empty.
+
+Cargo parsing exists here to help Agents manage modern Rust projects, not to
+turn the harness into a Cargo replacement. The parser records the dependency
+facts an Agent needs to make good configuration decisions: which dependency key
+is imported, whether it is renamed with `package = "..."`, whether it comes from
+normal/dev/build/target tables, whether it is inherited from workspace
+dependencies, and which dependency features are explicitly requested. Those
+facts let the Agent ask a precise question such as "does this owner cross a
+persistence or network boundary?" without scanning massive manifests or guessing
+from crate names. Resolved dependency graphs, feature unification, platform
+evaluation, and transitive supply-chain analysis stay out of this milestone
+until a policy genuinely needs those facts.
+The compact evidence also separates `configured_dependency_roots` from
+`unconfigured_dependency_roots`. Configured roots have matched a
+`RustVerificationDependencySignal` and can affect suggested responsibilities.
+Unconfigured roots stay as facts only: they tell the Agent where a project-owned
+decision may be missing, without turning every third-party crate into a chaos,
+security, or performance requirement by default.
+
+The index prefers reasoning-tree owner branches over individual leaf files.
+Branch owners aggregate child-module signals such as public route surfaces,
+configured dependency signals, and Rust standard-library boundary facts.
+Standalone leaf modules still get candidates when no parent owner exists. Crate
+root facades that only re-export owner APIs do not shadow the more precise owner
+profile. Source paths identify owners; they do not by themselves imply security,
+performance, persistence, or availability responsibility.
 
 ```rust
 use rust_lang_project_harness::{
-    RustOwnerResponsibility, RustVerificationPhase, RustVerificationProfileHint,
-    RustVerificationRequirement, RustVerificationSkillBinding, RustVerificationSkillDescriptor,
-    RustVerificationTaskContract, RustVerificationTaskKind, default_rust_harness_config,
+    RustOwnerResponsibility, RustVerificationDependencySignal, RustVerificationPhase,
+    RustVerificationProfileHint, RustVerificationRequirement, RustVerificationSkillBinding,
+    RustVerificationSkillDescriptor, RustVerificationTaskContract, RustVerificationTaskKind,
+    default_rust_harness_config,
 };
 
 let config = default_rust_harness_config()
+    .with_verification_dependency_signal(RustVerificationDependencySignal::new(
+        "arrow-flight",
+        [
+            RustOwnerResponsibility::ExternalDependency,
+            RustOwnerResponsibility::AvailabilityCritical,
+        ],
+    ))
     .with_verification_profile_hint(
         RustVerificationProfileHint::new("src/api.rs", [RustOwnerResponsibility::PublicApi])
             .with_task_kinds([RustVerificationTaskKind::Security])
@@ -309,7 +349,6 @@ the active obligation:
    |state: missing_profile
    |suggest: public_api,external_dependency,availability_critical
    |tasks: stress,chaos
-   |hint_path: src/api.rs
    |fact: public_items=1
    |fact: network_roots=axum::Router
 ```

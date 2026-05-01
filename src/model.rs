@@ -7,9 +7,10 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::verification::{
-    RustOwnerResponsibility, RustVerificationPolicy, RustVerificationProfileHint,
-    RustVerificationReceipt, RustVerificationSkillBinding, RustVerificationSkillDescriptor,
-    RustVerificationTaskContract, RustVerificationTaskKind, RustVerificationWaiver,
+    RustOwnerResponsibility, RustVerificationDependencySignal, RustVerificationPolicy,
+    RustVerificationProfileHint, RustVerificationReceipt, RustVerificationSkillBinding,
+    RustVerificationSkillDescriptor, RustVerificationTaskContract, RustVerificationTaskKind,
+    RustVerificationWaiver,
 };
 
 /// Finding severity used by the Rust project harness.
@@ -480,6 +481,16 @@ impl RustHarnessConfig {
         self.verification_policy
             .responsibility_task_overrides
             .insert(responsibility, task_kinds.into_iter().collect());
+        self
+    }
+
+    /// Return a config with one project-owned dependency signal appended.
+    #[must_use]
+    pub fn with_verification_dependency_signal(
+        mut self,
+        signal: RustVerificationDependencySignal,
+    ) -> Self {
+        self.verification_policy.dependency_signals.push(signal);
         self
     }
 }

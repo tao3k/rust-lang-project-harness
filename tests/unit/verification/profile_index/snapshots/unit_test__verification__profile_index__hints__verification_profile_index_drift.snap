@@ -1,5 +1,5 @@
 ---
-source: tests/unit/verification/profile_index.rs
+source: tests/unit/verification/profile_index/hints.rs
 expression: rendered
 ---
 [verify-profile] src/api.rs
@@ -8,7 +8,8 @@ expression: rendered
    |configured: public_api
    |suggest: public_api,external_dependency,availability_critical
    |tasks: stress,chaos
-   |hint_path: src/api.rs
    |fact: public_items=1
    |fact: public_fns=1
+   |fact: configured_dependency_roots=axum
+   |fact: external_roots=axum::Router
    |fact: network_roots=axum::Router

@@ -9,12 +9,12 @@ mod profile_index;
 mod render;
 
 pub use model::{
-    RustOwnerResponsibility, RustVerificationEvidence, RustVerificationPhase, RustVerificationPlan,
-    RustVerificationPolicy, RustVerificationProfileHint, RustVerificationReceipt,
-    RustVerificationReceiptStatus, RustVerificationRequirement, RustVerificationResolutionNote,
-    RustVerificationSkillBinding, RustVerificationSkillDescriptor, RustVerificationTask,
-    RustVerificationTaskContract, RustVerificationTaskKind, RustVerificationTaskState,
-    RustVerificationWaiver,
+    RustOwnerResponsibility, RustVerificationDependencySignal, RustVerificationEvidence,
+    RustVerificationPhase, RustVerificationPlan, RustVerificationPolicy,
+    RustVerificationProfileHint, RustVerificationReceipt, RustVerificationReceiptStatus,
+    RustVerificationRequirement, RustVerificationResolutionNote, RustVerificationSkillBinding,
+    RustVerificationSkillDescriptor, RustVerificationTask, RustVerificationTaskContract,
+    RustVerificationTaskKind, RustVerificationTaskState, RustVerificationWaiver,
 };
 pub use performance::{
     RustVerificationPerformanceIndex, RustVerificationPerformanceRecord,

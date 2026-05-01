@@ -57,9 +57,9 @@ pub use runner::{
     run_rust_project_harness_with_config,
 };
 pub use verification::{
-    RustOwnerResponsibility, RustVerificationEvidence, RustVerificationPerformanceIndex,
-    RustVerificationPerformanceRecord, RustVerificationPhase, RustVerificationPlan,
-    RustVerificationPolicy, RustVerificationProfileCandidate,
+    RustOwnerResponsibility, RustVerificationDependencySignal, RustVerificationEvidence,
+    RustVerificationPerformanceIndex, RustVerificationPerformanceRecord, RustVerificationPhase,
+    RustVerificationPlan, RustVerificationPolicy, RustVerificationProfileCandidate,
     RustVerificationProfileCandidateState, RustVerificationProfileHint,
     RustVerificationProfileIndex, RustVerificationReceipt, RustVerificationReceiptStatus,
     RustVerificationRequirement, RustVerificationResolutionNote, RustVerificationSkillBinding,

@@ -188,19 +188,43 @@ task in this slice", without changing unrelated owners.
 
 When an Agent does not yet know which owners need those profile hints, build a
 parser-native profile index first. The index is a low-token configuration
-draft: it inspects owner modules, public surfaces, local owner dependencies,
-runtime imports, and source-path signals, then renders only missing or drifting
-profile hints. Once the project supplies a matching `RustVerificationProfileHint`,
-the compact profile reminder disappears.
+draft: it inspects owner branches, public surfaces, local owner dependencies,
+and Cargo dependency facts, then renders only missing or drifting profile
+hints. Branch owners aggregate their child-module signals, while crate root
+facades stay out of the way when they only re-export owner APIs. Third-party
+dependency semantics stay project-owned: the harness maps
+`use foo::...` through `Cargo.toml` dependency keys, `package = "..."` renames,
+optional flags, features, and target/dev/build tables, but only a configured
+`RustVerificationDependencySignal` turns that fact into persistence, network,
+security, or performance responsibility. Once the project supplies a matching
+`RustVerificationProfileHint`, the compact profile reminder disappears.
+This Cargo layer is intentionally narrow: it gives Agents dependency facts for
+owner-boundary configuration, while resolved graphs, platform evaluation, and
+transitive supply-chain analysis remain future policy inputs rather than default
+runtime cost.
+Profile evidence separates `configured_dependency_roots` from
+`unconfigured_dependency_roots` so the Agent can see whether a dependency
+already has project-owned semantics or still needs a config decision.
 
 ```rust
 use std::path::Path;
 
 use rust_lang_project_harness::{
-    build_rust_verification_profile_index, render_rust_verification_profile_index,
+    RustOwnerResponsibility, RustVerificationDependencySignal,
+    build_rust_verification_profile_index_with_config, default_rust_harness_config,
+    render_rust_verification_profile_index,
 };
 
-let index = build_rust_verification_profile_index(Path::new("."))?;
+let config = default_rust_harness_config().with_verification_dependency_signal(
+    RustVerificationDependencySignal::new(
+        "arrow-flight",
+        [
+            RustOwnerResponsibility::ExternalDependency,
+            RustOwnerResponsibility::AvailabilityCritical,
+        ],
+    ),
+);
+let index = build_rust_verification_profile_index_with_config(Path::new("."), &config)?;
 let compact_profile_advice = render_rust_verification_profile_index(&index);
 let suggested_hints = index.active_profile_hints();
 ```

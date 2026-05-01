@@ -1,5 +1,5 @@
 ---
-source: tests/unit/verification/profile_index.rs
+source: tests/unit/verification/profile_index/candidates.rs
 expression: rendered
 ---
 [verify-profile] src/api.rs
@@ -7,9 +7,10 @@ expression: rendered
    |state: missing_profile
    |suggest: public_api,external_dependency,availability_critical
    |tasks: stress,chaos
-   |hint_path: src/api.rs
    |fact: public_items=1
    |fact: public_fns=1
+   |fact: configured_dependency_roots=axum
+   |fact: external_roots=axum::Router
    |fact: network_roots=axum::Router
 
 [verify-profile] src/auth.rs
@@ -17,30 +18,27 @@ expression: rendered
    |state: missing_profile
    |suggest: public_api,security_boundary
    |tasks: stress,security
-   |hint_path: src/auth.rs
    |fact: public_items=1
    |fact: public_fns=1
+   |fact: configured_dependency_roots=sha2
    |fact: security_roots=sha2::Digest
-   |fact: path_signals=auth
 
 [verify-profile] src/search.rs
    |owner: src/search
    |state: missing_profile
    |suggest: public_api,latency_sensitive
    |tasks: stress,performance
-   |hint_path: src/search.rs
    |fact: public_items=1
    |fact: public_fns=1
+   |fact: configured_dependency_roots=rayon
    |fact: performance_roots=rayon::prelude
-   |fact: path_signals=search
 
 [verify-profile] src/storage.rs
    |owner: src/storage
    |state: missing_profile
    |suggest: public_api,external_dependency,persistence
    |tasks: stress,chaos
-   |hint_path: src/storage.rs
    |fact: public_items=1
    |fact: public_fns=1
+   |fact: external_roots=std::fs
    |fact: persistence_roots=std::fs
-   |fact: path_signals=storage

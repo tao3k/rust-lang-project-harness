@@ -1,0 +1,17 @@
+---
+source: tests/unit/verification/profile_index/candidates.rs
+expression: rendered
+---
+[verify-profile] src/gateway/mod.rs
+   |owner: src/gateway
+   |state: missing_profile
+   |suggest: public_api,external_dependency,latency_sensitive,availability_critical
+   |tasks: stress,performance,chaos
+   |fact: owner_modules=2
+   |fact: public_items=1
+   |fact: public_fns=1
+   |fact: child_modules=1
+   |fact: configured_dependency_roots=arrow_flight->arrow-flight,axum,tokio
+   |fact: external_roots=arrow_flight::FlightInfo,axum::Router
+   |fact: network_roots=arrow_flight::FlightInfo,axum::Router
+   |fact: performance_roots=tokio::task

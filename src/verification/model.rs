@@ -748,6 +748,45 @@ impl RustVerificationProfileHint {
     }
 }
 
+/// Project-owned Cargo dependency classification for verification profile inference.
+///
+/// The harness resolves Rust import roots through `Cargo.toml` dependency facts
+/// first. Embedding projects use this type to attach responsibilities to a
+/// dependency key, import root, or renamed package name without upstream
+/// hardcoding project-specific dependency semantics.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct RustVerificationDependencySignal {
+    /// Cargo dependency key, Rust import root, or `package = "..."` name.
+    pub dependency: String,
+    /// Responsibilities implied when the dependency fact matches.
+    pub responsibilities: BTreeSet<RustOwnerResponsibility>,
+}
+
+impl RustVerificationDependencySignal {
+    /// Build a dependency signal from a Cargo key/import root/package name.
+    #[must_use]
+    pub fn new<I>(dependency: impl Into<String>, responsibilities: I) -> Self
+    where
+        I: IntoIterator<Item = RustOwnerResponsibility>,
+    {
+        Self {
+            dependency: dependency.into(),
+            responsibilities: responsibilities.into_iter().collect(),
+        }
+    }
+
+    pub(crate) fn matches_dependency(
+        &self,
+        dependency_key: &str,
+        import_name: &str,
+        package_name: &str,
+    ) -> bool {
+        self.dependency == dependency_key
+            || self.dependency == import_name
+            || self.dependency == package_name
+    }
+}
+
 /// Library-first verification configuration surface.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RustVerificationPolicy {
@@ -776,6 +815,9 @@ pub struct RustVerificationPolicy {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub responsibility_task_overrides:
         BTreeMap<RustOwnerResponsibility, BTreeSet<RustVerificationTaskKind>>,
+    /// Project-owned Cargo dependency classifiers used by the profile index.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dependency_signals: Vec<RustVerificationDependencySignal>,
 }
 
 impl RustVerificationPolicy {
@@ -790,6 +832,7 @@ impl RustVerificationPolicy {
             && self.skill_bindings.is_empty()
             && self.skill_descriptors.is_empty()
             && self.responsibility_task_overrides.is_empty()
+            && self.dependency_signals.is_empty()
     }
 
     /// Return a policy with one profile hint appended.
@@ -862,6 +905,13 @@ impl RustVerificationPolicy {
     {
         self.responsibility_task_overrides
             .insert(responsibility, task_kinds.into_iter().collect());
+        self
+    }
+
+    /// Return a policy with one project-owned dependency signal appended.
+    #[must_use]
+    pub fn with_dependency_signal(mut self, signal: RustVerificationDependencySignal) -> Self {
+        self.dependency_signals.push(signal);
         self
     }
 }

@@ -1,10 +1,9 @@
 //! Cargo manifest facts owned by the parser layer.
 
-use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
+use cargo_toml::{Dependency, DepsSet, Manifest, Product};
 
 const HARNESS_PACKAGE_NAME: &str = "rust-lang-project-harness";
 
@@ -17,41 +16,22 @@ pub(crate) struct CargoManifestFacts {
     pub(crate) references_harness: bool,
 }
 
-#[derive(Debug, Default, Deserialize)]
-#[serde(default, rename_all = "kebab-case")]
-struct CargoManifestToml {
-    package: Option<CargoPackageToml>,
-    workspace: Option<CargoWorkspaceToml>,
-    test: Vec<CargoTestTargetToml>,
-    dependencies: BTreeMap<String, toml::Value>,
-    dev_dependencies: BTreeMap<String, toml::Value>,
-    build_dependencies: BTreeMap<String, toml::Value>,
-    target: BTreeMap<String, CargoTargetManifestToml>,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum CargoDependencyKind {
+    Normal,
+    Dev,
+    Build,
 }
 
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
-struct CargoPackageToml {}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
-struct CargoWorkspaceToml {
-    members: Vec<String>,
-    exclude: Vec<String>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
-struct CargoTestTargetToml {
-    path: String,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(default, rename_all = "kebab-case")]
-struct CargoTargetManifestToml {
-    dependencies: BTreeMap<String, toml::Value>,
-    dev_dependencies: BTreeMap<String, toml::Value>,
-    build_dependencies: BTreeMap<String, toml::Value>,
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct CargoDependencyFacts {
+    pub(crate) dependency_key: String,
+    pub(crate) import_name: String,
+    pub(crate) package_name: String,
+    pub(crate) kind: CargoDependencyKind,
+    pub(crate) target: Option<String>,
+    pub(crate) optional: bool,
+    pub(crate) features: Vec<String>,
 }
 
 pub(crate) fn parse_cargo_manifest(project_root: &Path) -> CargoManifestFacts {
@@ -60,36 +40,54 @@ pub(crate) fn parse_cargo_manifest(project_root: &Path) -> CargoManifestFacts {
     };
     let references_harness = manifest_references_harness(&manifest);
     let has_package = manifest.package.is_some();
-    let workspace = manifest.workspace.unwrap_or_default();
-    let test_target_files = manifest_test_target_files(project_root, manifest.test);
+    let (workspace_members, workspace_excludes) = manifest
+        .workspace
+        .as_ref()
+        .map(|workspace| (workspace.members.clone(), workspace.exclude.clone()))
+        .unwrap_or_default();
+    let test_target_files = manifest_test_target_files(project_root, &manifest.test);
     CargoManifestFacts {
         has_package,
-        workspace_members: workspace.members,
-        workspace_excludes: workspace.exclude,
+        workspace_members,
+        workspace_excludes,
         test_target_files,
         references_harness,
     }
 }
 
-fn read_manifest(project_root: &Path) -> Option<CargoManifestToml> {
-    let content = fs::read_to_string(project_root.join("Cargo.toml")).ok()?;
-    toml::from_str::<CargoManifestToml>(&content).ok()
+pub(crate) fn parse_cargo_dependency_facts(project_root: &Path) -> Vec<CargoDependencyFacts> {
+    let Some(manifest) = read_manifest(project_root) else {
+        return Vec::new();
+    };
+    let mut dependencies = manifest_dependency_facts(&manifest);
+    dependencies.sort();
+    dependencies.dedup();
+    dependencies
 }
 
-fn manifest_test_target_files(
-    project_root: &Path,
-    test_targets: Vec<CargoTestTargetToml>,
-) -> Vec<PathBuf> {
+fn read_manifest(project_root: &Path) -> Option<Manifest> {
+    let manifest_path = project_root.join("Cargo.toml");
+    Manifest::from_path(&manifest_path)
+        .or_else(|_| read_manifest_slice(&manifest_path))
+        .ok()
+}
+
+fn read_manifest_slice(manifest_path: &Path) -> Result<Manifest, cargo_toml::Error> {
+    let content = fs::read(manifest_path)?;
+    Manifest::from_slice(&content)
+}
+
+fn manifest_test_target_files(project_root: &Path, test_targets: &[Product]) -> Vec<PathBuf> {
     test_targets
-        .into_iter()
+        .iter()
         .filter_map(|target| {
-            let target_path = target.path.trim();
+            let target_path = target.path.as_deref().unwrap_or_default().trim();
             (!target_path.is_empty()).then(|| project_root.join(target_path))
         })
         .collect()
 }
 
-fn manifest_references_harness(manifest: &CargoManifestToml) -> bool {
+fn manifest_references_harness(manifest: &Manifest) -> bool {
     dependency_table_references_harness(&manifest.dependencies)
         || dependency_table_references_harness(&manifest.dev_dependencies)
         || dependency_table_references_harness(&manifest.build_dependencies)
@@ -100,19 +98,82 @@ fn manifest_references_harness(manifest: &CargoManifestToml) -> bool {
         })
 }
 
-fn dependency_table_references_harness(dependencies: &BTreeMap<String, toml::Value>) -> bool {
+fn manifest_dependency_facts(manifest: &Manifest) -> Vec<CargoDependencyFacts> {
+    let mut dependencies = Vec::new();
+    dependencies.extend(dependency_table_facts(
+        CargoDependencyKind::Normal,
+        None,
+        &manifest.dependencies,
+    ));
+    dependencies.extend(dependency_table_facts(
+        CargoDependencyKind::Dev,
+        None,
+        &manifest.dev_dependencies,
+    ));
+    dependencies.extend(dependency_table_facts(
+        CargoDependencyKind::Build,
+        None,
+        &manifest.build_dependencies,
+    ));
+    for (target_name, target) in &manifest.target {
+        dependencies.extend(dependency_table_facts(
+            CargoDependencyKind::Normal,
+            Some(target_name),
+            &target.dependencies,
+        ));
+        dependencies.extend(dependency_table_facts(
+            CargoDependencyKind::Dev,
+            Some(target_name),
+            &target.dev_dependencies,
+        ));
+        dependencies.extend(dependency_table_facts(
+            CargoDependencyKind::Build,
+            Some(target_name),
+            &target.build_dependencies,
+        ));
+    }
+    dependencies
+}
+
+fn dependency_table_facts(
+    kind: CargoDependencyKind,
+    target: Option<&str>,
+    dependencies: &DepsSet,
+) -> Vec<CargoDependencyFacts> {
+    dependencies
+        .iter()
+        .map(|(name, dependency)| dependency_fact(name, dependency, kind, target))
+        .collect()
+}
+
+fn dependency_fact(
+    name: &str,
+    dependency: &Dependency,
+    kind: CargoDependencyKind,
+    target: Option<&str>,
+) -> CargoDependencyFacts {
+    let mut features = dependency.req_features().to_vec();
+    features.sort();
+    features.dedup();
+    CargoDependencyFacts {
+        dependency_key: name.to_string(),
+        import_name: name.replace('-', "_"),
+        package_name: dependency.package().unwrap_or(name).to_string(),
+        kind,
+        target: target.map(ToOwned::to_owned),
+        optional: dependency.optional(),
+        features,
+    }
+}
+
+fn dependency_table_references_harness(dependencies: &DepsSet) -> bool {
     dependencies
         .iter()
         .any(|(name, value)| dependency_references_harness(name, value))
 }
 
-fn dependency_references_harness(name: &str, value: &toml::Value) -> bool {
-    dependency_name_is_harness(name)
-        || value
-            .as_table()
-            .and_then(|table| table.get("package"))
-            .and_then(toml::Value::as_str)
-            .is_some_and(dependency_name_is_harness)
+fn dependency_references_harness(name: &str, value: &Dependency) -> bool {
+    dependency_name_is_harness(name) || value.package().is_some_and(dependency_name_is_harness)
 }
 
 fn dependency_name_is_harness(name: &str) -> bool {
