@@ -101,6 +101,11 @@ fn performance_receipt_keeps_structured_state_searchable_after_compact_clears() 
         "passed (target/criterion/parser_hot_path/report/index.html)"
     );
     assert_eq!(
+        performance["receipt_evidence_uri"],
+        "target/criterion/parser_hot_path/report/index.html"
+    );
+    assert_eq!(performance["receipt_observed_at"], "2026-05-01T20:00:00Z");
+    assert_eq!(
         performance["receipt_evidence"][0]["label"],
         "benchmark_command"
     );

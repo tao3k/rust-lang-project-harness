@@ -518,6 +518,12 @@ pub struct RustVerificationTask {
     /// Structured receipt evidence copied from the matching external skill run.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub receipt_evidence: Vec<RustVerificationEvidence>,
+    /// Matching receipt artifact URI or local path, when supplied.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub receipt_evidence_uri: Option<String>,
+    /// Matching receipt timestamp, when supplied by the external skill.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub receipt_observed_at: Option<String>,
     /// Matching waiver reason, when one was supplied.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub waiver_reason: Option<String>,

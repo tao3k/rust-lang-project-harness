@@ -549,6 +549,8 @@ fn new_skill_task(
         resolution_notes: Vec::new(),
         receipt_summary: None,
         receipt_evidence: Vec::new(),
+        receipt_evidence_uri: None,
+        receipt_observed_at: None,
         waiver_reason: None,
     };
     apply_task_resolution(&mut task, policy);
@@ -597,6 +599,8 @@ fn apply_task_resolution(task: &mut RustVerificationTask, policy: &RustVerificat
         task.state = RustVerificationTaskState::Satisfied;
         task.receipt_summary = Some(receipt_summary(receipt));
         task.receipt_evidence.clone_from(&receipt.evidence);
+        task.receipt_evidence_uri.clone_from(&receipt.evidence_uri);
+        task.receipt_observed_at.clone_from(&receipt.observed_at);
         return;
     }
     if let Some(waiver) = matching_waiver(task, policy) {
@@ -615,6 +619,8 @@ fn apply_task_resolution(task: &mut RustVerificationTask, policy: &RustVerificat
         task.state = RustVerificationTaskState::Failed;
         task.receipt_summary = Some(receipt_summary(receipt));
         task.receipt_evidence.clone_from(&receipt.evidence);
+        task.receipt_evidence_uri.clone_from(&receipt.evidence_uri);
+        task.receipt_observed_at.clone_from(&receipt.observed_at);
     }
 }
 

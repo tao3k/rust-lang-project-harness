@@ -57,13 +57,15 @@ pub use runner::{
     run_rust_project_harness_with_config,
 };
 pub use verification::{
-    RustOwnerResponsibility, RustVerificationEvidence, RustVerificationPhase, RustVerificationPlan,
+    RustOwnerResponsibility, RustVerificationEvidence, RustVerificationPerformanceIndex,
+    RustVerificationPerformanceRecord, RustVerificationPhase, RustVerificationPlan,
     RustVerificationPolicy, RustVerificationProfileHint, RustVerificationReceipt,
     RustVerificationReceiptStatus, RustVerificationRequirement, RustVerificationResolutionNote,
     RustVerificationSkillBinding, RustVerificationSkillDescriptor, RustVerificationTask,
     RustVerificationTaskContract, RustVerificationTaskKind, RustVerificationTaskState,
-    RustVerificationWaiver, plan_rust_project_verification,
-    plan_rust_project_verification_with_config, plan_rust_project_verification_with_policy,
-    render_rust_verification_plan, render_rust_verification_plan_json,
-    render_rust_verification_skill_contracts,
+    RustVerificationWaiver, build_rust_verification_performance_index,
+    plan_rust_project_verification, plan_rust_project_verification_with_config,
+    plan_rust_project_verification_with_policy, render_rust_verification_performance_index,
+    render_rust_verification_performance_index_json, render_rust_verification_plan,
+    render_rust_verification_plan_json, render_rust_verification_skill_contracts,
 };

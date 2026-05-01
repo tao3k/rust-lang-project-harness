@@ -29,7 +29,8 @@ use std::path::Path;
 
 use rust_lang_project_harness::{
     RustOwnerResponsibility, RustVerificationProfileHint, default_rust_harness_config,
-    plan_rust_project_verification_with_config, render_rust_verification_plan,
+    build_rust_verification_performance_index, plan_rust_project_verification_with_config,
+    render_rust_verification_performance_index_json, render_rust_verification_plan,
     render_rust_verification_skill_contracts,
 };
 
@@ -47,6 +48,8 @@ let plan =
     plan_rust_project_verification_with_config(Path::new("."), &config).expect("plan");
 let compact = render_rust_verification_plan(&plan);
 let contract_tree = render_rust_verification_skill_contracts(&plan);
+let perf_index = build_rust_verification_performance_index(&plan);
+let perf_json = render_rust_verification_performance_index_json(&perf_index).expect("json");
 ```
 
 Relative profile paths are matched against parser-known modules. In a single
@@ -238,10 +241,17 @@ let receipt = RustVerificationReceipt::passed(
 Receipt evidence is copied into the matching task as `receipt_evidence`.
 Compact output still disappears when the task is satisfied, because the Agent no
 longer needs a reminder. Structured callers can keep searching the JSON state
-for the command, baseline, threshold, metric delta, allocation profile, artifact
-URI, and observed timestamp. This is the intended performance-status lane:
-human-readable reminders stay quiet, while benchmark state remains traceable
-for CI indexes, dashboards, or future reasoning-tree retrieval.
+for the command, baseline, threshold, metric delta, allocation profile,
+artifact URI, and observed timestamp.
+
+Use `build_rust_verification_performance_index(&plan)` when a caller needs a
+performance-specific retrieval surface. It returns only `performance` task
+records, including pending, failed, satisfied, and waived states. Each record is
+keyed by parser-owned package path, owner path, owner namespace, fingerprint,
+state, skill binding, required evidence keys, and receipt evidence. This is the
+intended performance-status lane: human-readable reminders stay quiet, while
+benchmark state remains traceable for CI indexes, dashboards, or future
+reasoning-tree retrieval.
 
 Use a waiver when the task is intentionally out of scope for the current work:
 
@@ -337,6 +347,19 @@ descriptor:
    |inputs: script,target_url,scenario,thresholds
    |pass: exit=0,thresholds=pass
    |receipt: p50,p99,p999,load_steps,sla_result,artifact
+```
+
+Performance state has its own retrieval renderer. It is intentionally separate
+from the default verification reminder and from descriptor expansion:
+
+```text
+[perf-state] src/api.rs
+   |owner: src/api
+   |state: satisfied phase=after_unit_tests_pass fingerprint=rustv:... skill=rust-verification-performance@criterion contract_ref=rust-verification-performance@criterion
+   |receipt: passed (target/criterion/parser_hot_path/report/index.html)
+   |observed_at: 2026-05-01T20:00:00Z
+   |evidence: benchmark_command=cargo bench --bench parser_hot_path,baseline=main@...,regression_threshold=5%,latency_or_throughput=-1.4% latency,allocation_profile=allocs/op unchanged,profile_artifact=target/criterion/parser_hot_path/report/index.html
+   |artifact: target/criterion/parser_hot_path/report/index.html
 ```
 
 The Rust-native descriptors follow the ecosystem split between Cargo's

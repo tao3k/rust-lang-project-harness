@@ -276,6 +276,11 @@ Divan, or iai-callgrind run can attach searchable evidence such as
 current task fingerprint, compact output goes quiet, while
 `render_rust_verification_plan_json()` still preserves `receipt_summary` and
 `receipt_evidence` for dashboards, CI indexes, or later Agent retrieval.
+Call `build_rust_verification_performance_index(&plan)` when a tool needs only
+Rust performance state. The index is keyed by parser-owned package/owner facts,
+fingerprint, state, skill binding, required evidence keys, receipt evidence,
+artifact URI, and observed timestamp; it can be rendered as compact
+`[perf-state]` text or JSON without expanding the long performance handbook.
 
 For workspaces, profile hint paths can be package-relative (`src/api.rs`) or
 workspace-root-relative (`crates/api/src/api.rs`). Task fingerprints include the
