@@ -53,12 +53,16 @@ fn cli_agent_snapshot_renders_reasoning_tree_summary() {
     let output = run_cli(["--agent-snapshot".as_ref(), root.as_os_str()]);
 
     assert!(output.status.success(), "{output:?}");
-    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
+    let stdout = normalize_temp_root(
+        &String::from_utf8(output.stdout).expect("utf8 stdout"),
+        root,
+    );
     assert!(stdout.starts_with("Modules:"), "{stdout}");
     assert!(stdout.contains("OwnerBranches:"), "{stdout}");
     assert!(!stdout.contains("FindingGroups:"), "{stdout}");
     assert!(!stdout.contains(" - none"), "{stdout}");
     assert!(!stdout.trim_start().starts_with('{'), "{stdout}");
+    insta::assert_snapshot!("cli_agent_snapshot", stdout);
 }
 
 #[test]
@@ -77,10 +81,14 @@ fn cli_keeps_agent_advice_non_blocking() {
     let output = run_cli([root.as_os_str()]);
 
     assert!(output.status.success(), "{output:?}");
-    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
+    let stdout = normalize_temp_root(
+        &String::from_utf8(output.stdout).expect("utf8 stdout"),
+        root,
+    );
     assert!(stdout.contains("AGENT-R002"), "{stdout}");
     assert!(!stdout.contains("[advice]"), "{stdout}");
     assert!(!stdout.contains("No blocking issues found."), "{stdout}");
+    insta::assert_snapshot!("cli_agent_advice", stdout);
 }
 
 #[test]
@@ -98,9 +106,13 @@ fn cli_exits_nonzero_for_blocking_findings() {
     let output = run_cli([root.as_os_str()]);
 
     assert!(!output.status.success(), "{output:?}");
-    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
+    let stdout = normalize_temp_root(
+        &String::from_utf8(output.stdout).expect("utf8 stdout"),
+        root,
+    );
     assert!(stdout.starts_with("[RUST-PROJ-R003]"), "{stdout}");
     assert!(stdout.contains("RUST-PROJ-R003"), "{stdout}");
+    insta::assert_snapshot!("cli_blocking_finding", stdout);
 }
 
 fn run_cli<I, S>(args: I) -> Output
@@ -125,4 +137,8 @@ fn write_manifest(root: &Path, name: &str) {
 fn write_clean_source(root: &Path) {
     fs::create_dir(root.join("src")).expect("create src");
     fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
+}
+
+fn normalize_temp_root(rendered: &str, root: &Path) -> String {
+    rendered.replace(&root.display().to_string(), "$TEMP")
 }

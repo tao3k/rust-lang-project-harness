@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::Path;
 
 use rust_lang_project_harness::{render_rust_project_harness, run_rust_project_harness};
 use tempfile::TempDir;
@@ -26,7 +27,7 @@ fn project_runner_reports_blocking_policy_and_agent_advice() {
     .expect("write root test");
 
     let report = run_rust_project_harness(root).expect("run project harness");
-    let rendered = render_rust_project_harness(&report);
+    let rendered = normalize_temp_root(&render_rust_project_harness(&report), root);
 
     assert!(!report.is_clean());
     assert!(rendered.contains("RUST-PROJ-R001"));
@@ -35,4 +36,9 @@ fn project_runner_reports_blocking_policy_and_agent_advice() {
     assert!(rendered.contains("Help: tests/test_root.rs is a root-level test file"));
     assert!(rendered.contains("Contract: Move root-level test files under tests/unit"));
     assert!(!rendered.contains("Required:"));
+    insta::assert_snapshot!("sample_project_blocking_and_agent_advice", rendered);
+}
+
+fn normalize_temp_root(rendered: &str, root: &Path) -> String {
+    rendered.replace(&root.display().to_string(), "$TEMP")
 }

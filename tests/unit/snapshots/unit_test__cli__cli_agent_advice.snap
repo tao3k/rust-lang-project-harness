@@ -1,0 +1,11 @@
+---
+source: tests/unit/cli.rs
+assertion_line: 85
+expression: stdout
+---
+[AGENT-R002] Info: Public item lacks a doc comment
+   ,-[ $TEMP/src/owned.rs:2:1 ]
+ 2 | pub fn public_api() {}
+   | `- add a short doc comment naming the public contract
+   |Help: $TEMP/src/owned.rs exposes public item `public_api` without a doc comment.
+   |Contract: Document public Rust boundaries so agents can reason from native syntax without guessing intent.

@@ -1,0 +1,18 @@
+---
+source: tests/unit/cli.rs
+assertion_line: 106
+expression: stdout
+---
+[RUST-PROJ-R003] Warning: Inline source test module
+   ,-[ $TEMP/src/lib.rs:2:1 ]
+ 2 | #[cfg(test)] mod tests { #[test] fn it_works() {} }
+   | `- move this test module to tests/unit and mount it with #[path]
+   |Help: $TEMP/src/lib.rs contains inline #[cfg(test)] module `tests`.
+   |Contract: Keep test bodies out of src files; mount source-backed unit tests from tests/unit with #[path].
+
+[RUST-MOD-R004] Warning: lib.rs contains implementation
+   ,-[ $TEMP/src/lib.rs:2:1 ]
+ 2 | #[cfg(test)] mod tests { #[test] fn it_works() {} }
+   | `- move facade implementation out of lib.rs into an owned module
+   |Help: $TEMP/src/lib.rs contains implementation item `mod` inside lib.rs.
+   |Contract: Keep lib.rs as a crate facade with external module declarations and re-exports only.
