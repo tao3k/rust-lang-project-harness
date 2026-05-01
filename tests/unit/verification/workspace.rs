@@ -48,6 +48,7 @@ fn workspace_package_relative_profile_hint_keeps_distinct_fingerprints() {
     assert_eq!(fingerprints.len(), 2, "{rendered}");
     assert!(rendered.contains("crates/api/src/api.rs"), "{rendered}");
     assert!(rendered.contains("crates/worker/src/api.rs"), "{rendered}");
+    insta::assert_snapshot!("verification_workspace_package_relative_hint", rendered);
 }
 
 #[test]
@@ -71,4 +72,5 @@ fn unmatched_workspace_profile_hint_renders_once() {
         "{rendered}"
     );
     assert!(rendered.contains("crates/missing/src/api.rs"), "{rendered}");
+    insta::assert_snapshot!("verification_workspace_unmatched_hint", rendered);
 }

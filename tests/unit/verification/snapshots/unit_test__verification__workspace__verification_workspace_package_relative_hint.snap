@@ -1,0 +1,20 @@
+---
+source: tests/unit/verification/workspace.rs
+assertion_line: 51
+expression: rendered
+---
+[verify:stress] pending crates/api/src/api.rs
+   |owner: src/api
+   |phase: after_unit_tests_pass
+   |why: profile declares public or latency-sensitive surface
+   |fact: profile=public_api
+   |contract: stress skill must report p50/p99/p999, load steps, and SLA result for this fingerprint
+   |fingerprint: rustv:10ae21a0e49245fc
+
+[verify:stress] pending crates/worker/src/api.rs
+   |owner: src/api
+   |phase: after_unit_tests_pass
+   |why: profile declares public or latency-sensitive surface
+   |fact: profile=public_api
+   |contract: stress skill must report p50/p99/p999, load steps, and SLA result for this fingerprint
+   |fingerprint: rustv:b27a5561903b0c0c

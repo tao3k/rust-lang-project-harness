@@ -1,0 +1,11 @@
+---
+source: tests/unit/verification/workspace.rs
+assertion_line: 75
+expression: rendered
+---
+[verify:responsibility_review] pending crates/missing/src/api.rs
+   |phase: before_verification
+   |why: profile hint target is not a parser-known Rust source module
+   |fact: hint=responsibilities=public_api
+   |contract: update the verification profile hint to match parser facts, or attach a complete waiver
+   |fingerprint: rustv:dfbebe55d76c856d
