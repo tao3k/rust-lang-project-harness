@@ -58,6 +58,32 @@ rust_lang_project_harness::rust_project_harness_gate!();
 That covers `cargo test`, but it does not cover `cargo test --lib` unless the
 library target also mounts the embedded cargo-test gate.
 
+### Why `RUST-PROJ-R009` Exists
+
+`RUST-PROJ-R009` is the policy that protects the `cargo test --lib` path. It is
+intentionally narrower than Cargo's full resolver: the harness does not try to
+evaluate every workspace, feature, target, or cfg combination a downstream
+project may use. Instead, it looks for direct harness evidence.
+
+A library crate is treated as harness-enabled when either its parsed
+`Cargo.toml` dependency tables reference the canonical package
+`rust-lang-project-harness`, or native Rust syntax contains an existing harness
+gate macro. Comments, strings, and prose do not count.
+
+The manifest parser checks ordinary dependency tables and target-specific
+dependency tables, including Cargo dependency renames:
+
+```toml
+[dev-dependencies.local_harness]
+package = "rust-lang-project-harness"
+path = "../rust-lang-project-harness"
+```
+
+The dependency key can be local to the downstream project, but the package
+identity remains `rust-lang-project-harness`. Once that direct evidence exists,
+the library target must mount `rust_project_harness_cargo_test_gate!()` from the
+source tree so `cargo test --lib` cannot bypass project policy.
+
 The lower-level assertion API is available when a custom test shape is needed:
 
 ```rust
