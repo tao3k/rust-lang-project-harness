@@ -8,9 +8,9 @@ Packages: 1
 Package: .
 SourceRoots: src
 PackageEntrypoints: -
-Modules: source=3 roots=1 branches=2 shadowed=0 orphaned=0
+Modules: source=5 roots=1 branches=2 shadowed=0 orphaned=0
 OwnerBranches:
- - src/lib.rs [root, facade] owner=src -> src/domain.rs
- - src/domain.rs [branch] owner=src/domain -> src/domain/leaf.rs
+ - src/lib.rs [root, facade] owner=src -> mod:src/domain.rs, path-mod:src/alt/custom.rs
+ - src/domain.rs [branch] owner=src/domain -> mod:src/domain/leaf.rs, include:src/domain/shard.rs
 FindingGroups:
  - none

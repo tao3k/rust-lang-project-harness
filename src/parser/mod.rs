@@ -14,6 +14,9 @@ mod source_path;
 pub(crate) use cargo_manifest::{CargoManifestFacts, parse_cargo_manifest};
 pub(crate) use cargo_test_targets::parse_cargo_test_targets;
 pub(crate) use location::{file_location, path_line_location, source_line, span_location};
+pub(crate) use module_tree::RustModuleChildEdge;
+#[cfg(test)]
+pub(crate) use module_tree::RustModuleChildEdgeKind;
 pub(crate) use native_syntax::{RustNativeSyntaxFacts, RustTopLevelItemSyntax};
 pub(crate) use parsed_module::{ParsedRustModule, parse_rust_file};
 pub(crate) use reasoning_tree::{

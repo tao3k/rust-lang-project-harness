@@ -59,7 +59,11 @@ pub(crate) fn evaluate(
         findings.extend(public_doc_findings(module, &rules));
         findings.extend(facade_reexport_findings(&reasoning_tree, module, &rules));
         findings.extend(generic_public_module_findings(module, &rules));
-        findings.extend(branch_module_intent_findings(module, &rules));
+        findings.extend(branch_module_intent_findings(
+            &reasoning_tree,
+            module,
+            &rules,
+        ));
     }
     findings.extend(repeated_namespace_findings(
         &reasoning_tree,
@@ -219,13 +223,16 @@ fn generic_module_path_findings(
 }
 
 fn branch_module_intent_findings(
+    reasoning_tree: &RustReasoningTreeFacts,
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     if module.syntax_facts.has_module_doc {
         return Vec::new();
     }
-    let child_modules = count_external_child_modules(module);
+    let child_modules = reasoning_tree
+        .module(&module.report.path)
+        .map_or(0, |module_facts| module_facts.declared_child_edges.len());
     if child_modules < MIN_BRANCH_CHILD_MODULES {
         return Vec::new();
     }
@@ -233,7 +240,7 @@ fn branch_module_intent_findings(
     vec![RustHarnessFinding::from_rule(
         rule,
         format!(
-            "{} declares {child_modules} child modules without a reasoning-tree intent doc.",
+            "{} owns {child_modules} resolved child edges without a reasoning-tree intent doc.",
             display_path(&module.report.path)
         ),
         file_location(&module.report.path),
@@ -334,16 +341,6 @@ fn has_public_surface(module: &ParsedRustModule) -> bool {
         .any(|item| public_named_item(item).is_some())
 }
 
-fn count_external_child_modules(module: &ParsedRustModule) -> usize {
-    module
-        .syntax_facts
-        .top_level_items
-        .iter()
-        .filter_map(|item| item.module.as_ref())
-        .filter(|module_decl| !module_decl.is_inline)
-        .count()
-}
-
 fn public_named_item(item: &RustTopLevelItemSyntax) -> Option<&str> {
     item.is_public.then_some(item.name.as_deref()).flatten()
 }
@@ -419,7 +416,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Branch module lacks reasoning-tree intent doc",
-            "Document source modules that branch into multiple child modules so agents can traverse the owner tree intentionally.",
+            "Document source modules that own multiple resolved child edges so agents can traverse the owner tree intentionally.",
             labels("agent-policy"),
         ),
     ]

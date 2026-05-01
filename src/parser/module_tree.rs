@@ -18,6 +18,29 @@ pub(crate) struct RustModuleSourceShadow {
     pub(crate) mod_form: PathBuf,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RustModuleChildEdge {
+    pub(crate) child_path: PathBuf,
+    pub(crate) kind: RustModuleChildEdgeKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RustModuleChildEdgeKind {
+    Mod,
+    PathAttrMod,
+    IncludeLiteral,
+}
+
+impl RustModuleChildEdgeKind {
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Mod => "mod",
+            Self::PathAttrMod => "path-mod",
+            Self::IncludeLiteral => "include",
+        }
+    }
+}
+
 pub(crate) fn rust_module_tree_facts(
     source_paths: &[PathBuf],
     modules: &[ParsedRustModule],
@@ -95,7 +118,8 @@ fn reachable_source_files(
         let Some(module) = modules_by_path.get(&path) else {
             continue;
         };
-        for child_path in external_child_module_paths(module, source_files) {
+        for edge in external_child_module_edges(module, source_files) {
+            let child_path = edge.child_path;
             if !reachable.contains(&child_path) {
                 stack.push(child_path);
             }
@@ -104,17 +128,20 @@ fn reachable_source_files(
     reachable
 }
 
-pub(in crate::parser) fn external_child_module_paths(
+pub(in crate::parser) fn external_child_module_edges(
     module: &ParsedRustModule,
     source_files: &BTreeSet<PathBuf>,
-) -> Vec<PathBuf> {
+) -> Vec<RustModuleChildEdge> {
     let module_path = &module.report.path;
-    let mut paths = Vec::new();
+    let mut edges = Vec::new();
     for item in &module.syntax_facts.top_level_items {
         if let Some(include_target) = &item.include_target {
             let include_path = resolve_rust_include_literal(module_path, include_target);
             if source_files.contains(&include_path) {
-                paths.push(include_path);
+                edges.push(RustModuleChildEdge {
+                    child_path: include_path,
+                    kind: RustModuleChildEdgeKind::IncludeLiteral,
+                });
             }
         }
         let Some(item_mod) = &item.module else {
@@ -125,7 +152,10 @@ pub(in crate::parser) fn external_child_module_paths(
         }
         if let Some(resolved) = &item_mod.resolved_path_attr {
             if source_files.contains(resolved) {
-                paths.push(resolved.clone());
+                edges.push(RustModuleChildEdge {
+                    child_path: resolved.clone(),
+                    kind: RustModuleChildEdgeKind::PathAttrMod,
+                });
             }
             continue;
         }
@@ -133,14 +163,20 @@ pub(in crate::parser) fn external_child_module_paths(
         let name = &item_mod.ident;
         let file_form = base.join(format!("{name}.rs"));
         if source_files.contains(&file_form) {
-            paths.push(file_form);
+            edges.push(RustModuleChildEdge {
+                child_path: file_form,
+                kind: RustModuleChildEdgeKind::Mod,
+            });
         }
         let mod_form = base.join(name).join("mod.rs");
         if source_files.contains(&mod_form) {
-            paths.push(mod_form);
+            edges.push(RustModuleChildEdge {
+                child_path: mod_form,
+                kind: RustModuleChildEdgeKind::Mod,
+            });
         }
     }
-    paths
+    edges
 }
 
 fn child_module_base_dir(module_path: &Path) -> PathBuf {

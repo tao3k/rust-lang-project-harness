@@ -14,5 +14,5 @@ Issues: 1
    ,-[ $TEMP/src/domain.rs:1:1 ]
  1 | mod parse;
    | `- add a //! doc explaining this branch module's ownership
-   |Help: $TEMP/src/domain.rs declares 2 child modules without a reasoning-tree intent doc.
-   |Contract: Document source modules that branch into multiple child modules so agents can traverse the owner tree intentionally.
+   |Help: $TEMP/src/domain.rs owns 2 resolved child edges without a reasoning-tree intent doc.
+   |Contract: Document source modules that own multiple resolved child edges so agents can traverse the owner tree intentionally.

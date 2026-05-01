@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use crate::RustProjectHarnessScope;
 
 use super::module_tree::{
-    RustModuleSourceShadow, external_child_module_paths, is_module_tree_root,
+    RustModuleChildEdge, RustModuleSourceShadow, external_child_module_edges, is_module_tree_root,
     rust_module_tree_facts,
 };
 use super::{ParsedRustModule, RustSourcePathFacts, rust_source_path_facts};
@@ -27,7 +27,7 @@ pub(crate) struct RustReasoningModuleFacts {
     pub(crate) source_path: RustSourcePathFacts,
     pub(crate) is_source_module: bool,
     pub(crate) is_module_tree_root: bool,
-    pub(crate) declared_child_paths: Vec<PathBuf>,
+    pub(crate) declared_child_edges: Vec<RustModuleChildEdge>,
 }
 
 impl RustReasoningTreeFacts {
@@ -61,8 +61,8 @@ pub(crate) fn rust_reasoning_tree_facts(
                 is_source_module,
                 is_module_tree_root: is_source_module
                     && is_module_tree_root(&scope.source_paths, &module.report.path),
-                declared_child_paths: if is_source_module {
-                    external_child_module_paths(module, &source_files)
+                declared_child_edges: if is_source_module {
+                    external_child_module_edges(module, &source_files)
                 } else {
                     Vec::new()
                 },

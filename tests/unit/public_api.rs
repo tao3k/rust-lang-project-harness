@@ -138,7 +138,7 @@ fn agent_snapshot_renderer_exposes_reasoning_tree_shape() {
     assert!(rendered.contains("Package: ."), "{rendered}");
     assert!(rendered.contains("SourceRoots: src"), "{rendered}");
     assert!(
-        rendered.contains("src/lib.rs [root, facade] owner=src -> src/domain.rs"),
+        rendered.contains("src/lib.rs [root, facade] owner=src -> mod:src/domain.rs"),
         "{rendered}"
     );
     assert!(rendered.contains("FindingGroups:\n - none"), "{rendered}");

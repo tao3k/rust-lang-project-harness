@@ -97,7 +97,7 @@ and are not blocking by default.
 - `AGENT-R005`: facade re-exports too many names without a tighter owner surface
 - `AGENT-R006`: public module name is a generic bucket such as `utils`, `common`, `helpers`, or `shared`
 - `AGENT-R007`: source module file or directory path uses a generic bucket segment
-- `AGENT-R008`: branch module declares multiple child modules without a reasoning-tree intent doc
+- `AGENT-R008`: branch module owns multiple resolved child edges without a reasoning-tree intent doc
 
 ## Rendered Diagnostic Policy
 
@@ -138,16 +138,17 @@ ignored.
 `AGENT-R001`, `AGENT-R002`, `AGENT-R004`, `AGENT-R005`, `AGENT-R006`, and
 `AGENT-R008` consume native facts from `src/parser/`, including file-level inner
 doc attributes, public names, public item doc attributes, public re-export
-groups, and external child module declarations. `AGENT-R003` evaluates the
-default package harness surface, including `src/` and `tests/`. It treats normal
-Rust file stems as namespace segments, so both `src/domain/domain.rs` and
-`tests/unit/unit/helper.rs` produce advisory path clarity findings. `AGENT-R004`
-separately reports duplicated public item names across source modules as
-non-blocking ambiguity advice. `AGENT-R006` catches public generic bucket
-modules such as `pub mod utils;`; those names are often where LLM-generated code
-loses a real owner boundary without violating Rust syntax, rustfmt, or Clippy.
-`AGENT-R007` catches the same drift at the file system level, such as
-`src/helpers.rs` or `src/common/mod.rs`, even when the module is private.
+groups, and resolved reasoning-tree child edges. `AGENT-R003` evaluates the
+default package harness surface, including `src/` and `tests/`. It treats
+normal Rust file stems as namespace segments, so both `src/domain/domain.rs` and
+`tests/unit/unit/helper.rs` produce advisory path clarity findings.
+`AGENT-R004` separately reports duplicated public item names across source
+modules as non-blocking ambiguity advice. `AGENT-R006` catches public generic
+bucket modules such as `pub mod utils;`; those names are often where
+LLM-generated code loses a real owner boundary without violating Rust syntax,
+rustfmt, or Clippy. `AGENT-R007` catches the same drift at the file system
+level, such as `src/helpers.rs` or `src/common/mod.rs`, even when the module is
+private.
 
 ## Reasoning Tree Policy
 
@@ -159,5 +160,5 @@ test modules. `RUST-MOD-R009` then verifies parser-owned module-tree facts: a
 scanned source file must be reachable from crate roots or binary roots through
 external `mod` declarations, explicit `#[path]` mounts, or literal `include!`
 source shards. `AGENT-R008` adds non-blocking advice when a branch file
-declares multiple children without a `//!` intent doc, because agents need a
-local navigation summary before they choose which subtree to edit.
+has multiple resolved child edges without a `//!` intent doc, because agents
+need a local navigation summary before they choose which subtree to edit.

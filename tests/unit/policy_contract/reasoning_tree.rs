@@ -8,7 +8,12 @@ fn rust_reasoning_tree_facts_are_the_policy_facing_parser_layer() {
         .expect("read reasoning tree parser");
     assert!(parser_source.contains("pub(crate) fn rust_reasoning_tree_facts"));
     assert!(parser_source.contains("RustReasoningTreeFacts"));
-    assert!(parser_source.contains("declared_child_paths"));
+    assert!(parser_source.contains("declared_child_edges"));
+    assert!(
+        fs::read_to_string(root.join("src/parser/module_tree.rs"))
+            .expect("read module tree parser")
+            .contains("RustModuleChildEdgeKind")
+    );
 
     let forbidden_rule_fragments = [
         "rust_module_tree_facts(",

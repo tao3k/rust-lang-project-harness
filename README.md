@@ -137,7 +137,8 @@ highlighted source line when available, one short source pointer, `Help:`, and
 Agents that need project shape rather than diagnostic cards can use
 `render_rust_project_harness_agent_snapshot()` or the `--agent-snapshot` CLI
 mode; that output is grouped by package, source roots, owner branches, and
-finding groups.
+finding groups. Owner branches render parser-labeled child edges such as
+`mod:src/domain.rs`, `path-mod:src/custom.rs`, and `include:src/shard.rs`.
 
 ## Docs
 

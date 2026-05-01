@@ -53,7 +53,24 @@ fn branch_module_without_intent_doc_is_agent_advice() {
 
     let findings = findings_for_rule(&report, "AGENT-R008");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
-    assert!(findings[0].summary.contains("2 child modules"));
+    assert!(findings[0].summary.contains("2 resolved child edges"));
+    assert!(report.is_clean(), "{:?}", report.findings);
+}
+
+#[test]
+fn branch_intent_counts_resolved_reasoning_tree_edges() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "branch-resolved-children");
+    fs::create_dir_all(root.join("src/domain")).expect("create domain");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod domain;\n").expect("write lib");
+    fs::write(root.join("src/domain.rs"), "mod parse;\nmod missing;\n").expect("write domain");
+    fs::write(root.join("src/domain/parse.rs"), "//! Parse leaf.\n").expect("write parse");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    let findings = findings_for_rule(&report, "AGENT-R008");
+    assert!(findings.is_empty(), "{:?}", report.findings);
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 

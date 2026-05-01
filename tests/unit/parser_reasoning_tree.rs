@@ -3,7 +3,7 @@ use std::fs;
 use tempfile::TempDir;
 
 use crate::RustProjectHarnessScope;
-use crate::parser::{parse_rust_file, rust_reasoning_tree_facts};
+use crate::parser::{RustModuleChildEdgeKind, parse_rust_file, rust_reasoning_tree_facts};
 
 #[test]
 fn reasoning_tree_interprets_modules_owners_and_child_edges() {
@@ -11,14 +11,23 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
     let root = temp.path();
     let src = root.join("src");
     fs::create_dir_all(src.join("domain")).expect("create source tree");
-    fs::write(src.join("lib.rs"), "//! Crate facade.\nmod domain;\n").expect("write lib");
+    fs::create_dir_all(src.join("alt")).expect("create alternate source tree");
+    fs::write(
+        src.join("lib.rs"),
+        "//! Crate facade.\nmod domain;\n#[path = \"alt/custom.rs\"]\nmod custom;\ninclude!(\"shard.rs\");\n",
+    )
+    .expect("write lib");
     fs::write(src.join("domain.rs"), "//! Domain branch.\nmod leaf;\n").expect("write domain");
     fs::write(src.join("domain/leaf.rs"), "//! Domain leaf.\n").expect("write leaf");
+    fs::write(src.join("alt/custom.rs"), "//! Custom path child.\n").expect("write custom");
+    fs::write(src.join("shard.rs"), "//! Included shard.\n").expect("write shard");
 
     let modules = [
         parse_rust_file(&src.join("lib.rs")),
         parse_rust_file(&src.join("domain.rs")),
         parse_rust_file(&src.join("domain/leaf.rs")),
+        parse_rust_file(&src.join("alt/custom.rs")),
+        parse_rust_file(&src.join("shard.rs")),
     ];
     let scope = RustProjectHarnessScope {
         project_root: root.to_path_buf(),
@@ -42,7 +51,20 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
     assert!(lib.is_source_module);
     assert!(lib.is_module_tree_root);
     assert!(lib.source_path.is_crate_facade);
-    assert_eq!(lib.declared_child_paths, vec![src.join("domain.rs")]);
+    assert_eq!(
+        child_edges(lib),
+        vec![
+            (RustModuleChildEdgeKind::Mod, src.join("domain.rs")),
+            (
+                RustModuleChildEdgeKind::PathAttrMod,
+                src.join("alt/custom.rs")
+            ),
+            (
+                RustModuleChildEdgeKind::IncludeLiteral,
+                src.join("shard.rs")
+            ),
+        ]
+    );
 
     let branch = reasoning_tree
         .module(&src.join("domain.rs"))
@@ -52,10 +74,20 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
         vec!["src".to_string(), "domain".to_string()]
     );
     assert_eq!(
-        branch.declared_child_paths,
-        vec![src.join("domain/leaf.rs")]
+        child_edges(branch),
+        vec![(RustModuleChildEdgeKind::Mod, src.join("domain/leaf.rs"))]
     );
 
     assert!(reasoning_tree.shadowed_module_sources.is_empty());
     assert!(reasoning_tree.unreachable_source_files.is_empty());
+}
+
+fn child_edges(
+    module: &crate::parser::RustReasoningModuleFacts,
+) -> Vec<(RustModuleChildEdgeKind, std::path::PathBuf)> {
+    module
+        .declared_child_edges
+        .iter()
+        .map(|edge| (edge.kind, edge.child_path.clone()))
+        .collect()
 }

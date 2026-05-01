@@ -8,7 +8,7 @@ use crate::discovery::{
     discover_cargo_package_roots, discover_rust_files, rust_project_harness_scope,
 };
 use crate::model::RustHarnessConfig;
-use crate::parser::{parse_rust_file, rust_reasoning_tree_facts};
+use crate::parser::{RustModuleChildEdge, parse_rust_file, rust_reasoning_tree_facts};
 use crate::rules::evaluate_default_rule_packs;
 use crate::{RustDiagnosticSeverity, RustHarnessFinding, RustProjectHarnessScope};
 
@@ -89,7 +89,7 @@ fn render_package_snapshot(
     let branch_count = reasoning_tree
         .modules
         .iter()
-        .filter(|module| module.is_source_module && !module.declared_child_paths.is_empty())
+        .filter(|module| module.is_source_module && !module.declared_child_edges.is_empty())
         .count();
     let mut rendered = String::new();
     let _ = writeln!(
@@ -131,7 +131,7 @@ fn render_package_snapshot(
         .filter(|module| module.is_source_module)
         .filter(|module| {
             module.is_module_tree_root
-                || !module.declared_child_paths.is_empty()
+                || !module.declared_child_edges.is_empty()
                 || module.source_path.is_special_entrypoint
                 || !module.source_path.repeated_namespace_segments.is_empty()
         })
@@ -156,9 +156,9 @@ fn render_package_snapshot(
                 display_project_path(&reasoning_tree.package_root, &module.path),
                 roles.join(", "),
                 owner,
-                display_paths(
+                display_child_edges(
                     &reasoning_tree.package_root,
-                    &module.declared_child_paths,
+                    &module.declared_child_edges,
                     "-"
                 )
             )
@@ -272,6 +272,23 @@ fn display_paths(package_root: &Path, paths: &[PathBuf], empty: &str) -> String 
     paths
         .iter()
         .map(|path| display_project_path(package_root, path))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn display_child_edges(package_root: &Path, edges: &[RustModuleChildEdge], empty: &str) -> String {
+    if edges.is_empty() {
+        return empty.to_string();
+    }
+    edges
+        .iter()
+        .map(|edge| {
+            format!(
+                "{}:{}",
+                edge.kind.as_str(),
+                display_project_path(package_root, &edge.child_path)
+            )
+        })
         .collect::<Vec<_>>()
         .join(", ")
 }

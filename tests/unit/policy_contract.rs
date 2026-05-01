@@ -125,7 +125,7 @@ fn module_tree_reachability_lives_under_parser_module() {
     assert!(parser_source.contains("pub(crate) fn rust_module_tree_facts"));
 
     let forbidden_rule_fragments = [
-        "external_child_module_paths",
+        "external_child_module_edges",
         "child_module_base_dir",
         "is_module_tree_root",
         "include_target",

@@ -10,13 +10,20 @@ fn agent_reasoning_tree_snapshot_groups_owner_branches() {
     let root = temp.path();
     write_manifest(root, "agent-reasoning-snapshot");
     fs::create_dir_all(root.join("src/domain")).expect("create domain");
-    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod domain;\n").expect("write lib");
+    fs::create_dir_all(root.join("src/alt")).expect("create alternate source tree");
+    fs::write(
+        root.join("src/lib.rs"),
+        "//! Test crate.\nmod domain;\n#[path = \"alt/custom.rs\"]\nmod custom;\n",
+    )
+    .expect("write lib");
     fs::write(
         root.join("src/domain.rs"),
-        "//! Domain branch.\nmod leaf;\n",
+        "//! Domain branch.\nmod leaf;\ninclude!(\"domain/shard.rs\");\n",
     )
     .expect("write domain");
     fs::write(root.join("src/domain/leaf.rs"), "//! Domain leaf.\n").expect("write leaf");
+    fs::write(root.join("src/alt/custom.rs"), "//! Custom path child.\n").expect("write custom");
+    fs::write(root.join("src/domain/shard.rs"), "//! Included shard.\n").expect("write shard");
 
     let rendered = render_rust_project_harness_agent_snapshot(root).expect("render snapshot");
 
