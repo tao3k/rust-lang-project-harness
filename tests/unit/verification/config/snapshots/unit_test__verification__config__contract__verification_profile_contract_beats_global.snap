@@ -12,4 +12,5 @@ expression: rendered
    |contract: security=owner security skill must report route-level authz matrix
 
 [verify-report]
+   |bundle: renderer=render_rust_verification_report_bundle_json artifact=verification_report_bundle.json artifacts=1
    |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=security

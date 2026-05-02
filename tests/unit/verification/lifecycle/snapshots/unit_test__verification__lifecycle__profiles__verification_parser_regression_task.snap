@@ -12,4 +12,5 @@ expression: rendered
    |contract: regression=regression skill must report source growth, dependency drift, and module-cycle status for this fingerprint
 
 [verify-report]
+   |bundle: renderer=render_rust_verification_report_bundle_json artifact=verification_report_bundle.json artifacts=1
    |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=regression

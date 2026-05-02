@@ -29,9 +29,10 @@ use std::path::Path;
 
 use rust_lang_project_harness::{
     RustOwnerResponsibility, RustVerificationProfileHint, default_rust_harness_config,
-    build_rust_verification_performance_index, plan_rust_project_verification_with_config,
-    render_rust_verification_performance_index_json, render_rust_verification_plan,
-    render_rust_verification_skill_contracts,
+    build_rust_verification_performance_index, build_rust_verification_report_bundle,
+    plan_rust_project_verification_with_config, render_rust_verification_performance_index_json,
+    render_rust_verification_plan, render_rust_verification_report_artifact_json,
+    render_rust_verification_report_bundle_json, render_rust_verification_skill_contracts,
 };
 
 let config = default_rust_harness_config().with_verification_profile_hint(
@@ -50,6 +51,12 @@ let compact = render_rust_verification_plan(&plan);
 let contract_tree = render_rust_verification_skill_contracts(&plan);
 let perf_index = build_rust_verification_performance_index(&plan);
 let perf_json = render_rust_verification_performance_index_json(&perf_index).expect("json");
+let report_bundle = build_rust_verification_report_bundle(&plan);
+let report_manifest_json = render_rust_verification_report_bundle_json(&plan).expect("json");
+let performance_artifact_json =
+    render_rust_verification_report_artifact_json(&plan, "performance_index_json")
+        .expect("json")
+        .expect("active performance artifact");
 ```
 
 Relative profile paths are matched against parser-known modules. In a single
@@ -82,6 +89,16 @@ serialized in `RustVerificationPlan::report_obligations`, including the active
 task kinds, fingerprints, renderer, reason, and suggested artifact filename.
 This keeps the hot prompt compact while making the durable metrics surface an
 upstream harness contract instead of a downstream convention.
+
+Agents and CI integrations do not need to reconstruct those artifact contracts
+manually. `build_rust_verification_report_bundle(&plan)` and
+`render_rust_verification_report_bundle_json(&plan)` produce a small manifest,
+not one large all-in-one payload. The manifest lists modular artifacts,
+template metadata, trace guidance, runtime budgets, and task fingerprints.
+Call `render_rust_verification_report_artifact_json(&plan, key)` to render one
+artifact at a time, such as `verification_plan_json` or `performance_index_json`.
+This keeps performance evidence, plan state, and future report families
+separately persistable and separately comparable.
 
 ## Configurable Surface
 

@@ -13,6 +13,7 @@ expression: compact_audit
    |stress: pending phase=after_unit_tests_pass fingerprint=rustv:b9654e9e1352f015 skill=rust-verification-stress@k6 contract_ref=rust-verification-stress@k6
 
 [verify-report]
+   |bundle: renderer=render_rust_verification_report_bundle_json artifact=verification_report_bundle.json artifacts=1
    |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=stress
 [skill-contract] rust-verification-stress@k6
    |tool: k6

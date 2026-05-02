@@ -167,6 +167,11 @@ fn render_report_obligations(plan: &RustVerificationPlan) -> String {
     }
 
     let mut rendered = String::from("[verify-report]\n");
+    let _ = writeln!(
+        rendered,
+        "   |bundle: renderer=render_rust_verification_report_bundle_json artifact=verification_report_bundle.json artifacts={}",
+        plan.report_obligations.len()
+    );
     for obligation in &plan.report_obligations {
         let kinds = obligation
             .task_kinds

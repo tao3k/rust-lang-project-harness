@@ -343,6 +343,13 @@ Agent knows to persist `verification_plan.json`, and `performance_index.json`
 when performance tasks are active. Downstream workspaces decide where those
 artifacts live, but the obligation to create a durable report is emitted by the
 harness whenever the policy creates active verification work.
+For integrations that want one fixed persistence contract,
+`build_rust_verification_report_bundle(&plan)` and
+`render_rust_verification_report_bundle_json(&plan)` materialize a small report
+manifest. The manifest keeps artifacts modular and records template plus trace
+guidance, including configurable runtime budgets for performance evidence.
+Use `render_rust_verification_report_artifact_json(&plan, key)` to render one
+artifact payload at a time instead of creating one large report JSON.
 
 For workspaces, profile hint paths can be package-relative (`src/api.rs`) or
 workspace-root-relative (`crates/api/src/api.rs`). Task fingerprints include the
