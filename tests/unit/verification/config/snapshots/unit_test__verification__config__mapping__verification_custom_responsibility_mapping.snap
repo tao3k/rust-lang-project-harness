@@ -9,3 +9,6 @@ expression: rendered
    |requires: security=attack_classes,authorization_boundary,findings
    |fact: security.profile=public_api
    |contract: security=security skill must report scanned attack classes and authorization-boundary result for this fingerprint
+
+[verify-report]
+   |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=security

@@ -22,9 +22,9 @@ use super::profile::{
 use super::{
     RustOwnerResponsibility, RustVerificationEvidence, RustVerificationPlan,
     RustVerificationPolicy, RustVerificationProfileHint, RustVerificationReceipt,
-    RustVerificationReceiptStatus, RustVerificationResolutionNote, RustVerificationTask,
-    RustVerificationTaskContract, RustVerificationTaskKind, RustVerificationTaskState,
-    RustVerificationWaiver,
+    RustVerificationReceiptStatus, RustVerificationReportObligation,
+    RustVerificationResolutionNote, RustVerificationTask, RustVerificationTaskContract,
+    RustVerificationTaskKind, RustVerificationTaskState, RustVerificationWaiver,
 };
 
 struct VerificationTaskSpec {
@@ -128,6 +128,7 @@ pub fn plan_rust_project_verification_with_policy(
     let mut plan = RustVerificationPlan {
         project_root: project_root.to_path_buf(),
         skill_descriptors: skill_descriptors_for_tasks(policy, &task_values),
+        report_obligations: report_obligations_for_tasks(&task_values),
         tasks: std::mem::take(&mut task_values),
     };
     plan.tasks.sort_by(|left, right| {
@@ -138,6 +139,53 @@ pub fn plan_rust_project_verification_with_policy(
             .then_with(|| left.fingerprint.cmp(&right.fingerprint))
     });
     Ok(plan)
+}
+
+fn report_obligations_for_tasks(
+    tasks: &[RustVerificationTask],
+) -> Vec<RustVerificationReportObligation> {
+    let active_tasks = tasks
+        .iter()
+        .filter(|task| task.is_active())
+        .collect::<Vec<_>>();
+    if active_tasks.is_empty() {
+        return Vec::new();
+    }
+
+    let task_kinds = active_tasks
+        .iter()
+        .map(|task| task.kind)
+        .collect::<BTreeSet<_>>();
+    let task_fingerprints = active_tasks
+        .iter()
+        .map(|task| task.fingerprint.clone())
+        .collect::<Vec<_>>();
+    let mut obligations = vec![RustVerificationReportObligation::new(
+        "verification_plan_json",
+        "render_rust_verification_plan_json",
+        "verification_plan.json",
+        "persist active verification policy state so receipts, waivers, and task drift stay comparable",
+        task_kinds,
+        task_fingerprints,
+    )];
+
+    let performance_fingerprints = active_tasks
+        .iter()
+        .filter(|task| task.kind == RustVerificationTaskKind::Performance)
+        .map(|task| task.fingerprint.clone())
+        .collect::<Vec<_>>();
+    if !performance_fingerprints.is_empty() {
+        obligations.push(RustVerificationReportObligation::new(
+            "performance_index_json",
+            "build_rust_verification_performance_index + render_rust_verification_performance_index_json",
+            "performance_index.json",
+            "persist Rust performance state for benchmark, receipt, and missing-evidence metrics",
+            [RustVerificationTaskKind::Performance],
+            performance_fingerprints,
+        ));
+    }
+
+    obligations
 }
 
 fn collect_profile_tasks(

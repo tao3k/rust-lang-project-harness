@@ -1,6 +1,5 @@
 ---
 source: tests/unit/verification/workspace.rs
-assertion_line: 75
 expression: rendered
 ---
 [verify] crates/missing/src/api.rs
@@ -9,3 +8,6 @@ expression: rendered
    |requires: responsibility_review=profile_resolution
    |fact: responsibility_review.hint=responsibilities=public_api
    |contract: responsibility_review=update the verification profile hint to match parser facts, or attach a complete waiver
+
+[verify-report]
+   |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=responsibility_review

@@ -37,6 +37,23 @@ fn verification_json_preserves_structured_plan_fields() {
     let value: serde_json::Value = serde_json::from_str(&json).expect("parse json");
 
     assert!(value["project_root"].as_str().is_some());
+    assert_eq!(
+        value["report_obligations"][0]["key"],
+        "verification_plan_json"
+    );
+    assert_eq!(
+        value["report_obligations"][0]["renderer"],
+        "render_rust_verification_plan_json"
+    );
+    assert_eq!(
+        value["report_obligations"][0]["suggested_artifact_name"],
+        "verification_plan.json"
+    );
+    assert_eq!(value["report_obligations"][0]["task_kinds"][0], "stress");
+    assert_eq!(
+        value["report_obligations"][0]["task_fingerprints"][0],
+        value["tasks"][0]["fingerprint"]
+    );
     assert_eq!(value["tasks"][0]["kind"], "stress");
     assert_eq!(value["tasks"][0]["state"], "pending");
     assert_eq!(value["tasks"][0]["required_evidence"][0]["key"], "p50");

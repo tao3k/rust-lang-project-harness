@@ -1,6 +1,5 @@
 ---
 source: tests/unit/verification/config/scenario.rs
-assertion_line: 206
 expression: rendered
 ---
 [scenario] stress_k6_triggered_by_public_api
@@ -10,6 +9,9 @@ expression: rendered
    |verify: [verify] src/api.rs
    |verify:    |owner: src/api
    |verify:    |stress: pending phase=after_unit_tests_pass fingerprint=rustv:b9654e9e1352f015 skill=rust-verification-stress@k6 contract_ref=rust-verification-stress@k6
+   |verify: 
+   |verify: [verify-report]
+   |verify:    |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=stress
    |contracts: [skill-contract] rust-verification-stress@k6
    |contracts:    |tool: k6
    |contracts:    |run: k6 run <script>
@@ -25,6 +27,10 @@ expression: rendered
    |verify: [verify] src/api.rs
    |verify:    |owner: src/api
    |verify:    |performance: pending phase=after_unit_tests_pass fingerprint=rustv:07c5fef10ad0d802 skill=rust-verification-performance@criterion contract_ref=rust-verification-performance@criterion
+   |verify: 
+   |verify: [verify-report]
+   |verify:    |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=performance
+   |verify:    |required: performance_index_json renderer=build_rust_verification_performance_index + render_rust_verification_performance_index_json artifact=performance_index.json tasks=1 kinds=performance
    |contracts: [skill-contract] rust-verification-performance@criterion
    |contracts:    |tool: criterion
    |contracts:    |run: cargo bench
@@ -40,6 +46,9 @@ expression: rendered
    |verify: [verify] src/api.rs
    |verify:    |owner: src/api
    |verify:    |chaos: pending phase=before_release fingerprint=rustv:50843452bc7aa4a9 skill=rust-verification-chaos@fault-injection contract_ref=rust-verification-chaos@fault-injection
+   |verify: 
+   |verify: [verify-report]
+   |verify:    |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=chaos
    |contracts: [skill-contract] rust-verification-chaos@fault-injection
    |contracts:    |tool: fault-injection
    |contracts:    |run: project-owned chaos command
@@ -55,6 +64,9 @@ expression: rendered
    |verify: [verify] src/api.rs
    |verify:    |owner: src/api
    |verify:    |security: pending phase=before_release fingerprint=rustv:68794b9db448d7f1 skill=rust-verification-security@security-scan contract_ref=rust-verification-security@security-scan
+   |verify: 
+   |verify: [verify-report]
+   |verify:    |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=security
    |contracts: [skill-contract] rust-verification-security@security-scan
    |contracts:    |tool: security-scan
    |contracts:    |run: project-owned security probe
@@ -70,6 +82,9 @@ expression: rendered
    |verify: [verify] src/api.rs
    |verify:    |owner: src/api
    |verify:    |regression: pending phase=scheduled_regression fingerprint=rustv:cf590a7d531359da skill=rust-verification-regression@harness contract_ref=rust-verification-regression@harness
+   |verify: 
+   |verify: [verify-report]
+   |verify:    |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=regression
    |contracts: [skill-contract] rust-verification-regression@harness
    |contracts:    |tool: rust-lang-project-harness
    |contracts:    |run: cargo test verification::regression
@@ -108,6 +123,10 @@ expression: rendered
    |verify:    |owner: src/api
    |verify:    |performance: failed phase=after_unit_tests_pass fingerprint=rustv:07c5fef10ad0d802 skill=rust-verification-performance@criterion contract_ref=rust-verification-performance@criterion
    |verify:    |receipt: performance=benchmark regression exceeded threshold
+   |verify: 
+   |verify: [verify-report]
+   |verify:    |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=performance
+   |verify:    |required: performance_index_json renderer=build_rust_verification_performance_index + render_rust_verification_performance_index_json artifact=performance_index.json tasks=1 kinds=performance
    |contracts: [skill-contract] rust-verification-performance@criterion
    |contracts:    |tool: criterion
    |contracts:    |run: cargo bench
@@ -123,6 +142,10 @@ expression: rendered
    |verify: [verify] src/api.rs
    |verify:    |owner: src/api
    |verify:    |performance: pending phase=after_unit_tests_pass fingerprint=rustv:07c5fef10ad0d802 skill=rust-verification-performance@criterion contract_ref=rust-verification-performance@criterion
+   |verify: 
+   |verify: [verify-report]
+   |verify:    |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=performance
+   |verify:    |required: performance_index_json renderer=build_rust_verification_performance_index + render_rust_verification_performance_index_json artifact=performance_index.json tasks=1 kinds=performance
    |contracts: [skill-contract] rust-verification-performance@criterion
    |contracts:    |tool: criterion
    |contracts:    |run: cargo bench
@@ -139,6 +162,9 @@ expression: rendered
    |verify:    |owner: src/api
    |verify:    |stress: pending phase=after_unit_tests_pass fingerprint=rustv:b9654e9e1352f015 skill=rust-verification-stress@k6 contract_ref=rust-verification-stress@k6
    |verify:    |resolution: stress.waiver=incomplete: missing owner, reason, expires_at
+   |verify: 
+   |verify: [verify-report]
+   |verify:    |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=stress
    |contracts: [skill-contract] rust-verification-stress@k6
    |contracts:    |tool: k6
    |contracts:    |run: k6 run <script>

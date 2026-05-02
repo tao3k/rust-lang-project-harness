@@ -11,3 +11,6 @@ expression: rendered
    |fact: responsibility_review.derived=stress
    |fact: responsibility_review.configured=<none>
    |contract: responsibility_review=update the verification profile hint to match parser facts, or attach a complete waiver
+
+[verify-report]
+   |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=responsibility_review

@@ -4,6 +4,7 @@ use rust_lang_project_harness::{
     RustVerificationTaskState, build_rust_verification_performance_index,
     default_rust_harness_config, plan_rust_project_verification_with_config,
     render_rust_verification_performance_index, render_rust_verification_performance_index_json,
+    render_rust_verification_plan,
 };
 use tempfile::TempDir;
 
@@ -105,6 +106,31 @@ fn performance_index_renders_pending_task_without_skill_manual_snapshot() {
     assert!(!rendered.contains("[skill-contract]"), "{rendered}");
     assert!(!rendered.contains("|standard:"), "{rendered}");
     insta::assert_snapshot!("performance_index_pending_task", rendered);
+}
+
+#[test]
+fn performance_policy_requires_plan_and_performance_report_obligations() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_api_project(root);
+    let plan = plan_rust_project_verification_with_config(root, &rust_native_performance_config())
+        .expect("plan");
+    let rendered = render_rust_verification_plan(&plan);
+
+    assert_eq!(plan.report_obligations.len(), 2);
+    assert_eq!(plan.report_obligations[0].key, "verification_plan_json");
+    assert_eq!(plan.report_obligations[0].task_count(), 1);
+    assert_eq!(plan.report_obligations[1].key, "performance_index_json");
+    assert_eq!(
+        plan.report_obligations[1].renderer,
+        "build_rust_verification_performance_index + render_rust_verification_performance_index_json"
+    );
+    assert!(
+        rendered.contains(
+            "[verify-report]\n   |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=performance\n   |required: performance_index_json renderer=build_rust_verification_performance_index + render_rust_verification_performance_index_json artifact=performance_index.json tasks=1 kinds=performance"
+        ),
+        "{rendered}"
+    );
 }
 
 #[test]

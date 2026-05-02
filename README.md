@@ -337,6 +337,13 @@ It also exposes owner/package/state queries and missing receipt evidence keys,
 so partial failed receipts can tell the Agent exactly which benchmark facts are
 still absent.
 
+Active verification tasks also carry `RustVerificationPlan::report_obligations`.
+Compact verification output renders them as `[verify-report]` reminders so the
+Agent knows to persist `verification_plan.json`, and `performance_index.json`
+when performance tasks are active. Downstream workspaces decide where those
+artifacts live, but the obligation to create a durable report is emitted by the
+harness whenever the policy creates active verification work.
+
 For workspaces, profile hint paths can be package-relative (`src/api.rs`) or
 workspace-root-relative (`crates/api/src/api.rs`). Task fingerprints include the
 owning package path, so two members with the same owner path do not collide.

@@ -149,6 +149,7 @@ fn verification_skill_contracts_clear_with_receipt() {
     assert!(resolved_plan.is_clear());
     assert_eq!(render_rust_verification_plan(&resolved_plan), "");
     assert_eq!(render_rust_verification_skill_contracts(&resolved_plan), "");
+    assert!(resolved_plan.report_obligations.is_empty());
     assert!(resolved_plan.skill_descriptors.is_empty());
 }
 
@@ -157,6 +158,7 @@ fn rust_native_performance_skill_descriptors_snapshot() {
     let plan = RustVerificationPlan {
         project_root: PathBuf::new(),
         tasks: Vec::new(),
+        report_obligations: Vec::new(),
         skill_descriptors: vec![
             RustVerificationSkillDescriptor::criterion_performance(),
             RustVerificationSkillDescriptor::divan_performance(),

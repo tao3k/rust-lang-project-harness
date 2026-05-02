@@ -1,6 +1,5 @@
 ---
 source: tests/unit/verification/lifecycle/profiles.rs
-assertion_line: 33
 expression: rendered
 ---
 [verify] src/api.rs
@@ -25,3 +24,7 @@ expression: rendered
    |requires: security=attack_classes,authorization_boundary,findings
    |fact: security.profile=public_api,external_dependency,security_boundary,latency_sensitive
    |contract: security=security skill must report scanned attack classes and authorization-boundary result for this fingerprint
+
+[verify-report]
+   |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=4 kinds=stress,performance,chaos,security
+   |required: performance_index_json renderer=build_rust_verification_performance_index + render_rust_verification_performance_index_json artifact=performance_index.json tasks=1 kinds=performance

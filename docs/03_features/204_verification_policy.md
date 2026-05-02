@@ -70,6 +70,19 @@ Compact text is grouped by owner path. If one owner needs stress, performance,
 chaos, and security verification, the renderer emits one `[verify] owner.rs`
 block with task-specific lines instead of repeated owner cards.
 
+Active verification tasks also create durable report obligations. The compact
+renderer emits one `[verify-report]` block that tells the Agent which harness
+renderers should be persisted by the embedding project. Every active plan
+requires `verification_plan_json` through `render_rust_verification_plan_json`.
+If any active task is `performance`, the plan also requires
+`performance_index_json` through
+`build_rust_verification_performance_index` plus
+`render_rust_verification_performance_index_json`. These obligations are also
+serialized in `RustVerificationPlan::report_obligations`, including the active
+task kinds, fingerprints, renderer, reason, and suggested artifact filename.
+This keeps the hot prompt compact while making the durable metrics surface an
+upstream harness contract instead of a downstream convention.
+
 ## Configurable Surface
 
 Verification config stays library-first. It does not introduce CLI flags or
@@ -317,6 +330,11 @@ the Agent exactly which benchmark/profiling facts are still absent. This is the
 intended performance-status lane: human-readable reminders stay quiet, while
 benchmark state remains traceable for CI indexes, dashboards, or future
 reasoning-tree retrieval.
+
+The verification plan's `performance_index_json` report obligation is emitted
+while any performance task remains active. A downstream workspace can persist
+the rendered index under its own contract snapshot or CI artifact location, but
+the Agent-facing reminder to create that artifact comes from the harness plan.
 
 Use a waiver when the task is intentionally out of scope for the current work:
 

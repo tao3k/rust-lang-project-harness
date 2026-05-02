@@ -1,6 +1,5 @@
 ---
 source: tests/unit/verification/lifecycle/profiles.rs
-assertion_line: 74
 expression: rendered
 ---
 [verify] src/domain.rs
@@ -11,3 +10,6 @@ expression: rendered
    |fact: regression.child_modules=3
    |fact: regression.owner_deps=0
    |contract: regression=regression skill must report source growth, dependency drift, and module-cycle status for this fingerprint
+
+[verify-report]
+   |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=regression

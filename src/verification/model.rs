@@ -537,6 +537,55 @@ impl RustVerificationTask {
     }
 }
 
+/// Durable report artifact expected for active verification policy tasks.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RustVerificationReportObligation {
+    /// Stable report contract key.
+    pub key: String,
+    /// Harness renderer or index builder that produces the report payload.
+    pub renderer: String,
+    /// Recommended artifact filename for embedding projects.
+    pub suggested_artifact_name: String,
+    /// Why this report should be persisted for later comparison.
+    pub reason: String,
+    /// Active task families covered by this report.
+    pub task_kinds: BTreeSet<RustVerificationTaskKind>,
+    /// Active task fingerprints covered by this report.
+    pub task_fingerprints: Vec<String>,
+}
+
+impl RustVerificationReportObligation {
+    /// Build one durable verification report obligation.
+    #[must_use]
+    pub fn new<I, F>(
+        key: impl Into<String>,
+        renderer: impl Into<String>,
+        suggested_artifact_name: impl Into<String>,
+        reason: impl Into<String>,
+        task_kinds: I,
+        task_fingerprints: F,
+    ) -> Self
+    where
+        I: IntoIterator<Item = RustVerificationTaskKind>,
+        F: IntoIterator<Item = String>,
+    {
+        Self {
+            key: key.into(),
+            renderer: renderer.into(),
+            suggested_artifact_name: suggested_artifact_name.into(),
+            reason: reason.into(),
+            task_kinds: task_kinds.into_iter().collect(),
+            task_fingerprints: task_fingerprints.into_iter().collect(),
+        }
+    }
+
+    /// Number of active tasks covered by this report.
+    #[must_use]
+    pub fn task_count(&self) -> usize {
+        self.task_fingerprints.len()
+    }
+}
+
 /// Compact explanation for a receipt or waiver that did not clear a task.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct RustVerificationResolutionNote {
@@ -924,6 +973,9 @@ pub struct RustVerificationPlan {
     pub project_root: PathBuf,
     /// All generated tasks, including satisfied or waived tasks.
     pub tasks: Vec<RustVerificationTask>,
+    /// Durable report artifacts expected while verification tasks are active.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub report_obligations: Vec<RustVerificationReportObligation>,
     /// Compact descriptors referenced by tasks in this plan.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub skill_descriptors: Vec<RustVerificationSkillDescriptor>,

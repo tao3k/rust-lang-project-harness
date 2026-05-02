@@ -24,7 +24,7 @@ pub fn render_rust_verification_plan(plan: &RustVerificationPlan) -> String {
             .or_default()
             .push(task);
     }
-    groups
+    let mut rendered = groups
         .into_iter()
         .map(|(key, mut tasks)| {
             tasks.sort_by(|left, right| {
@@ -35,7 +35,17 @@ pub fn render_rust_verification_plan(plan: &RustVerificationPlan) -> String {
             render_owner_group(&key, &tasks, display_root.unwrap_or(&key.package_root))
         })
         .collect::<Vec<_>>()
-        .join("\n")
+        .join("\n");
+    let report_obligations = render_report_obligations(plan);
+    if rendered.is_empty() {
+        report_obligations
+    } else if report_obligations.is_empty() {
+        rendered
+    } else {
+        rendered.push('\n');
+        rendered.push_str(&report_obligations);
+        rendered
+    }
 }
 
 /// Render a structured JSON verification plan for tool consumers.
@@ -149,6 +159,32 @@ fn render_task_resolution(task: &RustVerificationTask, rendered: &mut String, ki
             note.label, note.detail
         );
     }
+}
+
+fn render_report_obligations(plan: &RustVerificationPlan) -> String {
+    if plan.report_obligations.is_empty() {
+        return String::new();
+    }
+
+    let mut rendered = String::from("[verify-report]\n");
+    for obligation in &plan.report_obligations {
+        let kinds = obligation
+            .task_kinds
+            .iter()
+            .map(|kind| kind.as_str())
+            .collect::<Vec<_>>()
+            .join(",");
+        let _ = writeln!(
+            rendered,
+            "   |required: {} renderer={} artifact={} tasks={} kinds={}",
+            obligation.key,
+            obligation.renderer,
+            obligation.suggested_artifact_name,
+            obligation.task_count(),
+            kinds
+        );
+    }
+    rendered.trim_end().to_string()
 }
 
 fn render_skill_descriptor(descriptor: &super::RustVerificationSkillDescriptor) -> String {

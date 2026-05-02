@@ -12,9 +12,10 @@ pub use model::{
     RustOwnerResponsibility, RustVerificationDependencySignal, RustVerificationEvidence,
     RustVerificationPhase, RustVerificationPlan, RustVerificationPolicy,
     RustVerificationProfileHint, RustVerificationReceipt, RustVerificationReceiptStatus,
-    RustVerificationRequirement, RustVerificationResolutionNote, RustVerificationSkillBinding,
-    RustVerificationSkillDescriptor, RustVerificationTask, RustVerificationTaskContract,
-    RustVerificationTaskKind, RustVerificationTaskState, RustVerificationWaiver,
+    RustVerificationReportObligation, RustVerificationRequirement, RustVerificationResolutionNote,
+    RustVerificationSkillBinding, RustVerificationSkillDescriptor, RustVerificationTask,
+    RustVerificationTaskContract, RustVerificationTaskKind, RustVerificationTaskState,
+    RustVerificationWaiver,
 };
 pub use performance::{
     RustVerificationPerformanceIndex, RustVerificationPerformanceRecord,
