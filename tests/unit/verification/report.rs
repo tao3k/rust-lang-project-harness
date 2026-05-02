@@ -36,15 +36,26 @@ fn verification_report_bundle_materializes_required_artifacts() {
         .expect("render performance artifact")
         .expect("performance artifact");
     let perf_value: serde_json::Value = serde_json::from_str(&perf_json).expect("parse perf json");
+    let task_json = render_rust_verification_report_artifact_json(&plan, "task_index_json")
+        .expect("render task artifact")
+        .expect("task artifact");
+    let task_value: serde_json::Value = serde_json::from_str(&task_json).expect("parse task json");
 
     assert!(rendered.contains("render_rust_verification_report_bundle_json"));
-    assert_eq!(bundle.artifacts.len(), 2);
+    assert_eq!(bundle.artifacts.len(), 3);
     assert_eq!(
         bundle
             .artifact("verification_plan_json")
             .expect("plan artifact")
             .task_count(),
         1
+    );
+    assert_eq!(
+        bundle
+            .artifact("task_index_json")
+            .expect("task artifact")
+            .persistence,
+        RustVerificationReportPersistence::SourceBaseline
     );
     assert_eq!(
         bundle
@@ -60,7 +71,7 @@ fn verification_report_bundle_materializes_required_artifacts() {
             .persistence,
         RustVerificationReportPersistence::RuntimeCache
     );
-    assert_eq!(bundle.source_baseline_artifacts().len(), 1);
+    assert_eq!(bundle.source_baseline_artifacts().len(), 2);
     assert_eq!(bundle.runtime_cache_artifacts().len(), 1);
     assert_eq!(
         bundle
@@ -73,19 +84,21 @@ fn verification_report_bundle_materializes_required_artifacts() {
         Some(300)
     );
     assert_eq!(perf_value["records"][0]["state"], "pending");
+    assert_eq!(task_value["records"][0]["kind"], "performance");
     assert_eq!(
         value["artifacts"][0]["artifact_name"],
         "verification_plan.json"
     );
+    assert_eq!(value["artifacts"][1]["artifact_name"], "task_index.json");
     assert_eq!(
-        value["artifacts"][1]["artifact_name"],
+        value["artifacts"][2]["artifact_name"],
         "performance_index.json"
     );
     assert_eq!(
-        value["artifacts"][1]["template"]["template_id"],
+        value["artifacts"][2]["template"]["template_id"],
         "performance-index"
     );
-    assert!(value["artifacts"][1].get("payload").is_none());
+    assert!(value["artifacts"][2].get("payload").is_none());
 }
 
 #[test]
@@ -157,10 +170,11 @@ fn verification_report_writer_splits_source_baseline_from_runtime_cache() {
             .exists()
     );
     assert!(source_dir.join("performance_index.json").exists());
+    assert!(source_dir.join("task_index.json").exists());
     assert!(!source_dir.join("verification_plan.json").exists());
     assert!(cache_dir.join("verification_report_manifest.json").exists());
     assert!(cache_dir.join("verification_plan.json").exists());
-    assert_eq!(receipt.source_baseline_paths.len(), 2);
+    assert_eq!(receipt.source_baseline_paths.len(), 3);
     assert_eq!(receipt.runtime_cache_paths.len(), 2);
 
     let source_manifest =
@@ -173,8 +187,10 @@ fn verification_report_writer_splits_source_baseline_from_runtime_cache() {
         .expect("performance index");
 
     assert!(source_manifest.contains("performance_index_json"));
+    assert!(source_manifest.contains("task_index_json"));
     assert!(!source_manifest.contains("verification_plan_json"));
     assert!(cache_manifest.contains("verification_plan_json"));
+    assert!(cache_manifest.contains("task_index_json"));
     assert!(cache_manifest.contains("performance_index_json"));
     assert!(performance_index.contains("$CRATE_ROOT"));
     assert!(!performance_index.contains(&root.display().to_string()));

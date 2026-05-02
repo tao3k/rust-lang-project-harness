@@ -11,6 +11,7 @@ expression: rendered
    |contract: performance=performance skill must report benchmark command, baseline, regression threshold, latency or throughput, allocation profile, and profiling artifact for this fingerprint
 
 [verify-report]
-   |bundle: renderer=render_rust_verification_report_bundle_json artifact=verification_report_bundle.json artifacts=2
+   |bundle: renderer=render_rust_verification_report_bundle_json artifact=verification_report_bundle.json artifacts=3
    |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=performance
+   |required: task_index_json renderer=build_rust_verification_task_index + render_rust_verification_task_index_json artifact=task_index.json tasks=1 kinds=performance
    |required: performance_index_json renderer=build_rust_verification_performance_index + render_rust_verification_performance_index_json artifact=performance_index.json tasks=1 kinds=performance

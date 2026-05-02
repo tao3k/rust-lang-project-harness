@@ -168,6 +168,20 @@ fn report_obligations_for_tasks(
         task_kinds,
         task_fingerprints,
     )];
+    obligations.push(RustVerificationReportObligation::new(
+        "task_index_json",
+        "build_rust_verification_task_index + render_rust_verification_task_index_json",
+        "task_index.json",
+        "persist compact security, performance, stress, chaos, and regression task state",
+        active_tasks
+            .iter()
+            .map(|task| task.kind)
+            .collect::<BTreeSet<_>>(),
+        active_tasks
+            .iter()
+            .map(|task| task.fingerprint.clone())
+            .collect::<Vec<_>>(),
+    ));
 
     let performance_fingerprints = active_tasks
         .iter()

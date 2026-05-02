@@ -117,17 +117,19 @@ fn performance_policy_requires_plan_and_performance_report_obligations() {
         .expect("plan");
     let rendered = render_rust_verification_plan(&plan);
 
-    assert_eq!(plan.report_obligations.len(), 2);
+    assert_eq!(plan.report_obligations.len(), 3);
     assert_eq!(plan.report_obligations[0].key, "verification_plan_json");
     assert_eq!(plan.report_obligations[0].task_count(), 1);
-    assert_eq!(plan.report_obligations[1].key, "performance_index_json");
+    assert_eq!(plan.report_obligations[1].key, "task_index_json");
+    assert_eq!(plan.report_obligations[1].task_count(), 1);
+    assert_eq!(plan.report_obligations[2].key, "performance_index_json");
     assert_eq!(
-        plan.report_obligations[1].renderer,
+        plan.report_obligations[2].renderer,
         "build_rust_verification_performance_index + render_rust_verification_performance_index_json"
     );
     assert!(
         rendered.contains(
-            "[verify-report]\n   |bundle: renderer=render_rust_verification_report_bundle_json artifact=verification_report_bundle.json artifacts=2\n   |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=performance\n   |required: performance_index_json renderer=build_rust_verification_performance_index + render_rust_verification_performance_index_json artifact=performance_index.json tasks=1 kinds=performance"
+            "[verify-report]\n   |bundle: renderer=render_rust_verification_report_bundle_json artifact=verification_report_bundle.json artifacts=3\n   |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=performance\n   |required: task_index_json renderer=build_rust_verification_task_index + render_rust_verification_task_index_json artifact=task_index.json tasks=1 kinds=performance\n   |required: performance_index_json renderer=build_rust_verification_performance_index + render_rust_verification_performance_index_json artifact=performance_index.json tasks=1 kinds=performance"
         ),
         "{rendered}"
     );

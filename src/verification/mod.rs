@@ -8,6 +8,7 @@ mod profile;
 mod profile_index;
 mod render;
 mod report;
+mod task_index;
 
 pub use model::{
     RustOwnerResponsibility, RustVerificationDependencySignal, RustVerificationEvidence,
@@ -46,4 +47,8 @@ pub use report::{
     build_rust_verification_report_bundle, build_rust_verification_report_bundle_with_options,
     render_rust_verification_report_artifact_json, render_rust_verification_report_bundle_json,
     write_rust_verification_reports,
+};
+pub use task_index::{
+    RustVerificationTaskIndex, RustVerificationTaskRecord, build_rust_verification_task_index,
+    render_rust_verification_task_index_json,
 };

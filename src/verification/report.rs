@@ -10,6 +10,7 @@ use super::model::{
     RustVerificationPlan, RustVerificationReportObligation, RustVerificationTaskKind,
 };
 use super::performance::build_rust_verification_performance_index;
+use super::task_index::build_rust_verification_task_index;
 
 /// Recommended persistence target for one report artifact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -154,6 +155,20 @@ impl Default for RustVerificationReportOptions {
                     ),
                 ),
                 (
+                    "task_index_json".to_string(),
+                    RustVerificationReportTemplate::new(
+                        "verification-task-index",
+                        "1",
+                        [
+                            "kind",
+                            "state",
+                            "skill",
+                            "required_evidence_keys",
+                            "task_evidence",
+                        ],
+                    ),
+                ),
+                (
                     "performance_index_json".to_string(),
                     RustVerificationReportTemplate::new(
                         "performance-index",
@@ -172,6 +187,10 @@ impl Default for RustVerificationReportOptions {
                 (
                     "verification_plan_json".to_string(),
                     RustVerificationReportPersistence::RuntimeCache,
+                ),
+                (
+                    "task_index_json".to_string(),
+                    RustVerificationReportPersistence::SourceBaseline,
                 ),
                 (
                     "performance_index_json".to_string(),
@@ -471,6 +490,9 @@ pub fn render_rust_verification_report_artifact_json(
 ) -> Result<Option<String>, serde_json::Error> {
     match key {
         "verification_plan_json" => serde_json::to_string(plan).map(Some),
+        "task_index_json" => {
+            serde_json::to_string(&build_rust_verification_task_index(plan)).map(Some)
+        }
         "performance_index_json" => {
             serde_json::to_string(&build_rust_verification_performance_index(plan)).map(Some)
         }
