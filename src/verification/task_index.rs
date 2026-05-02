@@ -1,4 +1,4 @@
-//! Compact verification task state for source-controlled baselines.
+//! Compact configured-skill task state for source-controlled baselines.
 
 use std::path::PathBuf;
 
@@ -9,19 +9,19 @@ use super::{
     RustVerificationTaskKind, RustVerificationTaskState,
 };
 
-/// Searchable verification state extracted from one plan.
+/// Searchable configured-skill verification state extracted from one plan.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RustVerificationTaskIndex {
     /// Root used to compact owner paths in agent renders.
     #[serde(default, skip_serializing_if = "path_buf_is_empty")]
     pub project_root: PathBuf,
-    /// Compact task records, including security, performance, stress, chaos,
-    /// regression, and responsibility-review obligations.
+    /// Compact configured-skill task records, including security, performance,
+    /// stress, chaos, and explicit regression obligations.
     pub records: Vec<RustVerificationTaskRecord>,
 }
 
 impl RustVerificationTaskIndex {
-    /// Return whether no verification task exists in this plan.
+    /// Return whether no configured-skill task exists in this index.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.records.is_empty()
@@ -52,7 +52,7 @@ impl RustVerificationTaskIndex {
     }
 }
 
-/// One compact verification task record.
+/// One compact configured-skill task record.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RustVerificationTaskRecord {
     /// Stable task fingerprint.
@@ -93,7 +93,7 @@ pub struct RustVerificationTaskRecord {
     pub receipt_observed_at: Option<String>,
 }
 
-/// Build a structured verification task index from a plan.
+/// Build a structured verification task index from configured-skill tasks.
 #[must_use]
 pub fn build_rust_verification_task_index(
     plan: &RustVerificationPlan,
@@ -101,6 +101,7 @@ pub fn build_rust_verification_task_index(
     let mut records = plan
         .tasks
         .iter()
+        .filter(|task| task.skill_binding.is_some())
         .map(|task| RustVerificationTaskRecord {
             fingerprint: task.fingerprint.clone(),
             kind: task.kind,

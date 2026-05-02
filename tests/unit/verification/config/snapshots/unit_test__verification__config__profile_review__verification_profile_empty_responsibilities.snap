@@ -11,6 +11,5 @@ expression: rendered
    |contract: responsibility_review=update the verification profile hint to match parser facts, or attach a complete waiver
 
 [verify-report]
-   |bundle: renderer=render_rust_verification_report_bundle_json artifact=verification_report_bundle.json artifacts=2
+   |bundle: renderer=render_rust_verification_report_bundle_json artifact=verification_report_bundle.json artifacts=1
    |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=responsibility_review
-   |required: task_index_json renderer=build_rust_verification_task_index + render_rust_verification_task_index_json artifact=task_index.json tasks=1 kinds=responsibility_review
