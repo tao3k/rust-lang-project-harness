@@ -42,10 +42,10 @@ declares. The `#[cfg(test)]` guard is part of the contract because
 dev-dependencies are not available to normal `cargo build`, while `cargo test`
 and `cargo test --lib` both compile the library test target.
 
-Root Cargo test targets under `tests/*.rs` should still mount
-`rust_project_harness_gate!()`. They cover ordinary `cargo test` runs, but they
-cannot protect `cargo test --lib`; the source-embedded gate closes that escape
-path.
+Root Cargo test targets under `tests/*.rs` can stay as thin suite aggregates
+once the library target mounts `rust_project_harness_cargo_test_gate!()`. That
+source-embedded gate covers ordinary `cargo test` and closes the `cargo test
+--lib` escape path.
 
 Harness-enabled library projects are checked by `RUST-PROJ-R009`: once the
 project has the harness dependency or another harness gate, a `src/lib.rs`

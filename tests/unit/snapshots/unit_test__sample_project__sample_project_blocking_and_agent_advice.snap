@@ -18,16 +18,16 @@ expression: rendered
 
 [RUST-PROJ-R006] Warning: Cargo test target does not mount the harness gate
    ,-[ $TEMP/tests/test_root.rs:1:1 ]
-   | add rust_project_harness_gate!() to this Cargo test target
+   | add rust_project_harness_cargo_test_gate!() to the library target or rust_project_harness_gate!() to this standalone test target
    |Help: tests/test_root.rs does not mount the Rust project harness gate.
-   |Contract: Mount rust_project_harness_gate!() in Cargo test targets so narrow test runs execute project policy.
+   |Contract: Mount rust_project_harness_cargo_test_gate!() in the library test target, or mount rust_project_harness_gate!() in standalone Cargo test targets.
 
 [RUST-PROJ-R007] Warning: Root test target contains implementation
    ,-[ $TEMP/tests/test_root.rs:1:1 ]
  1 | #[test] fn root_test() {}
    | `- move test implementation into a suite module and mount it from the root target
    |Help: tests/test_root.rs contains top-level implementation item `fn`.
-   |Contract: Keep root Cargo test targets as thin harness aggregates with harness gate calls and external module mounts only.
+   |Contract: Keep root Cargo test targets as thin aggregates with external module mounts only.
 
 [RUST-MOD-R004] Warning: lib.rs contains implementation
    ,-[ $TEMP/src/lib.rs:1:1 ]

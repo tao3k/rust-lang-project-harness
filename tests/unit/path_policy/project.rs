@@ -56,6 +56,39 @@ fn root_test_target_accepts_embedded_cargo_test_gate_macro() {
 }
 
 #[test]
+fn root_test_target_accepts_library_cargo_test_gate_macro() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "embedded-lib-gate-targets");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(
+        root.join("src/lib.rs"),
+        "//! Test crate.\n#[cfg(test)]\nrust_lang_project_harness::rust_project_harness_cargo_test_gate!();\n",
+    )
+    .expect("write lib");
+    fs::create_dir(root.join("tests")).expect("create tests");
+    fs::write(
+        root.join("tests/unit_test.rs"),
+        "//! Thin root target.\n#[path = \"unit/suite.rs\"]\nmod suite;\n",
+    )
+    .expect("write root test target");
+    fs::create_dir_all(root.join("tests/unit")).expect("create test suite dir");
+    fs::write(
+        root.join("tests/unit/suite.rs"),
+        "#[test]\nfn suite_runs() {}\n",
+    )
+    .expect("write suite");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    assert!(
+        !has_rule(&report, "RUST-PROJ-R006"),
+        "{:?}",
+        report.findings
+    );
+}
+
+#[test]
 fn root_test_target_ignores_comment_mentions_of_harness_gate() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();

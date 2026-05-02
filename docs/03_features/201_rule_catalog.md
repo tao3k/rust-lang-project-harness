@@ -34,7 +34,7 @@ version labels, searchable domains, and default modes. The first three packs are
 - `RUST-PROJ-R003`: source tests must be externalized instead of inline
 - `RUST-PROJ-R004`: external test mount must point to an existing `tests/unit` file
 - `RUST-PROJ-R005`: large test leaf should split into a folder-first suite
-- `RUST-PROJ-R006`: Cargo test target must mount the project harness gate
+- `RUST-PROJ-R006`: standalone Cargo test target must mount the project harness gate when no source-backed cargo-test gate exists
 - `RUST-PROJ-R007`: root Cargo test target should stay a thin harness aggregate
 - `RUST-PROJ-R008`: root Cargo test target modules should use explicit suite `#[path]` mounts
 - `RUST-PROJ-R009`: harness-enabled library target must mount the cargo-test gate for `cargo test --lib`

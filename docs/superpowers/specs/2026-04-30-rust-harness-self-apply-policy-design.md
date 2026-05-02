@@ -13,11 +13,10 @@ The crate self-applies policy through two mounts:
 
 1. `src/self_policy.rs` mounts `rust_project_harness_cargo_test_gate!`, which is
    compiled by the library test target.
-2. `tests/unit_test.rs` mounts `rust_project_harness_gate!` directly.
+2. `tests/unit_test.rs` is a thin aggregate that mounts suite modules only.
 
-That shape proves both supported cargo-test embedding modes: source-embedded
-library gates for `cargo test --lib` and Cargo root test targets for ordinary
-test runs.
+That shape keeps the source-embedded library gate as the single policy entry
+point for `cargo test --lib` and ordinary test runs.
 
 ## Policy Semantics
 
@@ -81,7 +80,7 @@ Focused policy tests should cover:
 2. every `AGENT-*` catalog rule is `Info`;
 3. the current project harness run is clean under its own default policy;
 4. the source-backed self-apply mount remains present in `src/lib.rs`;
-5. the root Cargo test target remains a direct harness gate;
+5. the root Cargo test target relies on the source-backed cargo-test gate;
 6. path clarity rules catch syntax-level `super::super`, repeated namespace
    segments in source and test roots, and duplicated public names;
 7. root Cargo test targets stay thin aggregates instead of owning test bodies;

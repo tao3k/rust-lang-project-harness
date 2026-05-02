@@ -21,10 +21,9 @@ a project scope.
 ## Self-Apply Policy
 
 This crate applies the default project harness to itself. `src/self_policy.rs`
-mounts the embedded cargo-test gate for the library target, and
-`tests/unit_test.rs` mounts the same default gate for the Cargo test target.
-That keeps the harness rules honest: policy changes must pass through the
-package's own rule packs before downstream projects inherit them.
+mounts the embedded cargo-test gate for the library target. That single
+source-backed gate covers `cargo test --lib` and ordinary `cargo test`, which
+keeps the harness rules honest before downstream projects inherit them.
 
 Default assertions treat `Warning` and `Error` findings as blocking. `Info`
 findings, including all `AGENT-*` advice, stay visible in compact rendered
@@ -50,14 +49,16 @@ Because the mount lives in the library test build, both `cargo test` and
 `cargo test --lib` execute the project harness. The `#[cfg(test)]` guard keeps
 normal `cargo build` free of the dev-dependency.
 
-Root Cargo test targets can also mount the direct gate:
+Standalone Cargo test targets can also mount the direct gate when a project does
+not have a source-backed cargo-test gate:
 
 ```rust
 rust_lang_project_harness::rust_project_harness_gate!();
 ```
 
-That covers `cargo test`, but it does not cover `cargo test --lib` unless the
-library target also mounts the embedded cargo-test gate.
+That covers a narrow test target directly. For library crates, prefer the
+source-backed cargo-test gate so one mount covers both `cargo test` and `cargo
+test --lib`.
 
 ### Why `RUST-PROJ-R009` Exists
 
@@ -84,6 +85,8 @@ The dependency key can be local to the downstream project, but the package
 identity remains `rust-lang-project-harness`. Once that direct evidence exists,
 the library target must mount `rust_project_harness_cargo_test_gate!()` from the
 source tree so `cargo test --lib` cannot bypass project policy.
+When that source-backed gate exists, root Cargo test targets can remain thin
+suite aggregates without mounting another gate.
 
 The lower-level assertion API is available when a custom test shape is needed:
 

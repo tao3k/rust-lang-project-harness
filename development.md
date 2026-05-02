@@ -13,16 +13,16 @@ direnv exec . git diff --check
 
 The crate runs its own project policy gate in both supported embedding modes:
 
-- `src/lib.rs` mounts `tests/unit/lib_policy.rs` through
-  `rust_project_harness_source_gate!`;
-- `tests/unit_test.rs` mounts `rust_project_harness_gate!` directly.
+- `src/lib.rs` mounts `src/self_policy.rs`, which installs
+  `rust_project_harness_cargo_test_gate!`;
+- `tests/unit_test.rs` stays a thin aggregate that only mounts suite modules.
 
 When adding tests, keep behavior coverage under `tests/unit` and include it from
 `tests/unit_test.rs` unless a new root target is intentionally part of the
 policy surface.
-Root Cargo test targets should stay as thin harness aggregates: gate macro plus
-external module mounts only. Put test functions and helpers in suite files under
-`tests/unit` or another documented suite directory.
+Root Cargo test targets should stay as thin aggregates with external module
+mounts only. Put test functions and helpers in suite files under `tests/unit`
+or another documented suite directory.
 Root-target module mounts should always be explicit `#[path = "suite/file.rs"]`
 attributes rather than bare Rust `mod helper;` declarations.
 Root `build.rs`, when present, is scanned by the project harness and should stay

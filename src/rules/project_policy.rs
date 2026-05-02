@@ -69,7 +69,9 @@ pub(crate) fn evaluate(
         &rules,
     ));
     findings.extend(test_target_gate_findings(
+        &reasoning_tree,
         &scope.project_root,
+        modules,
         &cargo_test_targets,
         &rules,
     ));

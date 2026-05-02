@@ -70,10 +70,11 @@ fn crate_facade_keeps_macro_implementation_out_of_lib_rs() {
 }
 
 #[test]
-fn root_test_target_mounts_direct_project_gate() {
+fn root_test_target_relies_on_source_backed_project_gate() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let unit_test =
         fs::read_to_string(root.join("tests/unit_test.rs")).expect("read tests/unit_test.rs");
 
-    assert!(unit_test.contains("rust_project_harness_gate!()"));
+    assert!(!unit_test.contains("rust_project_harness_gate!()"));
+    assert!(unit_test.contains("#[path = \"unit/policy_contract.rs\"]"));
 }

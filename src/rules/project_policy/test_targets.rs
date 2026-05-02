@@ -14,10 +14,16 @@ use super::support::display_project_path;
 use super::{RUST_PROJ_R006, RUST_PROJ_R007, RUST_PROJ_R008, RUST_PROJ_R009};
 
 pub(super) fn test_target_gate_findings(
+    reasoning_tree: &RustReasoningTreeFacts,
     project_root: &Path,
+    modules: &[ParsedRustModule],
     cargo_test_targets: &[ParsedRustModule],
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
+    if source_tree_contains_cargo_test_gate(reasoning_tree, modules) {
+        return Vec::new();
+    }
+
     let mut findings = Vec::new();
     let rule = &rules[RUST_PROJ_R006];
     for parsed in cargo_test_targets {
@@ -35,7 +41,7 @@ pub(super) fn test_target_gate_findings(
             ),
             file_location(&parsed.report.path),
             None,
-            "add rust_project_harness_gate!() to this Cargo test target",
+            "add rust_project_harness_cargo_test_gate!() to the library target or rust_project_harness_gate!() to this standalone test target",
         ));
     }
     findings

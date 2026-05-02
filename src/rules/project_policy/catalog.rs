@@ -57,7 +57,7 @@ pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             PACK_ID,
             RustDiagnosticSeverity::Warning,
             "Cargo test target does not mount the harness gate",
-            "Mount rust_project_harness_gate!() in Cargo test targets so narrow test runs execute project policy.",
+            "Mount rust_project_harness_cargo_test_gate!() in the library test target, or mount rust_project_harness_gate!() in standalone Cargo test targets.",
             labels("project-policy"),
         ),
         RustHarnessRule::new(
@@ -65,7 +65,7 @@ pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             PACK_ID,
             RustDiagnosticSeverity::Warning,
             "Root test target contains implementation",
-            "Keep root Cargo test targets as thin harness aggregates with harness gate calls and external module mounts only.",
+            "Keep root Cargo test targets as thin aggregates with external module mounts only.",
             labels("project-policy"),
         ),
         RustHarnessRule::new(
