@@ -5,6 +5,9 @@ use tempfile::TempDir;
 
 use super::support::{findings_for_rule, has_rule, write_manifest};
 
+#[path = "project/verification_integration.rs"]
+mod verification_integration;
+
 #[test]
 fn source_test_policy_does_not_treat_latest_feature_as_cfg_test() {
     let temp = TempDir::new().expect("temp dir");

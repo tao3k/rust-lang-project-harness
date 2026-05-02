@@ -38,6 +38,7 @@ version labels, searchable domains, and default modes. The first three packs are
 - `RUST-PROJ-R007`: root Cargo test target should stay a thin harness aggregate
 - `RUST-PROJ-R008`: root Cargo test target modules should use explicit suite `#[path]` mounts
 - `RUST-PROJ-R009`: harness-enabled library target must mount the cargo-test gate for `cargo test --lib`
+- `RUST-PROJ-R010`: Rust-native performance verification bindings must have a runnable `harness = false` Cargo bench target
 - `RUST-MOD-R001`: `mod.rs` should stay interface-only with external module declarations and re-exports
 - `RUST-MOD-R002`: oversized source file should split by responsibility, including private implementation piles
 - `RUST-MOD-R003`: native `use` trees containing `super::super` should move behind a clearer owner boundary
@@ -84,6 +85,14 @@ rust_lang_project_harness::rust_project_harness_cargo_test_gate!();
 The mount should live in `src/lib.rs` or in a source module declared by
 `src/lib.rs`, so both `cargo test` and `cargo test --lib` execute project
 policy.
+
+Verification policy wiring also has a physical Cargo target check. When a
+project configures an active Rust-native performance binding such as
+`rust-verification-performance@criterion`, `@divan`, or `@iai-callgrind`,
+`RUST-PROJ-R010` requires a real `[[bench]]` target with `harness = false` and
+an existing bench source file. This keeps the compact verification plan from
+claiming a performance skill exists while `cargo test` has no way to remind the
+agent that the benchmark still needs to be wired.
 
 ## Agent Advice Rules
 

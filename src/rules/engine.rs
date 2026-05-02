@@ -5,24 +5,17 @@ use crate::{RustHarnessConfig, RustHarnessFinding, RustProjectHarnessScope};
 
 use super::{agent_policy, modularity, project_policy, syntax};
 
-pub(crate) fn evaluate_default_rule_packs(
-    scope: Option<&RustProjectHarnessScope>,
-    modules: &[ParsedRustModule],
-) -> Vec<RustHarnessFinding> {
-    let mut findings = Vec::new();
-    findings.extend(syntax::evaluate(modules));
-    findings.extend(project_policy::evaluate(scope, modules));
-    findings.extend(modularity::evaluate(scope, modules));
-    findings.extend(agent_policy::evaluate(scope, modules));
-    findings
-}
-
 pub(crate) fn evaluate_default_rule_packs_with_config(
     scope: Option<&RustProjectHarnessScope>,
     modules: &[ParsedRustModule],
     config: &RustHarnessConfig,
 ) -> Vec<RustHarnessFinding> {
-    apply_policy_config(evaluate_default_rule_packs(scope, modules), config)
+    let mut findings = Vec::new();
+    findings.extend(syntax::evaluate(modules));
+    findings.extend(project_policy::evaluate(scope, modules, config));
+    findings.extend(modularity::evaluate(scope, modules));
+    findings.extend(agent_policy::evaluate(scope, modules));
+    apply_policy_config(findings, config)
 }
 
 fn apply_policy_config(

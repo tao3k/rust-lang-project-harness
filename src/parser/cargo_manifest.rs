@@ -13,7 +13,16 @@ pub(crate) struct CargoManifestFacts {
     pub(crate) workspace_members: Vec<String>,
     pub(crate) workspace_excludes: Vec<String>,
     pub(crate) test_target_files: Vec<PathBuf>,
+    pub(crate) bench_targets: Vec<CargoBenchTargetFacts>,
     pub(crate) references_harness: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct CargoBenchTargetFacts {
+    pub(crate) name: String,
+    pub(crate) path: PathBuf,
+    pub(crate) harness: bool,
+    pub(crate) required_features: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -46,11 +55,13 @@ pub(crate) fn parse_cargo_manifest(project_root: &Path) -> CargoManifestFacts {
         .map(|workspace| (workspace.members.clone(), workspace.exclude.clone()))
         .unwrap_or_default();
     let test_target_files = manifest_test_target_files(project_root, &manifest.test);
+    let bench_targets = manifest_bench_targets(project_root, &manifest.bench);
     CargoManifestFacts {
         has_package,
         workspace_members,
         workspace_excludes,
         test_target_files,
+        bench_targets,
         references_harness,
     }
 }
@@ -83,6 +94,39 @@ fn manifest_test_target_files(project_root: &Path, test_targets: &[Product]) -> 
         .filter_map(|target| {
             let target_path = target.path.as_deref().unwrap_or_default().trim();
             (!target_path.is_empty()).then(|| project_root.join(target_path))
+        })
+        .collect()
+}
+
+fn manifest_bench_targets(
+    project_root: &Path,
+    bench_targets: &[Product],
+) -> Vec<CargoBenchTargetFacts> {
+    bench_targets
+        .iter()
+        .filter_map(|target| {
+            let name = target.name.as_deref()?.trim();
+            if name.is_empty() {
+                return None;
+            }
+            let path = target
+                .path
+                .as_deref()
+                .map(str::trim)
+                .filter(|path| !path.is_empty())
+                .map_or_else(
+                    || project_root.join("benches").join(format!("{name}.rs")),
+                    |path| project_root.join(path),
+                );
+            let mut required_features = target.required_features.clone();
+            required_features.sort();
+            required_features.dedup();
+            Some(CargoBenchTargetFacts {
+                name: name.to_string(),
+                path,
+                harness: target.harness,
+                required_features,
+            })
         })
         .collect()
 }

@@ -116,6 +116,7 @@ impl RustRulePack {
                 "RUST-PROJ-R007",
                 "RUST-PROJ-R008",
                 "RUST-PROJ-R009",
+                "RUST-PROJ-R010",
             ],
             Self::Modularity => &[
                 "RUST-MOD-R001",

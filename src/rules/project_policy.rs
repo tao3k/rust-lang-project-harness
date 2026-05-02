@@ -7,11 +7,12 @@ mod support;
 mod test_bloat;
 mod test_layout;
 mod test_targets;
+mod verification_integration;
 
 use crate::parser::{
     ParsedRustModule, parse_cargo_manifest, parse_cargo_test_targets, rust_reasoning_tree_facts,
 };
-use crate::{RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
+use crate::{RustHarnessConfig, RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
 use catalog::rules_by_id;
 use config::load_layout_policy;
@@ -22,6 +23,7 @@ use test_targets::{
     library_cargo_test_gate_findings, test_target_aggregate_findings, test_target_gate_findings,
     test_target_module_mount_findings,
 };
+use verification_integration::verification_integration_findings;
 
 pub(crate) const PACK_ID: &str = "rust.project_policy";
 pub(crate) const RUST_PROJ_R001: &str = "RUST-PROJ-R001";
@@ -33,6 +35,7 @@ pub(crate) const RUST_PROJ_R006: &str = "RUST-PROJ-R006";
 pub(crate) const RUST_PROJ_R007: &str = "RUST-PROJ-R007";
 pub(crate) const RUST_PROJ_R008: &str = "RUST-PROJ-R008";
 pub(crate) const RUST_PROJ_R009: &str = "RUST-PROJ-R009";
+pub(crate) const RUST_PROJ_R010: &str = "RUST-PROJ-R010";
 
 pub(crate) const MAX_UNIT_TEST_EFFECTIVE_LINES: usize = 260;
 pub(crate) const MIN_UNIT_TEST_FUNCTIONS: usize = 8;
@@ -48,6 +51,7 @@ pub fn rust_project_policy_rules() -> Vec<RustHarnessRule> {
 pub(crate) fn evaluate(
     scope: Option<&RustProjectHarnessScope>,
     modules: &[ParsedRustModule],
+    config: &RustHarnessConfig,
 ) -> Vec<RustHarnessFinding> {
     let Some(scope) = scope else {
         return Vec::new();
@@ -84,6 +88,12 @@ pub(crate) fn evaluate(
         &scope.project_root,
         &cargo_test_targets,
         &policy,
+        &rules,
+    ));
+    findings.extend(verification_integration_findings(
+        &scope.project_root,
+        config,
+        &cargo_manifest,
         &rules,
     ));
     findings
