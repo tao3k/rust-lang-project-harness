@@ -10,6 +10,27 @@ use super::model::{
 };
 use super::performance::build_rust_verification_performance_index;
 
+/// Recommended persistence target for one report artifact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RustVerificationReportPersistence {
+    /// Keep the artifact in runtime cache because it is verbose or machine-local.
+    RuntimeCache,
+    /// Commit the artifact as source-controlled baseline evidence.
+    SourceBaseline,
+}
+
+impl RustVerificationReportPersistence {
+    /// Return a stable lowercase persistence label.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::RuntimeCache => "runtime_cache",
+            Self::SourceBaseline => "source_baseline",
+        }
+    }
+}
+
 /// Runtime trace and time budget guidance for one report artifact.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RustVerificationReportTraceConfig {
@@ -102,6 +123,9 @@ pub struct RustVerificationReportOptions {
     /// Per-artifact template config keyed by report contract key.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub artifact_templates: BTreeMap<String, RustVerificationReportTemplate>,
+    /// Per-artifact persistence target keyed by report contract key.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub artifact_persistence: BTreeMap<String, RustVerificationReportPersistence>,
 }
 
 impl Default for RustVerificationReportOptions {
@@ -141,6 +165,16 @@ impl Default for RustVerificationReportOptions {
                             "profile_artifact",
                         ],
                     ),
+                ),
+            ]),
+            artifact_persistence: BTreeMap::from([
+                (
+                    "verification_plan_json".to_string(),
+                    RustVerificationReportPersistence::RuntimeCache,
+                ),
+                (
+                    "performance_index_json".to_string(),
+                    RustVerificationReportPersistence::SourceBaseline,
                 ),
             ]),
         }
@@ -183,6 +217,17 @@ impl RustVerificationReportOptions {
         self.artifact_templates.insert(key.into(), template);
         self
     }
+
+    /// Override the persistence target for one artifact key.
+    #[must_use]
+    pub fn with_artifact_persistence(
+        mut self,
+        key: impl Into<String>,
+        persistence: RustVerificationReportPersistence,
+    ) -> Self {
+        self.artifact_persistence.insert(key.into(), persistence);
+        self
+    }
 }
 
 /// Manifest entry for one persistable verification report artifact.
@@ -200,6 +245,8 @@ pub struct RustVerificationReportArtifact {
     pub task_kinds: BTreeSet<RustVerificationTaskKind>,
     /// Active task fingerprints covered by this artifact.
     pub task_fingerprints: Vec<String>,
+    /// Where this artifact should be persisted by default.
+    pub persistence: RustVerificationReportPersistence,
     /// Small template contract for this artifact.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub template: Option<RustVerificationReportTemplate>,
@@ -222,6 +269,11 @@ impl RustVerificationReportArtifact {
             reason: obligation.reason.clone(),
             task_kinds: obligation.task_kinds.clone(),
             task_fingerprints: obligation.task_fingerprints.clone(),
+            persistence: options
+                .artifact_persistence
+                .get(&obligation.key)
+                .copied()
+                .unwrap_or(RustVerificationReportPersistence::RuntimeCache),
             template: options.artifact_templates.get(&obligation.key).cloned(),
             trace: options
                 .artifact_traces
@@ -259,6 +311,28 @@ impl RustVerificationReportBundle {
     #[must_use]
     pub fn artifact(&self, key: &str) -> Option<&RustVerificationReportArtifact> {
         self.artifacts.iter().find(|artifact| artifact.key == key)
+    }
+
+    /// Return artifacts recommended for source-controlled baselines.
+    #[must_use]
+    pub fn source_baseline_artifacts(&self) -> Vec<&RustVerificationReportArtifact> {
+        self.artifacts
+            .iter()
+            .filter(|artifact| {
+                artifact.persistence == RustVerificationReportPersistence::SourceBaseline
+            })
+            .collect()
+    }
+
+    /// Return artifacts recommended for runtime cache.
+    #[must_use]
+    pub fn runtime_cache_artifacts(&self) -> Vec<&RustVerificationReportArtifact> {
+        self.artifacts
+            .iter()
+            .filter(|artifact| {
+                artifact.persistence == RustVerificationReportPersistence::RuntimeCache
+            })
+            .collect()
     }
 }
 

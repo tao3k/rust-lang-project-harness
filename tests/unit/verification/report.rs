@@ -1,10 +1,10 @@
 use rust_lang_project_harness::{
     RustOwnerResponsibility, RustVerificationProfileHint, RustVerificationReportOptions,
-    RustVerificationReportTraceConfig, RustVerificationSkillBinding, RustVerificationTaskKind,
-    build_rust_verification_report_bundle, build_rust_verification_report_bundle_with_options,
-    default_rust_harness_config, plan_rust_project_verification_with_config,
-    render_rust_verification_plan, render_rust_verification_report_artifact_json,
-    render_rust_verification_report_bundle_json,
+    RustVerificationReportPersistence, RustVerificationReportTraceConfig,
+    RustVerificationSkillBinding, RustVerificationTaskKind, build_rust_verification_report_bundle,
+    build_rust_verification_report_bundle_with_options, default_rust_harness_config,
+    plan_rust_project_verification_with_config, render_rust_verification_plan,
+    render_rust_verification_report_artifact_json, render_rust_verification_report_bundle_json,
 };
 use tempfile::TempDir;
 
@@ -45,6 +45,22 @@ fn verification_report_bundle_materializes_required_artifacts() {
             .task_count(),
         1
     );
+    assert_eq!(
+        bundle
+            .artifact("performance_index_json")
+            .expect("performance artifact")
+            .persistence,
+        RustVerificationReportPersistence::SourceBaseline
+    );
+    assert_eq!(
+        bundle
+            .artifact("verification_plan_json")
+            .expect("plan artifact")
+            .persistence,
+        RustVerificationReportPersistence::RuntimeCache
+    );
+    assert_eq!(bundle.source_baseline_artifacts().len(), 1);
+    assert_eq!(bundle.runtime_cache_artifacts().len(), 1);
     assert_eq!(
         bundle
             .artifact("performance_index_json")

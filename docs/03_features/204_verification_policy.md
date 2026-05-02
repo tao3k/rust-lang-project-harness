@@ -100,6 +100,15 @@ artifact at a time, such as `verification_plan_json` or `performance_index_json`
 This keeps performance evidence, plan state, and future report families
 separately persistable and separately comparable.
 
+The manifest also classifies each artifact by persistence target.
+`performance_index_json` defaults to `source_baseline` because benchmark
+ownership, missing evidence keys, and trace budgets are useful long-term
+optimization signals. `verification_plan_json` defaults to `runtime_cache`
+because it is verbose, path-heavy run state. Embedding projects can override
+those defaults through `RustVerificationReportOptions`, but the upstream
+contract makes the source-vs-cache choice explicit so Agents do not commit every
+large report by accident.
+
 ## Configurable Surface
 
 Verification config stays library-first. It does not introduce CLI flags or

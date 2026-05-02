@@ -350,6 +350,8 @@ manifest. The manifest keeps artifacts modular and records template plus trace
 guidance, including configurable runtime budgets for performance evidence.
 Use `render_rust_verification_report_artifact_json(&plan, key)` to render one
 artifact payload at a time instead of creating one large report JSON.
+Artifacts are classified by persistence target: performance indexes default to
+`source_baseline`, while verbose verification plans default to `runtime_cache`.
 
 For workspaces, profile hint paths can be package-relative (`src/api.rs`) or
 workspace-root-relative (`crates/api/src/api.rs`). Task fingerprints include the

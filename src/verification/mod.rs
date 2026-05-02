@@ -40,7 +40,8 @@ pub use render::{
 };
 pub use report::{
     RustVerificationReportArtifact, RustVerificationReportBundle, RustVerificationReportOptions,
-    RustVerificationReportTemplate, RustVerificationReportTraceConfig,
-    build_rust_verification_report_bundle, build_rust_verification_report_bundle_with_options,
+    RustVerificationReportPersistence, RustVerificationReportTemplate,
+    RustVerificationReportTraceConfig, build_rust_verification_report_bundle,
+    build_rust_verification_report_bundle_with_options,
     render_rust_verification_report_artifact_json, render_rust_verification_report_bundle_json,
 };
