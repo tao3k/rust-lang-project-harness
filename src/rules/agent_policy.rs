@@ -98,7 +98,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Public module lacks an intent doc",
-            "Add a concise module-level doc comment that names the module responsibility for agent search and repair.",
+            "Add a concise `//!` module-level intent doc using `clippy::doc_markdown` style, with technical identifiers in backticks.",
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
@@ -106,7 +106,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Public item lacks a doc comment",
-            "Document public Rust boundaries so agents can reason from native syntax without guessing intent.",
+            "Document public Rust boundaries using `clippy::doc_markdown` style so agents can reason from native syntax without guessing intent.",
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
@@ -154,7 +154,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Branch module lacks reasoning-tree intent doc",
-            "Document source modules that own multiple resolved child edges so agents can traverse the owner tree intentionally.",
+            "Document source modules that own multiple resolved child edges with a `//!` intent doc in `clippy::doc_markdown` style.",
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
@@ -178,7 +178,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Owner fan-out lacks intent doc",
-            "Document branch modules that coordinate several owner dependencies so agents know why the branch spans those owners.",
+            "Document branch modules that coordinate several owner dependencies with a `//!` intent doc in `clippy::doc_markdown` style.",
             labels("agent-policy"),
         ),
         RustHarnessRule::new(

@@ -1,6 +1,5 @@
 ---
 source: tests/unit/sample_project.rs
-assertion_line: 39
 expression: rendered
 ---
 [RUST-PROJ-R001] Warning: Root test file lacks explicit harness role
@@ -46,13 +45,13 @@ expression: rendered
 [AGENT-R001] Info: Public module lacks an intent doc
    ,-[ $TEMP/src/lib.rs:1:1 ]
  1 | pub fn public_api() {}
-   | `- add a concise //! module responsibility doc
+   | `- add a module intent doc using doc_markdown style
    |Help: $TEMP/src/lib.rs has public Rust surface without a module intent doc.
-   |Contract: Add a concise module-level doc comment that names the module responsibility for agent search and repair.
+   |Contract: Add a concise `//!` module-level intent doc using `clippy::doc_markdown` style, with technical identifiers in backticks.
 
 [AGENT-R002] Info: Public item lacks a doc comment
    ,-[ $TEMP/src/lib.rs:1:1 ]
  1 | pub fn public_api() {}
-   | `- add a short doc comment naming the public contract
+   | `- add a doc comment using clippy::doc_markdown style
    |Help: $TEMP/src/lib.rs exposes public item `public_api` without a doc comment.
-   |Contract: Document public Rust boundaries so agents can reason from native syntax without guessing intent.
+   |Contract: Document public Rust boundaries using `clippy::doc_markdown` style so agents can reason from native syntax without guessing intent.

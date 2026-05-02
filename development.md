@@ -9,6 +9,10 @@ direnv exec . cargo clippy --all-targets --all-features -- -D warnings
 direnv exec . git diff --check
 ```
 
+Rust doc comments follow Clippy's `doc_markdown` style. Wrap API names,
+literal identifiers, command names, and rule IDs in backticks rather than
+leaving mixed-case technical terms as prose.
+
 ## Self-applied policy
 
 The crate runs its own project policy gate in both supported embedding modes:

@@ -193,7 +193,7 @@ fn module_intent_findings(
         ),
         file_location(&module.report.path),
         source_line(&module.source, 1),
-        "add a concise //! module responsibility doc",
+        "add a module intent doc using doc_markdown style",
     )]
 }
 
@@ -220,7 +220,7 @@ fn public_doc_findings(
                 ),
                 path_line_location(&module.report.path, line),
                 source_line(&module.source, line),
-                "add a short doc comment naming the public contract",
+                "add a doc comment using clippy::doc_markdown style",
             ))
         })
         .collect()
@@ -314,7 +314,7 @@ fn branch_module_intent_findings(
         ),
         file_location(&module.report.path),
         source_line(&module.source, 1),
-        "add a //! doc explaining this branch module's ownership",
+        "add a branch intent doc using doc_markdown style",
     )]
 }
 

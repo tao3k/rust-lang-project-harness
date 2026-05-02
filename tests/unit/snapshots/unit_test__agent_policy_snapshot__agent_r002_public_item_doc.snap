@@ -5,6 +5,6 @@ expression: rendered
 [AGENT-R002] Info: Public item lacks a doc comment
    ,-[ $TEMP/src/owned.rs:2:1 ]
  2 | pub struct MissingDoc;
-   | `- add a short doc comment naming the public contract
+   | `- add a doc comment using clippy::doc_markdown style
    |Help: $TEMP/src/owned.rs exposes public item `MissingDoc` without a doc comment.
-   |Contract: Document public Rust boundaries so agents can reason from native syntax without guessing intent.
+   |Contract: Document public Rust boundaries using `clippy::doc_markdown` style so agents can reason from native syntax without guessing intent.

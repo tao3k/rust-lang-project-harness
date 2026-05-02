@@ -22,3 +22,6 @@ tempfile = "3"
 
 [lints.rust]
 unsafe_code = "forbid"
+
+[lints.clippy]
+doc_markdown = "warn"

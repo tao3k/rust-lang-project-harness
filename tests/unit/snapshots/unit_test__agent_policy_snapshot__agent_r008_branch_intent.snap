@@ -5,6 +5,6 @@ expression: rendered
 [AGENT-R008] Info: Branch module lacks reasoning-tree intent doc
    ,-[ $TEMP/src/domain.rs:1:1 ]
  1 | mod parse;
-   | `- add a //! doc explaining this branch module's ownership
+   | `- add a branch intent doc using doc_markdown style
    |Help: $TEMP/src/domain.rs owns 2 resolved child edges without a reasoning-tree intent doc.
-   |Contract: Document source modules that own multiple resolved child edges so agents can traverse the owner tree intentionally.
+   |Contract: Document source modules that own multiple resolved child edges with a `//!` intent doc in `clippy::doc_markdown` style.

@@ -89,6 +89,9 @@ policy.
 
 `AGENT-*` rules are `Info` findings. They are designed as repair hints for LLMs
 and are not blocking by default.
+Rules that ask an agent to add Rust doc comments require Clippy-compatible
+Markdown: use `clippy::doc_markdown` style and wrap API names, rule IDs, command
+names, and other literal identifiers in backticks.
 
 - `AGENT-R001`: public module surface lacks an intent doc
 - `AGENT-R002`: public item lacks a doc comment
@@ -204,5 +207,8 @@ scanned source file must be reachable from crate roots or binary roots through
 external `mod` declarations, explicit `#[path]` mounts, or literal `include!`
 source shards. `AGENT-R008` adds non-blocking advice when a branch file has
 multiple resolved child edges without a `//!` intent doc, because agents need a
-local navigation summary before they choose which subtree to edit. Dependency
-graph agent rules ignore edges observed only inside `#[cfg(test)]` context.
+local navigation summary before they choose which subtree to edit. Those `//!`
+intent docs should follow `clippy::doc_markdown` style so harness-generated
+repair prompts do not teach a comment style that Clippy will later reject.
+Dependency graph agent rules ignore edges observed only inside `#[cfg(test)]`
+context.

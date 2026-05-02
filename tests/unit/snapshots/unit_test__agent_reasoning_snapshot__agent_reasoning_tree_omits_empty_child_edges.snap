@@ -1,0 +1,7 @@
+---
+source: tests/unit/agent_reasoning_snapshot.rs
+expression: rendered
+---
+Modules: source=1
+OwnerBranches:
+ - src/bin/tool.rs [root, binary] owner=src/bin/tool

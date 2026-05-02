@@ -232,7 +232,7 @@ fn owner_fan_out_intent_findings(
                 ),
                 file_location(&branch.path),
                 source_line(&module.source, 1),
-                "add a //! doc that names why this branch coordinates these owners",
+                "add an owner fan-out intent doc using doc_markdown style",
             ))
         })
         .collect()

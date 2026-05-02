@@ -105,6 +105,25 @@ fn agent_reasoning_tree_snapshot_ignores_test_context_owner_dependencies() {
 }
 
 #[test]
+fn agent_reasoning_tree_snapshot_omits_empty_child_edge_placeholder() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "agent-snapshot-binary");
+    fs::create_dir_all(root.join("src/bin")).expect("create bin");
+    fs::write(root.join("src/bin/tool.rs"), "fn main() {}\n").expect("write binary");
+
+    let rendered = render_rust_project_harness_agent_snapshot(root).expect("render snapshot");
+    let rendered = normalize_temp_root(&rendered, root);
+
+    assert!(!rendered.contains("-> -"), "{rendered}");
+    assert!(
+        rendered.contains("src/bin/tool.rs [root, binary] owner=src/bin/tool"),
+        "{rendered}"
+    );
+    insta::assert_snapshot!("agent_reasoning_tree_omits_empty_child_edges", rendered);
+}
+
+#[test]
 fn agent_reasoning_tree_snapshot_caps_large_sections() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
@@ -130,7 +149,8 @@ fn agent_reasoning_tree_snapshot_caps_large_sections() {
     let rendered = normalize_temp_root(&rendered, root);
 
     assert!(rendered.contains("... +23 children"), "{rendered}");
-    assert!(rendered.contains("... +6 owner deps"), "{rendered}");
+    assert!(rendered.contains("src/target.rs <--crate--"), "{rendered}");
+    assert!(!rendered.contains("owner deps"), "{rendered}");
     insta::assert_snapshot!("agent_reasoning_tree_large_sections_are_capped", rendered);
 }
 

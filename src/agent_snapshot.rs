@@ -1,6 +1,6 @@
 //! Low-noise agent snapshot rendering from parser reasoning-tree facts.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 use std::path::{Path, PathBuf};
 
@@ -17,7 +17,6 @@ use crate::rules::evaluate_default_rule_packs_with_config;
 use crate::{RustDiagnosticSeverity, RustHarnessFinding, RustProjectHarnessScope};
 
 const MAX_AGENT_SNAPSHOT_BRANCH_LINES: usize = 24;
-const MAX_AGENT_SNAPSHOT_DEPENDENCY_LINES: usize = 24;
 const MAX_AGENT_SNAPSHOT_CHILD_EDGES: usize = 8;
 
 /// Render a compact project-structure snapshot for repair-oriented agents.
@@ -136,19 +135,7 @@ fn render_package_snapshot(
     let branch_lines = reasoning_tree
         .owner_branches
         .iter()
-        .map(|branch| {
-            format!(
-                " - {} [{}] owner={} -> {}",
-                display_project_path(&reasoning_tree.package_root, &branch.path),
-                owner_branch_role_labels(branch).join(", "),
-                display_owner_namespace(branch) + &display_import_summary(&branch.import_summary),
-                display_child_edges(
-                    &reasoning_tree.package_root,
-                    &branch.declared_child_edges,
-                    "-"
-                )
-            )
-        })
+        .map(|branch| display_owner_branch_line(&reasoning_tree.package_root, branch))
         .collect::<Vec<_>>();
     if !branch_lines.is_empty() {
         rendered.push_str("OwnerBranches:\n");
@@ -162,20 +149,11 @@ fn render_package_snapshot(
         );
         rendered.push('\n');
     }
-    let dependency_lines = owner_dependencies
-        .iter()
-        .map(|dependency| display_owner_dependency(&reasoning_tree.package_root, dependency))
-        .collect::<Vec<_>>();
+    let dependency_lines =
+        display_owner_dependency_lines(&reasoning_tree.package_root, &owner_dependencies);
     if !dependency_lines.is_empty() {
         rendered.push_str("OwnerDependencies:\n");
-        rendered.push_str(
-            &compact_lines(
-                &dependency_lines,
-                MAX_AGENT_SNAPSHOT_DEPENDENCY_LINES,
-                "owner deps",
-            )
-            .join("\n"),
-        );
+        rendered.push_str(&dependency_lines.join("\n"));
         rendered.push('\n');
     }
     let finding_lines = grouped_findings(&reasoning_tree.package_root, findings);
@@ -263,10 +241,68 @@ fn display_import_summary(summary: &RustReasoningImportFacts) -> String {
     format!(" imports={}", parts.join(","))
 }
 
+fn display_owner_branch_line(
+    package_root: &Path,
+    branch: &RustReasoningOwnerBranchFacts,
+) -> String {
+    let mut line = format!(
+        " - {} [{}] owner={}",
+        display_project_path(package_root, &branch.path),
+        owner_branch_role_labels(branch).join(", "),
+        display_owner_namespace(branch) + &display_import_summary(&branch.import_summary),
+    );
+    if !branch.declared_child_edges.is_empty() {
+        let _ = write!(
+            line,
+            " -> {}",
+            display_child_edges(package_root, &branch.declared_child_edges)
+        );
+    }
+    line
+}
+
 fn push_count(parts: &mut Vec<String>, label: &str, count: usize) {
     if count > 0 {
         parts.push(format!("{label}:{count}"));
     }
+}
+
+fn display_owner_dependency_lines(
+    package_root: &Path,
+    dependencies: &[&RustReasoningOwnerDependencyFacts],
+) -> Vec<String> {
+    let fan_out_groups = owner_dependency_groups(dependencies, OwnerDependencyDirection::FanOut);
+    let fan_in_groups = owner_dependency_groups(dependencies, OwnerDependencyDirection::FanIn);
+    if fan_in_groups.len() < dependencies.len() && fan_in_groups.len() < fan_out_groups.len() {
+        return fan_in_groups
+            .into_iter()
+            .map(|((target, root), sources)| {
+                format!(
+                    " - {} <--{}-- {}",
+                    display_project_path(package_root, &target),
+                    import_root_label(root),
+                    display_project_paths(package_root, sources),
+                )
+            })
+            .collect();
+    }
+    if fan_out_groups.len() == dependencies.len() {
+        return dependencies
+            .iter()
+            .map(|dependency| display_owner_dependency(package_root, dependency))
+            .collect();
+    }
+    fan_out_groups
+        .into_iter()
+        .map(|((source, root), targets)| {
+            format!(
+                " - {} --{}--> {}",
+                display_project_path(package_root, &source),
+                import_root_label(root),
+                display_project_paths(package_root, targets),
+            )
+        })
+        .collect()
 }
 
 fn display_owner_dependency(
@@ -279,6 +315,39 @@ fn display_owner_dependency(
         import_root_label(dependency.via_root),
         display_project_path(package_root, &dependency.target_path)
     )
+}
+
+#[derive(Debug, Clone, Copy)]
+enum OwnerDependencyDirection {
+    FanOut,
+    FanIn,
+}
+
+fn owner_dependency_groups(
+    dependencies: &[&RustReasoningOwnerDependencyFacts],
+    direction: OwnerDependencyDirection,
+) -> BTreeMap<(PathBuf, crate::parser::RustUseImportRootKind), BTreeSet<PathBuf>> {
+    let mut groups =
+        BTreeMap::<(PathBuf, crate::parser::RustUseImportRootKind), BTreeSet<PathBuf>>::new();
+    for dependency in dependencies {
+        let (owner, peer) = match direction {
+            OwnerDependencyDirection::FanOut => (&dependency.source_path, &dependency.target_path),
+            OwnerDependencyDirection::FanIn => (&dependency.target_path, &dependency.source_path),
+        };
+        groups
+            .entry((owner.clone(), dependency.via_root))
+            .or_default()
+            .insert(peer.clone());
+    }
+    groups
+}
+
+fn display_project_paths(package_root: &Path, paths: BTreeSet<PathBuf>) -> String {
+    paths
+        .into_iter()
+        .map(|path| display_project_path(package_root, &path))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn import_root_label(root: crate::parser::RustUseImportRootKind) -> &'static str {
@@ -331,10 +400,7 @@ struct FindingGroup {
     first_path: Option<PathBuf>,
 }
 
-fn display_child_edges(package_root: &Path, edges: &[RustModuleChildEdge], empty: &str) -> String {
-    if edges.is_empty() {
-        return empty.to_string();
-    }
+fn display_child_edges(package_root: &Path, edges: &[RustModuleChildEdge]) -> String {
     let mut labels = edges
         .iter()
         .take(MAX_AGENT_SNAPSHOT_CHILD_EDGES)
