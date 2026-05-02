@@ -64,7 +64,9 @@ pub use verification::{
     RustVerificationProfileIndex, RustVerificationReceipt, RustVerificationReceiptStatus,
     RustVerificationReportArtifact, RustVerificationReportBundle, RustVerificationReportObligation,
     RustVerificationReportOptions, RustVerificationReportPersistence,
-    RustVerificationReportTemplate, RustVerificationReportTraceConfig, RustVerificationRequirement,
+    RustVerificationReportTemplate, RustVerificationReportTraceConfig,
+    RustVerificationReportWriteConfig, RustVerificationReportWriteError,
+    RustVerificationReportWriteReceipt, RustVerificationRequirement,
     RustVerificationResolutionNote, RustVerificationSkillBinding, RustVerificationSkillDescriptor,
     RustVerificationTask, RustVerificationTaskContract, RustVerificationTaskKind,
     RustVerificationTaskState, RustVerificationWaiver, build_rust_verification_performance_index,
@@ -76,5 +78,5 @@ pub use verification::{
     render_rust_verification_plan, render_rust_verification_plan_json,
     render_rust_verification_profile_index, render_rust_verification_profile_index_json,
     render_rust_verification_report_artifact_json, render_rust_verification_report_bundle_json,
-    render_rust_verification_skill_contracts,
+    render_rust_verification_skill_contracts, write_rust_verification_reports,
 };

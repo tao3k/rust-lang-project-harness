@@ -1,10 +1,11 @@
 use rust_lang_project_harness::{
     RustOwnerResponsibility, RustVerificationProfileHint, RustVerificationReportOptions,
     RustVerificationReportPersistence, RustVerificationReportTraceConfig,
-    RustVerificationSkillBinding, RustVerificationTaskKind, build_rust_verification_report_bundle,
-    build_rust_verification_report_bundle_with_options, default_rust_harness_config,
-    plan_rust_project_verification_with_config, render_rust_verification_plan,
-    render_rust_verification_report_artifact_json, render_rust_verification_report_bundle_json,
+    RustVerificationReportWriteConfig, RustVerificationSkillBinding, RustVerificationTaskKind,
+    build_rust_verification_report_bundle, build_rust_verification_report_bundle_with_options,
+    default_rust_harness_config, plan_rust_project_verification_with_config,
+    render_rust_verification_plan, render_rust_verification_report_artifact_json,
+    render_rust_verification_report_bundle_json, write_rust_verification_reports,
 };
 use tempfile::TempDir;
 
@@ -123,6 +124,60 @@ fn verification_report_bundle_allows_agent_trace_overrides() {
         performance.trace.as_ref().expect("trace").max_seconds,
         Some(45)
     );
+}
+
+#[test]
+fn verification_report_writer_splits_source_baseline_from_runtime_cache() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_api_project(root);
+    let config = default_rust_harness_config()
+        .with_verification_profile_hint(RustVerificationProfileHint::new(
+            "src/api.rs",
+            [RustOwnerResponsibility::LatencySensitive],
+        ))
+        .with_verification_skill_binding(
+            RustVerificationTaskKind::Performance,
+            RustVerificationSkillBinding::new("rust-verification-performance")
+                .with_adapter("criterion"),
+        );
+    let plan = plan_rust_project_verification_with_config(root, &config).expect("plan");
+    let source_dir = root.join("resources/verification/reports");
+    let cache_dir = root.join(".cache/agent/verification/sample");
+
+    let receipt = write_rust_verification_reports(
+        &plan,
+        &RustVerificationReportWriteConfig::new(root, &source_dir, &cache_dir),
+    )
+    .expect("write reports");
+
+    assert!(
+        source_dir
+            .join("verification_report_manifest.json")
+            .exists()
+    );
+    assert!(source_dir.join("performance_index.json").exists());
+    assert!(!source_dir.join("verification_plan.json").exists());
+    assert!(cache_dir.join("verification_report_manifest.json").exists());
+    assert!(cache_dir.join("verification_plan.json").exists());
+    assert_eq!(receipt.source_baseline_paths.len(), 2);
+    assert_eq!(receipt.runtime_cache_paths.len(), 2);
+
+    let source_manifest =
+        std::fs::read_to_string(source_dir.join("verification_report_manifest.json"))
+            .expect("source manifest");
+    let cache_manifest =
+        std::fs::read_to_string(cache_dir.join("verification_report_manifest.json"))
+            .expect("cache manifest");
+    let performance_index = std::fs::read_to_string(source_dir.join("performance_index.json"))
+        .expect("performance index");
+
+    assert!(source_manifest.contains("performance_index_json"));
+    assert!(!source_manifest.contains("verification_plan_json"));
+    assert!(cache_manifest.contains("verification_plan_json"));
+    assert!(cache_manifest.contains("performance_index_json"));
+    assert!(performance_index.contains("$CRATE_ROOT"));
+    assert!(!performance_index.contains(&root.display().to_string()));
 }
 
 #[test]

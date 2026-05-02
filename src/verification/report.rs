@@ -1,7 +1,8 @@
 //! Modular verification report artifacts.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::PathBuf;
+use std::fmt;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -334,6 +335,101 @@ impl RustVerificationReportBundle {
             })
             .collect()
     }
+
+    fn with_artifacts(&self, artifacts: Vec<RustVerificationReportArtifact>) -> Self {
+        Self {
+            project_root: self.project_root.clone(),
+            artifacts,
+        }
+    }
+}
+
+/// Filesystem layout used to persist modular verification reports.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RustVerificationReportWriteConfig {
+    /// Project root whose absolute path may appear in rendered artifacts.
+    pub project_root: PathBuf,
+    /// Source-controlled directory for compact baseline artifacts.
+    pub source_baseline_dir: PathBuf,
+    /// Runtime cache directory for verbose or machine-local artifacts.
+    pub runtime_cache_dir: PathBuf,
+    /// Stable placeholder used when compacting `project_root` in JSON output.
+    pub project_root_placeholder: String,
+}
+
+impl RustVerificationReportWriteConfig {
+    /// Build a report write config.
+    #[must_use]
+    pub fn new(
+        project_root: impl Into<PathBuf>,
+        source_baseline_dir: impl Into<PathBuf>,
+        runtime_cache_dir: impl Into<PathBuf>,
+    ) -> Self {
+        Self {
+            project_root: project_root.into(),
+            source_baseline_dir: source_baseline_dir.into(),
+            runtime_cache_dir: runtime_cache_dir.into(),
+            project_root_placeholder: "$CRATE_ROOT".to_string(),
+        }
+    }
+
+    /// Override the placeholder used for project-root path compaction.
+    #[must_use]
+    pub fn with_project_root_placeholder(mut self, placeholder: impl Into<String>) -> Self {
+        self.project_root_placeholder = placeholder.into();
+        self
+    }
+}
+
+/// Paths written by `write_rust_verification_reports`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RustVerificationReportWriteReceipt {
+    /// Files written under the source baseline directory.
+    pub source_baseline_paths: Vec<PathBuf>,
+    /// Files written under the runtime cache directory.
+    pub runtime_cache_paths: Vec<PathBuf>,
+}
+
+/// Error raised while writing modular verification reports.
+#[derive(Debug)]
+pub enum RustVerificationReportWriteError {
+    /// A report artifact could not be serialized.
+    Json(serde_json::Error),
+    /// A filesystem operation failed.
+    Io {
+        /// Path being created or written when the error occurred.
+        path: PathBuf,
+        /// Underlying IO error.
+        source: std::io::Error,
+    },
+}
+
+impl fmt::Display for RustVerificationReportWriteError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Json(error) => write!(formatter, "failed to render verification report: {error}"),
+            Self::Io { path, source } => write!(
+                formatter,
+                "failed to write verification report at {}: {source}",
+                path.display()
+            ),
+        }
+    }
+}
+
+impl std::error::Error for RustVerificationReportWriteError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Json(error) => Some(error),
+            Self::Io { source, .. } => Some(source),
+        }
+    }
+}
+
+impl From<serde_json::Error> for RustVerificationReportWriteError {
+    fn from(error: serde_json::Error) -> Self {
+        Self::Json(error)
+    }
 }
 
 /// Build the small manifest for all durable reports required by a plan.
@@ -392,6 +488,125 @@ pub fn render_rust_verification_report_bundle_json(
 ) -> Result<String, serde_json::Error> {
     let bundle = build_rust_verification_report_bundle(plan);
     serde_json::to_string(&bundle)
+}
+
+/// Write modular verification report artifacts using their persistence policy.
+///
+/// The source baseline manifest contains only source-controlled artifacts. The
+/// runtime cache manifest contains the full bundle so local tooling can inspect
+/// both source and cache report responsibilities from one machine-local file.
+///
+/// # Errors
+///
+/// Returns an error if directories cannot be created, artifacts cannot be
+/// serialized, or files cannot be written.
+pub fn write_rust_verification_reports(
+    plan: &RustVerificationPlan,
+    config: &RustVerificationReportWriteConfig,
+) -> Result<RustVerificationReportWriteReceipt, RustVerificationReportWriteError> {
+    create_dir_all(&config.source_baseline_dir)?;
+    create_dir_all(&config.runtime_cache_dir)?;
+
+    let bundle = build_rust_verification_report_bundle(plan);
+    let source_artifacts: Vec<_> = bundle
+        .source_baseline_artifacts()
+        .into_iter()
+        .cloned()
+        .collect();
+    let cache_artifacts: Vec<_> = bundle
+        .runtime_cache_artifacts()
+        .into_iter()
+        .cloned()
+        .collect();
+
+    let mut receipt = RustVerificationReportWriteReceipt::default();
+    let source_bundle = bundle.with_artifacts(source_artifacts.clone());
+    let source_manifest = config
+        .source_baseline_dir
+        .join("verification_report_manifest.json");
+    write_json(
+        &source_manifest,
+        &compact_project_root(
+            &serde_json::to_string(&source_bundle)?,
+            &config.project_root,
+            &config.project_root_placeholder,
+        ),
+    )?;
+    receipt.source_baseline_paths.push(source_manifest);
+
+    let cache_manifest = config
+        .runtime_cache_dir
+        .join("verification_report_manifest.json");
+    write_json(
+        &cache_manifest,
+        &compact_project_root(
+            &serde_json::to_string(&bundle)?,
+            &config.project_root,
+            &config.project_root_placeholder,
+        ),
+    )?;
+    receipt.runtime_cache_paths.push(cache_manifest);
+
+    for artifact in source_artifacts {
+        write_artifact(
+            plan,
+            &artifact,
+            &config.source_baseline_dir,
+            config,
+            |path| {
+                receipt.source_baseline_paths.push(path);
+            },
+        )?;
+    }
+    for artifact in cache_artifacts {
+        write_artifact(plan, &artifact, &config.runtime_cache_dir, config, |path| {
+            receipt.runtime_cache_paths.push(path);
+        })?;
+    }
+
+    Ok(receipt)
+}
+
+fn write_artifact(
+    plan: &RustVerificationPlan,
+    artifact: &RustVerificationReportArtifact,
+    directory: &Path,
+    config: &RustVerificationReportWriteConfig,
+    mut record_path: impl FnMut(PathBuf),
+) -> Result<(), RustVerificationReportWriteError> {
+    let Some(payload) = render_rust_verification_report_artifact_json(plan, &artifact.key)? else {
+        return Ok(());
+    };
+    let path = directory.join(&artifact.artifact_name);
+    write_json(
+        &path,
+        &compact_project_root(
+            &payload,
+            &config.project_root,
+            &config.project_root_placeholder,
+        ),
+    )?;
+    record_path(path);
+    Ok(())
+}
+
+fn create_dir_all(path: &Path) -> Result<(), RustVerificationReportWriteError> {
+    std::fs::create_dir_all(path).map_err(|source| RustVerificationReportWriteError::Io {
+        path: path.to_path_buf(),
+        source,
+    })
+}
+
+fn write_json(path: &Path, payload: &str) -> Result<(), RustVerificationReportWriteError> {
+    std::fs::write(path, payload).map_err(|source| RustVerificationReportWriteError::Io {
+        path: path.to_path_buf(),
+        source,
+    })
+}
+
+fn compact_project_root(payload: &str, project_root: &Path, placeholder: &str) -> String {
+    let root = project_root.to_string_lossy();
+    payload.replace(root.as_ref(), placeholder)
 }
 
 fn path_buf_is_empty(path: &std::path::Path) -> bool {
