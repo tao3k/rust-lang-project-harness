@@ -346,7 +346,7 @@ project execution runs these packs in descriptor order:
 - `rust.syntax`: blocks files that cannot be parsed by `syn`
 - `rust.project_policy`: checks test layout, explicit test mounts, gate coverage, and thin root test targets
 - `rust.modularity`: checks `lib.rs`/`mod.rs` facades, thin binary/build entrypoints, and source-shape drift
-- `rust.agent_policy`: emits `AGENT-R001..R013` non-blocking advice for LLM repair
+- `rust.agent_policy`: emits `AGENT-R001..R014` non-blocking advice for LLM repair
 
 Rendered diagnostics are intentionally agent-first, not human audit reports.
 When there are findings, compact text starts directly at the rule block: rule

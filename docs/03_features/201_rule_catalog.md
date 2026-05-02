@@ -103,6 +103,7 @@ and are not blocking by default.
 - `AGENT-R011`: branch module fans out to three or more local owners without an intent doc
 - `AGENT-R012`: public semantic identifier parameter uses a primitive string or integer type
 - `AGENT-R013`: public error boundary uses an application error type such as `anyhow::Result`
+- `AGENT-R014`: test support facade re-exports a name that is not used locally or consumed through the support surface
 
 ## Rendered Diagnostic Policy
 
@@ -149,10 +150,11 @@ ignored. The parser also records whether a `use` statement is inside an inline
 test context without weakening the default no-glob harness contract.
 
 `AGENT-R001`, `AGENT-R002`, `AGENT-R004`, `AGENT-R005`, `AGENT-R006`,
-`AGENT-R008`, `AGENT-R012`, and `AGENT-R013` consume native facts from
+`AGENT-R008`, `AGENT-R012`, `AGENT-R013`, and `AGENT-R014` consume native facts from
 `src/parser/`, including file-level inner doc attributes, public names, public
 item doc attributes, public re-export groups, public function parameters, public
-function return types, and resolved reasoning-tree child edges. `AGENT-R003` evaluates the
+function return types, support facade re-export names, support-surface path
+references, and resolved reasoning-tree child edges. `AGENT-R003` evaluates the
 default package harness surface, including `src/` and `tests/`. It treats
 normal Rust file stems as namespace segments, so both `src/domain/domain.rs` and
 `tests/unit/unit/helper.rs` produce advisory path clarity findings.
@@ -177,6 +179,14 @@ typed recovery contracts rather than application-level catch-all errors such as
 `anyhow::Result`, `eyre::Result`, or `Result<_, Box<dyn Error>>`. The rule stays
 advisory because binaries and application crates may choose that boundary
 intentionally.
+`AGENT-R014` is narrower than Clippy's ordinary unused-import surface: it only
+looks at `tests/**/support.rs` re-exports and asks agents to remove names that
+are neither used by the support helpers nor imported or referenced through that
+exact `support::Name` surface elsewhere in the package. The support surface is
+resolved from parser-derived module namespaces, so a consumed name in
+`tests/unit/alpha/support.rs` does not clear the same unused name in
+`tests/unit/beta/support.rs`. This catches broad support facades left by LLM
+repairs without second-guessing normal private imports.
 
 ## Reasoning Tree Policy
 

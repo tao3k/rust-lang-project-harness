@@ -1,0 +1,10 @@
+---
+source: tests/unit/agent_policy_snapshot.rs
+expression: rendered
+---
+[AGENT-R014] Info: Test support re-export is unused
+   ,-[ $TEMP/tests/unit/search/service/support.rs:1:1 ]
+ 1 | pub(super) use crate::domain::{LocalType, SupportType, UnusedType};
+   | `- remove unused support re-export names or import them directly at the call site
+   |Help: $TEMP/tests/unit/search/service/support.rs re-exports unused test support scope name(s): `UnusedType`.
+   |Contract: Keep test support facades narrow; re-export only names consumed through the same support surface or used by support helpers.

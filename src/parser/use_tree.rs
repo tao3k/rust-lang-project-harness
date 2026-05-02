@@ -5,8 +5,10 @@ use syn::spanned::Spanned;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RustUseStatementSyntax {
     pub line: usize,
+    pub visibility: RustUseVisibilityKind,
     pub context: RustUseStatementContext,
     pub imports: Vec<RustUseImportSyntax>,
+    pub reexports: Vec<RustUseReexportSyntax>,
     pub deep_relative_imports: Vec<RustUseDeepRelativeImportSyntax>,
     pub contains_glob_import: bool,
     pub glob_imports: Vec<RustUseGlobImportSyntax>,
@@ -37,8 +39,17 @@ pub(crate) struct RustUseDeepRelativeImportSyntax {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RustUseReexportSyntax {
+    pub line: usize,
+    pub source_segments: Vec<String>,
+    pub exposed_name: String,
+    pub visibility: RustUseVisibilityKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RustUseImportSyntax {
     pub segments: Vec<String>,
+    pub exposed_name: Option<String>,
     pub is_absolute: bool,
     pub root_kind: RustUseImportRootKind,
     pub parent_hops: usize,
@@ -63,6 +74,17 @@ pub(crate) enum RustUseGlobScopeKind {
     SelfScope,
     ParentScope,
     External,
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum RustUseVisibilityKind {
+    Private,
+    Public,
+    Crate,
+    Super,
+    SelfScope,
+    Restricted(Vec<String>),
     Unknown,
 }
 
@@ -97,11 +119,35 @@ impl RustUseDeepRelativeImportSyntax {
     }
 }
 
+impl RustUseReexportSyntax {
+    #[cfg(test)]
+    pub(crate) fn rendered_source_path(&self) -> String {
+        self.source_segments.join("::")
+    }
+}
+
+impl RustUseVisibilityKind {
+    pub(crate) fn is_reexport(&self) -> bool {
+        !matches!(self, Self::Private)
+    }
+}
+
 pub(crate) fn rust_use_statement_syntax(
     item_use: &syn::ItemUse,
     context: RustUseStatementContext,
 ) -> RustUseStatementSyntax {
     let imports = use_item_imports(item_use);
+    let visibility = use_visibility_kind(&item_use.vis);
+    let reexports = if visibility.is_reexport() {
+        imports
+            .iter()
+            .filter_map(|import| {
+                reexport_syntax(item_use.span().start().line.max(1), &visibility, import)
+            })
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
     let deep_relative_imports = imports
         .iter()
         .filter(|import| is_deep_relative_import(import))
@@ -114,8 +160,10 @@ pub(crate) fn rust_use_statement_syntax(
         .collect::<Vec<_>>();
     RustUseStatementSyntax {
         line: item_use.span().start().line.max(1),
+        visibility,
         context,
         imports,
+        reexports,
         deep_relative_imports,
         contains_glob_import: !glob_imports.is_empty(),
         glob_imports,
@@ -152,13 +200,20 @@ fn collect_use_tree_imports(
             }
         }
         syn::UseTree::Name(name) => {
-            push_named_import(prefix, name.ident.to_string(), is_absolute, imports);
+            let name = name.ident.to_string();
+            push_named_import(prefix, name.clone(), name, is_absolute, imports);
         }
         syn::UseTree::Rename(rename) => {
-            push_named_import(prefix, rename.ident.to_string(), is_absolute, imports);
+            push_named_import(
+                prefix,
+                rename.ident.to_string(),
+                rename.rename.to_string(),
+                is_absolute,
+                imports,
+            );
         }
         syn::UseTree::Glob(_) => {
-            imports.push(import_syntax(prefix.clone(), is_absolute, true));
+            imports.push(import_syntax(prefix.clone(), None, is_absolute, true));
         }
     }
 }
@@ -166,24 +221,49 @@ fn collect_use_tree_imports(
 fn push_named_import(
     prefix: &[String],
     ident: String,
+    exposed_name: String,
     is_absolute: bool,
     imports: &mut Vec<RustUseImportSyntax>,
 ) {
     let mut segments = prefix.to_vec();
     segments.push(ident);
-    imports.push(import_syntax(segments, is_absolute, false));
+    imports.push(import_syntax(
+        segments,
+        Some(exposed_name),
+        is_absolute,
+        false,
+    ));
 }
 
-fn import_syntax(segments: Vec<String>, is_absolute: bool, is_glob: bool) -> RustUseImportSyntax {
+fn import_syntax(
+    segments: Vec<String>,
+    exposed_name: Option<String>,
+    is_absolute: bool,
+    is_glob: bool,
+) -> RustUseImportSyntax {
     let root_kind = import_root_kind(is_absolute, &segments);
     RustUseImportSyntax {
         parent_hops: parent_hops(&segments),
         is_prelude_import: segments.iter().any(|segment| segment == "prelude"),
         segments,
+        exposed_name,
         is_absolute,
         root_kind,
         is_glob,
     }
+}
+
+fn reexport_syntax(
+    line: usize,
+    visibility: &RustUseVisibilityKind,
+    import: &RustUseImportSyntax,
+) -> Option<RustUseReexportSyntax> {
+    Some(RustUseReexportSyntax {
+        line,
+        source_segments: import.segments.clone(),
+        exposed_name: import.exposed_name.clone()?,
+        visibility: visibility.clone(),
+    })
 }
 
 fn deep_relative_import_syntax(import: &RustUseImportSyntax) -> RustUseDeepRelativeImportSyntax {
@@ -249,4 +329,28 @@ fn parent_hops(segments: &[String]) -> usize {
         .iter()
         .take_while(|segment| segment.as_str() == "super")
         .count()
+}
+
+fn use_visibility_kind(visibility: &syn::Visibility) -> RustUseVisibilityKind {
+    match visibility {
+        syn::Visibility::Inherited => RustUseVisibilityKind::Private,
+        syn::Visibility::Public(_) => RustUseVisibilityKind::Public,
+        syn::Visibility::Restricted(restricted) => restricted_visibility_kind(restricted),
+    }
+}
+
+fn restricted_visibility_kind(restricted: &syn::VisRestricted) -> RustUseVisibilityKind {
+    let segments = restricted
+        .path
+        .segments
+        .iter()
+        .map(|segment| segment.ident.to_string())
+        .collect::<Vec<_>>();
+    match segments.as_slice() {
+        [segment] if segment == "crate" => RustUseVisibilityKind::Crate,
+        [segment] if segment == "super" => RustUseVisibilityKind::Super,
+        [segment] if segment == "self" => RustUseVisibilityKind::SelfScope,
+        [] => RustUseVisibilityKind::Unknown,
+        _ => RustUseVisibilityKind::Restricted(segments),
+    }
 }

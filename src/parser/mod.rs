@@ -23,6 +23,7 @@ pub(crate) use module_tree::RustModuleChildEdge;
 pub(crate) use module_tree::RustModuleChildEdgeKind;
 pub(crate) use native_syntax::{RustNativeSyntaxFacts, RustTopLevelItemSyntax};
 pub(crate) use parsed_module::{ParsedRustModule, parse_rust_file};
+pub(crate) use path_resolution::resolve_rust_path_attr;
 pub(crate) use reasoning_tree::{
     RustReasoningImportFacts, RustReasoningModuleFacts, RustReasoningOwnerBranchFacts,
     RustReasoningOwnerBranchRole, RustReasoningOwnerDependencyFacts, RustReasoningTreeFacts,
@@ -30,6 +31,9 @@ pub(crate) use reasoning_tree::{
 };
 pub(crate) use source_metrics::RustSourceMetrics;
 pub(crate) use source_path::{RustSourcePathFacts, rust_source_path_facts};
+#[cfg(test)]
+pub(crate) use use_tree::RustUseVisibilityKind;
 pub(crate) use use_tree::{
-    RustUseGlobScopeKind, RustUseImportRootKind, RustUseImportSyntax, RustUseStatementSyntax,
+    RustUseGlobScopeKind, RustUseImportRootKind, RustUseImportSyntax, RustUseStatementContext,
+    RustUseStatementSyntax, rust_use_statement_syntax,
 };

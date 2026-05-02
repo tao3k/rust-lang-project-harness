@@ -2,7 +2,7 @@ use std::fs;
 
 use tempfile::TempDir;
 
-use crate::parser::{RustUseGlobScopeKind, parse_rust_file};
+use crate::parser::{RustUseGlobScopeKind, RustUseVisibilityKind, parse_rust_file};
 
 #[test]
 fn native_syntax_facts_record_cfg_and_module_declaring_macros() {
@@ -133,6 +133,60 @@ fn native_syntax_facts_record_deep_relative_scope_imports() {
         deep_relative_imports,
         vec![("super::super::MissingOwner".to_string(), 2)]
     );
+}
+
+#[test]
+fn native_syntax_facts_record_reexports_and_path_references() {
+    let temp = TempDir::new().expect("temp dir");
+    let source = temp.path().join("support.rs");
+    fs::write(
+        &source,
+        "pub(super) use crate::domain::{Original as Alias, Plain};\n\
+         fn helper(value: Alias) -> Plain { Plain::from(value) }\n",
+    )
+    .expect("write source");
+
+    let module = parse_rust_file(&source);
+
+    let use_statement = module
+        .syntax_facts
+        .use_statements
+        .first()
+        .expect("use statement");
+    assert_eq!(use_statement.visibility, RustUseVisibilityKind::Super);
+    assert_eq!(
+        use_statement
+            .reexports
+            .iter()
+            .map(|reexport| {
+                (
+                    reexport.rendered_source_path(),
+                    reexport.exposed_name.as_str(),
+                    reexport.visibility.clone(),
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                "crate::domain::Original".to_string(),
+                "Alias",
+                RustUseVisibilityKind::Super,
+            ),
+            (
+                "crate::domain::Plain".to_string(),
+                "Plain",
+                RustUseVisibilityKind::Super,
+            ),
+        ]
+    );
+    let references = module
+        .syntax_facts
+        .path_references
+        .iter()
+        .map(|reference| reference.terminal_name.as_str())
+        .collect::<Vec<_>>();
+    assert!(references.contains(&"Alias"), "{references:?}");
+    assert!(references.contains(&"Plain"), "{references:?}");
 }
 
 #[test]

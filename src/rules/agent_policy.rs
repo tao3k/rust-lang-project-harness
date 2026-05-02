@@ -24,6 +24,7 @@ pub(super) const AGENT_R010: &str = "AGENT-R010";
 pub(super) const AGENT_R011: &str = "AGENT-R011";
 pub(super) const AGENT_R012: &str = "AGENT-R012";
 pub(super) const AGENT_R013: &str = "AGENT-R013";
+pub(super) const AGENT_R014: &str = "AGENT-R014";
 
 /// Return compact metadata for agent-oriented Rust policy rules.
 #[must_use]
@@ -75,6 +76,11 @@ pub(crate) fn evaluate(
     ));
     findings.extend(source_surface::public_name_conflict_findings(
         &source_modules,
+        &rules,
+    ));
+    findings.extend(source_surface::test_support_reexport_findings(
+        &reasoning_tree,
+        modules,
         &rules,
     ));
     findings.extend(dependency_graph::dependency_graph_findings(
@@ -189,6 +195,14 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             RustDiagnosticSeverity::Info,
             "Public error boundary uses an application error type",
             "Keep public library error boundaries typed so agents and callers can handle recovery without inspecting application error context.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R014,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Test support re-export is unused",
+            "Keep test support facades narrow; re-export only names consumed through the same support surface or used by support helpers.",
             labels("agent-policy"),
         ),
     ]

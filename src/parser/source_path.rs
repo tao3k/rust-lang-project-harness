@@ -10,6 +10,7 @@ pub(crate) struct RustSourcePathFacts {
     pub(crate) repeated_namespace_branch: Option<PathBuf>,
     pub(crate) is_special_entrypoint: bool,
     pub(crate) is_test_source: bool,
+    pub(crate) is_test_support_module: bool,
     pub(crate) is_crate_facade: bool,
     pub(crate) is_interface_mod: bool,
     pub(crate) is_binary_entrypoint: bool,
@@ -29,12 +30,14 @@ pub(crate) fn rust_source_path_facts(
     let repeated_namespace_branch = (!repeated_namespace_segments.is_empty())
         .then(|| offending_branch(&namespace_components, &repeated_namespace_segments));
     let is_package_entrypoint = package_paths.iter().any(|entrypoint| entrypoint == path);
+    let is_test_source = is_under_any_dir(path, test_paths);
     RustSourcePathFacts {
         namespace_components,
         repeated_namespace_segments,
         repeated_namespace_branch,
         is_special_entrypoint: file_name_matches(path, &["lib.rs", "main.rs", "mod.rs"]),
-        is_test_source: is_under_any_dir(path, test_paths),
+        is_test_source,
+        is_test_support_module: is_test_source && file_stem_is(path, "support"),
         is_crate_facade: file_name_is(path, "lib.rs"),
         is_interface_mod: file_name_is(path, "mod.rs"),
         is_binary_entrypoint: is_binary_entrypoint(source_paths, path),
@@ -111,6 +114,12 @@ fn file_name_is(path: &Path, name: &str) -> bool {
     path.file_name()
         .and_then(|file_name| file_name.to_str())
         .is_some_and(|file_name| file_name == name)
+}
+
+fn file_stem_is(path: &Path, stem: &str) -> bool {
+    path.file_stem()
+        .and_then(|file_stem| file_stem.to_str())
+        .is_some_and(|file_stem| file_stem == stem)
 }
 
 fn file_name_matches(path: &Path, names: &[&str]) -> bool {

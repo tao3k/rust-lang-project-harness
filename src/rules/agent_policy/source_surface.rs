@@ -4,8 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use crate::parser::{
-    ParsedRustModule, RustReasoningTreeFacts, RustTopLevelItemSyntax, file_location,
-    path_line_location, source_line,
+    ParsedRustModule, RustReasoningTreeFacts, RustTopLevelItemSyntax, RustUseImportRootKind,
+    file_location, path_line_location, source_line,
 };
 use crate::{RustHarnessFinding, RustHarnessRule};
 
@@ -13,7 +13,7 @@ use crate::rules::display_path;
 
 use super::{
     AGENT_R001, AGENT_R002, AGENT_R003, AGENT_R004, AGENT_R005, AGENT_R006, AGENT_R007, AGENT_R008,
-    AGENT_R012, AGENT_R013,
+    AGENT_R012, AGENT_R013, AGENT_R014,
 };
 
 const MAX_FACADE_REEXPORTS: usize = 28;
@@ -149,6 +149,32 @@ pub(super) fn public_name_conflict_findings(
         }
     }
     findings
+}
+
+pub(super) fn test_support_reexport_findings(
+    reasoning_tree: &RustReasoningTreeFacts,
+    modules: &[ParsedRustModule],
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let support_modules = test_support_modules(reasoning_tree);
+    let consumed_support_names =
+        consumed_test_support_names(reasoning_tree, modules, &support_modules);
+    modules
+        .iter()
+        .filter(|module| module.report.is_valid)
+        .filter(|module| {
+            reasoning_tree
+                .module(&module.report.path)
+                .is_some_and(|module_facts| module_facts.source_path.is_test_support_module)
+        })
+        .flat_map(|module| {
+            test_support_module_reexport_findings(
+                module,
+                consumed_support_names.get(&module.report.path),
+                rules,
+            )
+        })
+        .collect()
 }
 
 fn module_intent_findings(
@@ -349,6 +375,214 @@ fn public_application_error_boundary_findings(
             ))
         })
         .collect()
+}
+
+fn test_support_module_reexport_findings(
+    module: &ParsedRustModule,
+    consumed_support_names: Option<&BTreeSet<String>>,
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let local_references = local_path_reference_lines_by_name(module);
+    let mut unused_names_by_line = BTreeMap::<usize, Vec<String>>::new();
+    for use_statement in &module.syntax_facts.use_statements {
+        for reexport in &use_statement.reexports {
+            if !reexport.visibility.is_reexport()
+                || locally_referenced_after_reexport(
+                    &local_references,
+                    &reexport.exposed_name,
+                    reexport.line,
+                )
+                || consumed_support_names
+                    .is_some_and(|names| names.contains(&reexport.exposed_name))
+            {
+                continue;
+            }
+            unused_names_by_line
+                .entry(reexport.line)
+                .or_default()
+                .push(reexport.exposed_name.clone());
+        }
+    }
+    let rule = &rules[AGENT_R014];
+    unused_names_by_line
+        .into_iter()
+        .map(|(line, mut names)| {
+            names.sort();
+            names.dedup();
+            let names = names
+                .into_iter()
+                .map(|name| format!("`{name}`"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            RustHarnessFinding::from_rule(
+                rule,
+                format!(
+                    "{} re-exports unused test support scope name(s): {names}.",
+                    display_path(&module.report.path)
+                ),
+                path_line_location(&module.report.path, line),
+                source_line(&module.source, line),
+                "remove unused support re-export names or import them directly at the call site",
+            )
+        })
+        .collect()
+}
+
+fn test_support_modules(reasoning_tree: &RustReasoningTreeFacts) -> BTreeMap<Vec<String>, PathBuf> {
+    reasoning_tree
+        .modules
+        .iter()
+        .filter(|module| module.source_path.is_test_support_module)
+        .filter(|module| !module.source_path.namespace_components.is_empty())
+        .map(|module| {
+            (
+                module.source_path.namespace_components.clone(),
+                module.path.clone(),
+            )
+        })
+        .collect()
+}
+
+fn consumed_test_support_names(
+    reasoning_tree: &RustReasoningTreeFacts,
+    modules: &[ParsedRustModule],
+    support_modules: &BTreeMap<Vec<String>, PathBuf>,
+) -> BTreeMap<PathBuf, BTreeSet<String>> {
+    let mut names = BTreeMap::<PathBuf, BTreeSet<String>>::new();
+    for module in modules {
+        let Some(module_facts) = reasoning_tree.module(&module.report.path) else {
+            continue;
+        };
+        let current_namespace = &module_facts.source_path.namespace_components;
+        for use_statement in &module.syntax_facts.use_statements {
+            for import in &use_statement.imports {
+                if let Some((support_path, name)) = test_support_reference(
+                    current_namespace,
+                    &import.segments,
+                    import.root_kind,
+                    import.parent_hops,
+                    support_modules,
+                ) {
+                    names.entry(support_path).or_default().insert(name);
+                }
+            }
+        }
+        for reference in &module.syntax_facts.path_references {
+            if let Some((support_path, name)) = test_support_reference(
+                current_namespace,
+                &reference.segments,
+                import_root_kind(&reference.segments),
+                parent_hops(&reference.segments),
+                support_modules,
+            ) {
+                names.entry(support_path).or_default().insert(name);
+            }
+        }
+    }
+    names
+}
+
+fn test_support_reference(
+    current_namespace: &[String],
+    segments: &[String],
+    root_kind: RustUseImportRootKind,
+    parent_hops: usize,
+    support_modules: &BTreeMap<Vec<String>, PathBuf>,
+) -> Option<(PathBuf, String)> {
+    let candidate =
+        local_reference_candidate_namespace(current_namespace, segments, root_kind, parent_hops)?;
+    let (support_namespace, support_path) =
+        longest_test_support_namespace_prefix(&candidate, support_modules)?;
+    let exposed_name = candidate.get(support_namespace.len())?.clone();
+    Some((support_path.clone(), exposed_name))
+}
+
+fn local_reference_candidate_namespace(
+    current_namespace: &[String],
+    segments: &[String],
+    root_kind: RustUseImportRootKind,
+    parent_hops: usize,
+) -> Option<Vec<String>> {
+    match root_kind {
+        RustUseImportRootKind::Crate => {
+            let root = current_namespace.first()?.clone();
+            let mut namespace = vec![root];
+            namespace.extend(segments.iter().skip(1).cloned());
+            Some(namespace)
+        }
+        RustUseImportRootKind::SelfScope => {
+            let mut namespace = current_namespace.to_vec();
+            namespace.extend(segments.iter().skip(1).cloned());
+            Some(namespace)
+        }
+        RustUseImportRootKind::Parent => {
+            if parent_hops > current_namespace.len() {
+                return None;
+            }
+            let mut namespace = current_namespace
+                .iter()
+                .take(current_namespace.len() - parent_hops)
+                .cloned()
+                .collect::<Vec<_>>();
+            namespace.extend(segments.iter().skip(parent_hops).cloned());
+            Some(namespace)
+        }
+        RustUseImportRootKind::Absolute
+        | RustUseImportRootKind::External
+        | RustUseImportRootKind::Unknown => None,
+    }
+}
+
+fn longest_test_support_namespace_prefix<'a>(
+    candidate: &[String],
+    support_modules: &'a BTreeMap<Vec<String>, PathBuf>,
+) -> Option<(&'a Vec<String>, &'a PathBuf)> {
+    (1..=candidate.len()).rev().find_map(|length| {
+        let prefix = candidate.iter().take(length).cloned().collect::<Vec<_>>();
+        support_modules.get_key_value(&prefix)
+    })
+}
+
+fn import_root_kind(segments: &[String]) -> RustUseImportRootKind {
+    let Some(first_segment) = segments.first() else {
+        return RustUseImportRootKind::Unknown;
+    };
+    match first_segment.as_str() {
+        "crate" => RustUseImportRootKind::Crate,
+        "self" => RustUseImportRootKind::SelfScope,
+        "super" => RustUseImportRootKind::Parent,
+        _ => RustUseImportRootKind::External,
+    }
+}
+
+fn parent_hops(segments: &[String]) -> usize {
+    segments
+        .iter()
+        .take_while(|segment| segment.as_str() == "super")
+        .count()
+}
+
+fn local_path_reference_lines_by_name(
+    module: &ParsedRustModule,
+) -> BTreeMap<String, BTreeSet<usize>> {
+    let mut references = BTreeMap::<String, BTreeSet<usize>>::new();
+    for reference in &module.syntax_facts.path_references {
+        references
+            .entry(reference.terminal_name.clone())
+            .or_default()
+            .insert(reference.line);
+    }
+    references
+}
+
+fn locally_referenced_after_reexport(
+    references: &BTreeMap<String, BTreeSet<usize>>,
+    exposed_name: &str,
+    reexport_line: usize,
+) -> bool {
+    references
+        .get(exposed_name)
+        .is_some_and(|lines| lines.iter().any(|line| *line != reexport_line))
 }
 
 fn has_public_surface(module: &ParsedRustModule) -> bool {
