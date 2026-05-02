@@ -1,10 +1,12 @@
 ---
 source: tests/unit/agent_reasoning_snapshot.rs
+assertion_line: 77
 expression: rendered
 ---
 pkg crates/active
-Modules: source=2 branches=1 deps=1
+Modules: source=3 branches=2 deps=1
 OwnerBranches:
- - src/lib.rs [root, facade] owner=src imports=crate:1 -> mod:src/domain.rs
+ - src/lib.rs [root, facade] owner=src imports=crate:1 -> mod:src/domain/mod.rs
+ - src/domain/mod.rs [interface] owner=src/domain imports=external:1 -> mod:src/domain/thing.rs
 OwnerDependencies:
- - src/lib.rs --crate--> src/domain.rs
+ - src/lib.rs --crate--> src/domain/mod.rs

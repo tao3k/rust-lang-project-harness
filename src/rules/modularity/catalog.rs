@@ -7,7 +7,7 @@ use crate::{RustDiagnosticSeverity, RustHarnessRule};
 
 use super::{
     PACK_ID, RUST_MOD_R001, RUST_MOD_R002, RUST_MOD_R003, RUST_MOD_R004, RUST_MOD_R005,
-    RUST_MOD_R006, RUST_MOD_R007, RUST_MOD_R008, RUST_MOD_R009, RUST_MOD_R010,
+    RUST_MOD_R006, RUST_MOD_R007, RUST_MOD_R008, RUST_MOD_R009, RUST_MOD_R010, RUST_MOD_R011,
 };
 
 pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
@@ -90,6 +90,14 @@ pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             RustDiagnosticSeverity::Warning,
             "Glob import hides owner scope",
             "Avoid every Rust glob import, including absolute crate globs; import owner names explicitly so module dependencies stay visible.",
+            labels("modularity"),
+        ),
+        RustHarnessRule::new(
+            RUST_MOD_R011,
+            PACK_ID,
+            RustDiagnosticSeverity::Warning,
+            "Sibling file and directory share an owner name",
+            "Do not keep both foo.rs and foo/ child sources at the same filesystem level; move the owner interface to foo/mod.rs and keep implementation under foo/*.",
             labels("modularity"),
         ),
     ]

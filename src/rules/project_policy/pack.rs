@@ -1,29 +1,20 @@
-//! Project-level Rust test policy rules.
-
-mod catalog;
-mod config;
-mod source_tests;
-mod support;
-mod test_bloat;
-mod test_layout;
-mod test_targets;
-mod verification_integration;
+//! Project-level Rust test policy rule catalog and evaluator.
 
 use crate::parser::{
     ParsedRustModule, parse_cargo_manifest, parse_cargo_test_targets, rust_reasoning_tree_facts,
 };
 use crate::{RustHarnessConfig, RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
-use catalog::rules_by_id;
-use config::load_layout_policy;
-use source_tests::source_test_mount_findings;
-use test_bloat::test_leaf_bloat_findings;
-use test_layout::test_layout_findings;
-use test_targets::{
+use super::catalog::rules_by_id;
+use super::config::load_layout_policy;
+use super::source_tests::source_test_mount_findings;
+use super::test_bloat::test_leaf_bloat_findings;
+use super::test_layout::test_layout_findings;
+use super::test_targets::{
     library_cargo_test_gate_findings, test_target_aggregate_findings, test_target_gate_findings,
     test_target_module_mount_findings,
 };
-use verification_integration::verification_integration_findings;
+use super::verification_integration::verification_integration_findings;
 
 pub(crate) const PACK_ID: &str = "rust.project_policy";
 pub(crate) const RUST_PROJ_R001: &str = "RUST-PROJ-R001";

@@ -44,7 +44,7 @@ fn cli_agent_snapshot_renders_reasoning_tree_summary() {
     fs::create_dir_all(root.join("src/domain")).expect("create domain");
     fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod domain;\n").expect("write lib");
     fs::write(
-        root.join("src/domain.rs"),
+        root.join("src/domain/mod.rs"),
         "//! Domain branch.\nmod leaf;\n",
     )
     .expect("write domain");

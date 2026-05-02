@@ -1,6 +1,4 @@
-//! Native Rust syntax facts shared by harness policies.
-
-mod signature;
+//! Native Rust syntax collection.
 
 use std::path::{Path, PathBuf};
 
@@ -8,13 +6,13 @@ use proc_macro2::{TokenStream, TokenTree};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
 
-use super::{
-    RustUseStatementContext, RustUseStatementSyntax, resolve_rust_path_attr,
-    rust_use_statement_syntax,
-};
-pub(crate) use signature::{
+use super::signature::{
     RustFunctionParamSyntax, RustFunctionReturnSyntax, public_function_param_syntax,
     public_function_return_syntax,
+};
+use crate::parser::{
+    RustUseStatementContext, RustUseStatementSyntax, resolve_rust_path_attr,
+    rust_use_statement_syntax,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

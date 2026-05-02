@@ -1,6 +1,7 @@
 //! Source file shape and owner-boundary policies.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
 
 use crate::parser::{
     ParsedRustModule, RustReasoningModuleFacts, RustUseGlobScopeKind, RustUseStatementSyntax,
@@ -11,7 +12,7 @@ use crate::{RustHarnessFinding, RustHarnessRule};
 
 use super::{
     MAX_SOURCE_EFFECTIVE_LINES, MIN_SOURCE_IMPLEMENTATION_ITEMS, MIN_SOURCE_PUBLIC_ITEMS,
-    RUST_MOD_R002, RUST_MOD_R003, RUST_MOD_R010,
+    RUST_MOD_R002, RUST_MOD_R003, RUST_MOD_R010, RUST_MOD_R011,
 };
 
 pub(super) fn source_file_bloat_findings(
@@ -50,6 +51,80 @@ pub(super) fn source_file_bloat_findings(
         None,
         "split this source file by responsibility",
     )]
+}
+
+pub(super) fn sibling_file_dir_owner_collision_findings(
+    modules: &[ParsedRustModule],
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let rust_sources = rust_source_paths(modules);
+    let mut reported = BTreeSet::new();
+    let mut findings = Vec::new();
+
+    for file_path in &rust_sources {
+        if !is_named_rust_file(file_path) || is_under_tests_dir(file_path) {
+            continue;
+        }
+        let Some(stem) = file_path.file_stem().and_then(|value| value.to_str()) else {
+            continue;
+        };
+        let Some(parent) = file_path.parent() else {
+            continue;
+        };
+        let owner_dir = parent.join(stem);
+        let has_child_sources = rust_sources.iter().any(|candidate| {
+            candidate.starts_with(&owner_dir)
+                && candidate != file_path
+                && candidate
+                    .extension()
+                    .is_some_and(|extension| extension == "rs")
+        });
+        if !has_child_sources || !reported.insert(file_path.clone()) {
+            continue;
+        }
+
+        let rule = &rules[RUST_MOD_R011];
+        findings.push(RustHarnessFinding::from_rule(
+            rule,
+            format!(
+                "{} and {}/ share the same owner name at one filesystem level.",
+                display_path(file_path),
+                display_path(&owner_dir)
+            ),
+            file_location(file_path),
+            None,
+            "move the owner interface to mod.rs under the directory",
+        ));
+    }
+
+    findings
+}
+
+fn rust_source_paths(modules: &[ParsedRustModule]) -> BTreeSet<PathBuf> {
+    modules
+        .iter()
+        .filter(|module| {
+            module
+                .report
+                .path
+                .extension()
+                .is_some_and(|extension| extension == "rs")
+        })
+        .map(|module| module.report.path.clone())
+        .collect()
+}
+
+fn is_named_rust_file(path: &Path) -> bool {
+    path.extension().is_some_and(|extension| extension == "rs")
+        && !path
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .is_some_and(|stem| matches!(stem, "lib" | "main" | "mod"))
+}
+
+fn is_under_tests_dir(path: &Path) -> bool {
+    path.components()
+        .any(|component| component.as_os_str() == "tests")
 }
 
 pub(super) fn deep_relative_import_findings(

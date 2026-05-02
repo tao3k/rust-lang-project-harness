@@ -13,7 +13,7 @@ fn repeated_namespace_policy_includes_file_stems() {
     fs::create_dir_all(root.join("src/domain")).expect("create source namespace");
     fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod domain;\n").expect("write lib");
     fs::write(
-        root.join("src/domain.rs"),
+        root.join("src/domain/mod.rs"),
         "//! Domain branch.\nmod domain;\n",
     )
     .expect("write branch");
@@ -45,7 +45,7 @@ fn branch_module_without_intent_doc_is_agent_advice() {
     write_manifest(root, "branch-without-intent");
     fs::create_dir_all(root.join("src/domain")).expect("create domain");
     fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod domain;\n").expect("write lib");
-    fs::write(root.join("src/domain.rs"), "mod parse;\nmod render;\n").expect("write domain");
+    fs::write(root.join("src/domain/mod.rs"), "mod parse;\nmod render;\n").expect("write domain");
     fs::write(root.join("src/domain/parse.rs"), "//! Parse leaf.\n").expect("write parse");
     fs::write(root.join("src/domain/render.rs"), "//! Render leaf.\n").expect("write render");
 
@@ -64,7 +64,7 @@ fn branch_intent_counts_resolved_reasoning_tree_edges() {
     write_manifest(root, "branch-resolved-children");
     fs::create_dir_all(root.join("src/domain")).expect("create domain");
     fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod domain;\n").expect("write lib");
-    fs::write(root.join("src/domain.rs"), "mod parse;\nmod missing;\n").expect("write domain");
+    fs::write(root.join("src/domain/mod.rs"), "mod parse;\nmod missing;\n").expect("write domain");
     fs::write(root.join("src/domain/parse.rs"), "//! Parse leaf.\n").expect("write parse");
 
     let report = run_rust_project_harness(root).expect("run project harness");
@@ -96,7 +96,8 @@ fn generic_public_module_names_are_agent_advice() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_manifest(root, "generic-public-module");
-    fs::create_dir(root.join("src")).expect("create src");
+    fs::create_dir_all(root.join("src/alpha")).expect("create alpha");
+    fs::create_dir_all(root.join("src/beta")).expect("create beta");
     fs::write(
         root.join("src/lib.rs"),
         "//! Test crate.\n/// Shared utility bucket.\npub mod utils;\n",
@@ -193,22 +194,33 @@ fn duplicated_public_names_are_reported_as_agent_advice() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_manifest(root, "duplicated-public-names");
-    fs::create_dir(root.join("src")).expect("create src");
+    fs::create_dir_all(root.join("src/alpha")).expect("create alpha");
+    fs::create_dir_all(root.join("src/beta")).expect("create beta");
     fs::write(
         root.join("src/lib.rs"),
         "//! Test crate.\nmod alpha;\nmod beta;\n",
     )
     .expect("write lib");
     fs::write(
-        root.join("src/alpha.rs"),
-        "//! Alpha owner.\n/// Alpha handle.\npub struct Handle;\n",
+        root.join("src/alpha/mod.rs"),
+        "//! Alpha owner.\nmod types;\npub use types::Handle;\n",
     )
     .expect("write alpha");
     fs::write(
-        root.join("src/beta.rs"),
-        "//! Beta owner.\n/// Beta handle.\npub struct Handle;\n",
+        root.join("src/beta/mod.rs"),
+        "//! Beta owner.\nmod types;\npub use types::Handle;\n",
     )
     .expect("write beta");
+    fs::write(
+        root.join("src/alpha/types.rs"),
+        "//! Alpha types.\n/// Alpha handle.\npub struct Handle;\n",
+    )
+    .expect("write alpha types");
+    fs::write(
+        root.join("src/beta/types.rs"),
+        "//! Beta types.\n/// Beta handle.\npub struct Handle;\n",
+    )
+    .expect("write beta types");
 
     let report = run_rust_project_harness(root).expect("run project harness");
 

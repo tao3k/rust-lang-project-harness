@@ -1,14 +1,12 @@
-//! Agent-oriented Rust policy rules.
-
-mod dependency_graph;
-mod source_surface;
+//! Agent-oriented Rust policy rule catalog and evaluator.
 
 use std::collections::BTreeMap;
 
 use crate::parser::{ParsedRustModule, rust_reasoning_tree_facts};
 use crate::{RustDiagnosticSeverity, RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
-use super::labels;
+use super::{dependency_graph, source_surface};
+use crate::rules::labels;
 
 const PACK_ID: &str = "rust.agent_policy";
 pub(super) const AGENT_R001: &str = "AGENT-R001";

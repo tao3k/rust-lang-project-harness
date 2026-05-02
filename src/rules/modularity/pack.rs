@@ -1,23 +1,19 @@
-//! Rust modularity rule pack.
-
-mod catalog;
-mod entrypoints;
-mod reasoning_tree;
-mod source_shape;
+//! Rust modularity rule catalog and evaluator.
 
 use crate::parser::{ParsedRustModule, rust_reasoning_tree_facts};
 use crate::{RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
-use catalog::rules_by_id;
-use entrypoints::{
+use super::catalog::rules_by_id;
+use super::entrypoints::{
     binary_entrypoint_findings, build_script_entrypoint_findings, crate_facade_findings,
     interface_mod_findings,
 };
-use reasoning_tree::{
+use super::reasoning_tree::{
     inline_source_module_findings, module_source_shadow_findings, orphan_source_module_findings,
 };
-use source_shape::{
-    deep_relative_import_findings, glob_import_findings, source_file_bloat_findings,
+use super::source_shape::{
+    deep_relative_import_findings, glob_import_findings, sibling_file_dir_owner_collision_findings,
+    source_file_bloat_findings,
 };
 
 pub(crate) const PACK_ID: &str = "rust.modularity";
@@ -31,6 +27,7 @@ pub(crate) const RUST_MOD_R007: &str = "RUST-MOD-R007";
 pub(crate) const RUST_MOD_R008: &str = "RUST-MOD-R008";
 pub(crate) const RUST_MOD_R009: &str = "RUST-MOD-R009";
 pub(crate) const RUST_MOD_R010: &str = "RUST-MOD-R010";
+pub(crate) const RUST_MOD_R011: &str = "RUST-MOD-R011";
 
 pub(crate) const MAX_SOURCE_EFFECTIVE_LINES: usize = 650;
 pub(crate) const MIN_SOURCE_PUBLIC_ITEMS: usize = 12;
@@ -54,6 +51,7 @@ pub(crate) fn evaluate(
     let reasoning_tree = rust_reasoning_tree_facts(scope, modules);
     findings.extend(module_source_shadow_findings(&reasoning_tree, &rules));
     findings.extend(orphan_source_module_findings(&reasoning_tree, &rules));
+    findings.extend(sibling_file_dir_owner_collision_findings(modules, &rules));
     for module in modules {
         let Some(module_facts) = reasoning_tree.module(&module.report.path) else {
             continue;

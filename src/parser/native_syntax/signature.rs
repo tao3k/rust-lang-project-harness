@@ -3,8 +3,6 @@
 use quote::ToTokens;
 use syn::spanned::Spanned;
 
-use super::{attrs_have_cfg_test, is_public_visibility};
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RustFunctionParamSyntax {
     pub line: usize,
@@ -99,6 +97,18 @@ fn application_error_return_type(ty: &syn::Type) -> Option<String> {
     }
     let err_type = result_error_type(terminal)?;
     application_error_type_name(err_type).map(|err_name| format!("Result<_, {err_name}>"))
+}
+
+fn attrs_have_cfg_test(attrs: &[syn::Attribute]) -> bool {
+    attrs.iter().any(attribute_has_cfg_test)
+}
+
+fn attribute_has_cfg_test(attr: &syn::Attribute) -> bool {
+    attr.path().is_ident("cfg") && attr.to_token_stream().to_string().contains("test")
+}
+
+fn is_public_visibility(vis: &syn::Visibility) -> bool {
+    matches!(vis, syn::Visibility::Public(_))
 }
 
 fn result_error_type(segment: &syn::PathSegment) -> Option<&syn::Type> {

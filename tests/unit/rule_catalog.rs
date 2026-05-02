@@ -98,6 +98,7 @@ fn rule_catalogs_expose_stable_rule_ids() {
             "RUST-MOD-R008",
             "RUST-MOD-R009",
             "RUST-MOD-R010",
+            "RUST-MOD-R011",
         ]
     );
 }

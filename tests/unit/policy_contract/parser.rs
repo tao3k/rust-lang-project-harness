@@ -192,7 +192,7 @@ fn cargo_test_target_parsing_lives_under_parser_module() {
 #[test]
 fn rust_path_attribute_resolution_lives_under_parser_module() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let parser_source = fs::read_to_string(root.join("src/parser/native_syntax.rs"))
+    let parser_source = fs::read_to_string(root.join("src/parser/native_syntax/collect.rs"))
         .expect("read native syntax parser");
     assert!(parser_source.contains("resolved_path_attr"));
 

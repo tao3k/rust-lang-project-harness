@@ -1,11 +1,12 @@
 ---
 source: tests/unit/agent_reasoning_snapshot.rs
+assertion_line: 36
 expression: "normalize_temp_root(&rendered, root)"
 ---
-Modules: source=5 branches=2 deps=2
+Modules: source=4 branches=2 deps=2
 OwnerBranches:
- - src/lib.rs [root, facade] owner=src imports=crate:1,external:1 -> mod:src/domain.rs, path-mod:src/alt/custom.rs
- - src/domain.rs [branch] owner=src/domain imports=self:1,parent:1 -> mod:src/domain/leaf.rs, include:src/domain/shard.rs
+ - src/lib.rs [root, facade] owner=src imports=crate:1,external:1 -> mod:src/domain/mod.rs, path-mod:src/alt/custom.rs
+ - src/domain/mod.rs [interface] owner=src/domain imports=self:1,parent:1,external:1 -> mod:src/domain/leaf.rs
 OwnerDependencies:
- - src/lib.rs --crate--> src/domain.rs
- - src/domain.rs --self--> src/domain/leaf.rs
+ - src/lib.rs --crate--> src/domain/mod.rs
+ - src/domain/mod.rs --self--> src/domain/leaf.rs

@@ -131,7 +131,7 @@ fn agent_snapshot_renderer_exposes_reasoning_tree_shape() {
     fs::create_dir_all(root.join("src/domain")).expect("create domain");
     fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod domain;\n").expect("write lib");
     fs::write(
-        root.join("src/domain.rs"),
+        root.join("src/domain/mod.rs"),
         "//! Domain branch.\nmod leaf;\n",
     )
     .expect("write domain");
@@ -149,7 +149,7 @@ fn agent_snapshot_renderer_exposes_reasoning_tree_shape() {
     assert!(!rendered.contains("shadowed=0"), "{rendered}");
     assert!(!rendered.contains("orphaned=0"), "{rendered}");
     assert!(
-        rendered.contains("src/lib.rs [root, facade] owner=src -> mod:src/domain.rs"),
+        rendered.contains("src/lib.rs [root, facade] owner=src -> mod:src/domain/mod.rs"),
         "{rendered}"
     );
     assert!(!rendered.contains("FindingGroups:"), "{rendered}");

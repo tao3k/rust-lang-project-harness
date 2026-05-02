@@ -129,6 +129,7 @@ impl RustRulePack {
                 "RUST-MOD-R008",
                 "RUST-MOD-R009",
                 "RUST-MOD-R010",
+                "RUST-MOD-R011",
             ],
             Self::AgentPolicy => &[
                 "AGENT-R001",

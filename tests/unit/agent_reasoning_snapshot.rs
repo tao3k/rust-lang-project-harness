@@ -20,13 +20,16 @@ fn agent_reasoning_tree_snapshot_groups_owner_branches() {
     )
     .expect("write lib");
     fs::write(
-        root.join("src/domain.rs"),
-        "//! Domain branch.\nuse self::leaf::Leaf;\nuse super::sibling::Thing;\nmod leaf;\ninclude!(\"domain/shard.rs\");\n",
+        root.join("src/domain/mod.rs"),
+        "//! Domain branch.\nuse self::leaf::Leaf;\nuse super::sibling::Thing;\nmod leaf;\npub use leaf::Thing;\n",
     )
     .expect("write domain");
-    fs::write(root.join("src/domain/leaf.rs"), "//! Domain leaf.\n").expect("write leaf");
+    fs::write(
+        root.join("src/domain/leaf.rs"),
+        "//! Domain leaf.\n/// Domain leaf.\npub struct Leaf;\n/// Domain thing.\npub struct Thing;\n",
+    )
+    .expect("write leaf");
     fs::write(root.join("src/alt/custom.rs"), "//! Custom path child.\n").expect("write custom");
-    fs::write(root.join("src/domain/shard.rs"), "//! Included shard.\n").expect("write shard");
 
     let rendered = render_rust_project_harness_agent_snapshot(root).expect("render snapshot");
 
@@ -47,7 +50,7 @@ fn agent_reasoning_tree_snapshot_compacts_workspace_packages() {
     .expect("write workspace manifest");
     let active = root.join("crates/active");
     let empty = root.join("crates/empty");
-    fs::create_dir_all(active.join("src")).expect("create active src");
+    fs::create_dir_all(active.join("src/domain")).expect("create active domain");
     fs::create_dir_all(&empty).expect("create empty crate");
     write_manifest(&active, "active");
     write_manifest(&empty, "empty");
@@ -57,10 +60,15 @@ fn agent_reasoning_tree_snapshot_compacts_workspace_packages() {
     )
     .expect("write active lib");
     fs::write(
-        active.join("src/domain.rs"),
-        "//! Domain owner.\n/// Domain thing.\npub struct Thing;\n",
+        active.join("src/domain/mod.rs"),
+        "//! Domain owner.\nmod thing;\npub use thing::Thing;\n",
     )
     .expect("write active domain");
+    fs::write(
+        active.join("src/domain/thing.rs"),
+        "//! Domain thing.\n/// Domain thing.\npub struct Thing;\n",
+    )
+    .expect("write active thing");
 
     let rendered = render_rust_project_harness_agent_snapshot(root).expect("render snapshot");
     let rendered = normalize_temp_root(&rendered, root);
@@ -82,17 +90,25 @@ fn agent_reasoning_tree_snapshot_ignores_test_context_owner_dependencies() {
     )
     .expect("write lib");
     fs::write(
-        root.join("src/alpha.rs"),
-        "//! Alpha owner.\nmod core;\n#[cfg(test)]\nmod tests {\n    use crate::beta::Beta;\n}\n/// Alpha handle.\npub struct Alpha;\n",
+        root.join("src/alpha/mod.rs"),
+        "//! Alpha owner.\nmod core;\npub use core::Alpha;\n",
     )
     .expect("write alpha");
     fs::write(
-        root.join("src/beta.rs"),
-        "//! Beta owner.\nmod core;\n#[cfg(test)]\nmod tests {\n    use crate::alpha::Alpha;\n}\n/// Beta handle.\npub struct Beta;\n",
+        root.join("src/beta/mod.rs"),
+        "//! Beta owner.\nmod core;\npub use core::Beta;\n",
     )
     .expect("write beta");
-    fs::write(root.join("src/alpha/core.rs"), "//! Alpha core.\n").expect("write alpha core");
-    fs::write(root.join("src/beta/core.rs"), "//! Beta core.\n").expect("write beta core");
+    fs::write(
+        root.join("src/alpha/core.rs"),
+        "//! Alpha core.\n#[cfg(test)]\nmod tests {\n    use crate::beta::Beta;\n}\n/// Alpha handle.\npub struct Alpha;\n",
+    )
+    .expect("write alpha core");
+    fs::write(
+        root.join("src/beta/core.rs"),
+        "//! Beta core.\n#[cfg(test)]\nmod tests {\n    use crate::alpha::Alpha;\n}\n/// Beta handle.\npub struct Beta;\n",
+    )
+    .expect("write beta core");
     let config = default_rust_harness_config().with_disabled_rule("RUST-PROJ-R003");
 
     let rendered = render_rust_project_harness_agent_snapshot_with_config(root, &config)
