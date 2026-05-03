@@ -19,7 +19,15 @@ macro_rules! rust_project_harness_gate {
 ///
 /// ```rust,ignore
 /// #[cfg(test)]
-/// rust_lang_project_harness::rust_project_harness_cargo_test_gate!();
+/// rust_lang_project_harness::rust_project_harness_cargo_test_gate!(config = {
+///     rust_lang_project_harness::default_rust_harness_config()
+///         .with_verification_profile_hint(
+///             rust_lang_project_harness::RustVerificationProfileHint::new(
+///                 "src/lib.rs",
+///                 [rust_lang_project_harness::RustOwnerResponsibility::PublicApi],
+///             ),
+///         )
+/// });
 /// ```
 ///
 /// The `#[cfg(test)]` guard keeps normal `cargo build` free of the dev-dependency,
@@ -35,6 +43,19 @@ macro_rules! rust_project_harness_cargo_test_gate {
                 )));
             }
         }
+    };
+    (config = $config:expr) => {
+        #[test]
+        fn enforce_rust_project_harness_gate() {
+            let config = $config;
+            $crate::assert_rust_project_harness_clean_with_config(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")),
+                &config,
+            );
+        }
+    };
+    ($config:expr) => {
+        $crate::rust_project_harness_cargo_test_gate!(config = $config);
     };
 }
 

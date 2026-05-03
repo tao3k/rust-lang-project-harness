@@ -34,18 +34,28 @@ library target:
 
 ```rust
 #[cfg(test)]
-rust_lang_project_harness::rust_project_harness_cargo_test_gate!();
+rust_lang_project_harness::rust_project_harness_cargo_test_gate!(config = {
+    rust_lang_project_harness::default_rust_harness_config()
+        .with_verification_profile_hint(
+            rust_lang_project_harness::RustVerificationProfileHint::new(
+                "src/lib.rs",
+                [rust_lang_project_harness::RustOwnerResponsibility::PublicApi],
+            ),
+        )
+});
 ```
 
 Place that line in `src/lib.rs`, or in a source module that `src/lib.rs`
 declares. The `#[cfg(test)]` guard is part of the contract because
 dev-dependencies are not available to normal `cargo build`, while `cargo test`
 and `cargo test --lib` both compile the library test target.
+The `config = { ... }` block is part of the Agent contract: it prevents a source
+gate from silently accepting the default empty verification surface.
 
 Root Cargo test targets under `tests/*.rs` can stay as thin suite aggregates
-once the library target mounts `rust_project_harness_cargo_test_gate!()`. That
-source-embedded gate covers ordinary `cargo test` and closes the `cargo test
---lib` escape path.
+once the library target mounts a configured
+`rust_project_harness_cargo_test_gate!(config = ...)`. That source-embedded
+gate covers ordinary `cargo test` and closes the `cargo test --lib` escape path.
 
 Harness-enabled library projects are checked by `RUST-PROJ-R009`: once the
 project has the harness dependency or another harness gate, a `src/lib.rs`

@@ -39,6 +39,7 @@ version labels, searchable domains, and default modes. The first three packs are
 - `RUST-PROJ-R008`: root Cargo test target modules should use explicit suite `#[path]` mounts
 - `RUST-PROJ-R009`: harness-enabled library target must mount the cargo-test gate for `cargo test --lib`
 - `RUST-PROJ-R010`: Rust-native performance verification bindings must have a runnable `harness = false` Cargo bench target
+- `RUST-PROJ-R011`: source cargo-test gate must run with explicit verification config
 - `RUST-MOD-R001`: `mod.rs` should stay interface-only with external module declarations and re-exports
 - `RUST-MOD-R002`: oversized source file should split by responsibility, including private implementation piles
 - `RUST-MOD-R003`: native `use` trees containing `super::super` should move behind a clearer owner boundary
@@ -79,12 +80,23 @@ normally looks like:
 
 ```rust
 #[cfg(test)]
-rust_lang_project_harness::rust_project_harness_cargo_test_gate!();
+rust_lang_project_harness::rust_project_harness_cargo_test_gate!(config = {
+    rust_lang_project_harness::default_rust_harness_config()
+        .with_verification_profile_hint(
+            rust_lang_project_harness::RustVerificationProfileHint::new(
+                "src/lib.rs",
+                [rust_lang_project_harness::RustOwnerResponsibility::PublicApi],
+            ),
+        )
+});
 ```
 
 The mount should live in `src/lib.rs` or in a source module declared by
 `src/lib.rs`, so both `cargo test` and `cargo test --lib` execute project
-policy.
+policy. `RUST-PROJ-R011` keeps that gate from silently running the default empty
+verification policy: use the `config = { ... }` form to declare profile hints,
+explicit suppressions, receipts, waivers, or skill bindings for the Agent-facing
+verification surface.
 
 Verification policy wiring also has a physical Cargo target check. When a
 project configures an active Rust-native performance binding such as

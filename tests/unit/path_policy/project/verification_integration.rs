@@ -3,11 +3,58 @@ use std::fs;
 use rust_lang_project_harness::{
     RustOwnerResponsibility, RustVerificationProfileHint, RustVerificationSkillBinding,
     RustVerificationSkillDescriptor, RustVerificationTaskKind, default_rust_harness_config,
-    run_rust_project_harness_with_config,
+    run_rust_project_harness, run_rust_project_harness_with_config,
 };
 use tempfile::TempDir;
 
 use crate::path_policy::support::{findings_for_rule, write_manifest};
+
+#[test]
+fn cargo_test_gate_requires_explicit_verification_config() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "empty-verification-config");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(
+        root.join("src/lib.rs"),
+        "//! Test crate.\n#[cfg(test)]\nrust_lang_project_harness::rust_project_harness_cargo_test_gate!();\n",
+    )
+    .expect("write lib");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    let findings = findings_for_rule(&report, "RUST-PROJ-R011");
+    assert_eq!(findings.len(), 1, "{:?}", report.findings);
+    assert!(
+        findings[0]
+            .summary
+            .contains("without explicit verification config"),
+        "{:?}",
+        findings[0]
+    );
+}
+
+#[test]
+fn configured_cargo_test_gate_clears_verification_config_warning() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "configured-verification-config");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(
+        root.join("src/lib.rs"),
+        "//! Test crate.\n#[cfg(test)]\nrust_lang_project_harness::rust_project_harness_cargo_test_gate!(config = {\n    rust_lang_project_harness::default_rust_harness_config()\n});\n",
+    )
+    .expect("write lib");
+
+    let report = run_rust_project_harness_with_config(root, &configured_no_external_tasks_config())
+        .expect("run project harness");
+
+    assert!(
+        findings_for_rule(&report, "RUST-PROJ-R011").is_empty(),
+        "{:?}",
+        report.findings
+    );
+}
 
 #[test]
 fn performance_verification_binding_requires_cargo_bench_target() {
@@ -75,6 +122,14 @@ fn performance_config() -> rust_lang_project_harness::RustHarnessConfig {
                 .with_adapter("criterion"),
         )
         .with_verification_skill_descriptor(
-            RustVerificationSkillDescriptor::criterion_performance(),
-        )
+        RustVerificationSkillDescriptor::criterion_performance(),
+    )
+}
+
+fn configured_no_external_tasks_config() -> rust_lang_project_harness::RustHarnessConfig {
+    default_rust_harness_config().with_verification_profile_hint(
+        RustVerificationProfileHint::new("src/lib.rs", [RustOwnerResponsibility::PublicApi])
+            .without_verification_tasks()
+            .with_rationale("this fixture only verifies cargo-test gate configuration plumbing"),
+    )
 }

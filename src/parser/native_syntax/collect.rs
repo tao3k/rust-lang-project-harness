@@ -73,6 +73,7 @@ pub(crate) struct RustPathReferenceSyntax {
 pub(crate) struct RustInvocationSyntax {
     pub line: usize,
     pub terminal_name: String,
+    pub argument_token_count: usize,
 }
 
 impl RustNativeSyntaxFacts {
@@ -172,7 +173,7 @@ impl<'ast> Visit<'ast> for NativeSyntaxCollector<'_> {
     }
 
     fn visit_macro(&mut self, mac: &'ast syn::Macro) {
-        if let Some(invocation) = invocation_syntax(&mac.path) {
+        if let Some(invocation) = macro_invocation_syntax(mac) {
             self.facts.macro_invocations.push(invocation);
         }
         visit::visit_macro(self, mac);
@@ -180,7 +181,8 @@ impl<'ast> Visit<'ast> for NativeSyntaxCollector<'_> {
 
     fn visit_expr_call(&mut self, expr_call: &'ast syn::ExprCall) {
         if let syn::Expr::Path(expr_path) = expr_call.func.as_ref()
-            && let Some(invocation) = invocation_syntax(&expr_path.path)
+            && let Some(invocation) =
+                function_call_invocation_syntax(&expr_path.path, expr_call.args.len())
         {
             self.facts.function_calls.push(invocation);
         }
@@ -510,7 +512,23 @@ fn invocation_syntax(path: &syn::Path) -> Option<RustInvocationSyntax> {
     Some(RustInvocationSyntax {
         line: path.span().start().line.max(1),
         terminal_name,
+        argument_token_count: 0,
     })
+}
+
+fn macro_invocation_syntax(mac: &syn::Macro) -> Option<RustInvocationSyntax> {
+    let mut invocation = invocation_syntax(&mac.path)?;
+    invocation.argument_token_count = mac.tokens.clone().into_iter().count();
+    Some(invocation)
+}
+
+fn function_call_invocation_syntax(
+    path: &syn::Path,
+    arg_count: usize,
+) -> Option<RustInvocationSyntax> {
+    let mut invocation = invocation_syntax(path)?;
+    invocation.argument_token_count = arg_count;
+    Some(invocation)
 }
 
 fn include_literal_target(mac: &syn::Macro) -> Option<String> {

@@ -9,7 +9,18 @@ use rust_lang_project_harness::{
 use tempfile::TempDir;
 
 mod embedded_cargo_test_gate_macro_smoke {
-    rust_lang_project_harness::rust_project_harness_cargo_test_gate!();
+    rust_lang_project_harness::rust_project_harness_cargo_test_gate!(
+        config = {
+            rust_lang_project_harness::default_rust_harness_config().with_verification_profile_hint(
+                rust_lang_project_harness::RustVerificationProfileHint::new(
+                    "src/lib.rs",
+                    [rust_lang_project_harness::RustOwnerResponsibility::PublicApi],
+                )
+                .without_verification_tasks()
+                .with_rationale("macro smoke test exercises configured cargo-test gate wiring"),
+            )
+        }
+    );
 }
 
 #[test]

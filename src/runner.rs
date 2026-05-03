@@ -89,6 +89,22 @@ pub fn assert_rust_project_harness_clean(project_root: &Path) -> RustHarnessRepo
     report
 }
 
+/// Assert a configured Rust project harness run is clean.
+///
+/// # Panics
+///
+/// Panics when the run fails or when configured-blocking findings exist.
+#[track_caller]
+pub fn assert_rust_project_harness_clean_with_config(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+) -> RustHarnessReport {
+    let report = run_rust_project_harness_with_config(project_root, config)
+        .unwrap_or_else(|error| panic!("{error}"));
+    report.assert_clean();
+    report
+}
+
 /// Assert an explicit-path Rust harness run is clean.
 ///
 /// # Panics

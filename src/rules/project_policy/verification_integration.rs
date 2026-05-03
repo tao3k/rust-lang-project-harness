@@ -3,34 +3,46 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use crate::parser::{CargoManifestFacts, file_location};
+use crate::parser::{
+    CargoManifestFacts, ParsedRustModule, RustReasoningTreeFacts, file_location,
+    path_line_location, source_line,
+};
 use crate::verification::{
     RustVerificationPlan, RustVerificationTaskKind, plan_rust_project_verification_with_config,
 };
 use crate::{RustHarnessConfig, RustHarnessFinding, RustHarnessRule};
 
-use super::RUST_PROJ_R010;
 use super::support::display_project_path;
+use super::{RUST_PROJ_R010, RUST_PROJ_R011};
 
 pub(super) fn verification_integration_findings(
     project_root: &Path,
+    reasoning_tree: &RustReasoningTreeFacts,
     config: &RustHarnessConfig,
+    modules: &[ParsedRustModule],
     cargo_manifest: &CargoManifestFacts,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
+    let mut findings = Vec::new();
+    findings.extend(empty_verification_config_gate_findings(
+        project_root,
+        reasoning_tree,
+        modules,
+        rules,
+    ));
     if !configured_rust_native_performance_is_active(project_root, config) {
-        return Vec::new();
+        return findings;
     }
     if cargo_manifest
         .bench_targets
         .iter()
         .any(|target| !target.harness && target.path.exists())
     {
-        return Vec::new();
+        return findings;
     }
 
     let rule = &rules[RUST_PROJ_R010];
-    vec![RustHarnessFinding::from_rule(
+    findings.push(RustHarnessFinding::from_rule(
         rule,
         format!(
             "{} configures a Rust-native performance verification skill, but Cargo.toml does not expose a runnable harness=false [[bench]] target.",
@@ -39,7 +51,45 @@ pub(super) fn verification_integration_findings(
         file_location(project_root.join("Cargo.toml")),
         None,
         "add a Criterion, Divan, or iai-callgrind [[bench]] target and keep the verification contract command pointed at it",
-    )]
+    ));
+    findings
+}
+
+fn empty_verification_config_gate_findings(
+    project_root: &Path,
+    reasoning_tree: &RustReasoningTreeFacts,
+    modules: &[ParsedRustModule],
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let rule = &rules[RUST_PROJ_R011];
+    modules
+        .iter()
+        .filter(|module| {
+            reasoning_tree
+                .module(&module.report.path)
+                .is_some_and(|facts| facts.is_source_module)
+        })
+        .filter_map(|module| {
+            let invocation = module
+                .syntax_facts
+                .macro_invocations
+                .iter()
+                .find(|invocation| {
+                    invocation.terminal_name == "rust_project_harness_cargo_test_gate"
+                        && invocation.argument_token_count == 0
+                })?;
+            Some(RustHarnessFinding::from_rule(
+                rule,
+                format!(
+                    "{} mounts the cargo-test harness gate without explicit verification config.",
+                    display_project_path(project_root, &module.report.path)
+                ),
+                path_line_location(&module.report.path, invocation.line),
+                source_line(&module.source, invocation.line),
+                "use rust_project_harness_cargo_test_gate!(config = { ... }) and declare verification profile hints, explicit suppressions, or skill bindings",
+            ))
+        })
+        .collect()
 }
 
 fn configured_rust_native_performance_is_active(

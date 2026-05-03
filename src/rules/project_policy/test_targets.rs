@@ -41,7 +41,7 @@ pub(super) fn test_target_gate_findings(
             ),
             file_location(&parsed.report.path),
             None,
-            "add rust_project_harness_cargo_test_gate!() to the library target or rust_project_harness_gate!() to this standalone test target",
+            "add rust_project_harness_cargo_test_gate!(config = ...) to the library target or rust_project_harness_gate!() to this standalone test target",
         ));
     }
     findings
@@ -71,7 +71,7 @@ pub(super) fn library_cargo_test_gate_findings(
         ),
         file_location(lib_path),
         None,
-        "add #[cfg(test)] rust_lang_project_harness::rust_project_harness_cargo_test_gate!()",
+        "add #[cfg(test)] rust_lang_project_harness::rust_project_harness_cargo_test_gate!(config = { ... })",
     )]
 }
 

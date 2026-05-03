@@ -10,7 +10,7 @@ fn native_syntax_facts_record_cfg_and_module_declaring_macros() {
     let source = temp.path().join("lib.rs");
     fs::write(
         &source,
-        "#[cfg(feature = \"fs\")]\ncompile_error!(\"fs is not supported here\");\ncfg_feature! {\n    pub(crate) mod optional;\n}\ncfg_macros! {\n    pub use crate::optional::Thing;\n}\ncfg_nested! {\n    cfg_inner! {\n        pub(crate) use crate::optional::Other;\n    }\n}\ncfg_bad! {\n    pub fn leaked() {}\n}\nmacro_rules! declare_mod { () => { mod generated; } }\n",
+        "#[cfg(feature = \"fs\")]\ncompile_error!(\"fs is not supported here\");\nrust_project_harness_cargo_test_gate!();\ncfg_feature! {\n    pub(crate) mod optional;\n}\ncfg_macros! {\n    pub use crate::optional::Thing;\n}\ncfg_nested! {\n    cfg_inner! {\n        pub(crate) use crate::optional::Other;\n    }\n}\ncfg_bad! {\n    pub fn leaked() {}\n}\nmacro_rules! declare_mod { () => { mod generated; } }\n",
     )
     .expect("write source");
 
@@ -25,6 +25,20 @@ fn native_syntax_facts_record_cfg_and_module_declaring_macros() {
     assert!(compile_error.has_cfg_attr);
     assert!(!compile_error.macro_declares_module);
     assert!(!compile_error.macro_body_is_facade_boundary);
+    let compile_error_invocation = module
+        .syntax_facts
+        .macro_invocations
+        .iter()
+        .find(|invocation| invocation.terminal_name == "compile_error")
+        .expect("compile_error invocation");
+    assert!(compile_error_invocation.argument_token_count > 0);
+    let empty_gate_invocation = module
+        .syntax_facts
+        .macro_invocations
+        .iter()
+        .find(|invocation| invocation.terminal_name == "rust_project_harness_cargo_test_gate")
+        .expect("empty gate invocation");
+    assert_eq!(empty_gate_invocation.argument_token_count, 0);
 
     let cfg_feature = module
         .syntax_facts

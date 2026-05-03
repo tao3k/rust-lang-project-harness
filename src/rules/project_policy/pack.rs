@@ -27,6 +27,7 @@ pub(crate) const RUST_PROJ_R007: &str = "RUST-PROJ-R007";
 pub(crate) const RUST_PROJ_R008: &str = "RUST-PROJ-R008";
 pub(crate) const RUST_PROJ_R009: &str = "RUST-PROJ-R009";
 pub(crate) const RUST_PROJ_R010: &str = "RUST-PROJ-R010";
+pub(crate) const RUST_PROJ_R011: &str = "RUST-PROJ-R011";
 
 pub(crate) const MAX_UNIT_TEST_EFFECTIVE_LINES: usize = 260;
 pub(crate) const MIN_UNIT_TEST_FUNCTIONS: usize = 8;
@@ -83,7 +84,9 @@ pub(crate) fn evaluate(
     ));
     findings.extend(verification_integration_findings(
         &scope.project_root,
+        &reasoning_tree,
         config,
+        modules,
         &cargo_manifest,
         &rules,
     ));

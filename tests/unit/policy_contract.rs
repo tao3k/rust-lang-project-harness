@@ -55,7 +55,8 @@ fn library_target_mounts_source_backed_self_apply_gate() {
         fs::read_to_string(root.join("src/self_policy.rs")).expect("read src/self_policy.rs");
 
     assert!(!lib_rs.contains("rust_project_harness_source_gate!"));
-    assert!(self_policy.contains("rust_project_harness_cargo_test_gate!()"));
+    assert!(self_policy.contains("rust_project_harness_cargo_test_gate!("));
+    assert!(self_policy.contains("config ="));
 }
 
 #[test]
