@@ -7,6 +7,7 @@ use rust_lang_project_harness::{
     render_rust_verification_plan, render_rust_verification_report_artifact_json,
     render_rust_verification_report_bundle_json, write_rust_verification_reports,
 };
+use std::path::PathBuf;
 use tempfile::TempDir;
 
 use crate::verification::support::write_api_project;
@@ -194,6 +195,46 @@ fn verification_report_writer_splits_source_baseline_from_runtime_cache() {
     assert!(cache_manifest.contains("performance_index_json"));
     assert!(performance_index.contains("$CRATE_ROOT"));
     assert!(!performance_index.contains(&root.display().to_string()));
+}
+
+#[test]
+fn verification_report_writer_compacts_windows_json_escaped_project_root() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_api_project(root);
+    let config = default_rust_harness_config()
+        .with_verification_profile_hint(RustVerificationProfileHint::new(
+            "src/api.rs",
+            [RustOwnerResponsibility::LatencySensitive],
+        ))
+        .with_verification_skill_binding(
+            RustVerificationTaskKind::Performance,
+            RustVerificationSkillBinding::new("rust-verification-performance")
+                .with_adapter("criterion"),
+        );
+    let mut plan = plan_rust_project_verification_with_config(root, &config).expect("plan");
+    let windows_root = PathBuf::from(r"C:\agent\work\verification-api");
+    let windows_api = PathBuf::from(r"C:\agent\work\verification-api\src\api.rs");
+    plan.project_root = windows_root.clone();
+    for task in &mut plan.tasks {
+        task.package_root = windows_root.clone();
+        task.owner_path = windows_api.clone();
+    }
+
+    let source_dir = root.join("resources/verification/reports");
+    let cache_dir = root.join(".cache/agent/verification/sample");
+    write_rust_verification_reports(
+        &plan,
+        &RustVerificationReportWriteConfig::new(&windows_root, &source_dir, &cache_dir),
+    )
+    .expect("write reports");
+
+    let performance_index = std::fs::read_to_string(source_dir.join("performance_index.json"))
+        .expect("performance index");
+
+    assert!(performance_index.contains("$CRATE_ROOT"));
+    assert!(!performance_index.contains(r"C:\agent\work"));
+    assert!(!performance_index.contains(r"C:\\agent\\work"));
 }
 
 #[test]

@@ -628,7 +628,37 @@ fn write_json(path: &Path, payload: &str) -> Result<(), RustVerificationReportWr
 
 fn compact_project_root(payload: &str, project_root: &Path, placeholder: &str) -> String {
     let root = project_root.to_string_lossy();
-    payload.replace(root.as_ref(), placeholder)
+    if root.is_empty() {
+        return payload.to_string();
+    }
+
+    let replacement = json_string_fragment(placeholder);
+    let mut compacted = payload.to_string();
+    for candidate in project_root_compaction_candidates(root.as_ref()) {
+        compacted = compacted.replace(&candidate, &replacement);
+    }
+    compacted
+}
+
+fn project_root_compaction_candidates(root: &str) -> BTreeSet<String> {
+    let normalized = root.replace('\\', "/");
+    [root, normalized.as_str()]
+        .into_iter()
+        .flat_map(|candidate| [candidate.to_string(), json_string_fragment(candidate)])
+        .filter(|candidate| !candidate.is_empty())
+        .collect()
+}
+
+fn json_string_fragment(value: &str) -> String {
+    serde_json::to_string(value)
+        .ok()
+        .and_then(|encoded| {
+            encoded
+                .strip_prefix('"')
+                .and_then(|trimmed| trimmed.strip_suffix('"'))
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| value.to_string())
 }
 
 fn path_buf_is_empty(path: &std::path::Path) -> bool {
