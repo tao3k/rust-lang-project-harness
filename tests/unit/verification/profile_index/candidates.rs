@@ -23,7 +23,12 @@ fn verification_profile_index_reports_parser_suggested_responsibilities() {
     let rendered = normalize_temp_root(&render_rust_verification_profile_index(&index), root);
 
     assert!(!index.is_clear());
+    assert!(index.needs_profile_configuration());
     assert!(!rendered.contains("hint_path"), "{rendered}");
+    assert!(
+        rendered.contains("[verify-profile] profile_hints"),
+        "{rendered}"
+    );
     insta::assert_snapshot!("verification_profile_index_candidates", rendered);
 }
 
@@ -58,6 +63,7 @@ fn branch_profile_candidate_aggregates_child_owner_signals() {
         build_rust_verification_profile_index_with_config(root, &config).expect("profile index");
     let rendered = normalize_temp_root(&render_rust_verification_profile_index(&index), root);
 
+    assert!(index.needs_profile_configuration());
     assert_eq!(index.active_candidates().len(), 1, "{rendered}");
     assert_eq!(
         index.active_profile_hints()[0].owner_path,

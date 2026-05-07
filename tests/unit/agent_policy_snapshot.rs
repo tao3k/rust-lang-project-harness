@@ -13,6 +13,9 @@ mod error_boundary;
 #[path = "agent_policy_snapshot/test_support_reexport.rs"]
 mod test_support_reexport;
 
+#[path = "agent_policy_snapshot/algorithm_shape.rs"]
+mod algorithm_shape;
+
 #[test]
 fn agent_r001_public_module_intent_snapshot() {
     let temp = TempDir::new().expect("temp dir");

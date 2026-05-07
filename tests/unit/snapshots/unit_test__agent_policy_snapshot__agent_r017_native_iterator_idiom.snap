@@ -1,0 +1,10 @@
+---
+source: tests/unit/agent_policy_snapshot.rs
+expression: rendered
+---
+[AGENT-R017] Info: Public function manually spells an iterator transform
+   ,-[ $TEMP/src/api.rs:3:1 ]
+ 3 | pub fn summarize(values: &[usize]) -> bool {
+   | `- replace this boilerplate loop with a Rust iterator idiom
+   |Help: $TEMP/src/api.rs public function `summarize` manually spells iterator boilerplate. Signals: manual collection accumulator loop, manual predicate loop, manual count loop, manual numeric accumulator loop, repeated pass over the same iterator source.
+   |Contract: Use Rust iterator adapters and consumers such as `map`, `filter`, `filter_map`, `collect`, `sum`, `count`, `any`, `all`, or a named iterator pipeline helper when loops only map, filter, collect, count, sum, answer a predicate, or repeatedly scan the same iterator source.

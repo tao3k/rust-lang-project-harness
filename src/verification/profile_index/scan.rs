@@ -96,6 +96,7 @@ pub fn build_rust_verification_profile_index_with_policy(
     Ok(RustVerificationProfileIndex {
         project_root: project_root.to_path_buf(),
         candidates,
+        configured_profile_hint_count: policy.profile_hints.len(),
     })
 }
 

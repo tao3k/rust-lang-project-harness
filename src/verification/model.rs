@@ -557,7 +557,7 @@ pub struct RustVerificationReportObligation {
 impl RustVerificationReportObligation {
     /// Build one durable verification report obligation.
     #[must_use]
-    pub fn new<I, F>(
+    pub(crate) fn new<I, F>(
         key: impl Into<String>,
         renderer: impl Into<String>,
         suggested_artifact_name: impl Into<String>,

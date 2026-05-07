@@ -44,6 +44,9 @@ pub struct RustVerificationProfileIndex {
     pub project_root: PathBuf,
     /// Parser-suggested owner profile candidates.
     pub candidates: Vec<RustVerificationProfileCandidate>,
+    /// Number of profile hints configured before parser candidates were rendered.
+    #[serde(default, skip_serializing_if = "usize_is_zero")]
+    pub configured_profile_hint_count: usize,
 }
 
 impl RustVerificationProfileIndex {
@@ -51,6 +54,12 @@ impl RustVerificationProfileIndex {
     #[must_use]
     pub fn is_clear(&self) -> bool {
         self.active_candidates().is_empty()
+    }
+
+    /// Return whether parser facts found owners before any profile was configured.
+    #[must_use]
+    pub fn needs_profile_configuration(&self) -> bool {
+        self.configured_profile_hint_count == 0 && !self.active_candidates().is_empty()
     }
 
     /// Return candidates that still need agent action.
@@ -134,4 +143,8 @@ impl RustVerificationProfileCandidate {
 
 fn path_buf_is_empty(path: &Path) -> bool {
     path.as_os_str().is_empty()
+}
+
+fn usize_is_zero(value: &usize) -> bool {
+    *value == 0
 }

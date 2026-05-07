@@ -6,10 +6,12 @@ use syn::spanned::Spanned;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RustFunctionParamSyntax {
     pub line: usize,
+    pub function_line: usize,
     pub function_name: String,
     pub param_name: String,
     pub type_text: String,
     pub primitive_contract_type: Option<String>,
+    pub flag_contract_type: Option<String>,
     pub is_test_context: bool,
 }
 
@@ -22,17 +24,85 @@ pub(crate) struct RustFunctionReturnSyntax {
     pub is_test_context: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RustFunctionTupleApiSyntax {
+    pub line: usize,
+    pub function_line: usize,
+    pub function_name: String,
+    pub surface_name: String,
+    pub type_text: String,
+    pub element_contract_types: Vec<String>,
+    pub is_test_context: bool,
+}
+
 pub(crate) fn public_function_param_syntax(item: &syn::Item) -> Vec<RustFunctionParamSyntax> {
-    let syn::Item::Fn(item_fn) = item else {
-        return Vec::new();
-    };
+    match item {
+        syn::Item::Fn(item_fn) => public_item_function_param_syntax(item_fn, false),
+        syn::Item::Impl(item_impl) => public_impl_function_param_syntax(item_impl),
+        _ => Vec::new(),
+    }
+}
+
+pub(crate) fn public_function_return_syntax(item: &syn::Item) -> Vec<RustFunctionReturnSyntax> {
+    match item {
+        syn::Item::Fn(item_fn) => public_item_function_return_syntax(item_fn, false)
+            .into_iter()
+            .collect(),
+        syn::Item::Impl(item_impl) => public_impl_function_return_syntax(item_impl),
+        _ => Vec::new(),
+    }
+}
+
+pub(crate) fn public_function_tuple_api_syntax(
+    item: &syn::Item,
+) -> Vec<RustFunctionTupleApiSyntax> {
+    match item {
+        syn::Item::Fn(item_fn) => public_item_function_tuple_api_syntax(item_fn, false),
+        syn::Item::Impl(item_impl) => public_impl_function_tuple_api_syntax(item_impl),
+        _ => Vec::new(),
+    }
+}
+
+fn public_item_function_param_syntax(
+    item_fn: &syn::ItemFn,
+    inherited_test_context: bool,
+) -> Vec<RustFunctionParamSyntax> {
     if !is_public_visibility(&item_fn.vis) {
         return Vec::new();
     }
-    let function_name = item_fn.sig.ident.to_string();
-    let is_test_context = attrs_have_cfg_test(&item_fn.attrs);
-    item_fn
-        .sig
+    signature_param_syntax(
+        &item_fn.sig,
+        inherited_test_context || attrs_have_cfg_test(&item_fn.attrs),
+    )
+}
+
+fn public_impl_function_param_syntax(item_impl: &syn::ItemImpl) -> Vec<RustFunctionParamSyntax> {
+    let inherited_test_context = attrs_have_cfg_test(&item_impl.attrs);
+    item_impl
+        .items
+        .iter()
+        .filter_map(|impl_item| {
+            let syn::ImplItem::Fn(method) = impl_item else {
+                return None;
+            };
+            is_public_visibility(&method.vis).then_some(method)
+        })
+        .flat_map(|method| {
+            signature_param_syntax(
+                &method.sig,
+                inherited_test_context || attrs_have_cfg_test(&method.attrs),
+            )
+        })
+        .collect()
+}
+
+fn signature_param_syntax(
+    signature: &syn::Signature,
+    is_test_context: bool,
+) -> Vec<RustFunctionParamSyntax> {
+    let function_name = signature.ident.to_string();
+    let function_line = signature.ident.span().start().line.max(1);
+    signature
         .inputs
         .iter()
         .filter_map(|arg| {
@@ -44,32 +114,145 @@ pub(crate) fn public_function_param_syntax(item: &syn::Item) -> Vec<RustFunction
             };
             Some(RustFunctionParamSyntax {
                 line: pat_ident.span().start().line.max(1),
+                function_line,
                 function_name: function_name.clone(),
                 param_name: pat_ident.ident.to_string(),
                 type_text: pat_type.ty.to_token_stream().to_string(),
                 primitive_contract_type: primitive_contract_type_name(&pat_type.ty),
+                flag_contract_type: flag_contract_type_name(&pat_type.ty),
                 is_test_context,
             })
         })
         .collect()
 }
 
-pub(crate) fn public_function_return_syntax(item: &syn::Item) -> Option<RustFunctionReturnSyntax> {
-    let syn::Item::Fn(item_fn) = item else {
-        return None;
-    };
+fn public_item_function_tuple_api_syntax(
+    item_fn: &syn::ItemFn,
+    inherited_test_context: bool,
+) -> Vec<RustFunctionTupleApiSyntax> {
+    if !is_public_visibility(&item_fn.vis) {
+        return Vec::new();
+    }
+    signature_tuple_api_syntax(
+        &item_fn.sig,
+        inherited_test_context || attrs_have_cfg_test(&item_fn.attrs),
+    )
+}
+
+fn public_impl_function_tuple_api_syntax(
+    item_impl: &syn::ItemImpl,
+) -> Vec<RustFunctionTupleApiSyntax> {
+    let inherited_test_context = attrs_have_cfg_test(&item_impl.attrs);
+    item_impl
+        .items
+        .iter()
+        .filter_map(|impl_item| {
+            let syn::ImplItem::Fn(method) = impl_item else {
+                return None;
+            };
+            is_public_visibility(&method.vis).then_some(method)
+        })
+        .flat_map(|method| {
+            signature_tuple_api_syntax(
+                &method.sig,
+                inherited_test_context || attrs_have_cfg_test(&method.attrs),
+            )
+        })
+        .collect()
+}
+
+fn signature_tuple_api_syntax(
+    signature: &syn::Signature,
+    is_test_context: bool,
+) -> Vec<RustFunctionTupleApiSyntax> {
+    let function_name = signature.ident.to_string();
+    let function_line = signature.ident.span().start().line.max(1);
+    let mut facts = signature
+        .inputs
+        .iter()
+        .filter_map(|arg| {
+            let syn::FnArg::Typed(pat_type) = arg else {
+                return None;
+            };
+            let syn::Pat::Ident(pat_ident) = pat_type.pat.as_ref() else {
+                return None;
+            };
+            let element_contract_types = tuple_api_contract_types(&pat_type.ty)?;
+            Some(RustFunctionTupleApiSyntax {
+                line: pat_ident.span().start().line.max(1),
+                function_line,
+                function_name: function_name.clone(),
+                surface_name: format!("parameter `{}`", pat_ident.ident),
+                type_text: pat_type.ty.to_token_stream().to_string(),
+                element_contract_types,
+                is_test_context,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    if let syn::ReturnType::Type(_, return_type) = &signature.output
+        && let Some(element_contract_types) = tuple_api_contract_types(return_type)
+    {
+        facts.push(RustFunctionTupleApiSyntax {
+            line: function_line,
+            function_line,
+            function_name,
+            surface_name: "return value".to_owned(),
+            type_text: return_type.to_token_stream().to_string(),
+            element_contract_types,
+            is_test_context,
+        });
+    }
+
+    facts
+}
+
+fn public_item_function_return_syntax(
+    item_fn: &syn::ItemFn,
+    inherited_test_context: bool,
+) -> Option<RustFunctionReturnSyntax> {
     if !is_public_visibility(&item_fn.vis) {
         return None;
-    }
-    let syn::ReturnType::Type(_, return_type) = &item_fn.sig.output else {
+    };
+    signature_return_syntax(
+        &item_fn.sig,
+        inherited_test_context || attrs_have_cfg_test(&item_fn.attrs),
+    )
+}
+
+fn public_impl_function_return_syntax(item_impl: &syn::ItemImpl) -> Vec<RustFunctionReturnSyntax> {
+    let inherited_test_context = attrs_have_cfg_test(&item_impl.attrs);
+    item_impl
+        .items
+        .iter()
+        .filter_map(|impl_item| {
+            let syn::ImplItem::Fn(method) = impl_item else {
+                return None;
+            };
+            if !is_public_visibility(&method.vis) {
+                return None;
+            }
+            signature_return_syntax(
+                &method.sig,
+                inherited_test_context || attrs_have_cfg_test(&method.attrs),
+            )
+        })
+        .collect()
+}
+
+fn signature_return_syntax(
+    signature: &syn::Signature,
+    is_test_context: bool,
+) -> Option<RustFunctionReturnSyntax> {
+    let syn::ReturnType::Type(_, return_type) = &signature.output else {
         return None;
     };
     Some(RustFunctionReturnSyntax {
-        line: item_fn.sig.ident.span().start().line.max(1),
-        function_name: item_fn.sig.ident.to_string(),
+        line: signature.ident.span().start().line.max(1),
+        function_name: signature.ident.to_string(),
         type_text: return_type.to_token_stream().to_string(),
         application_error_boundary: application_error_return_type(return_type),
-        is_test_context: attrs_have_cfg_test(&item_fn.attrs),
+        is_test_context,
     })
 }
 
@@ -81,6 +264,61 @@ fn primitive_contract_type_name(ty: &syn::Type) -> Option<String> {
         }
         _ => None,
     }
+}
+
+fn flag_contract_type_name(ty: &syn::Type) -> Option<String> {
+    match ty {
+        syn::Type::Path(type_path) => flag_contract_path_name(type_path),
+        syn::Type::Reference(reference) => {
+            flag_contract_type_name(&reference.elem).map(|inner| format!("&{inner}"))
+        }
+        _ => None,
+    }
+}
+
+fn tuple_api_contract_types(ty: &syn::Type) -> Option<Vec<String>> {
+    match ty {
+        syn::Type::Tuple(tuple) => semantic_tuple_contract_types(&tuple.elems),
+        syn::Type::Paren(paren) => tuple_api_contract_types(&paren.elem),
+        syn::Type::Group(group) => tuple_api_contract_types(&group.elem),
+        syn::Type::Reference(reference) => tuple_api_contract_types(&reference.elem),
+        syn::Type::Path(type_path) => wrapper_tuple_contract_types(type_path),
+        _ => None,
+    }
+}
+
+fn wrapper_tuple_contract_types(type_path: &syn::TypePath) -> Option<Vec<String>> {
+    let terminal = type_path.path.segments.last()?;
+    let terminal_name = terminal.ident.to_string();
+    if terminal_name != "Option" && terminal_name != "Result" {
+        return None;
+    }
+    let syn::PathArguments::AngleBracketed(args) = &terminal.arguments else {
+        return None;
+    };
+    let mut generic_types = args.args.iter().filter_map(|arg| {
+        let syn::GenericArgument::Type(ty) = arg else {
+            return None;
+        };
+        Some(ty)
+    });
+    let value_type = generic_types.next()?;
+    tuple_api_contract_types(value_type)
+}
+
+fn semantic_tuple_contract_types(
+    elems: &syn::punctuated::Punctuated<syn::Type, syn::token::Comma>,
+) -> Option<Vec<String>> {
+    if elems.len() < 2 {
+        return None;
+    }
+    let element_contract_types = elems
+        .iter()
+        .filter_map(|elem| {
+            primitive_contract_type_name(elem).or_else(|| flag_contract_type_name(elem))
+        })
+        .collect::<Vec<_>>();
+    (element_contract_types.len() >= 2).then_some(element_contract_types)
 }
 
 fn application_error_return_type(ty: &syn::Type) -> Option<String> {
@@ -217,6 +455,31 @@ fn primitive_contract_path_name(type_path: &syn::TypePath) -> Option<String> {
             return None;
         };
         primitive_contract_type_name(ty)
+    });
+    let inner = generic_types.next()?;
+    generic_types
+        .next()
+        .is_none()
+        .then_some(format!("{terminal_name}<{inner}>"))
+}
+
+fn flag_contract_path_name(type_path: &syn::TypePath) -> Option<String> {
+    let terminal = type_path.path.segments.last()?;
+    let terminal_name = terminal.ident.to_string();
+    if terminal_name == "bool" {
+        return Some(terminal_name);
+    }
+    let syn::PathArguments::AngleBracketed(args) = &terminal.arguments else {
+        return None;
+    };
+    if terminal_name != "Option" {
+        return None;
+    }
+    let mut generic_types = args.args.iter().filter_map(|arg| {
+        let syn::GenericArgument::Type(ty) = arg else {
+            return None;
+        };
+        flag_contract_type_name(ty)
     });
     let inner = generic_types.next()?;
     generic_types

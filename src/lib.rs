@@ -32,6 +32,22 @@ mod parser_reasoning_tree_tests;
 #[path = "../tests/unit/parser_native_syntax.rs"]
 mod parser_native_syntax_tests;
 
+#[cfg(test)]
+#[path = "../tests/unit/parser_native_syntax/control_flow.rs"]
+mod parser_native_syntax_control_flow_tests;
+
+#[cfg(test)]
+#[path = "../tests/unit/parser_native_syntax/signature.rs"]
+mod parser_native_syntax_signature_tests;
+
+#[cfg(test)]
+#[path = "../tests/unit/parser_native_syntax/api_shape.rs"]
+mod parser_native_syntax_api_shape_tests;
+
+#[cfg(test)]
+#[path = "../tests/unit/parser_native_syntax/data_shape.rs"]
+mod parser_native_syntax_data_shape_tests;
+
 pub use agent_snapshot::{
     render_rust_project_harness_agent_snapshot,
     render_rust_project_harness_agent_snapshot_with_config,
@@ -71,8 +87,9 @@ pub use verification::{
     RustVerificationResolutionNote, RustVerificationSkillBinding, RustVerificationSkillDescriptor,
     RustVerificationTask, RustVerificationTaskContract, RustVerificationTaskIndex,
     RustVerificationTaskKind, RustVerificationTaskRecord, RustVerificationTaskState,
-    RustVerificationWaiver, build_rust_verification_performance_index,
-    build_rust_verification_profile_index, build_rust_verification_profile_index_with_config,
+    RustVerificationTraceMaxSeconds, RustVerificationTraceSampleIntervalMs, RustVerificationWaiver,
+    build_rust_verification_performance_index, build_rust_verification_profile_index,
+    build_rust_verification_profile_index_with_config,
     build_rust_verification_profile_index_with_policy, build_rust_verification_report_bundle,
     build_rust_verification_report_bundle_with_options, build_rust_verification_task_index,
     plan_rust_project_verification, plan_rust_project_verification_with_config,

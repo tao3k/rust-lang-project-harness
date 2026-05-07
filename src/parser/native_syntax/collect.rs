@@ -6,9 +6,16 @@ use proc_macro2::{TokenStream, TokenTree};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
 
+use super::control_flow::{RustFunctionControlFlowSyntax, public_function_control_flow_syntax};
+use super::data_shape::{
+    RustPublicEnumTupleVariantFieldSyntax, RustPublicEnumVariantFieldSyntax,
+    RustPublicStructFieldSyntax, RustPublicTypeGenericBoundSyntax,
+    public_enum_tuple_variant_field_syntax, public_enum_variant_field_syntax,
+    public_struct_field_syntax, public_type_generic_bound_syntax,
+};
 use super::signature::{
-    RustFunctionParamSyntax, RustFunctionReturnSyntax, public_function_param_syntax,
-    public_function_return_syntax,
+    RustFunctionParamSyntax, RustFunctionReturnSyntax, RustFunctionTupleApiSyntax,
+    public_function_param_syntax, public_function_return_syntax, public_function_tuple_api_syntax,
 };
 use crate::parser::{
     RustUseStatementContext, RustUseStatementSyntax, resolve_rust_path_attr,
@@ -23,8 +30,14 @@ pub(crate) struct RustNativeSyntaxFacts {
     pub test_function_count: usize,
     pub use_statements: Vec<RustUseStatementSyntax>,
     pub path_references: Vec<RustPathReferenceSyntax>,
+    pub public_struct_fields: Vec<RustPublicStructFieldSyntax>,
+    pub public_enum_variant_fields: Vec<RustPublicEnumVariantFieldSyntax>,
+    pub public_enum_tuple_variant_fields: Vec<RustPublicEnumTupleVariantFieldSyntax>,
+    pub public_type_generic_bounds: Vec<RustPublicTypeGenericBoundSyntax>,
     pub public_function_params: Vec<RustFunctionParamSyntax>,
     pub public_function_returns: Vec<RustFunctionReturnSyntax>,
+    pub public_tuple_api_surfaces: Vec<RustFunctionTupleApiSyntax>,
+    pub public_function_control_flows: Vec<RustFunctionControlFlowSyntax>,
     pub macro_invocations: Vec<RustInvocationSyntax>,
     pub function_calls: Vec<RustInvocationSyntax>,
 }
@@ -110,6 +123,26 @@ pub(crate) fn rust_native_syntax_facts(
         .iter()
         .map(|item| top_level_item_syntax(item, source_file))
         .collect();
+    collector.facts.public_struct_fields = syntax
+        .items
+        .iter()
+        .flat_map(public_struct_field_syntax)
+        .collect();
+    collector.facts.public_enum_variant_fields = syntax
+        .items
+        .iter()
+        .flat_map(public_enum_variant_field_syntax)
+        .collect();
+    collector.facts.public_enum_tuple_variant_fields = syntax
+        .items
+        .iter()
+        .flat_map(public_enum_tuple_variant_field_syntax)
+        .collect();
+    collector.facts.public_type_generic_bounds = syntax
+        .items
+        .iter()
+        .flat_map(public_type_generic_bound_syntax)
+        .collect();
     collector.facts.public_function_params = syntax
         .items
         .iter()
@@ -118,7 +151,17 @@ pub(crate) fn rust_native_syntax_facts(
     collector.facts.public_function_returns = syntax
         .items
         .iter()
-        .filter_map(public_function_return_syntax)
+        .flat_map(public_function_return_syntax)
+        .collect();
+    collector.facts.public_tuple_api_surfaces = syntax
+        .items
+        .iter()
+        .flat_map(public_function_tuple_api_syntax)
+        .collect();
+    collector.facts.public_function_control_flows = syntax
+        .items
+        .iter()
+        .filter_map(public_function_control_flow_syntax)
         .collect();
     collector.facts
 }

@@ -151,7 +151,21 @@ let suggested_hints = index.active_profile_hints();
 The profile index is not a human audit report. It is the Agent's configuration
 draft for diverse crates: owner path, suggested responsibilities, implied task
 kinds, and parser evidence such as public items, local owner dependencies, and
-Cargo dependency roots. Cargo roots are native parser facts:
+Cargo dependency roots. When parser facts find owners but no
+`RustVerificationProfileHint` has been configured yet, the compact render starts
+with one short configuration reminder:
+
+```text
+[verify-profile] profile_hints
+   |state: missing_profile_config
+   |action: configure RustVerificationProfileHint entries
+   |candidates: 4
+```
+
+That reminder is intentionally not a skill manual. It tells an Agent which
+library config surface to populate; after any profile hints exist, the reminder
+disappears and only missing or drifting owner blocks remain. Cargo roots are
+native parser facts:
 dependency key, Rust import root, `package = "..."` rename, optional flag,
 features, target table, and dev/build table are preserved before policy runs.
 The upstream harness does not decide that a third-party crate is persistence,

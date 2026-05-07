@@ -44,6 +44,7 @@ pub use report::{
     RustVerificationReportPersistence, RustVerificationReportTemplate,
     RustVerificationReportTraceConfig, RustVerificationReportWriteConfig,
     RustVerificationReportWriteError, RustVerificationReportWriteReceipt,
+    RustVerificationTraceMaxSeconds, RustVerificationTraceSampleIntervalMs,
     build_rust_verification_report_bundle, build_rust_verification_report_bundle_with_options,
     render_rust_verification_report_artifact_json, render_rust_verification_report_bundle_json,
     write_rust_verification_reports,

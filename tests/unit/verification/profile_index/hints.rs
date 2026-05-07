@@ -31,6 +31,7 @@ fn configured_profile_hint_clears_profile_index_reminder() {
         build_rust_verification_profile_index_with_config(root, &config).expect("profile index");
 
     assert!(index.is_clear());
+    assert!(!index.needs_profile_configuration());
     assert_eq!(render_rust_verification_profile_index(&index), "");
 }
 
@@ -48,6 +49,11 @@ fn partial_profile_hint_renders_profile_drift() {
     let rendered = normalize_temp_root(&render_rust_verification_profile_index(&index), root);
 
     assert!(!index.is_clear());
+    assert!(!index.needs_profile_configuration());
+    assert!(
+        !rendered.contains("[verify-profile] profile_hints"),
+        "{rendered}"
+    );
     insta::assert_snapshot!("verification_profile_index_drift", rendered);
 }
 

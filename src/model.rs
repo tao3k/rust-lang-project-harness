@@ -147,6 +147,16 @@ impl RustRulePack {
                 "AGENT-R012",
                 "AGENT-R013",
                 "AGENT-R014",
+                "AGENT-R015",
+                "AGENT-R016",
+                "AGENT-R017",
+                "AGENT-R018",
+                "AGENT-R019",
+                "AGENT-R020",
+                "AGENT-R021",
+                "AGENT-R022",
+                "AGENT-R023",
+                "AGENT-R024",
             ],
         }
     }
@@ -172,7 +182,7 @@ pub struct RustHarnessRule {
 impl RustHarnessRule {
     /// Build one rule catalog entry.
     #[must_use]
-    pub fn new(
+    pub(crate) fn new(
         rule_id: &'static str,
         pack_id: &'static str,
         severity: RustDiagnosticSeverity,
@@ -219,7 +229,7 @@ pub struct RustHarnessFinding {
 impl RustHarnessFinding {
     /// Build a finding from a catalog rule.
     #[must_use]
-    pub fn from_rule(
+    pub(crate) fn from_rule(
         rule: &RustHarnessRule,
         summary: impl Into<String>,
         location: SourceLocation,

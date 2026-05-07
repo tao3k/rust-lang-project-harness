@@ -15,12 +15,21 @@ pub fn render_rust_verification_profile_index(index: &RustVerificationProfileInd
     } else {
         Some(index.project_root.as_path())
     };
-    index
+    let candidates = index
         .active_candidates()
         .into_iter()
         .map(|candidate| render_profile_candidate(candidate, display_root))
         .collect::<Vec<_>>()
-        .join("\n")
+        .join("\n");
+    if !index.needs_profile_configuration() {
+        return candidates;
+    }
+    let reminder = render_profile_configuration_reminder(index);
+    if candidates.is_empty() {
+        reminder
+    } else {
+        format!("{reminder}\n{candidates}")
+    }
 }
 
 /// Render responsibility-profile candidates as structured JSON.
@@ -76,6 +85,13 @@ fn render_profile_candidate(
         let _ = writeln!(rendered, "   |fact: {}={}", fact.label, fact.value);
     }
     rendered
+}
+
+fn render_profile_configuration_reminder(index: &RustVerificationProfileIndex) -> String {
+    format!(
+        "[verify-profile] profile_hints\n   |state: missing_profile_config\n   |action: configure RustVerificationProfileHint entries\n   |candidates: {}",
+        index.active_candidates().len()
+    )
 }
 
 fn compact_fact(label: &str) -> bool {

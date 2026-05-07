@@ -1,0 +1,17 @@
+---
+source: tests/unit/agent_policy_snapshot.rs
+expression: rendered
+---
+[AGENT-R023] Info: Public API exposes an anonymous primitive tuple
+   ,-[ $TEMP/src/api.rs:3:1 ]
+ 3 | pub fn load_users(cursor: (String, usize, bool)) -> Result<(String, usize), LoadError> { todo!() }
+   | `- replace the tuple with a named struct, enum, or newtype that carries field intent
+   |Help: $TEMP/src/api.rs exposes public function `load_users` parameter `cursor` as anonymous tuple with primitive elements: String, usize, bool.
+   |Contract: Replace public tuple parameter or return bundles of primitive semantic values with named structs, enums, or newtypes so agents can preserve field intent.
+
+[AGENT-R023] Info: Public API exposes an anonymous primitive tuple
+   ,-[ $TEMP/src/api.rs:3:1 ]
+ 3 | pub fn load_users(cursor: (String, usize, bool)) -> Result<(String, usize), LoadError> { todo!() }
+   | `- replace the tuple with a named struct, enum, or newtype that carries field intent
+   |Help: $TEMP/src/api.rs exposes public function `load_users` return value as anonymous tuple with primitive elements: String, usize.
+   |Contract: Replace public tuple parameter or return bundles of primitive semantic values with named structs, enums, or newtypes so agents can preserve field intent.
