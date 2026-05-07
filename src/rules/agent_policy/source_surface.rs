@@ -13,11 +13,12 @@ use crate::rules::display_path;
 
 use super::{
     AGENT_R001, AGENT_R002, AGENT_R003, AGENT_R004, AGENT_R005, AGENT_R006, AGENT_R007, AGENT_R008,
-    AGENT_R012, AGENT_R013, AGENT_R014,
+    AGENT_R012, AGENT_R013, AGENT_R014, AGENT_R018, AGENT_R019,
 };
 
 const MAX_FACADE_REEXPORTS: usize = 28;
 const MIN_BRANCH_CHILD_MODULES: usize = 2;
+const MIN_BROAD_POSITIONAL_PARAMS: usize = 5;
 const GENERIC_MODULE_NAMES: &[&str] = &[
     "common", "helper", "helpers", "misc", "shared", "stuff", "util", "utils",
 ];
@@ -34,6 +35,8 @@ pub(super) fn source_module_findings(
     findings.extend(generic_public_module_findings(module, rules));
     findings.extend(branch_module_intent_findings(reasoning_tree, module, rules));
     findings.extend(public_primitive_identifier_findings(module, rules));
+    findings.extend(public_flag_parameter_findings(module, rules));
+    findings.extend(public_broad_parameter_surface_findings(module, rules));
     findings.extend(public_application_error_boundary_findings(module, rules));
     findings
 }
@@ -343,6 +346,112 @@ fn public_primitive_identifier_findings(
                 path_line_location(&module.report.path, param.line),
                 source_line(&module.source, param.line),
                 "wrap this identifier in an owner-named newtype or document why the primitive boundary is intentional",
+            ))
+        })
+        .collect()
+}
+
+fn public_flag_parameter_findings(
+    module: &ParsedRustModule,
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let mut params_by_function = BTreeMap::<String, Vec<usize>>::new();
+    for (index, param) in module
+        .syntax_facts
+        .public_function_params
+        .iter()
+        .enumerate()
+    {
+        if param.is_test_context || param.flag_contract_type.is_none() {
+            continue;
+        }
+        params_by_function
+            .entry(param.function_name.clone())
+            .or_default()
+            .push(index);
+    }
+
+    let rule = &rules[AGENT_R018];
+    params_by_function
+        .into_iter()
+        .filter_map(|(function_name, param_indices)| {
+            const MIN_FLAG_PARAMS: usize = 2;
+            if param_indices.len() < MIN_FLAG_PARAMS {
+                return None;
+            }
+            let params = param_indices
+                .into_iter()
+                .map(|index| &module.syntax_facts.public_function_params[index])
+                .collect::<Vec<_>>();
+            let first_param = params.iter().min_by_key(|param| param.line)?;
+            let flag_list = params
+                .iter()
+                .map(|param| {
+                    let flag_type = param.flag_contract_type.as_deref().unwrap_or("bool");
+                    format!("{}: {flag_type}", param.param_name)
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            Some(RustHarnessFinding::from_rule(
+                rule,
+                format!(
+                    "{} exposes public function `{function_name}` with multiple flag parameters: {flag_list}.",
+                    display_path(&module.report.path)
+                ),
+                path_line_location(&module.report.path, first_param.line),
+                source_line(&module.source, first_param.line),
+                "replace these public flags with a typed mode or config surface",
+            ))
+        })
+        .collect()
+}
+
+fn public_broad_parameter_surface_findings(
+    module: &ParsedRustModule,
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let mut params_by_function = BTreeMap::<(usize, String), Vec<usize>>::new();
+    for (index, param) in module
+        .syntax_facts
+        .public_function_params
+        .iter()
+        .enumerate()
+    {
+        if param.is_test_context {
+            continue;
+        }
+        params_by_function
+            .entry((param.function_line, param.function_name.clone()))
+            .or_default()
+            .push(index);
+    }
+
+    let rule = &rules[AGENT_R019];
+    params_by_function
+        .into_iter()
+        .filter_map(|((function_line, function_name), param_indices)| {
+            if param_indices.len() < MIN_BROAD_POSITIONAL_PARAMS {
+                return None;
+            }
+            let params = param_indices
+                .into_iter()
+                .map(|index| &module.syntax_facts.public_function_params[index])
+                .collect::<Vec<_>>();
+            let param_names = params
+                .iter()
+                .map(|param| param.param_name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            Some(RustHarnessFinding::from_rule(
+                rule,
+                format!(
+                    "{} exposes public function `{function_name}` with {} positional parameters: {param_names}.",
+                    display_path(&module.report.path),
+                    params.len()
+                ),
+                path_line_location(&module.report.path, function_line),
+                source_line(&module.source, function_line),
+                "replace this positional surface with a named config, request type, or builder",
             ))
         })
         .collect()

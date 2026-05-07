@@ -56,29 +56,42 @@ pub fn render_rust_project_harness_agent_snapshot_with_config(
         vec![project_root.to_path_buf()]
     };
     let include_package_heading = package_roots.len() > 1;
-    let mut package_snapshots = Vec::new();
-    for package_root in package_roots {
-        let scope = rust_project_harness_scope(
-            &package_root,
-            config.include_tests,
-            &config.source_dir_names,
-            &config.test_dir_names,
-        );
-        let parsed_modules = parse_scope(&scope, config);
-        let findings =
-            evaluate_default_rule_packs_with_config(Some(&scope), &parsed_modules, config);
-        let package_snapshot = render_package_snapshot(
-            project_root,
-            &scope,
-            &parsed_modules,
-            &findings,
-            include_package_heading,
-        );
-        if !package_snapshot.is_empty() {
-            package_snapshots.push(package_snapshot);
-        }
-    }
+    let package_snapshots = package_roots
+        .into_iter()
+        .filter_map(|package_root| {
+            render_package_snapshot_for_root(
+                project_root,
+                &package_root,
+                config,
+                include_package_heading,
+            )
+        })
+        .collect::<Vec<_>>();
     Ok(package_snapshots.join("\n"))
+}
+
+fn render_package_snapshot_for_root(
+    snapshot_root: &Path,
+    package_root: &Path,
+    config: &RustHarnessConfig,
+    include_package_heading: bool,
+) -> Option<String> {
+    let scope = rust_project_harness_scope(
+        package_root,
+        config.include_tests,
+        &config.source_dir_names,
+        &config.test_dir_names,
+    );
+    let parsed_modules = parse_scope(&scope, config);
+    let findings = evaluate_default_rule_packs_with_config(Some(&scope), &parsed_modules, config);
+    let package_snapshot = render_package_snapshot(
+        snapshot_root,
+        &scope,
+        &parsed_modules,
+        &findings,
+        include_package_heading,
+    );
+    (!package_snapshot.is_empty()).then_some(package_snapshot)
 }
 
 fn render_package_snapshot(

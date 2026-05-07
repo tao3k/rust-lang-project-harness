@@ -128,6 +128,16 @@ names, and other literal identifiers in backticks.
 - `AGENT-R012`: public semantic identifier parameter uses a primitive string or integer type
 - `AGENT-R013`: public error boundary uses an application error type such as `anyhow::Result`
 - `AGENT-R014`: test support facade re-exports a name that is not used locally or consumed through the support surface
+- `AGENT-R015`: public function hides an algorithm behind nested control flow
+- `AGENT-R016`: public function owns a broad linear algorithm surface without named steps
+- `AGENT-R017`: public function manually spells simple iterator boilerplate loops
+- `AGENT-R018`: public function exposes multiple `bool` or `Option<bool>` flag parameters
+- `AGENT-R019`: public function exposes a broad positional parameter surface
+- `AGENT-R020`: public data struct exposes multiple primitive semantic fields
+- `AGENT-R021`: public enum variant exposes multiple primitive semantic payload fields
+- `AGENT-R022`: public generic data type carries duplicated derivable trait bounds
+- `AGENT-R023`: public API exposes an anonymous tuple of primitive semantic values
+- `AGENT-R024`: public enum tuple variant exposes anonymous primitive semantic payload
 
 ## Rendered Diagnostic Policy
 
@@ -174,12 +184,17 @@ ignored. The parser also records whether a `use` statement is inside an inline
 test context without weakening the default no-glob harness contract.
 
 `AGENT-R001`, `AGENT-R002`, `AGENT-R004`, `AGENT-R005`, `AGENT-R006`,
-`AGENT-R008`, `AGENT-R012`, `AGENT-R013`, and `AGENT-R014` consume native facts from
+`AGENT-R008`, and `AGENT-R012` through `AGENT-R024` consume native facts from
 `src/parser/`, including file-level inner doc attributes, public names, public
 item doc attributes, public re-export groups, public function parameters, public
-function return types, support facade re-export names, support-surface path
-references, and resolved reasoning-tree child edges. `AGENT-R003` evaluates the
-default package harness surface, including `src/` and `tests/`. It treats
+function return types, public function control-flow shape, public data-struct
+field shape, public enum named and tuple variant payload shape, public generic
+data-type bounds, public anonymous tuple API surfaces,
+support facade re-export names, support-surface path references, and resolved
+reasoning-tree child edges.
+`AGENT-R003` evaluates the default
+package harness surface,
+including `src/` and `tests/`. It treats
 normal Rust file stems as namespace segments, so both `src/domain/domain.rs` and
 `tests/unit/unit/helper.rs` produce advisory path clarity findings.
 `AGENT-R004` separately reports duplicated public item names across source
@@ -211,6 +226,104 @@ resolved from parser-derived module namespaces, so a consumed name in
 `tests/unit/alpha/support.rs` does not clear the same unused name in
 `tests/unit/beta/support.rs`. This catches broad support facades left by LLM
 repairs without second-guessing normal private imports.
+`AGENT-R015` and `AGENT-R016` use parser-owned public function control-flow
+facts: source line, line span, statement count, largest block width, branch
+count, loop count, match count, literal dispatch chain count, nesting depth,
+loop nesting depth, and test context. They intentionally do not enforce rustfmt,
+naming, complexity metrics, or Clippy style. The goal is narrower: show an agent
+where a public algorithm is hard to edit because its branch structure is hidden
+in nested control flow, literal `if`/`else if` dispatch ladders, or one broad
+linear block. Match-based dispatch, guard clauses, typed dispatch, and small
+named pipeline steps are accepted shapes because they make the reasoning tree
+explicit before the next edit. The literal dispatch signal follows Rust's native
+`match` model from the Book and Reference: a `match` compares one scrutinee
+against a series of patterns, which is exactly the intent an agent loses when
+LLM code repeats `kind == "..."` across a public branch ladder.
+`AGENT-R017` is the Rust native-iterator idiom layer. It is backed by
+parser-owned loop facts for simple `for` bodies that manually collect into a
+mutable collection, return a boolean predicate answer, increment a count,
+accumulate a numeric value, or repeatedly pass over the same simple iterator
+source. The rule points agents toward Rust iterator adapters and consumers such
+as `map`, `filter`, `filter_map`, `collect`, `sum`, `count`, `any`, and `all`,
+or toward a named iterator pipeline helper when a single chain would be too
+dense. Repeated simple passes are advisory rather than blocking: sometimes two
+passes are clearer, but a public function that performs several small scans over
+the same input is often LLM boilerplate that should become a named pipeline or
+one explicit accumulator step. It stays conservative: deeply nested algorithm
+shapes are left to `AGENT-R015`, broad flat procedures are left to `AGENT-R016`,
+and explicit loops remain valid for effects, state machines, debuggability, or
+measured performance work. This mirrors the Rust Book's guidance that iterators
+express high-level ideas at low-level performance, the standard `Iterator`
+consumer surface, and the Rust Performance Book's narrower performance notes
+around iteration, without turning the harness into a blanket "prefer iterators
+over every loop" lint.
+`AGENT-R018` is the public flag-surface layer. It is backed by parser-owned
+signature facts for `bool`, `&bool`, `Option<bool>`, and referenced optional
+booleans. The rule only fires when one public function exposes multiple flag
+parameters, because that is where LLM-generated Rust tends to hide modes in
+branch-heavy code. It follows Rust API Guidelines `C-CUSTOM-TYPE`: arguments
+should convey meaning through deliberate types rather than raw `bool` or
+`Option` values. The advice is advisory and API-shaped, not a Clippy style
+replacement: use an enum when one mode is selected, a newtype when one boolean
+has domain meaning, or a config struct when several independent toggles are
+truly part of the public contract.
+`AGENT-R019` is the public positional-surface layer. It is backed by
+parser-owned public signature facts, including inherent `impl` methods such as
+constructors. The rule fires when one public function exposes five or more
+positional parameters outside test context. Rust allows that API shape, but it
+is a high-noise agent repair surface because Rust has no named or default
+function parameters: preserving the order, optionality, and cross-parameter
+meaning requires re-reading callers. The advice follows the Rust builder/config
+practice used for broad construction and option surfaces: prefer a named
+config/request type or a builder when the public contract has enough knobs that
+positional parameters stop carrying clear intent.
+`AGENT-R020` moves the same type-safety concern from function signatures to
+public data models. It is backed by parser-owned public struct field facts and
+fires when a public struct exposes several semantic primitive fields such as
+`*_id`, `*_token`, `*_path`, `*_url`, `*_ms`, or boolean mode fields. This is not
+a style lint: public DTOs and config structs are allowed, but when many
+semantic values remain raw `String`, integer, or `bool` fields, an agent tends
+to extend the same primitive model instead of preserving invariants. The advice
+follows Rust API Guidelines `C-NEWTYPE` and `C-CUSTOM-TYPE`: create named domain
+types for values whose interpretation matters, or explicitly document that this
+is a raw transport boundary.
+`AGENT-R021` applies the same data-model boundary to public enum variants with
+named payload fields. It does not count enum variants, require
+`#[non_exhaustive]`, or judge closed state catalogs. Instead, it catches event,
+command, and state variants that expose multiple semantic primitive payload
+fields such as `user_id: String` and `request_id: String`. Those variants are
+where agents often extend raw event state instead of preserving payload
+invariants. The repair direction is to use named domain types for semantic
+values or move the payload into a named struct when the variant is carrying a
+real event/request contract.
+`AGENT-R022` covers public generic data-type bounds. It is backed by
+parser-owned generic parameter and `where` clause facts for public structs and
+enums. The rule follows Rust API Guidelines `C-STRUCT-BOUNDS`: bounds such as
+`Clone`, `Debug`, `Default`, `Serialize`, and `Deserialize` should not be placed
+on the data type definition unless the structure itself truly requires them.
+Putting those bounds on the type makes every consumer satisfy them and turns a
+future derive or formatting need into a public API commitment. The repair
+direction is to keep the data type generic and place bounds on derived impls,
+inherent impls, or methods that actually use the capability.
+`AGENT-R023` covers public tuple API surfaces such as
+`pub fn load(cursor: (String, usize, bool)) -> Result<(String, usize), Error>`.
+It follows Rust API Guidelines `C-CUSTOM-TYPE` and `C-NEWTYPE`: public API
+arguments and return values should convey semantic meaning through named types
+instead of raw primitive bundles. The rule stays narrower than generic type
+complexity checks: it only reports parser-confirmed public tuple parameters or
+return values that bundle at least two primitive semantic values, including
+`Option<(...)>` and `Result<(...)>`. The repair direction is to replace the
+tuple with a named request, response, enum, or newtype that gives agents stable
+field intent without reading every call site.
+`AGENT-R024` covers the enum version of the same ambiguity:
+`pub enum Event { Loaded(String, usize, bool) }`. Tuple variants are native
+Rust, but when a public event or command variant bundles several primitive
+semantic values without names, an agent cannot preserve payload intent from
+syntax alone. The rule is deliberately narrower than enum-design lints: it only
+reports public tuple variants with at least two primitive semantic payload
+positions and ignores test context. The repair direction is to use named fields,
+a named payload struct, or domain newtypes so the variant remains explicit
+without forcing a large enum redesign.
 
 ## Reasoning Tree Policy
 

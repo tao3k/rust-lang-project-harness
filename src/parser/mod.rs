@@ -21,7 +21,10 @@ pub(crate) use location::{file_location, path_line_location, source_line, span_l
 pub(crate) use module_tree::RustModuleChildEdge;
 #[cfg(test)]
 pub(crate) use module_tree::RustModuleChildEdgeKind;
-pub(crate) use native_syntax::{RustNativeSyntaxFacts, RustTopLevelItemSyntax};
+pub(crate) use native_syntax::{
+    RustFunctionControlFlowSyntax, RustNativeSyntaxFacts, RustPublicEnumTupleVariantFieldSyntax,
+    RustPublicEnumVariantFieldSyntax, RustPublicStructFieldSyntax, RustTopLevelItemSyntax,
+};
 pub(crate) use parsed_module::{ParsedRustModule, parse_rust_file};
 pub(crate) use path_resolution::resolve_rust_path_attr;
 pub(crate) use reasoning_tree::{

@@ -1,0 +1,10 @@
+---
+source: tests/unit/agent_policy_snapshot.rs
+expression: rendered
+---
+[AGENT-R015] Info: Public function hides algorithm behind nested control flow
+   ,-[ $TEMP/src/api.rs:3:1 ]
+ 3 | pub fn route(kind: &str) -> usize {
+   | `- make this public algorithm shape explicit
+   |Help: $TEMP/src/api.rs public function `route` hides algorithm shape. Signals: literal dispatch chain without match.
+   |Contract: Expose public Rust algorithm shape through guard clauses, `match`, typed dispatch, or small named pipeline steps so agents can reason about the branch structure before editing.

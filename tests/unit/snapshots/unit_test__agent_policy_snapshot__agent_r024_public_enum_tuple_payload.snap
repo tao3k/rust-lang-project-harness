@@ -1,0 +1,10 @@
+---
+source: tests/unit/agent_policy_snapshot.rs
+expression: rendered
+---
+[AGENT-R024] Info: Public enum tuple variant exposes anonymous primitive payload
+   ,-[ $TEMP/src/api.rs:5:1 ]
+ 5 | 	UserLoaded(String, usize, bool),
+   | `- replace the tuple variant payload with named fields, a named payload struct, or domain newtypes
+   |Help: $TEMP/src/api.rs exposes public enum `DomainEvent` tuple variant `UserLoaded` with anonymous primitive payload fields: #1: String, #2: usize, #3: bool.
+   |Contract: Replace public enum tuple variant payloads that bundle primitive semantic values with named fields, named payload structs, or domain newtypes so agents preserve event and command intent.

@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use crate::parser::{ParsedRustModule, rust_reasoning_tree_facts};
 use crate::{RustDiagnosticSeverity, RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
-use super::{dependency_graph, source_surface};
+use super::{algorithm_shape, api_shape, data_shape, dependency_graph, source_surface};
 use crate::rules::labels;
 
 const PACK_ID: &str = "rust.agent_policy";
@@ -23,6 +23,16 @@ pub(super) const AGENT_R011: &str = "AGENT-R011";
 pub(super) const AGENT_R012: &str = "AGENT-R012";
 pub(super) const AGENT_R013: &str = "AGENT-R013";
 pub(super) const AGENT_R014: &str = "AGENT-R014";
+pub(super) const AGENT_R015: &str = "AGENT-R015";
+pub(super) const AGENT_R016: &str = "AGENT-R016";
+pub(super) const AGENT_R017: &str = "AGENT-R017";
+pub(super) const AGENT_R018: &str = "AGENT-R018";
+pub(super) const AGENT_R019: &str = "AGENT-R019";
+pub(super) const AGENT_R020: &str = "AGENT-R020";
+pub(super) const AGENT_R021: &str = "AGENT-R021";
+pub(super) const AGENT_R022: &str = "AGENT-R022";
+pub(super) const AGENT_R023: &str = "AGENT-R023";
+pub(super) const AGENT_R024: &str = "AGENT-R024";
 
 /// Return compact metadata for agent-oriented Rust policy rules.
 #[must_use]
@@ -61,6 +71,8 @@ pub(crate) fn evaluate(
             module,
             &rules,
         ));
+        findings.extend(data_shape::data_shape_findings(module, &rules));
+        findings.extend(api_shape::api_shape_findings(module, &rules));
     }
     findings.extend(source_surface::repeated_namespace_findings(
         &reasoning_tree,
@@ -79,6 +91,14 @@ pub(crate) fn evaluate(
     findings.extend(source_surface::test_support_reexport_findings(
         &reasoning_tree,
         modules,
+        &rules,
+    ));
+    findings.extend(algorithm_shape::algorithm_shape_findings(
+        &source_modules,
+        &rules,
+    ));
+    findings.extend(algorithm_shape::native_iterator_idiom_findings(
+        &source_modules,
         &rules,
     ));
     findings.extend(dependency_graph::dependency_graph_findings(
@@ -201,6 +221,86 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             RustDiagnosticSeverity::Info,
             "Test support re-export is unused",
             "Keep test support facades narrow; re-export only names consumed through the same support surface or used by support helpers.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R015,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Public function hides algorithm behind nested control flow",
+            "Expose public Rust algorithm shape through guard clauses, `match`, typed dispatch, or small named pipeline steps so agents can reason about the branch structure before editing.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R016,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Public function owns a broad linear algorithm surface",
+            "Split broad public Rust functions into small named helpers or pipeline steps so agents can edit one algorithm responsibility at a time.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R017,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Public function manually spells an iterator transform",
+            "Use Rust iterator adapters and consumers such as `map`, `filter`, `filter_map`, `collect`, `sum`, `count`, `any`, `all`, or a named iterator pipeline helper when loops only map, filter, collect, count, sum, answer a predicate, or repeatedly scan the same iterator source.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R018,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Public function exposes multiple flag parameters",
+            "Replace multiple public `bool` or `Option<bool>` parameters with a named enum, newtype, or config struct so agents can preserve mode semantics without reading every branch.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R019,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Public function exposes a broad positional parameter surface",
+            "Replace broad public positional parameter lists with a named config, request type, or builder surface so agents can preserve constructor semantics without re-reading every call site.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R020,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Public data struct exposes primitive semantic fields",
+            "Wrap repeated public semantic primitive fields in named domain types so agents preserve data invariants instead of extending stringly typed state.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R021,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Public enum variant exposes primitive semantic payload fields",
+            "Move broad public enum variant payloads into named domain types or a named payload struct so agents preserve event and command invariants instead of extending raw primitive state.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R022,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Public generic data type carries duplicated derivable bounds",
+            "Move derivable or formatting trait bounds off public data type definitions and onto the impl or methods that need them so agents do not over-constrain the API contract.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R023,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Public API exposes an anonymous primitive tuple",
+            "Replace public tuple parameter or return bundles of primitive semantic values with named structs, enums, or newtypes so agents can preserve field intent.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R024,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Public enum tuple variant exposes anonymous primitive payload",
+            "Replace public enum tuple variant payloads that bundle primitive semantic values with named fields, named payload structs, or domain newtypes so agents preserve event and command intent.",
             labels("agent-policy"),
         ),
     ]

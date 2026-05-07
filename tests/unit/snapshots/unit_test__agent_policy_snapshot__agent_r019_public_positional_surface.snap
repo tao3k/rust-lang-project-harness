@@ -1,0 +1,10 @@
+---
+source: tests/unit/agent_policy_snapshot.rs
+expression: rendered
+---
+[AGENT-R019] Info: Public function exposes a broad positional parameter surface
+   ,-[ $TEMP/src/api.rs:6:1 ]
+ 6 | 	pub fn new(endpoint: String, token: String, retries: usize, timeout_ms: u64, batch_size: usize) -> Self { Self }
+   | `- replace this positional surface with a named config, request type, or builder
+   |Help: $TEMP/src/api.rs exposes public function `new` with 5 positional parameters: endpoint, token, retries, timeout_ms, batch_size.
+   |Contract: Replace broad public positional parameter lists with a named config, request type, or builder surface so agents can preserve constructor semantics without re-reading every call site.

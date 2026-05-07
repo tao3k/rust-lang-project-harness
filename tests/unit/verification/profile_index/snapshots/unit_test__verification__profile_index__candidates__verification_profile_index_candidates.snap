@@ -2,6 +2,10 @@
 source: tests/unit/verification/profile_index/candidates.rs
 expression: rendered
 ---
+[verify-profile] profile_hints
+   |state: missing_profile_config
+   |action: configure RustVerificationProfileHint entries
+   |candidates: 4
 [verify-profile] src/api.rs
    |owner: src/api
    |state: missing_profile

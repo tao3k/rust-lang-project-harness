@@ -33,6 +33,44 @@ impl RustVerificationReportPersistence {
     }
 }
 
+/// Suggested upper bound in seconds for producing a verification artifact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct RustVerificationTraceMaxSeconds(u64);
+
+impl RustVerificationTraceMaxSeconds {
+    /// Build a trace runtime budget.
+    #[must_use]
+    pub const fn new(seconds: u64) -> Self {
+        Self(seconds)
+    }
+
+    /// Return the raw second count for renderers and tests.
+    #[must_use]
+    pub const fn as_u64(self) -> u64 {
+        self.0
+    }
+}
+
+/// Suggested sampling interval in milliseconds for trace monitors.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct RustVerificationTraceSampleIntervalMs(u64);
+
+impl RustVerificationTraceSampleIntervalMs {
+    /// Build a trace sampling interval.
+    #[must_use]
+    pub const fn new(milliseconds: u64) -> Self {
+        Self(milliseconds)
+    }
+
+    /// Return the raw millisecond count for renderers and tests.
+    #[must_use]
+    pub const fn as_u64(self) -> u64 {
+        self.0
+    }
+}
+
 /// Runtime trace and time budget guidance for one report artifact.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RustVerificationReportTraceConfig {
@@ -40,10 +78,10 @@ pub struct RustVerificationReportTraceConfig {
     pub profile: String,
     /// Suggested upper bound for producing this artifact.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_seconds: Option<u64>,
+    pub max_seconds: Option<RustVerificationTraceMaxSeconds>,
     /// Suggested sampling interval for profilers or benchmark monitors.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub sample_interval_ms: Option<u64>,
+    pub sample_interval_ms: Option<RustVerificationTraceSampleIntervalMs>,
     /// Whether the embedding project should preserve raw trace attachments.
     pub include_raw_traces: bool,
 }
@@ -63,14 +101,16 @@ impl RustVerificationReportTraceConfig {
     /// Attach a suggested runtime budget.
     #[must_use]
     pub const fn with_max_seconds(mut self, max_seconds: u64) -> Self {
-        self.max_seconds = Some(max_seconds);
+        self.max_seconds = Some(RustVerificationTraceMaxSeconds::new(max_seconds));
         self
     }
 
     /// Attach a suggested trace sampling interval.
     #[must_use]
     pub const fn with_sample_interval_ms(mut self, sample_interval_ms: u64) -> Self {
-        self.sample_interval_ms = Some(sample_interval_ms);
+        self.sample_interval_ms = Some(RustVerificationTraceSampleIntervalMs::new(
+            sample_interval_ms,
+        ));
         self
     }
 
@@ -526,67 +566,99 @@ pub fn write_rust_verification_reports(
     plan: &RustVerificationPlan,
     config: &RustVerificationReportWriteConfig,
 ) -> Result<RustVerificationReportWriteReceipt, RustVerificationReportWriteError> {
+    prepare_report_directories(config)?;
+    let bundle = build_rust_verification_report_bundle(plan);
+    let (source_artifacts, cache_artifacts) = collect_report_artifact_sets(&bundle);
+    let mut receipt = RustVerificationReportWriteReceipt::default();
+    let source_bundle = bundle.with_artifacts(source_artifacts.clone());
+
+    write_report_manifest(
+        &source_bundle,
+        &config.source_baseline_dir,
+        config,
+        &mut receipt.source_baseline_paths,
+    )?;
+    write_report_manifest(
+        &bundle,
+        &config.runtime_cache_dir,
+        config,
+        &mut receipt.runtime_cache_paths,
+    )?;
+    write_report_artifacts(
+        plan,
+        source_artifacts,
+        &config.source_baseline_dir,
+        config,
+        &mut receipt.source_baseline_paths,
+    )?;
+    write_report_artifacts(
+        plan,
+        cache_artifacts,
+        &config.runtime_cache_dir,
+        config,
+        &mut receipt.runtime_cache_paths,
+    )?;
+
+    Ok(receipt)
+}
+
+fn prepare_report_directories(
+    config: &RustVerificationReportWriteConfig,
+) -> Result<(), RustVerificationReportWriteError> {
     create_dir_all(&config.source_baseline_dir)?;
     create_dir_all(&config.runtime_cache_dir)?;
+    Ok(())
+}
 
-    let bundle = build_rust_verification_report_bundle(plan);
-    let source_artifacts: Vec<_> = bundle
+fn collect_report_artifact_sets(
+    bundle: &RustVerificationReportBundle,
+) -> (
+    Vec<RustVerificationReportArtifact>,
+    Vec<RustVerificationReportArtifact>,
+) {
+    let source_artifacts = bundle
         .source_baseline_artifacts()
         .into_iter()
         .cloned()
         .collect();
-    let cache_artifacts: Vec<_> = bundle
+    let cache_artifacts = bundle
         .runtime_cache_artifacts()
         .into_iter()
         .cloned()
         .collect();
+    (source_artifacts, cache_artifacts)
+}
 
-    let mut receipt = RustVerificationReportWriteReceipt::default();
-    let source_bundle = bundle.with_artifacts(source_artifacts.clone());
-    let source_manifest = config
-        .source_baseline_dir
-        .join("verification_report_manifest.json");
+fn write_report_manifest(
+    bundle: &RustVerificationReportBundle,
+    directory: &Path,
+    config: &RustVerificationReportWriteConfig,
+    paths: &mut Vec<PathBuf>,
+) -> Result<(), RustVerificationReportWriteError> {
+    let manifest = directory.join("verification_report_manifest.json");
     write_json(
-        &source_manifest,
+        &manifest,
         &compact_project_root(
-            &serde_json::to_string(&source_bundle)?,
+            &serde_json::to_string(bundle)?,
             &config.project_root,
             &config.project_root_placeholder,
         ),
     )?;
-    receipt.source_baseline_paths.push(source_manifest);
+    paths.push(manifest);
+    Ok(())
+}
 
-    let cache_manifest = config
-        .runtime_cache_dir
-        .join("verification_report_manifest.json");
-    write_json(
-        &cache_manifest,
-        &compact_project_root(
-            &serde_json::to_string(&bundle)?,
-            &config.project_root,
-            &config.project_root_placeholder,
-        ),
-    )?;
-    receipt.runtime_cache_paths.push(cache_manifest);
-
-    for artifact in source_artifacts {
-        write_artifact(
-            plan,
-            &artifact,
-            &config.source_baseline_dir,
-            config,
-            |path| {
-                receipt.source_baseline_paths.push(path);
-            },
-        )?;
+fn write_report_artifacts(
+    plan: &RustVerificationPlan,
+    artifacts: Vec<RustVerificationReportArtifact>,
+    directory: &Path,
+    config: &RustVerificationReportWriteConfig,
+    paths: &mut Vec<PathBuf>,
+) -> Result<(), RustVerificationReportWriteError> {
+    for artifact in artifacts {
+        write_artifact(plan, &artifact, directory, config, |path| paths.push(path))?;
     }
-    for artifact in cache_artifacts {
-        write_artifact(plan, &artifact, &config.runtime_cache_dir, config, |path| {
-            receipt.runtime_cache_paths.push(path);
-        })?;
-    }
-
-    Ok(receipt)
+    Ok(())
 }
 
 fn write_artifact(
