@@ -2,9 +2,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use rust_lang_project_harness::{
-    RustDiagnosticSeverity, default_rust_harness_config, render_rust_project_harness,
-    render_rust_project_harness_advice, render_rust_project_harness_agent_snapshot,
-    render_rust_project_harness_json, run_rust_lang_harness, run_rust_project_harness,
+    RustDiagnosticSeverity, RustRulePack, assert_rust_project_harness_cargo_test_clean,
+    assert_rust_project_harness_cargo_test_clean_with_config, default_rust_harness_config,
+    render_rust_project_harness, render_rust_project_harness_advice,
+    render_rust_project_harness_agent_snapshot, render_rust_project_harness_json,
+    run_rust_lang_harness, run_rust_project_harness,
 };
 use tempfile::TempDir;
 
@@ -21,6 +23,25 @@ mod embedded_cargo_test_gate_macro_smoke {
             )
         }
     );
+
+    mod advice_allow {
+        rust_lang_project_harness::rust_project_harness_cargo_test_gate!(
+            advice = allow,
+            config = {
+                rust_lang_project_harness::default_rust_harness_config()
+                    .with_verification_profile_hint(
+                        rust_lang_project_harness::RustVerificationProfileHint::new(
+                            "src/lib.rs",
+                            [rust_lang_project_harness::RustOwnerResponsibility::PublicApi],
+                        )
+                        .without_verification_tasks()
+                        .with_rationale(
+                            "macro smoke test exercises legacy advice allowance wiring",
+                        ),
+                    )
+            }
+        );
+    }
 }
 
 #[test]
@@ -100,18 +121,7 @@ fn advice_renderer_selects_info_findings() {
 fn default_renderer_keeps_info_advice_visible_without_blocking() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
-    fs::write(
-        root.join("Cargo.toml"),
-        "[package]\nname = \"advice-only\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
-    )
-    .expect("write manifest");
-    fs::create_dir(root.join("src")).expect("create src");
-    fs::write(
-        root.join("src/lib.rs"),
-        "mod owned;\npub use owned::public_api;\n",
-    )
-    .expect("write lib");
-    fs::write(root.join("src/owned.rs"), "pub fn public_api() {}\n").expect("write owned module");
+    write_advice_only_project(root, "advice-only");
 
     let report = run_rust_project_harness(root).expect("run project harness");
     let rendered = normalize_temp_root(&render_rust_project_harness(&report), root);
@@ -128,6 +138,39 @@ fn default_renderer_keeps_info_advice_visible_without_blocking() {
         "{rendered}"
     );
     insta::assert_snapshot!("public_api_default_advice_output", rendered);
+}
+
+#[test]
+fn cargo_test_assertion_promotes_agent_advice_to_repair_feedback() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_advice_only_project(root, "advice-cargo-test");
+
+    let panic = std::panic::catch_unwind(|| {
+        assert_rust_project_harness_cargo_test_clean(root);
+    })
+    .expect_err("agent advice should fail cargo-test assertion");
+    let normalized = normalize_temp_root(&panic_message(panic), root);
+
+    assert!(normalized.contains("AGENT-R001"), "{normalized}");
+    assert!(normalized.contains("AGENT-R002"), "{normalized}");
+    assert!(normalized.contains("Help:"), "{normalized}");
+    assert!(normalized.contains("Contract:"), "{normalized}");
+    assert!(!normalized.contains("[advice]"), "{normalized}");
+    assert!(
+        !normalized.contains("No blocking issues found."),
+        "{normalized}"
+    );
+}
+
+#[test]
+fn cargo_test_assertion_respects_configured_agent_pack_suppression() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_advice_only_project(root, "advice-cargo-test-waived");
+    let config = default_rust_harness_config().with_disabled_rule_pack(RustRulePack::AgentPolicy);
+
+    assert_rust_project_harness_cargo_test_clean_with_config(root, &config);
 }
 
 #[test]
@@ -199,4 +242,29 @@ fn normalize_temp_root(rendered: &str, root: &Path) -> String {
     rendered
         .replace(&root_text, "$TEMP")
         .replace(&root_text.replace('\\', "/"), "$TEMP")
+}
+
+fn write_advice_only_project(root: &Path, name: &str) {
+    fs::write(
+        root.join("Cargo.toml"),
+        format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n"),
+    )
+    .expect("write manifest");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(
+        root.join("src/lib.rs"),
+        "mod owned;\npub use owned::public_api;\n",
+    )
+    .expect("write lib");
+    fs::write(root.join("src/owned.rs"), "pub fn public_api() {}\n").expect("write owned module");
+}
+
+fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
+    if let Some(message) = payload.downcast_ref::<String>() {
+        return message.clone();
+    }
+    if let Some(message) = payload.downcast_ref::<&str>() {
+        return (*message).to_owned();
+    }
+    "<non-string panic>".to_owned()
 }

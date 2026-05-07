@@ -6,6 +6,14 @@ macro_rules! rust_project_harness_gate {
     () => {
         #[test]
         fn enforce_rust_project_harness_gate() {
+            $crate::assert_rust_project_harness_cargo_test_clean(std::path::Path::new(env!(
+                "CARGO_MANIFEST_DIR"
+            )));
+        }
+    };
+    (advice = allow) => {
+        #[test]
+        fn enforce_rust_project_harness_gate() {
             $crate::assert_rust_project_harness_clean(std::path::Path::new(env!(
                 "CARGO_MANIFEST_DIR"
             )));
@@ -30,15 +38,21 @@ macro_rules! rust_project_harness_gate {
 /// });
 /// ```
 ///
-/// The `#[cfg(test)]` guard keeps normal `cargo build` free of the dev-dependency,
-/// while `cargo test` and `cargo test --lib` both execute the project harness.
+/// The `#[cfg(test)]` guard keeps normal `cargo build` free of the
+/// dev-dependency, while `cargo test` and `cargo test --lib` both execute the
+/// project harness.
+///
+/// By default, this cargo-test gate fails on non-blocking `Info` advice as an
+/// agent repair reminder. Use `advice = allow, config = { ... }` when a legacy
+/// crate needs to keep advisory findings visible in rendered reports without
+/// failing cargo tests.
 #[macro_export]
 macro_rules! rust_project_harness_cargo_test_gate {
     () => {
         mod rust_project_harness_cargo_test_gate {
             #[test]
             fn enforce_rust_project_harness_gate() {
-                $crate::assert_rust_project_harness_clean(std::path::Path::new(env!(
+                $crate::assert_rust_project_harness_cargo_test_clean(std::path::Path::new(env!(
                     "CARGO_MANIFEST_DIR"
                 )));
             }
@@ -48,11 +62,37 @@ macro_rules! rust_project_harness_cargo_test_gate {
         #[test]
         fn enforce_rust_project_harness_gate() {
             let config = $config;
+            $crate::assert_rust_project_harness_cargo_test_clean_with_config(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")),
+                &config,
+            );
+        }
+    };
+    (advice = allow) => {
+        mod rust_project_harness_cargo_test_gate {
+            #[test]
+            fn enforce_rust_project_harness_gate() {
+                $crate::assert_rust_project_harness_clean(std::path::Path::new(env!(
+                    "CARGO_MANIFEST_DIR"
+                )));
+            }
+        }
+    };
+    (advice = allow, config = $config:expr) => {
+        #[test]
+        fn enforce_rust_project_harness_gate() {
+            let config = $config;
             $crate::assert_rust_project_harness_clean_with_config(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")),
                 &config,
             );
         }
+    };
+    (advice = fail, config = $config:expr) => {
+        $crate::rust_project_harness_cargo_test_gate!(config = $config);
+    };
+    (advice = fail) => {
+        $crate::rust_project_harness_cargo_test_gate!();
     };
     ($config:expr) => {
         $crate::rust_project_harness_cargo_test_gate!(config = $config);

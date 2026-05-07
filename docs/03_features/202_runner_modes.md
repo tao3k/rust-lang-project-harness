@@ -57,6 +57,34 @@ once the library target mounts a configured
 `rust_project_harness_cargo_test_gate!(config = ...)`. That source-embedded
 gate covers ordinary `cargo test` and closes the `cargo test --lib` escape path.
 
+The cargo-test gate treats non-blocking `rust.agent_policy` advice as test
+feedback by default. The core project runner still keeps `Info` findings
+non-blocking, but `cargo test` normally hides passing test output, so the
+embedded gate fails when compact agent advice exists and lets the next Agent see
+the exact repair contract. The notification disappears when the agent fixes the
+structure, or when the crate config explicitly suppresses or replaces the
+applicable rule surface.
+
+Use `advice = allow, config = { ... }` only for a deliberate legacy waiver where
+cargo tests must pass even while rendered harness reports still expose advisory
+findings:
+
+```rust
+#[cfg(test)]
+rust_lang_project_harness::rust_project_harness_cargo_test_gate!(
+    advice = allow,
+    config = {
+        rust_lang_project_harness::default_rust_harness_config()
+            .with_verification_profile_hint(
+                rust_lang_project_harness::RustVerificationProfileHint::new(
+                    "src/lib.rs",
+                    [rust_lang_project_harness::RustOwnerResponsibility::PublicApi],
+                ),
+            )
+    }
+);
+```
+
 Harness-enabled library projects are checked by `RUST-PROJ-R009`: once the
 project has the harness dependency or another harness gate, a `src/lib.rs`
 target must also expose a cargo-test gate from the source tree.

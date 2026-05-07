@@ -76,7 +76,10 @@ fn empty_verification_config_gate_findings(
                 .iter()
                 .find(|invocation| {
                     invocation.terminal_name == "rust_project_harness_cargo_test_gate"
-                        && invocation.argument_token_count == 0
+                        && !invocation
+                            .argument_top_level_idents
+                            .iter()
+                            .any(|ident| ident == "config")
                 })?;
             Some(RustHarnessFinding::from_rule(
                 rule,

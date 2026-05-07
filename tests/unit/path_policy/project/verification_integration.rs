@@ -57,6 +57,64 @@ fn configured_cargo_test_gate_clears_verification_config_warning() {
 }
 
 #[test]
+fn positional_config_gate_still_requires_named_verification_config() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "positional-verification-config");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(
+        root.join("src/lib.rs"),
+        "//! Test crate.\n#[cfg(test)]\nrust_lang_project_harness::rust_project_harness_cargo_test_gate!(rust_lang_project_harness::default_rust_harness_config());\n",
+    )
+    .expect("write lib");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    let findings = findings_for_rule(&report, "RUST-PROJ-R011");
+    assert_eq!(findings.len(), 1, "{:?}", report.findings);
+}
+
+#[test]
+fn advice_allow_gate_still_requires_explicit_verification_config() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "advice-allow-without-config");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(
+        root.join("src/lib.rs"),
+        "//! Test crate.\n#[cfg(test)]\nrust_lang_project_harness::rust_project_harness_cargo_test_gate!(advice = allow);\n",
+    )
+    .expect("write lib");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    let findings = findings_for_rule(&report, "RUST-PROJ-R011");
+    assert_eq!(findings.len(), 1, "{:?}", report.findings);
+}
+
+#[test]
+fn advice_allow_with_config_clears_verification_config_warning() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "advice-allow-with-config");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(
+        root.join("src/lib.rs"),
+        "//! Test crate.\n#[cfg(test)]\nrust_lang_project_harness::rust_project_harness_cargo_test_gate!(advice = allow, config = {\n    rust_lang_project_harness::default_rust_harness_config()\n});\n",
+    )
+    .expect("write lib");
+
+    let report = run_rust_project_harness_with_config(root, &configured_no_external_tasks_config())
+        .expect("run project harness");
+
+    assert!(
+        findings_for_rule(&report, "RUST-PROJ-R011").is_empty(),
+        "{:?}",
+        report.findings
+    );
+}
+
+#[test]
 fn performance_verification_binding_requires_cargo_bench_target() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();

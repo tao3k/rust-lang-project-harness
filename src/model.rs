@@ -568,6 +568,17 @@ impl RustHarnessReport {
             .collect()
     }
 
+    /// Assert that the report has no non-blocking advisory findings.
+    ///
+    /// # Panics
+    ///
+    /// Panics with the compact rendered advice when advisory findings exist.
+    #[track_caller]
+    pub fn assert_no_advisory_findings(&self) {
+        let rendered = crate::render_rust_project_harness_advice(self);
+        assert!(rendered.is_empty(), "{rendered}");
+    }
+
     /// Assert that the report has no configured-blocking findings.
     ///
     /// # Panics

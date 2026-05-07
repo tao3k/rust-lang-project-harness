@@ -68,7 +68,8 @@ pub use rules::{
     rust_rule_pack_descriptors, rust_syntax_rules,
 };
 pub use runner::{
-    assert_rust_lang_harness_clean, assert_rust_project_harness_clean,
+    assert_rust_lang_harness_clean, assert_rust_project_harness_cargo_test_clean,
+    assert_rust_project_harness_cargo_test_clean_with_config, assert_rust_project_harness_clean,
     assert_rust_project_harness_clean_with_config, default_rust_harness_config,
     run_rust_lang_harness, run_rust_lang_harness_with_config, run_rust_project_harness,
     run_rust_project_harness_with_config,

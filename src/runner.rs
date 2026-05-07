@@ -89,6 +89,25 @@ pub fn assert_rust_project_harness_clean(project_root: &Path) -> RustHarnessRepo
     report
 }
 
+/// Assert a Cargo test project harness run is ready for agent repair.
+///
+/// This assertion treats configured-blocking findings and non-blocking agent
+/// advice as actionable test feedback. It is intended for cargo-test gate
+/// macros, while `assert_rust_project_harness_clean()` keeps the library runner
+/// semantics of only blocking on configured severities.
+///
+/// # Panics
+///
+/// Panics when the run fails, when configured-blocking findings exist, or when
+/// advisory findings exist.
+#[track_caller]
+pub fn assert_rust_project_harness_cargo_test_clean(project_root: &Path) -> RustHarnessReport {
+    let report = run_rust_project_harness(project_root).unwrap_or_else(|error| panic!("{error}"));
+    report.assert_clean();
+    report.assert_no_advisory_findings();
+    report
+}
+
 /// Assert a configured Rust project harness run is clean.
 ///
 /// # Panics
@@ -102,6 +121,24 @@ pub fn assert_rust_project_harness_clean_with_config(
     let report = run_rust_project_harness_with_config(project_root, config)
         .unwrap_or_else(|error| panic!("{error}"));
     report.assert_clean();
+    report
+}
+
+/// Assert a configured Cargo test project harness run is ready for agent repair.
+///
+/// # Panics
+///
+/// Panics when the run fails, when configured-blocking findings exist, or when
+/// advisory findings exist.
+#[track_caller]
+pub fn assert_rust_project_harness_cargo_test_clean_with_config(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+) -> RustHarnessReport {
+    let report = run_rust_project_harness_with_config(project_root, config)
+        .unwrap_or_else(|error| panic!("{error}"));
+    report.assert_clean();
+    report.assert_no_advisory_findings();
     report
 }
 

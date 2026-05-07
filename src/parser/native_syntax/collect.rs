@@ -87,6 +87,7 @@ pub(crate) struct RustInvocationSyntax {
     pub line: usize,
     pub terminal_name: String,
     pub argument_token_count: usize,
+    pub argument_top_level_idents: Vec<String>,
 }
 
 impl RustNativeSyntaxFacts {
@@ -556,12 +557,14 @@ fn invocation_syntax(path: &syn::Path) -> Option<RustInvocationSyntax> {
         line: path.span().start().line.max(1),
         terminal_name,
         argument_token_count: 0,
+        argument_top_level_idents: Vec::new(),
     })
 }
 
 fn macro_invocation_syntax(mac: &syn::Macro) -> Option<RustInvocationSyntax> {
     let mut invocation = invocation_syntax(&mac.path)?;
     invocation.argument_token_count = mac.tokens.clone().into_iter().count();
+    invocation.argument_top_level_idents = token_stream_top_level_idents(mac.tokens.clone());
     Some(invocation)
 }
 
@@ -582,4 +585,14 @@ fn include_literal_target(mac: &syn::Macro) -> Option<String> {
     syn::parse2::<syn::LitStr>(mac.tokens.clone())
         .ok()
         .map(|lit| lit.value())
+}
+
+fn token_stream_top_level_idents(tokens: TokenStream) -> Vec<String> {
+    tokens
+        .into_iter()
+        .filter_map(|token| match token {
+            TokenTree::Ident(ident) => Some(ident.to_string()),
+            TokenTree::Group(_) | TokenTree::Punct(_) | TokenTree::Literal(_) => None,
+        })
+        .collect()
 }

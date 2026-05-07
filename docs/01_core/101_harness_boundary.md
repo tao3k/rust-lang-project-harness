@@ -91,6 +91,13 @@ mounts `rust_project_harness_cargo_test_gate!` from `src/self_policy.rs`. That
 single source-backed gate covers `cargo test --lib` and ordinary `cargo test`
 runs while keeping policy changes subject to the same gate downstream projects
 consume.
+Cargo-test embedding is intentionally stricter than the raw library runner:
+`rust.agent_policy` findings remain `Info`, but the default cargo-test gate
+fails on compact agent advice so the next repair agent can see and enrich the
+project structure instead of losing the message inside passing test output.
+Projects can clear that notification by fixing the structure, by configuring
+the relevant rule surface, or by using an explicit
+`advice = allow, config = { ... }` waiver.
 
 New source-backed test modules should stay under `tests/unit` and be mounted
 with `#[path]`. Harness-enabled library crates should mount

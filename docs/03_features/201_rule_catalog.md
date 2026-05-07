@@ -110,6 +110,13 @@ agent that the benchmark still needs to be wired.
 
 `AGENT-*` rules are `Info` findings. They are designed as repair hints for LLMs
 and are not blocking by default.
+Source-embedded cargo-test gates add one Agent-facing layer on top of that
+library policy: because passing tests hide output, the default
+`rust_project_harness_cargo_test_gate!(config = ...)` assertion fails on compact
+agent advice so the repair contract is visible during `cargo test`. This does
+not change rule severity or JSON metadata. Use
+`advice = allow, config = { ... }` for an explicit legacy waiver, or configure
+the relevant rule/pack when the crate has a clearer local responsibility model.
 Rules that ask an agent to add Rust doc comments require Clippy-compatible
 Markdown: use `clippy::doc_markdown` style and wrap API names, rule IDs, command
 names, and other literal identifiers in backticks.
