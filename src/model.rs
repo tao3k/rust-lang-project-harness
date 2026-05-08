@@ -157,6 +157,10 @@ impl RustRulePack {
                 "AGENT-R022",
                 "AGENT-R023",
                 "AGENT-R024",
+                "AGENT-R025",
+                "AGENT-R026",
+                "AGENT-R027",
+                "AGENT-R028",
             ],
         }
     }

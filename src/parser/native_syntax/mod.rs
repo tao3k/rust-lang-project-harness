@@ -9,5 +9,5 @@ pub(crate) use collect::{RustNativeSyntaxFacts, RustTopLevelItemSyntax, rust_nat
 pub(crate) use control_flow::RustFunctionControlFlowSyntax;
 pub(crate) use data_shape::{
     RustPublicEnumTupleVariantFieldSyntax, RustPublicEnumVariantFieldSyntax,
-    RustPublicStructFieldSyntax,
+    RustPublicStructFieldSyntax, RustPublicTypeAliasSyntax,
 };

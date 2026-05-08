@@ -145,6 +145,10 @@ names, and other literal identifiers in backticks.
 - `AGENT-R022`: public generic data type carries duplicated derivable trait bounds
 - `AGENT-R023`: public API exposes an anonymous tuple of primitive semantic values
 - `AGENT-R024`: public enum tuple variant exposes anonymous primitive semantic payload
+- `AGENT-R025`: implementation function nests traversal scaffolding
+- `AGENT-R026`: implementation function manually spells simple iterator boilerplate loops
+- `AGENT-R027`: public semantic type alias hides a primitive carrier
+- `AGENT-R028`: public data model exposes a stringly state, status, kind, mode, type, tag, phase, or category field
 
 ## Rendered Diagnostic Policy
 
@@ -191,14 +195,14 @@ ignored. The parser also records whether a `use` statement is inside an inline
 test context without weakening the default no-glob harness contract.
 
 `AGENT-R001`, `AGENT-R002`, `AGENT-R004`, `AGENT-R005`, `AGENT-R006`,
-`AGENT-R008`, and `AGENT-R012` through `AGENT-R024` consume native facts from
+`AGENT-R008`, and `AGENT-R012` through `AGENT-R028` consume native facts from
 `src/parser/`, including file-level inner doc attributes, public names, public
 item doc attributes, public re-export groups, public function parameters, public
-function return types, public function control-flow shape, public data-struct
-field shape, public enum named and tuple variant payload shape, public generic
-data-type bounds, public anonymous tuple API surfaces,
-support facade re-export names, support-surface path references, and resolved
-reasoning-tree child edges.
+function return types, public and internal function or method control-flow
+shape, public data-struct field shape, public enum named and tuple variant
+payload shape, public generic data-type bounds, public type aliases, public
+anonymous tuple API surfaces, support facade re-export names, support-surface
+path references, and resolved reasoning-tree child edges.
 `AGENT-R003` evaluates the default
 package harness surface,
 including `src/` and `tests/`. It treats
@@ -233,19 +237,20 @@ resolved from parser-derived module namespaces, so a consumed name in
 `tests/unit/alpha/support.rs` does not clear the same unused name in
 `tests/unit/beta/support.rs`. This catches broad support facades left by LLM
 repairs without second-guessing normal private imports.
-`AGENT-R015` and `AGENT-R016` use parser-owned public function control-flow
-facts: source line, line span, statement count, largest block width, branch
-count, loop count, match count, literal dispatch chain count, nesting depth,
-loop nesting depth, and test context. They intentionally do not enforce rustfmt,
-naming, complexity metrics, or Clippy style. The goal is narrower: show an agent
-where a public algorithm is hard to edit because its branch structure is hidden
-in nested control flow, literal `if`/`else if` dispatch ladders, or one broad
-linear block. Match-based dispatch, guard clauses, typed dispatch, and small
-named pipeline steps are accepted shapes because they make the reasoning tree
-explicit before the next edit. The literal dispatch signal follows Rust's native
-`match` model from the Book and Reference: a `match` compares one scrutinee
-against a series of patterns, which is exactly the intent an agent loses when
-LLM code repeats `kind == "..."` across a public branch ladder.
+`AGENT-R015` and `AGENT-R016` use parser-owned public function and public method
+control-flow facts: source line, line span, statement count, largest block
+width, branch count, loop count, match count, literal dispatch chain count,
+nesting depth, loop nesting depth, and test context. They intentionally do not
+enforce rustfmt, naming, complexity metrics, or Clippy style. The goal is
+narrower: show an agent where a public algorithm is hard to edit because its
+branch structure is hidden in nested control flow, literal `if`/`else if`
+dispatch ladders, or one broad linear block. Match-based dispatch, guard
+clauses, typed dispatch, and small named pipeline steps are accepted shapes
+because they make the reasoning tree explicit before the next edit. The literal
+dispatch signal follows Rust's native `match` model from the Book and
+Reference: a `match` compares one scrutinee against a series of patterns, which
+is exactly the intent an agent loses when LLM code repeats `kind == "..."`
+across a public branch ladder.
 `AGENT-R017` is the Rust native-iterator idiom layer. It is backed by
 parser-owned loop facts for simple `for` bodies that manually collect into a
 mutable collection, return a boolean predicate answer, increment a count,
@@ -264,6 +269,23 @@ express high-level ideas at low-level performance, the standard `Iterator`
 consumer surface, and the Rust Performance Book's narrower performance notes
 around iteration, without turning the harness into a blanket "prefer iterators
 over every loop" lint.
+`AGENT-R025` extends the same parser-owned control-flow facts to internal
+implementation functions and `impl` methods. It is aimed at LLM-generated
+receipt and report walkers such as `if has_failures { for repo { for query { if
+!query.passed { ... }}}}`: Rust allows the code, and Clippy may have nothing to
+say, but the algorithm boundary is invisible to the next repair agent. The rule
+fires only on non-test internal functions with nested loop traversal and guard
+branches, then asks for named iterator, predicate, or receipt-processing helpers
+instead of more raw loop scaffolding. Small named helper pipelines and public
+API algorithm rules stay separate.
+`AGENT-R026` covers the flatter internal companion case: a private function or
+method whose loop body only collects, filters, counts, sums, answers a predicate,
+or repeats a simple scan over the same iterator source. It reuses the same
+parser-owned iterator facts as `AGENT-R017`, but keeps the message scoped to
+implementation helpers instead of public API shape. The rule deliberately skips
+functions already reported by `AGENT-R025`, so an agent receives one compact
+piece of advice: deep traversal should become a named traversal boundary, while
+flat boilerplate should become iterator adapters or a named iterator helper.
 `AGENT-R018` is the public flag-surface layer. It is backed by parser-owned
 signature facts for `bool`, `&bool`, `Option<bool>`, and referenced optional
 booleans. The rule only fires when one public function exposes multiple flag
@@ -294,6 +316,21 @@ to extend the same primitive model instead of preserving invariants. The advice
 follows Rust API Guidelines `C-NEWTYPE` and `C-CUSTOM-TYPE`: create named domain
 types for values whose interpretation matters, or explicitly document that this
 is a raw transport boundary.
+`AGENT-R027` closes the weak-alias escape hatch for that same boundary. A public
+alias such as `pub type UserId = String` gives an agent a named symbol but does
+not create a Rust type boundary, so later repairs can still mix identifiers,
+tokens, paths, durations, byte counts, and flags across call sites. The parser
+records public type aliases and their primitive carriers; the rule only fires
+when the alias name looks semantic, and asks for a tuple newtype or named struct
+instead of a primitive alias.
+`AGENT-R028` catches another stringly data-model shape that is especially noisy
+for agents: public fields named like `status`, `state`, `kind`, `mode`, `type`,
+`tag`, `phase`, or `category` whose carrier is `String` or `Option<String>`.
+Rust permits these fields and Clippy cannot know whether they
+are closed state catalogs, but LLM repairs tend to extend them with literal
+string comparisons. The rule stays advisory and parser-backed, asking for an
+enum, newtype, or typed catalog boundary when the public model exposes that
+state surface.
 `AGENT-R021` applies the same data-model boundary to public enum variants with
 named payload fields. It does not count enum variants, require
 `#[non_exhaustive]`, or judge closed state catalogs. Instead, it catches event,

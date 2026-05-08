@@ -23,7 +23,8 @@ pub(crate) use module_tree::RustModuleChildEdge;
 pub(crate) use module_tree::RustModuleChildEdgeKind;
 pub(crate) use native_syntax::{
     RustFunctionControlFlowSyntax, RustNativeSyntaxFacts, RustPublicEnumTupleVariantFieldSyntax,
-    RustPublicEnumVariantFieldSyntax, RustPublicStructFieldSyntax, RustTopLevelItemSyntax,
+    RustPublicEnumVariantFieldSyntax, RustPublicStructFieldSyntax, RustPublicTypeAliasSyntax,
+    RustTopLevelItemSyntax,
 };
 pub(crate) use parsed_module::{ParsedRustModule, parse_rust_file};
 pub(crate) use path_resolution::resolve_rust_path_attr;

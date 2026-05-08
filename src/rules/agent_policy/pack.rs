@@ -33,6 +33,10 @@ pub(super) const AGENT_R021: &str = "AGENT-R021";
 pub(super) const AGENT_R022: &str = "AGENT-R022";
 pub(super) const AGENT_R023: &str = "AGENT-R023";
 pub(super) const AGENT_R024: &str = "AGENT-R024";
+pub(super) const AGENT_R025: &str = "AGENT-R025";
+pub(super) const AGENT_R026: &str = "AGENT-R026";
+pub(super) const AGENT_R027: &str = "AGENT-R027";
+pub(super) const AGENT_R028: &str = "AGENT-R028";
 
 /// Return compact metadata for agent-oriented Rust policy rules.
 #[must_use]
@@ -301,6 +305,38 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             RustDiagnosticSeverity::Info,
             "Public enum tuple variant exposes anonymous primitive payload",
             "Replace public enum tuple variant payloads that bundle primitive semantic values with named fields, named payload structs, or domain newtypes so agents preserve event and command intent.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R025,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Implementation function nests traversal scaffolding",
+            "Extract nested internal traversals into named iterator, predicate, or receipt-processing helpers so agents can see the algorithm boundary instead of extending raw loop and guard scaffolding.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R026,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Implementation function manually spells an iterator transform",
+            "Use Rust iterator adapters or a named iterator helper when internal loops only map, filter, collect, count, sum, answer a predicate, or repeatedly scan the same iterator source.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R027,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Public semantic type alias hides a primitive carrier",
+            "Use a public newtype or named struct instead of a primitive type alias for semantic identifiers, tokens, paths, durations, byte sizes, or flags so agents preserve invariants across call sites.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R028,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Public data model exposes a stringly state field",
+            "Use a public enum, newtype, or typed catalog boundary instead of `String` or `Option<String>` for public state, status, kind, mode, phase, type, tag, or category fields.",
             labels("agent-policy"),
         ),
     ]
