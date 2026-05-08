@@ -54,6 +54,118 @@ fn native_syntax_facts_record_manual_iterator_loop_shapes() {
 }
 
 #[test]
+fn native_syntax_facts_record_private_function_and_impl_method_control_flow() {
+    let temp = TempDir::new().expect("temp dir");
+    let source = temp.path().join("api.rs");
+    fs::write(
+        &source,
+        "fn collect_failed(receipt: Receipt) -> Vec<String> {\n\
+         \tlet mut failed = Vec::new();\n\
+         \tif receipt.failed_query_count > 0 {\n\
+         \t\tfor repository in receipt.repositories {\n\
+         \t\t\tfor query in repository.query_receipts {\n\
+         \t\t\t\tif !query.passed {\n\
+         \t\t\t\t\tfailed.push(query.name);\n\
+         \t\t\t\t}\n\
+         \t\t\t}\n\
+         \t\t}\n\
+         \t}\n\
+         \tfailed\n\
+         }\n\
+         struct Collector;\n\
+         impl Collector {\n\
+         \tfn count_failed(&self, receipt: Receipt) -> usize {\n\
+         \t\tlet mut count = 0;\n\
+         \t\tfor repository in receipt.repositories {\n\
+         \t\t\tfor query in repository.query_receipts {\n\
+         \t\t\t\tif !query.passed {\n\
+         \t\t\t\t\tcount += 1;\n\
+         \t\t\t\t}\n\
+         \t\t\t}\n\
+         \t\t}\n\
+         \t\tcount\n\
+         \t}\n\
+         }\n\
+         struct Receipt { failed_query_count: usize, repositories: Vec<Repository> }\n\
+         struct Repository { query_receipts: Vec<Query> }\n\
+         struct Query { passed: bool, name: String }\n",
+    )
+    .expect("write source");
+
+    let module = parse_rust_file(&source);
+
+    let all_control_flows = module.syntax_facts.all_function_control_flows;
+    assert_eq!(
+        all_control_flows
+            .iter()
+            .map(|control_flow| control_flow.function_name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["collect_failed", "count_failed"]
+    );
+    assert!(module.syntax_facts.public_function_control_flows.is_empty());
+    let collect_failed = all_control_flows
+        .iter()
+        .find(|control_flow| control_flow.function_name == "collect_failed")
+        .expect("collect_failed facts");
+    assert!(!collect_failed.is_public);
+    assert_eq!(collect_failed.max_loop_nesting_depth, 2);
+    assert_eq!(collect_failed.max_nesting_depth, 4);
+    let count_failed = all_control_flows
+        .iter()
+        .find(|control_flow| control_flow.function_name == "count_failed")
+        .expect("count_failed facts");
+    assert!(!count_failed.is_public);
+    assert_eq!(count_failed.max_loop_nesting_depth, 2);
+}
+
+#[test]
+fn native_syntax_facts_ignore_complex_collection_builders() {
+    let temp = TempDir::new().expect("temp dir");
+    let source = temp.path().join("api.rs");
+    fs::write(
+        &source,
+        "fn collect_findings(items: &[usize]) -> Vec<Finding> {\n\
+         \tlet mut findings = Vec::new();\n\
+         \tfor item in items {\n\
+         \t\tfindings.push(Finding::new(*item));\n\
+         \t}\n\
+         \tfindings\n\
+         }\n\
+         struct Finding;\n\
+         impl Finding {\n\
+         \tfn new(_item: usize) -> Self {\n\
+         \t\tSelf\n\
+         \t}\n\
+         }\n\
+         fn normalize_path(path: PathBuf) -> PathBuf {\n\
+         \tlet mut normalized = PathBuf::new();\n\
+         \tfor component in path.components() {\n\
+         \t\tnormalized.push(component.as_os_str());\n\
+         \t}\n\
+         \tnormalized\n\
+         }\n",
+    )
+    .expect("write source");
+
+    let module = parse_rust_file(&source);
+
+    let collect_findings = module
+        .syntax_facts
+        .all_function_control_flows
+        .iter()
+        .find(|control_flow| control_flow.function_name == "collect_findings")
+        .expect("collect_findings facts");
+    assert_eq!(collect_findings.manual_collection_loop_count, 0);
+    let normalize_path = module
+        .syntax_facts
+        .all_function_control_flows
+        .iter()
+        .find(|control_flow| control_flow.function_name == "normalize_path")
+        .expect("normalize_path facts");
+    assert_eq!(normalize_path.manual_collection_loop_count, 0);
+}
+
+#[test]
 fn native_syntax_facts_record_literal_dispatch_chains() {
     let temp = TempDir::new().expect("temp dir");
     let source = temp.path().join("api.rs");

@@ -4,13 +4,13 @@ use std::collections::BTreeMap;
 
 use crate::parser::{
     ParsedRustModule, RustPublicEnumTupleVariantFieldSyntax, RustPublicEnumVariantFieldSyntax,
-    RustPublicStructFieldSyntax, path_line_location, source_line,
+    RustPublicStructFieldSyntax, RustPublicTypeAliasSyntax, path_line_location, source_line,
 };
 use crate::{RustHarnessFinding, RustHarnessRule};
 
 use crate::rules::display_path;
 
-use super::{AGENT_R020, AGENT_R021, AGENT_R022, AGENT_R024};
+use super::{AGENT_R020, AGENT_R021, AGENT_R022, AGENT_R024, AGENT_R027, AGENT_R028};
 
 const MIN_SEMANTIC_PRIMITIVE_FIELDS: usize = 3;
 const MIN_ENUM_VARIANT_SEMANTIC_PRIMITIVE_FIELDS: usize = 2;
@@ -27,6 +27,8 @@ pub(super) fn data_shape_findings(
     ));
     findings.extend(public_type_generic_bound_findings(module, rules));
     findings.extend(public_enum_tuple_variant_payload_findings(module, rules));
+    findings.extend(public_type_alias_primitive_findings(module, rules));
+    findings.extend(public_stringly_state_field_findings(module, rules));
     findings
 }
 
@@ -219,6 +221,133 @@ fn public_enum_tuple_variant_payload_findings(
         .collect()
 }
 
+fn public_type_alias_primitive_findings(
+    module: &ParsedRustModule,
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let rule = &rules[AGENT_R027];
+    module
+        .syntax_facts
+        .public_type_aliases
+        .iter()
+        .filter(|alias| !alias.is_test_context)
+        .filter_map(|alias| {
+            let contract_type = public_type_alias_contract_type(alias)?;
+            Some(RustHarnessFinding::from_rule(
+                rule,
+                format!(
+                    "{} exposes public semantic type alias `{}` = `{}` over primitive carrier {contract_type}.",
+                    display_path(&module.report.path),
+                    alias.alias_name,
+                    alias.target_type_text
+                ),
+                path_line_location(&module.report.path, alias.line),
+                source_line(&module.source, alias.line),
+                "replace this alias with a newtype or named struct boundary",
+            ))
+        })
+        .collect()
+}
+
+fn public_stringly_state_field_findings(
+    module: &ParsedRustModule,
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let rule = &rules[AGENT_R028];
+    let mut findings = Vec::new();
+    findings.extend(public_struct_stringly_state_field_findings(module, rule));
+    findings.extend(public_enum_variant_stringly_state_field_findings(
+        module, rule,
+    ));
+    findings
+}
+
+fn public_struct_stringly_state_field_findings(
+    module: &ParsedRustModule,
+    rule: &RustHarnessRule,
+) -> Vec<RustHarnessFinding> {
+    let mut fields_by_struct = BTreeMap::<(usize, String), Vec<(usize, String)>>::new();
+    for field in &module.syntax_facts.public_struct_fields {
+        if field.is_test_context || !is_stringly_state_field(&field.field_name) {
+            continue;
+        }
+        let Some(contract_type) = string_contract_type(field.primitive_contract_type.as_deref())
+        else {
+            continue;
+        };
+        fields_by_struct
+            .entry((field.struct_line, field.struct_name.clone()))
+            .or_default()
+            .push((field.line, format!("{}: {contract_type}", field.field_name)));
+    }
+    fields_by_struct
+        .into_iter()
+        .map(|((struct_line, struct_name), mut fields)| {
+            fields.sort_by_key(|(line, _)| *line);
+            let field_list = fields
+                .into_iter()
+                .map(|(_, field)| field)
+                .collect::<Vec<_>>()
+                .join(", ");
+            RustHarnessFinding::from_rule(
+                rule,
+                format!(
+                    "{} exposes public data struct `{struct_name}` with stringly state fields: {field_list}.",
+                    display_path(&module.report.path)
+                ),
+                path_line_location(&module.report.path, struct_line),
+                source_line(&module.source, struct_line),
+                "replace this stringly state surface with an enum, newtype, or typed catalog boundary",
+            )
+        })
+        .collect()
+}
+
+fn public_enum_variant_stringly_state_field_findings(
+    module: &ParsedRustModule,
+    rule: &RustHarnessRule,
+) -> Vec<RustHarnessFinding> {
+    let mut fields_by_variant = BTreeMap::<(usize, String, String), Vec<(usize, String)>>::new();
+    for field in &module.syntax_facts.public_enum_variant_fields {
+        if field.is_test_context || !is_stringly_state_field(&field.field_name) {
+            continue;
+        }
+        let Some(contract_type) = string_contract_type(field.primitive_contract_type.as_deref())
+        else {
+            continue;
+        };
+        fields_by_variant
+            .entry((
+                field.variant_line,
+                field.enum_name.clone(),
+                field.variant_name.clone(),
+            ))
+            .or_default()
+            .push((field.line, format!("{}: {contract_type}", field.field_name)));
+    }
+    fields_by_variant
+        .into_iter()
+        .map(|((variant_line, enum_name, variant_name), mut fields)| {
+            fields.sort_by_key(|(line, _)| *line);
+            let field_list = fields
+                .into_iter()
+                .map(|(_, field)| field)
+                .collect::<Vec<_>>()
+                .join(", ");
+            RustHarnessFinding::from_rule(
+                rule,
+                format!(
+                    "{} exposes public enum `{enum_name}` variant `{variant_name}` with stringly state fields: {field_list}.",
+                    display_path(&module.report.path)
+                ),
+                path_line_location(&module.report.path, variant_line),
+                source_line(&module.source, variant_line),
+                "replace this stringly state payload with an enum, newtype, or typed catalog boundary",
+            )
+        })
+        .collect()
+}
+
 fn public_data_field_contract_type(field: &RustPublicStructFieldSyntax) -> Option<&str> {
     if is_semantic_public_data_field(&field.field_name) {
         return field
@@ -254,6 +383,18 @@ fn public_enum_tuple_payload_field_contract_type(
         .or(field.flag_contract_type.as_deref())
 }
 
+fn public_type_alias_contract_type(alias: &RustPublicTypeAliasSyntax) -> Option<&str> {
+    if is_semantic_public_type_alias(&alias.alias_name)
+        || is_public_flag_type_alias(&alias.alias_name)
+    {
+        return alias
+            .primitive_contract_type
+            .as_deref()
+            .or(alias.flag_contract_type.as_deref());
+    }
+    None
+}
+
 fn is_semantic_public_data_field(name: &str) -> bool {
     is_semantic_identifier(name)
         || matches!(name, "path" | "url" | "uri" | "key" | "token")
@@ -268,8 +409,45 @@ fn is_semantic_public_data_field(name: &str) -> bool {
         || name.ends_with("_bytes")
 }
 
+fn is_stringly_state_field(name: &str) -> bool {
+    let name = name.strip_prefix("r#").unwrap_or(name);
+    matches!(
+        name,
+        "kind" | "type" | "status" | "state" | "mode" | "phase" | "tag" | "category"
+    ) || name.ends_with("_kind")
+        || name.ends_with("_type")
+        || name.ends_with("_status")
+        || name.ends_with("_state")
+        || name.ends_with("_mode")
+        || name.ends_with("_phase")
+        || name.ends_with("_tag")
+        || name.ends_with("_category")
+}
+
+fn string_contract_type(contract_type: Option<&str>) -> Option<&str> {
+    let contract_type = contract_type?;
+    matches!(contract_type, "String" | "Option<String>").then_some(contract_type)
+}
+
 fn is_semantic_identifier(name: &str) -> bool {
     name == "id" || name.ends_with("_id")
+}
+
+fn is_semantic_public_type_alias(name: &str) -> bool {
+    name == "Id"
+        || name.ends_with("Id")
+        || name.ends_with("ID")
+        || name.ends_with("Path")
+        || name.ends_with("Url")
+        || name.ends_with("URL")
+        || name.ends_with("Uri")
+        || name.ends_with("URI")
+        || name.ends_with("Key")
+        || name.ends_with("Token")
+        || name.ends_with("Ms")
+        || name.ends_with("Secs")
+        || name.ends_with("Seconds")
+        || name.ends_with("Bytes")
 }
 
 fn is_public_flag_field(name: &str) -> bool {
@@ -280,4 +458,12 @@ fn is_public_flag_field(name: &str) -> bool {
         || name.starts_with("allow_")
         || name.starts_with("include_")
         || name.starts_with("should_")
+}
+
+fn is_public_flag_type_alias(name: &str) -> bool {
+    name.ends_with("Flag")
+        || name.ends_with("Enabled")
+        || name.ends_with("Disabled")
+        || name.ends_with("Allowed")
+        || name.ends_with("Included")
 }

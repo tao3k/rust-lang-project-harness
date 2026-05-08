@@ -558,37 +558,51 @@ fn consumed_test_support_names(
     support_modules: &BTreeMap<Vec<String>, PathBuf>,
 ) -> BTreeMap<PathBuf, BTreeSet<String>> {
     let mut names = BTreeMap::<PathBuf, BTreeSet<String>>::new();
-    for module in modules {
-        let Some(module_facts) = reasoning_tree.module(&module.report.path) else {
-            continue;
-        };
-        let current_namespace = &module_facts.source_path.namespace_components;
-        for use_statement in &module.syntax_facts.use_statements {
-            for import in &use_statement.imports {
-                if let Some((support_path, name)) = test_support_reference(
-                    current_namespace,
-                    &import.segments,
-                    import.root_kind,
-                    import.parent_hops,
-                    support_modules,
-                ) {
-                    names.entry(support_path).or_default().insert(name);
-                }
-            }
-        }
-        for reference in &module.syntax_facts.path_references {
-            if let Some((support_path, name)) = test_support_reference(
+    for (support_path, name) in modules.iter().flat_map(|module| {
+        consumed_test_support_references(reasoning_tree, module, support_modules)
+    }) {
+        names.entry(support_path).or_default().insert(name);
+    }
+    names
+}
+
+fn consumed_test_support_references(
+    reasoning_tree: &RustReasoningTreeFacts,
+    module: &ParsedRustModule,
+    support_modules: &BTreeMap<Vec<String>, PathBuf>,
+) -> Vec<(PathBuf, String)> {
+    let Some(module_facts) = reasoning_tree.module(&module.report.path) else {
+        return Vec::new();
+    };
+    let current_namespace = &module_facts.source_path.namespace_components;
+    let import_references = module
+        .syntax_facts
+        .use_statements
+        .iter()
+        .flat_map(|use_statement| &use_statement.imports)
+        .filter_map(|import| {
+            test_support_reference(
+                current_namespace,
+                &import.segments,
+                import.root_kind,
+                import.parent_hops,
+                support_modules,
+            )
+        });
+    let path_references = module
+        .syntax_facts
+        .path_references
+        .iter()
+        .filter_map(|reference| {
+            test_support_reference(
                 current_namespace,
                 &reference.segments,
                 import_root_kind(&reference.segments),
                 parent_hops(&reference.segments),
                 support_modules,
-            ) {
-                names.entry(support_path).or_default().insert(name);
-            }
-        }
-    }
-    names
+            )
+        });
+    import_references.chain(path_references).collect()
 }
 
 fn test_support_reference(

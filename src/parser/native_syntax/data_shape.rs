@@ -54,6 +54,16 @@ pub(crate) struct RustPublicTypeGenericBoundSyntax {
     pub is_test_context: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RustPublicTypeAliasSyntax {
+    pub line: usize,
+    pub alias_name: String,
+    pub target_type_text: String,
+    pub primitive_contract_type: Option<String>,
+    pub flag_contract_type: Option<String>,
+    pub is_test_context: bool,
+}
+
 pub(crate) fn public_struct_field_syntax(item: &syn::Item) -> Vec<RustPublicStructFieldSyntax> {
     let syn::Item::Struct(item_struct) = item else {
         return Vec::new();
@@ -87,6 +97,23 @@ pub(crate) fn public_struct_field_syntax(item: &syn::Item) -> Vec<RustPublicStru
             })
         })
         .collect()
+}
+
+pub(crate) fn public_type_alias_syntax(item: &syn::Item) -> Vec<RustPublicTypeAliasSyntax> {
+    let syn::Item::Type(item_type) = item else {
+        return Vec::new();
+    };
+    if !is_public_visibility(&item_type.vis) {
+        return Vec::new();
+    }
+    vec![RustPublicTypeAliasSyntax {
+        line: item_type.ident.span().start().line.max(1),
+        alias_name: item_type.ident.to_string(),
+        target_type_text: item_type.ty.to_token_stream().to_string(),
+        primitive_contract_type: primitive_contract_type_name(&item_type.ty),
+        flag_contract_type: flag_contract_type_name(&item_type.ty),
+        is_test_context: attrs_have_cfg_test(&item_type.attrs),
+    }]
 }
 
 pub(crate) fn public_type_generic_bound_syntax(

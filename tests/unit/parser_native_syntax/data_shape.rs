@@ -50,3 +50,44 @@ fn native_syntax_facts_record_public_enum_tuple_variant_fields() {
     assert_eq!(fields[0].variant_line, 2);
     assert!(fields[5].is_test_context);
 }
+
+#[test]
+fn native_syntax_facts_record_public_type_alias_carriers() {
+    let temp = TempDir::new().expect("temp dir");
+    let source = temp.path().join("api.rs");
+    fs::write(
+        &source,
+        "pub type UserId = String;\n\
+         pub type IncludeInactive = bool;\n\
+         pub type DomainUserId = UserId;\n\
+         type PrivateToken = String;\n\
+         #[cfg(test)]\n\
+         pub type FixtureId = String;\n",
+    )
+    .expect("write source");
+
+    let module = parse_rust_file(&source);
+
+    let aliases = module.syntax_facts.public_type_aliases;
+    assert_eq!(
+        aliases
+            .iter()
+            .map(|alias| {
+                (
+                    alias.alias_name.as_str(),
+                    alias.target_type_text.as_str(),
+                    alias.primitive_contract_type.as_deref(),
+                    alias.flag_contract_type.as_deref(),
+                    alias.is_test_context,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            ("UserId", "String", Some("String"), None, false),
+            ("IncludeInactive", "bool", None, Some("bool"), false),
+            ("DomainUserId", "UserId", None, None, false),
+            ("FixtureId", "String", Some("String"), None, true),
+        ]
+    );
+    assert_eq!(aliases[0].line, 1);
+}

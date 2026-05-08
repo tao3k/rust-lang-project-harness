@@ -1,0 +1,10 @@
+---
+source: tests/unit/agent_policy_snapshot.rs
+expression: rendered
+---
+[AGENT-R027] Info: Public semantic type alias hides a primitive carrier
+   ,-[ $TEMP/src/api.rs:3:1 ]
+ 3 | pub type UserId = String;
+   | `- replace this alias with a newtype or named struct boundary
+   |Help: $TEMP/src/api.rs exposes public semantic type alias `UserId` = `String` over primitive carrier String.
+   |Contract: Use a public newtype or named struct instead of a primitive type alias for semantic identifiers, tokens, paths, durations, byte sizes, or flags so agents preserve invariants across call sites.

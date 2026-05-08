@@ -192,3 +192,51 @@ fn agent_r024_public_enum_tuple_payload_snapshot() {
         "agent_r024_public_enum_tuple_payload",
     );
 }
+
+#[test]
+fn agent_r027_public_primitive_type_alias_snapshot() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "agent-r027-type-alias");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod api;\n").expect("write lib");
+    fs::write(
+        root.join("src/api.rs"),
+        "//! Public API owner.\n\
+         /// User identifier.\n\
+         pub type UserId = String;\n",
+    )
+    .expect("write api");
+
+    assert_agent_snapshot(
+        root,
+        "AGENT-R027",
+        1,
+        "agent_r027_public_primitive_type_alias",
+    );
+}
+
+#[test]
+fn agent_r028_public_stringly_state_field_snapshot() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "agent-r028-stringly-state");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod api;\n").expect("write lib");
+    fs::write(
+        root.join("src/api.rs"),
+        "//! Public API owner.\n\
+         /// Job snapshot crossing a public boundary.\n\
+         pub struct JobSnapshot {\n\
+         \tpub status: String,\n\
+         }\n",
+    )
+    .expect("write api");
+
+    assert_agent_snapshot(
+        root,
+        "AGENT-R028",
+        1,
+        "agent_r028_public_stringly_state_field",
+    );
+}

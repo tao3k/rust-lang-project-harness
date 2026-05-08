@@ -1,6 +1,6 @@
 //! Native Rust function control-flow facts.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
@@ -11,6 +11,7 @@ use quote::ToTokens;
 pub(crate) struct RustFunctionControlFlowSyntax {
     pub line: usize,
     pub function_name: String,
+    pub is_public: bool,
     pub line_span: usize,
     pub statement_count: usize,
     pub max_block_statement_count: usize,
@@ -28,20 +29,42 @@ pub(crate) struct RustFunctionControlFlowSyntax {
     pub is_test_context: bool,
 }
 
-pub(crate) fn public_function_control_flow_syntax(
-    item: &syn::Item,
-) -> Option<RustFunctionControlFlowSyntax> {
-    let syn::Item::Fn(item_fn) = item else {
-        return None;
-    };
-    if !is_public_visibility(&item_fn.vis) {
-        return None;
+pub(crate) fn function_control_flow_syntax(item: &syn::Item) -> Vec<RustFunctionControlFlowSyntax> {
+    match item {
+        syn::Item::Fn(item_fn) => vec![item_function_control_flow_syntax(item_fn, false)],
+        syn::Item::Impl(item_impl) => impl_function_control_flow_syntax(item_impl),
+        _ => Vec::new(),
     }
+}
 
+fn impl_function_control_flow_syntax(
+    item_impl: &syn::ItemImpl,
+) -> Vec<RustFunctionControlFlowSyntax> {
+    let inherited_test_context = attrs_have_cfg_test(&item_impl.attrs);
+    item_impl
+        .items
+        .iter()
+        .filter_map(|impl_item| {
+            let syn::ImplItem::Fn(method) = impl_item else {
+                return None;
+            };
+            Some(method_function_control_flow_syntax(
+                method,
+                inherited_test_context,
+            ))
+        })
+        .collect()
+}
+
+fn item_function_control_flow_syntax(
+    item_fn: &syn::ItemFn,
+    inherited_test_context: bool,
+) -> RustFunctionControlFlowSyntax {
     let mut collector = FunctionControlFlowCollector {
         facts: RustFunctionControlFlowSyntax {
             line: item_fn.sig.ident.span().start().line.max(1),
             function_name: item_fn.sig.ident.to_string(),
+            is_public: is_public_visibility(&item_fn.vis),
             line_span: item_line_span(item_fn),
             statement_count: 0,
             max_block_statement_count: 0,
@@ -50,28 +73,72 @@ pub(crate) fn public_function_control_flow_syntax(
             max_nesting_depth: 0,
             max_loop_nesting_depth: 0,
             match_count: 0,
-            literal_dispatch_chain_count: literal_dispatch_chain_count(item_fn),
+            literal_dispatch_chain_count: literal_dispatch_chain_count(&item_fn.block),
             manual_collection_loop_count: 0,
             manual_predicate_loop_count: 0,
             manual_numeric_accumulator_loop_count: 0,
             manual_count_loop_count: 0,
-            repeated_iterator_source_loop_count: repeated_iterator_source_loop_count(item_fn),
-            is_test_context: attrs_have_cfg_test(&item_fn.attrs),
+            repeated_iterator_source_loop_count: repeated_iterator_source_loop_count(
+                &item_fn.block,
+            ),
+            is_test_context: inherited_test_context || attrs_have_cfg_test(&item_fn.attrs),
         },
         control_depth: 0,
         loop_depth: 0,
+        collection_accumulators: BTreeSet::new(),
     };
     collector.visit_block(&item_fn.block);
-    Some(collector.facts)
+    collector.facts
+}
+
+fn method_function_control_flow_syntax(
+    method: &syn::ImplItemFn,
+    inherited_test_context: bool,
+) -> RustFunctionControlFlowSyntax {
+    let mut collector = FunctionControlFlowCollector {
+        facts: RustFunctionControlFlowSyntax {
+            line: method.sig.ident.span().start().line.max(1),
+            function_name: method.sig.ident.to_string(),
+            is_public: is_public_visibility(&method.vis),
+            line_span: item_line_span(method),
+            statement_count: 0,
+            max_block_statement_count: 0,
+            branch_count: 0,
+            loop_count: 0,
+            max_nesting_depth: 0,
+            max_loop_nesting_depth: 0,
+            match_count: 0,
+            literal_dispatch_chain_count: literal_dispatch_chain_count(&method.block),
+            manual_collection_loop_count: 0,
+            manual_predicate_loop_count: 0,
+            manual_numeric_accumulator_loop_count: 0,
+            manual_count_loop_count: 0,
+            repeated_iterator_source_loop_count: repeated_iterator_source_loop_count(&method.block),
+            is_test_context: inherited_test_context || attrs_have_cfg_test(&method.attrs),
+        },
+        control_depth: 0,
+        loop_depth: 0,
+        collection_accumulators: BTreeSet::new(),
+    };
+    collector.visit_block(&method.block);
+    collector.facts
 }
 
 struct FunctionControlFlowCollector {
     facts: RustFunctionControlFlowSyntax,
     control_depth: usize,
     loop_depth: usize,
+    collection_accumulators: BTreeSet<String>,
 }
 
 impl<'ast> Visit<'ast> for FunctionControlFlowCollector {
+    fn visit_local(&mut self, local: &'ast syn::Local) {
+        if let Some(accumulator) = collection_accumulator_binding(local) {
+            self.collection_accumulators.insert(accumulator);
+        }
+        visit::visit_local(self, local);
+    }
+
     fn visit_block(&mut self, block: &'ast syn::Block) {
         self.facts.max_block_statement_count =
             self.facts.max_block_statement_count.max(block.stmts.len());
@@ -125,7 +192,7 @@ impl FunctionControlFlowCollector {
     }
 
     fn record_manual_loop_signals(&mut self, block: &syn::Block) {
-        let signals = manual_loop_body_signals(block);
+        let signals = manual_loop_body_signals(block, &self.collection_accumulators);
         if signals.collection_accumulator {
             self.facts.manual_collection_loop_count += 1;
         }
@@ -149,23 +216,35 @@ struct ManualLoopBodySignals {
     count_accumulator: bool,
 }
 
-fn manual_loop_body_signals(block: &syn::Block) -> ManualLoopBodySignals {
-    let mut collector = ManualLoopBodySignalCollector::default();
+fn manual_loop_body_signals(
+    block: &syn::Block,
+    collection_accumulators: &BTreeSet<String>,
+) -> ManualLoopBodySignals {
+    let mut collector = ManualLoopBodySignalCollector {
+        collection_accumulators,
+        signals: ManualLoopBodySignals::default(),
+    };
     for statement in &block.stmts {
         collector.visit_stmt(statement);
     }
     collector.signals
 }
 
-#[derive(Default)]
-struct ManualLoopBodySignalCollector {
+struct ManualLoopBodySignalCollector<'a> {
+    collection_accumulators: &'a BTreeSet<String>,
     signals: ManualLoopBodySignals,
 }
 
-impl<'ast> Visit<'ast> for ManualLoopBodySignalCollector {
+impl<'ast> Visit<'ast> for ManualLoopBodySignalCollector<'_> {
     fn visit_expr_method_call(&mut self, method_call: &'ast syn::ExprMethodCall) {
-        if method_call_receiver_ident(method_call).is_some()
-            && matches!(method_call.method.to_string().as_str(), "push" | "insert")
+        if method_call_receiver_ident(method_call)
+            .is_some_and(|receiver| self.collection_accumulators.contains(&receiver.to_string()))
+            && method_call.method == "push"
+            && method_call.args.len() == 1
+            && method_call
+                .args
+                .first()
+                .is_some_and(collection_push_argument_is_simple_transform)
         {
             self.signals.collection_accumulator = true;
         }
@@ -200,10 +279,69 @@ impl<'ast> Visit<'ast> for ManualLoopBodySignalCollector {
     fn visit_expr_loop(&mut self, _loop: &'ast syn::ExprLoop) {}
 
     fn visit_expr_while(&mut self, _loop: &'ast syn::ExprWhile) {}
+
+    fn visit_expr_closure(&mut self, _closure: &'ast syn::ExprClosure) {}
 }
 
 fn method_call_receiver_ident(method_call: &syn::ExprMethodCall) -> Option<&syn::Ident> {
     expr_path_ident(&method_call.receiver)
+}
+
+fn collection_accumulator_binding(local: &syn::Local) -> Option<String> {
+    let syn::Pat::Ident(binding) = &local.pat else {
+        return None;
+    };
+    binding.mutability.as_ref()?;
+    let initializer = local.init.as_ref()?;
+    collection_initializer_expr(&initializer.expr).then(|| binding.ident.to_string())
+}
+
+fn collection_initializer_expr(expr: &syn::Expr) -> bool {
+    match expr {
+        syn::Expr::Array(array) => array.elems.is_empty(),
+        syn::Expr::Call(call) => expr_path_ends_with(call.func.as_ref(), &["Vec", "new"]),
+        syn::Expr::Macro(macro_expr) => macro_expr.mac.path.is_ident("vec"),
+        _ => false,
+    }
+}
+
+fn collection_push_argument_is_simple_transform(expr: &syn::Expr) -> bool {
+    match expr {
+        syn::Expr::Path(_) | syn::Expr::Field(_) | syn::Expr::Index(_) => true,
+        syn::Expr::Paren(paren) => collection_push_argument_is_simple_transform(&paren.expr),
+        syn::Expr::Reference(reference) => {
+            collection_push_argument_is_simple_transform(&reference.expr)
+        }
+        syn::Expr::Unary(unary) => collection_push_argument_is_simple_transform(&unary.expr),
+        syn::Expr::Binary(binary) => {
+            collection_push_argument_is_simple_transform(&binary.left)
+                || collection_push_argument_is_simple_transform(&binary.right)
+        }
+        syn::Expr::MethodCall(method_call)
+            if matches!(
+                method_call.method.to_string().as_str(),
+                "clone" | "copied" | "to_owned" | "to_string"
+            ) =>
+        {
+            collection_push_argument_is_simple_transform(&method_call.receiver)
+        }
+        _ => false,
+    }
+}
+
+fn expr_path_ends_with(expr: &syn::Expr, expected: &[&str]) -> bool {
+    let syn::Expr::Path(path) = expr else {
+        return false;
+    };
+    if path.path.segments.len() < expected.len() {
+        return false;
+    }
+    path.path
+        .segments
+        .iter()
+        .rev()
+        .zip(expected.iter().rev())
+        .all(|(segment, expected)| segment.ident == *expected)
 }
 
 fn expr_path_ident(expr: &syn::Expr) -> Option<&syn::Ident> {
@@ -233,9 +371,9 @@ fn expr_is_bool_literal(expr: &syn::Expr) -> bool {
     matches!(literal.lit, syn::Lit::Bool(_))
 }
 
-fn repeated_iterator_source_loop_count(item_fn: &syn::ItemFn) -> usize {
+fn repeated_iterator_source_loop_count(block: &syn::Block) -> usize {
     let mut collector = ForLoopIteratorCollector::default();
-    collector.visit_block(&item_fn.block);
+    collector.visit_block(block);
     collector.repeated_loop_count()
 }
 
@@ -280,9 +418,9 @@ fn simple_iterator_source(expr: &syn::Expr) -> Option<String> {
     }
 }
 
-fn literal_dispatch_chain_count(item_fn: &syn::ItemFn) -> usize {
+fn literal_dispatch_chain_count(block: &syn::Block) -> usize {
     let mut collector = LiteralDispatchChainCollector::default();
-    collector.visit_block(&item_fn.block);
+    collector.visit_block(block);
     collector.chain_count
 }
 
@@ -371,8 +509,8 @@ fn expr_is_literal(expr: &syn::Expr) -> bool {
     matches!(expr, syn::Expr::Lit(_))
 }
 
-fn item_line_span(item_fn: &syn::ItemFn) -> usize {
-    let span = item_fn.span();
+fn item_line_span(item: &impl Spanned) -> usize {
+    let span = item.span();
     let start = span.start().line.max(1);
     let end = span.end().line.max(start);
     end - start + 1

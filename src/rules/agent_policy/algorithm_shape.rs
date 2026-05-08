@@ -9,13 +9,16 @@ use crate::{RustHarnessFinding, RustHarnessRule};
 
 use crate::rules::display_path;
 
-use super::{AGENT_R015, AGENT_R016, AGENT_R017};
+use super::{AGENT_R015, AGENT_R016, AGENT_R017, AGENT_R025, AGENT_R026};
 
 const MAX_LINEAR_NESTING_DEPTH: usize = 2;
 const MAX_NATIVE_IDIOM_NESTING_DEPTH: usize = 2;
 const MIN_BROAD_FUNCTION_LINES: usize = 72;
 const MIN_BROAD_FUNCTION_STATEMENTS: usize = 22;
 const MIN_LINEAR_BLOCK_STATEMENTS: usize = 14;
+const MIN_INTERNAL_TRAVERSAL_NESTING_DEPTH: usize = 4;
+const MIN_INTERNAL_TRAVERSAL_LOOP_NESTING_DEPTH: usize = 2;
+const MIN_INTERNAL_TRAVERSAL_BRANCH_COUNT: usize = 2;
 
 pub(super) fn algorithm_shape_findings(
     modules: &[&ParsedRustModule],
@@ -27,6 +30,8 @@ pub(super) fn algorithm_shape_findings(
             let mut findings = Vec::new();
             findings.extend(nested_algorithm_findings(module, rules));
             findings.extend(broad_linear_algorithm_findings(module, rules));
+            findings.extend(implementation_traversal_findings(module, rules));
+            findings.extend(implementation_iterator_idiom_findings(module, rules));
             findings
         })
         .collect()
@@ -133,6 +138,71 @@ fn broad_linear_algorithm_findings(
         .collect()
 }
 
+fn implementation_traversal_findings(
+    module: &ParsedRustModule,
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let rule = &rules[AGENT_R025];
+    module
+        .syntax_facts
+        .all_function_control_flows
+        .iter()
+        .filter(|control_flow| !control_flow.is_public)
+        .filter(|control_flow| !control_flow.is_test_context)
+        .filter_map(|control_flow| {
+            let profile = implementation_traversal_profile(control_flow);
+            if profile.is_empty() {
+                return None;
+            }
+            Some(RustHarnessFinding::from_rule(
+                rule,
+                format!(
+                    "{} implementation function `{}` nests traversal scaffolding. Signals: {}.",
+                    display_path(&module.report.path),
+                    control_flow.function_name,
+                    profile.join(", ")
+                ),
+                path_line_location(&module.report.path, control_flow.line),
+                source_line(&module.source, control_flow.line),
+                "extract this traversal into named iterator, predicate, or receipt-processing helpers",
+            ))
+        })
+        .collect()
+}
+
+fn implementation_iterator_idiom_findings(
+    module: &ParsedRustModule,
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let rule = &rules[AGENT_R026];
+    module
+        .syntax_facts
+        .all_function_control_flows
+        .iter()
+        .filter(|control_flow| !control_flow.is_public)
+        .filter(|control_flow| !control_flow.is_test_context)
+        .filter(|control_flow| implementation_traversal_profile(control_flow).is_empty())
+        .filter_map(|control_flow| {
+            let profile = native_iterator_idiom_profile(control_flow);
+            if profile.is_empty() {
+                return None;
+            }
+            Some(RustHarnessFinding::from_rule(
+                rule,
+                format!(
+                    "{} implementation function `{}` manually spells iterator boilerplate. Signals: {}.",
+                    display_path(&module.report.path),
+                    control_flow.function_name,
+                    profile.join(", ")
+                ),
+                path_line_location(&module.report.path, control_flow.line),
+                source_line(&module.source, control_flow.line),
+                "extract this loop into Rust iterator adapters or a named helper",
+            ))
+        })
+        .collect()
+}
+
 fn nested_algorithm_profile(control_flow: &RustFunctionControlFlowSyntax) -> Vec<&'static str> {
     let mut signals = Vec::new();
     if control_flow.max_nesting_depth >= 4 {
@@ -146,6 +216,22 @@ fn nested_algorithm_profile(control_flow: &RustFunctionControlFlowSyntax) -> Vec
     }
     if control_flow.branch_count >= 8 && control_flow.match_count == 0 {
         signals.push("large branch surface without match");
+    }
+    signals
+}
+
+fn implementation_traversal_profile(
+    control_flow: &RustFunctionControlFlowSyntax,
+) -> Vec<&'static str> {
+    let mut signals = Vec::new();
+    if control_flow.max_nesting_depth >= MIN_INTERNAL_TRAVERSAL_NESTING_DEPTH
+        && control_flow.max_loop_nesting_depth >= MIN_INTERNAL_TRAVERSAL_LOOP_NESTING_DEPTH
+        && control_flow.branch_count >= MIN_INTERNAL_TRAVERSAL_BRANCH_COUNT
+    {
+        signals.push("nested loops guarded by branches");
+    }
+    if control_flow.repeated_iterator_source_loop_count > 0 && control_flow.branch_count >= 2 {
+        signals.push("repeated guarded scans over one source");
     }
     signals
 }
