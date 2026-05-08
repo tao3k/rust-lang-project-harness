@@ -5,6 +5,7 @@
 //! reusable Cargo test gate.
 
 mod agent_snapshot;
+mod build_gate;
 mod cli;
 mod discovery;
 mod macros;
@@ -51,6 +52,11 @@ mod parser_native_syntax_data_shape_tests;
 pub use agent_snapshot::{
     render_rust_project_harness_agent_snapshot,
     render_rust_project_harness_agent_snapshot_with_config,
+};
+pub use build_gate::{
+    assert_rust_project_harness_build_clean, assert_rust_project_harness_build_clean_from_env,
+    assert_rust_project_harness_build_clean_from_env_with_config,
+    assert_rust_project_harness_build_clean_with_config,
 };
 pub use cli::run_cli_from_env;
 pub use discovery::{DEFAULT_IGNORED_DIR_NAMES, discover_rust_files, rust_project_harness_scope};
