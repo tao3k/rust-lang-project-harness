@@ -21,8 +21,8 @@ a project scope.
 ## Self-Apply Policy
 
 This crate applies the default project harness to itself. `src/self_policy.rs`
-mounts the embedded cargo-test gate for the library target. That single
-source-backed gate covers `cargo test --lib` and ordinary `cargo test`, which
+mounts the embedded cargo-test gate for the library target. That source-backed
+gate covers unfiltered `cargo test --lib` and ordinary `cargo test` runs, which
 keeps the harness rules honest before downstream projects inherit them.
 
 Default assertions treat `Warning` and `Error` findings as blocking. `Info`
@@ -45,9 +45,31 @@ Then mount the cargo-test gate from `src/lib.rs`:
 rust_lang_project_harness::rust_project_harness_cargo_test_gate!();
 ```
 
-Because the mount lives in the library test build, both `cargo test` and
+Because the mount lives in the library test build, unfiltered `cargo test` and
 `cargo test --lib` execute the project harness. The `#[cfg(test)]` guard keeps
-normal `cargo build` free of the dev-dependency.
+normal `cargo build` free of the dev-dependency. Cargo test-name filters can
+still skip any `#[test]` function, including this gate, so latency-sensitive
+projects should add the build-time gate below when quick targeted checks must
+not bypass project policy.
+
+For filter-proof enforcement, add the harness as a build-dependency and call the
+build gate from a thin `build.rs`:
+
+```toml
+[build-dependencies]
+rust-lang-project-harness = { git = "https://github.com/tao3k/rust-lang-project-harness", branch = "main" }
+```
+
+```rust,ignore
+fn main() {
+    rust_lang_project_harness::assert_rust_project_harness_build_clean_from_env();
+}
+```
+
+Build-script gates run before libtest applies name filters. They block
+configured `Warning` and `Error` findings and emit Cargo `rerun-if-changed`
+directives for conventional Rust project inputs, so source edits re-run the
+gate even when a developer invokes a narrow filtered test.
 
 Standalone Cargo test targets can also mount the direct gate when a project does
 not have a source-backed cargo-test gate:
