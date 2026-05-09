@@ -3,7 +3,7 @@ source: tests/unit/mod_policy_snapshot.rs
 expression: rendered
 ---
 [RUST-MOD-R009] Warning: Source file is orphaned from the module tree
-   ,-[ $TEMP/src/forgotten.rs:1:1 ]
-   | attach this file with a parent mod declaration or remove it
-   |Help: $TEMP/src/forgotten.rs is not reachable from a crate or binary module tree.
-   |Contract: Every scanned source file must be reachable from a crate or binary root through external mod declarations.
+@ $TEMP/src/forgotten.rs:1:1
+fix: attach this file with a parent mod declaration or remove it
+Help: $TEMP/src/forgotten.rs is not reachable from a crate or binary module tree.
+Contract: Every scanned source file must be reachable from a crate or binary root through external mod declarations.

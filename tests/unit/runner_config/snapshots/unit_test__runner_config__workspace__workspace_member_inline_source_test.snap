@@ -3,8 +3,8 @@ source: tests/unit/runner_config/workspace.rs
 expression: rendered
 ---
 [RUST-PROJ-R003] Warning: Inline source test module
-   ,-[ $TEMP/crates/inline/src/lib.rs:2:1 ]
- 2 | #[cfg(test)] mod tests { #[test] fn it_works() {} }
-   | `- move this test module to tests/unit and mount it with #[path]
-   |Help: $TEMP/crates/inline/src/lib.rs contains inline #[cfg(test)] module `tests`.
-   |Contract: Keep test bodies out of src files; mount source-backed unit tests from tests/unit with #[path].
+@ $TEMP/crates/inline/src/lib.rs:2:1
+fix: move this test module to tests/unit and mount it with #[path]
+line: 2 | #[cfg(test)] mod tests { #[test] fn it_works() {} }
+Help: $TEMP/crates/inline/src/lib.rs contains inline #[cfg(test)] module `tests`.
+Contract: Keep test bodies out of src files; mount source-backed unit tests from tests/unit with #[path].

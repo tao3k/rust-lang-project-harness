@@ -3,8 +3,8 @@ source: tests/unit/mod_policy_snapshot.rs
 expression: rendered
 ---
 [RUST-MOD-R006] Warning: Build script contains implementation
-   ,-[ $TEMP/build.rs:2:1 ]
- 2 | fn helper() {}
-   | `- move build script implementation out of build.rs into a build dependency
-   |Help: $TEMP/build.rs contains implementation item `fn` inside build.rs.
-   |Contract: Keep root build.rs as a thin Cargo build-script entrypoint with use declarations and fn main only.
+@ $TEMP/build.rs:2:1
+fix: move build script implementation out of build.rs into a build dependency
+line: 2 | fn helper() {}
+Help: $TEMP/build.rs contains implementation item `fn` inside build.rs.
+Contract: Keep root build.rs as a thin Cargo build-script entrypoint with use declarations and fn main only.

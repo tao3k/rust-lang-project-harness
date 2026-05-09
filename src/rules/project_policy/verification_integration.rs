@@ -12,6 +12,7 @@ use crate::verification::{
 };
 use crate::{RustHarnessConfig, RustHarnessFinding, RustHarnessRule};
 
+use super::build_gate::{module_default_build_gate_call_lines, root_build_script_module};
 use super::support::display_project_path;
 use super::{RUST_PROJ_R010, RUST_PROJ_R011};
 
@@ -27,6 +28,11 @@ pub(super) fn verification_integration_findings(
     findings.extend(empty_verification_config_gate_findings(
         project_root,
         reasoning_tree,
+        modules,
+        rules,
+    ));
+    findings.extend(empty_build_gate_config_findings(
+        project_root,
         modules,
         rules,
     ));
@@ -53,6 +59,31 @@ pub(super) fn verification_integration_findings(
         "add a Criterion, Divan, or iai-callgrind [[bench]] target and keep the verification contract command pointed at it",
     ));
     findings
+}
+
+fn empty_build_gate_config_findings(
+    project_root: &Path,
+    modules: &[ParsedRustModule],
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let Some(module) = root_build_script_module(project_root, modules) else {
+        return Vec::new();
+    };
+    let rule = &rules[RUST_PROJ_R011];
+    module_default_build_gate_call_lines(module)
+        .map(|line| {
+            RustHarnessFinding::from_rule(
+                rule,
+                format!(
+                    "{} mounts the build-time harness gate without explicit verification config.",
+                    display_project_path(project_root, &module.report.path)
+                ),
+                path_line_location(&module.report.path, line),
+                source_line(&module.source, line),
+                "use assert_rust_project_harness_build_clean_from_env_with_config(...) and declare verification profile hints, explicit suppressions, or skill bindings",
+            )
+        })
+        .collect()
 }
 
 fn empty_verification_config_gate_findings(

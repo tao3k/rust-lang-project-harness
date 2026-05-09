@@ -104,10 +104,11 @@ The default renderer includes non-blocking advice after the blocking section.
 Projects with only `Info` findings remain clean, but the compact advice remains
 visible to repair-oriented agents.
 
-Finding text renders as a compact repair card: source pointer label, `Help:`
-from the concrete finding summary, and `Contract:` from the stable rule
-requirement. Structured consumers should keep using the serializable
-`RustHarnessReport` fields or `render_rust_project_harness_json()` for JSON
+Finding text renders as a compact repair card: `@ path:line:column`, `fix:`,
+source line when available, `Help:` from the concrete finding summary, and
+`Contract:` from the stable rule requirement. Structured consumers should keep
+using the serializable `RustHarnessReport` fields or
+`render_rust_project_harness_json()` for JSON
 output instead of parsing compact text.
 
 The CLI follows the same render contract: compact text is default, `--json`

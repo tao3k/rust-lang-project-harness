@@ -42,7 +42,9 @@ Then mount the cargo-test gate from `src/lib.rs`:
 
 ```rust
 #[cfg(test)]
-rust_lang_project_harness::rust_project_harness_cargo_test_gate!();
+rust_lang_project_harness::rust_project_harness_cargo_test_gate!(config = {
+    rust_lang_project_harness::default_rust_harness_config()
+});
 ```
 
 Because the mount lives in the library test build, unfiltered `cargo test` and
@@ -62,7 +64,10 @@ rust-lang-project-harness = { git = "https://github.com/tao3k/rust-lang-project-
 
 ```rust,ignore
 fn main() {
-    rust_lang_project_harness::assert_rust_project_harness_build_clean_from_env();
+    let config = rust_lang_project_harness::default_rust_harness_config();
+    rust_lang_project_harness::assert_rust_project_harness_build_clean_from_env_with_config(
+        &config,
+    );
 }
 ```
 
@@ -70,6 +75,10 @@ Build-script gates run before libtest applies name filters. They block
 configured `Warning` and `Error` findings and emit Cargo `rerun-if-changed`
 directives for conventional Rust project inputs, so source edits re-run the
 gate even when a developer invokes a narrow filtered test.
+When a harness-enabled package already has root `build.rs`, or already declares
+the harness as a build-dependency, `RUST-PROJ-R012` reports an incomplete build
+gate so the next Agent can finish the configuration during cargo test feedback.
+A complete build gate is allowed to replace the source cargo-test gate.
 
 Standalone Cargo test targets can also mount the direct gate when a project does
 not have a source-backed cargo-test gate:
@@ -78,9 +87,9 @@ not have a source-backed cargo-test gate:
 rust_lang_project_harness::rust_project_harness_gate!();
 ```
 
-That covers a narrow test target directly. For library crates, prefer the
-source-backed cargo-test gate so one mount covers both `cargo test` and `cargo
-test --lib`.
+That covers a narrow test target directly. For library crates without a
+build-time gate, prefer the source-backed cargo-test gate so one mount covers
+both `cargo test` and `cargo test --lib`.
 
 ### Why `RUST-PROJ-R009` Exists
 
@@ -105,10 +114,11 @@ path = "../rust-lang-project-harness"
 
 The dependency key can be local to the downstream project, but the package
 identity remains `rust-lang-project-harness`. Once that direct evidence exists,
-the library target must mount `rust_project_harness_cargo_test_gate!()` from the
-source tree so `cargo test --lib` cannot bypass project policy.
-When that source-backed gate exists, root Cargo test targets can remain thin
-suite aggregates without mounting another gate.
+the package must expose either a source-tree
+`rust_project_harness_cargo_test_gate!(config = ...)` mount or a complete
+build-time harness gate so `cargo test --lib` cannot bypass project policy.
+When either gate exists, root Cargo test targets can remain thin suite
+aggregates without mounting another gate.
 
 The lower-level assertion API is available when a custom test shape is needed:
 
@@ -387,12 +397,12 @@ project execution runs these packs in descriptor order:
 - `rust.syntax`: blocks files that cannot be parsed by `syn`
 - `rust.project_policy`: checks test layout, explicit test mounts, gate coverage, and thin root test targets
 - `rust.modularity`: checks `lib.rs`/`mod.rs` facades, thin binary/build entrypoints, and source-shape drift
-- `rust.agent_policy`: emits `AGENT-R001..R014` non-blocking advice for LLM repair
+- `rust.agent_policy`: emits `AGENT-R001..R028` non-blocking advice for LLM repair
 
 Rendered diagnostics are intentionally agent-first, not human audit reports.
 When there are findings, compact text starts directly at the rule block: rule
-id, source location, highlighted source line when available, one short source
-pointer, `Help:`, and `Contract:`. It does not prepend global `Source`,
+id, `@ path:line:column` locator, `fix:`, source line when available, `Help:`,
+and `Contract:`. It does not prepend global `Source`,
 `Files`, `Parsed`, `Issues`, or `No blocking issues` headers. A fully clean run
 uses only the minimal `[ok] rust` success signal. Structured audit consumers
 should keep using the serializable `RustHarnessReport` shape through

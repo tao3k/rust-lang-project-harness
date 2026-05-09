@@ -3,8 +3,8 @@ source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
 [AGENT-R018] Info: Public function exposes multiple flag parameters
-   ,-[ $TEMP/src/api.rs:3:1 ]
- 3 | pub fn load_users(include_inactive: bool, allow_cache: Option<bool>, limit: usize) {}
-   | `- replace these public flags with a typed mode or config surface
-   |Help: $TEMP/src/api.rs exposes public function `load_users` with multiple flag parameters: include_inactive: bool, allow_cache: Option<bool>.
-   |Contract: Replace multiple public `bool` or `Option<bool>` parameters with a named enum, newtype, or config struct so agents can preserve mode semantics without reading every branch.
+@ $TEMP/src/api.rs:3:1
+fix: replace these public flags with a typed mode or config surface
+line: 3 | pub fn load_users(include_inactive: bool, allow_cache: Option<bool>, limit: usize) {}
+Help: $TEMP/src/api.rs exposes public function `load_users` with multiple flag parameters: include_inactive: bool, allow_cache: Option<bool>.
+Contract: Replace multiple public `bool` or `Option<bool>` parameters with a named enum, newtype, or config struct so agents can preserve mode semantics without reading every branch.

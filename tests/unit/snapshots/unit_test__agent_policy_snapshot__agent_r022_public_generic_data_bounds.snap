@@ -3,8 +3,8 @@ source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
 [AGENT-R022] Info: Public generic data type carries duplicated derivable bounds
-   ,-[ $TEMP/src/api.rs:3:1 ]
- 3 | pub struct CacheEntry<T: Clone + std::fmt::Debug>
-   | `- move these bounds to derived impls, inherent impls, or methods that actually require them
-   |Help: $TEMP/src/api.rs exposes public struct `CacheEntry` with duplicated data-type bounds: T: Clone, T: Debug, T: Default.
-   |Contract: Move derivable or formatting trait bounds off public data type definitions and onto the impl or methods that need them so agents do not over-constrain the API contract.
+@ $TEMP/src/api.rs:3:1
+fix: move these bounds to derived impls, inherent impls, or methods that actually require them
+line: 3 | pub struct CacheEntry<T: Clone + std::fmt::Debug>
+Help: $TEMP/src/api.rs exposes public struct `CacheEntry` with duplicated data-type bounds: T: Clone, T: Debug, T: Default.
+Contract: Move derivable or formatting trait bounds off public data type definitions and onto the impl or methods that need them so agents do not over-constrain the API contract.

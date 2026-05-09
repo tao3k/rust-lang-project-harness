@@ -1,0 +1,9 @@
+---
+source: tests/unit/path_policy/project/build_gate.rs
+expression: rendered
+---
+[RUST-PROJ-R012] Warning: Build-time harness gate is incomplete
+@ $TEMP/build.rs:1:1
+fix: add the harness to [build-dependencies] and call rust_lang_project_harness::assert_rust_project_harness_build_clean_from_env_with_config(...) from build.rs
+Help: build.rs exists in a harness-enabled project but does not mount the build-time harness gate.
+Contract: When a harness-enabled package has a root build.rs or a harness build-dependency, mount the build-time harness gate so filtered cargo test runs cannot bypass project policy.

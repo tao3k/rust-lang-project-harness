@@ -3,15 +3,15 @@ source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
 [AGENT-R004] Info: Public item name conflicts across namespaces
-   ,-[ $TEMP/src/alpha.rs:2:1 ]
- 2 | /// Alpha handle.
-   | `- rename or namespace this public item so the owner is unambiguous
-   |Help: Public item `Handle` appears in multiple Rust modules and may be ambiguous for agents.
-   |Contract: Give project-level public items unambiguous names or move them behind a clear domain namespace.
+@ $TEMP/src/alpha.rs:2:1
+fix: rename or namespace this public item so the owner is unambiguous
+line: 2 | /// Alpha handle.
+Help: Public item `Handle` appears in multiple Rust modules and may be ambiguous for agents.
+Contract: Give project-level public items unambiguous names or move them behind a clear domain namespace.
 
 [AGENT-R004] Info: Public item name conflicts across namespaces
-   ,-[ $TEMP/src/beta.rs:2:1 ]
- 2 | /// Beta handle.
-   | `- rename or namespace this public item so the owner is unambiguous
-   |Help: Public item `Handle` appears in multiple Rust modules and may be ambiguous for agents.
-   |Contract: Give project-level public items unambiguous names or move them behind a clear domain namespace.
+@ $TEMP/src/beta.rs:2:1
+fix: rename or namespace this public item so the owner is unambiguous
+line: 2 | /// Beta handle.
+Help: Public item `Handle` appears in multiple Rust modules and may be ambiguous for agents.
+Contract: Give project-level public items unambiguous names or move them behind a clear domain namespace.

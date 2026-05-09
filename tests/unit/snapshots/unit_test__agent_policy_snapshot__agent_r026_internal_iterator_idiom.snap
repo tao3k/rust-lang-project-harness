@@ -3,8 +3,8 @@ source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
 [AGENT-R026] Info: Implementation function manually spells an iterator transform
-   ,-[ $TEMP/src/receipt.rs:3:1 ]
- 3 | fn failed_query_names(queries: &[QueryReceipt]) -> Vec<String> {
-   | `- extract this loop into Rust iterator adapters or a named helper
-   |Help: $TEMP/src/receipt.rs implementation function `failed_query_names` manually spells iterator boilerplate. Signals: manual collection accumulator loop.
-   |Contract: Use Rust iterator adapters or a named iterator helper when internal loops only map, filter, collect, count, sum, answer a predicate, or repeatedly scan the same iterator source.
+@ $TEMP/src/receipt.rs:3:1
+fix: extract this loop into Rust iterator adapters or a named helper
+line: 3 | fn failed_query_names(queries: &[QueryReceipt]) -> Vec<String> {
+Help: $TEMP/src/receipt.rs implementation function `failed_query_names` manually spells iterator boilerplate. Signals: manual collection accumulator loop.
+Contract: Use Rust iterator adapters or a named iterator helper when internal loops only map, filter, collect, count, sum, answer a predicate, or repeatedly scan the same iterator source.

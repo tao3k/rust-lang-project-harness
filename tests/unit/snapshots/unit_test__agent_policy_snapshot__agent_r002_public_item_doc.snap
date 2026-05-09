@@ -3,8 +3,8 @@ source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
 [AGENT-R002] Info: Public item lacks a doc comment
-   ,-[ $TEMP/src/owned.rs:2:1 ]
- 2 | pub struct MissingDoc;
-   | `- add a doc comment using clippy::doc_markdown style
-   |Help: $TEMP/src/owned.rs exposes public item `MissingDoc` without a doc comment.
-   |Contract: Document public Rust boundaries using `clippy::doc_markdown` style so agents can reason from native syntax without guessing intent.
+@ $TEMP/src/owned.rs:2:1
+fix: add a doc comment using clippy::doc_markdown style
+line: 2 | pub struct MissingDoc;
+Help: $TEMP/src/owned.rs exposes public item `MissingDoc` without a doc comment.
+Contract: Document public Rust boundaries using `clippy::doc_markdown` style so agents can reason from native syntax without guessing intent.

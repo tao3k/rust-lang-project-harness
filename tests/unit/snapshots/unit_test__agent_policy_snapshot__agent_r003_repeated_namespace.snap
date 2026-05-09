@@ -3,7 +3,7 @@ source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
 [AGENT-R003] Info: Namespace path repeats a segment
-   ,-[ $TEMP/src/domain/domain.rs:1:1 ]
-   | rename the deepest repeated path segment to its real responsibility
-   |Help: src/domain/domain repeats namespace segment(s): domain.
-   |Contract: Keep Rust module namespaces branch-unique, including file stems; rename repeated path segments so agents see one clear ownership path.
+@ $TEMP/src/domain/domain.rs:1:1
+fix: rename the deepest repeated path segment to its real responsibility
+Help: src/domain/domain repeats namespace segment(s): domain.
+Contract: Keep Rust module namespaces branch-unique, including file stems; rename repeated path segments so agents see one clear ownership path.

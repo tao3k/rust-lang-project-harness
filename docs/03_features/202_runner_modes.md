@@ -57,6 +57,25 @@ once the library target mounts a configured
 `rust_project_harness_cargo_test_gate!(config = ...)`. That source-embedded
 gate covers ordinary `cargo test` and closes the `cargo test --lib` escape path.
 
+Packages that need filter-proof enforcement can instead mount a configured
+build-time gate from root `build.rs`:
+
+```rust
+fn main() {
+    let config = rust_lang_project_harness::default_rust_harness_config();
+    rust_lang_project_harness::assert_rust_project_harness_build_clean_from_env_with_config(
+        &config,
+    );
+}
+```
+
+The build gate requires `rust-lang-project-harness` under
+`[build-dependencies]`. Once both the build-dependency and native function call
+are present, that gate satisfies the root-test and `cargo test --lib` harness
+requirements. `RUST-PROJ-R012` reports the partial states: a harness-enabled
+package with root `build.rs` but no build gate, or a harness build-dependency
+without the root build-script call.
+
 The cargo-test gate treats non-blocking `rust.agent_policy` advice as test
 feedback by default. The core project runner still keeps `Info` findings
 non-blocking, but `cargo test` normally hides passing test output, so the
@@ -86,8 +105,9 @@ rust_lang_project_harness::rust_project_harness_cargo_test_gate!(
 ```
 
 Harness-enabled library projects are checked by `RUST-PROJ-R009`: once the
-project has the harness dependency or another harness gate, a `src/lib.rs`
-target must also expose a cargo-test gate from the source tree.
+project has the harness dependency or another harness gate, either a `src/lib.rs`
+target must expose a cargo-test gate from the source tree, or root `build.rs`
+must expose a complete build-time gate.
 
 ## Configuration
 

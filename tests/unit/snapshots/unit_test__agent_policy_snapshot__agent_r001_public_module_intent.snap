@@ -3,8 +3,8 @@ source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
 [AGENT-R001] Info: Public module lacks an intent doc
-   ,-[ $TEMP/src/lib.rs:1:1 ]
- 1 | pub fn public_api() {}
-   | `- add a module intent doc using doc_markdown style
-   |Help: $TEMP/src/lib.rs has public Rust surface without a module intent doc.
-   |Contract: Add a concise `//!` module-level intent doc using `clippy::doc_markdown` style, with technical identifiers in backticks.
+@ $TEMP/src/lib.rs:1:1
+fix: add a module intent doc using doc_markdown style
+line: 1 | pub fn public_api() {}
+Help: $TEMP/src/lib.rs has public Rust surface without a module intent doc.
+Contract: Add a concise `//!` module-level intent doc using `clippy::doc_markdown` style, with technical identifiers in backticks.

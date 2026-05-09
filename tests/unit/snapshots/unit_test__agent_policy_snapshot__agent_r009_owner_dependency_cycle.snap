@@ -3,8 +3,8 @@ source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
 [AGENT-R009] Info: Owner dependency cycle crosses branches
-   ,-[ $TEMP/src/alpha.rs:2:1 ]
- 2 | use crate::beta::Beta;
-   | `- break the cycle by moving the shared contract behind one owner boundary
-   |Help: Owner dependency cycle crosses src/alpha.rs -> src/beta.rs -> src/alpha.rs.
-   |Contract: Keep owner dependency edges acyclic so agents can follow the reasoning tree without circular repair ownership.
+@ $TEMP/src/alpha.rs:2:1
+fix: break the cycle by moving the shared contract behind one owner boundary
+line: 2 | use crate::beta::Beta;
+Help: Owner dependency cycle crosses src/alpha.rs -> src/beta.rs -> src/alpha.rs.
+Contract: Keep owner dependency edges acyclic so agents can follow the reasoning tree without circular repair ownership.

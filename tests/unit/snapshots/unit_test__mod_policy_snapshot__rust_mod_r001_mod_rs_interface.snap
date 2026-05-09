@@ -3,8 +3,8 @@ source: tests/unit/mod_policy_snapshot.rs
 expression: rendered
 ---
 [RUST-MOD-R001] Warning: mod.rs contains implementation
-   ,-[ $TEMP/src/domain/mod.rs:2:1 ]
- 2 | mod leaf { fn helper() {} }
-   | `- move implementation out of mod.rs into an owned leaf module
-   |Help: $TEMP/src/domain/mod.rs contains implementation item `mod` inside mod.rs.
-   |Contract: Keep mod.rs as an interface file with module declarations and re-exports only.
+@ $TEMP/src/domain/mod.rs:2:1
+fix: move implementation out of mod.rs into an owned leaf module
+line: 2 | mod leaf { fn helper() {} }
+Help: $TEMP/src/domain/mod.rs contains implementation item `mod` inside mod.rs.
+Contract: Keep mod.rs as an interface file with module declarations and re-exports only.

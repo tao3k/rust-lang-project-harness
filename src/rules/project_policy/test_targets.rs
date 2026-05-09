@@ -9,6 +9,7 @@ use crate::parser::{
 };
 use crate::{RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
+use super::build_gate::project_has_complete_build_gate;
 use super::config::{LayoutPolicy, is_allowed_test_suite_path};
 use super::support::display_project_path;
 use super::{RUST_PROJ_R006, RUST_PROJ_R007, RUST_PROJ_R008, RUST_PROJ_R009};
@@ -18,9 +19,12 @@ pub(super) fn test_target_gate_findings(
     project_root: &Path,
     modules: &[ParsedRustModule],
     cargo_test_targets: &[ParsedRustModule],
+    cargo_manifest: &CargoManifestFacts,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    if source_tree_contains_cargo_test_gate(reasoning_tree, modules) {
+    if source_tree_contains_cargo_test_gate(reasoning_tree, modules)
+        || project_has_complete_build_gate(project_root, cargo_manifest, modules)
+    {
         return Vec::new();
     }
 
@@ -59,6 +63,7 @@ pub(super) fn library_cargo_test_gate_findings(
     };
     if !project_uses_harness_gate(cargo_manifest, modules)
         || source_tree_contains_cargo_test_gate(reasoning_tree, modules)
+        || project_has_complete_build_gate(&scope.project_root, cargo_manifest, modules)
     {
         return Vec::new();
     }

@@ -88,9 +88,11 @@ module-tree facts under `src/parser/` before `RUST-MOD-R007` and
 
 The package is also self-hosted by its own default policy. The library target
 mounts `rust_project_harness_cargo_test_gate!` from `src/self_policy.rs`. That
-single source-backed gate covers `cargo test --lib` and ordinary `cargo test`
-runs while keeping policy changes subject to the same gate downstream projects
-consume.
+source-backed gate covers unfiltered `cargo test --lib` and ordinary
+`cargo test` runs while keeping policy changes subject to the same gate
+downstream projects consume. Downstream packages that need filter-proof
+enforcement can instead mount the build-time gate from root `build.rs`; a
+complete build gate satisfies the same project-gate contract.
 Cargo-test embedding is intentionally stricter than the raw library runner:
 `rust.agent_policy` findings remain `Info`, but the default cargo-test gate
 fails on compact agent advice so the next repair agent can see and enrich the
@@ -100,9 +102,10 @@ the relevant rule surface, or by using an explicit
 `advice = allow, config = { ... }` waiver.
 
 New source-backed test modules should stay under `tests/unit` and be mounted
-with `#[path]`. Harness-enabled library crates should mount
-`rust_project_harness_cargo_test_gate!` from a `#[cfg(test)]` source module, or
-they will be reported by `RUST-PROJ-R009`; root test targets alone do not run
+with `#[path]`. Harness-enabled library crates should mount either
+`rust_project_harness_cargo_test_gate!(config = ...)` from a `#[cfg(test)]`
+source module or a complete build-time gate from root `build.rs`; otherwise
+they will be reported by `RUST-PROJ-R009`. Root test targets alone do not run
 under `cargo test --lib`.
 Root Cargo test targets are thin aggregates: they should mount external suite
 modules only, while test bodies and helpers belong in suite files under

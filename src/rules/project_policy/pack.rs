@@ -5,6 +5,7 @@ use crate::parser::{
 };
 use crate::{RustHarnessConfig, RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
+use super::build_gate::build_gate_findings;
 use super::catalog::rules_by_id;
 use super::config::load_layout_policy;
 use super::source_tests::source_test_mount_findings;
@@ -28,6 +29,7 @@ pub(crate) const RUST_PROJ_R008: &str = "RUST-PROJ-R008";
 pub(crate) const RUST_PROJ_R009: &str = "RUST-PROJ-R009";
 pub(crate) const RUST_PROJ_R010: &str = "RUST-PROJ-R010";
 pub(crate) const RUST_PROJ_R011: &str = "RUST-PROJ-R011";
+pub(crate) const RUST_PROJ_R012: &str = "RUST-PROJ-R012";
 
 pub(crate) const MAX_UNIT_TEST_EFFECTIVE_LINES: usize = 260;
 pub(crate) const MIN_UNIT_TEST_FUNCTIONS: usize = 8;
@@ -69,6 +71,7 @@ pub(crate) fn evaluate(
         &scope.project_root,
         modules,
         &cargo_test_targets,
+        &cargo_manifest,
         &rules,
     ));
     findings.extend(test_target_aggregate_findings(
@@ -88,6 +91,12 @@ pub(crate) fn evaluate(
         config,
         modules,
         &cargo_manifest,
+        &rules,
+    ));
+    findings.extend(build_gate_findings(
+        &scope.project_root,
+        &cargo_manifest,
+        modules,
         &rules,
     ));
     findings

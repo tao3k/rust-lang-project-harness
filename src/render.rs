@@ -64,27 +64,22 @@ fn render_finding(finding: &RustHarnessFinding) -> String {
         .map_or_else(|| "<memory>".to_string(), |path| display_path(path));
     let display_column = finding.location.column + 1;
     let mut rendered = format!(
-        "[{}] {}: {}\n   ,-[ {path}:{}:{display_column} ]\n",
+        "[{}] {}: {}\n@ {path}:{}:{display_column}\n",
         finding.rule_id,
         title_case(finding.severity.as_str()),
         finding.title,
         finding.location.line
     );
+    let _ = writeln!(rendered, "fix: {}", finding.label);
     if let Some(source_line) = &finding.source_line {
-        let pointer_column = finding.location.column;
         let _ = writeln!(
             rendered,
-            "{:>2} | {}\n   | {}`- {}",
-            finding.location.line,
-            source_line,
-            " ".repeat(pointer_column),
-            finding.label
+            "line: {} | {}",
+            finding.location.line, source_line
         );
-    } else {
-        let _ = writeln!(rendered, "   | {}", finding.label);
     }
-    let _ = writeln!(rendered, "   |Help: {}", finding.summary);
-    let _ = writeln!(rendered, "   |Contract: {}", finding.requirement);
+    let _ = writeln!(rendered, "Help: {}", finding.summary);
+    let _ = writeln!(rendered, "Contract: {}", finding.requirement);
     rendered
 }
 

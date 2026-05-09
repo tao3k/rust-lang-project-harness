@@ -3,8 +3,8 @@ source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
 [AGENT-R028] Info: Public data model exposes a stringly state field
-   ,-[ $TEMP/src/api.rs:3:1 ]
- 3 | pub struct JobSnapshot {
-   | `- replace this stringly state surface with an enum, newtype, or typed catalog boundary
-   |Help: $TEMP/src/api.rs exposes public data struct `JobSnapshot` with stringly state fields: status: String.
-   |Contract: Use a public enum, newtype, or typed catalog boundary instead of `String` or `Option<String>` for public state, status, kind, mode, phase, type, tag, or category fields.
+@ $TEMP/src/api.rs:3:1
+fix: replace this stringly state surface with an enum, newtype, or typed catalog boundary
+line: 3 | pub struct JobSnapshot {
+Help: $TEMP/src/api.rs exposes public data struct `JobSnapshot` with stringly state fields: status: String.
+Contract: Use a public enum, newtype, or typed catalog boundary instead of `String` or `Option<String>` for public state, status, kind, mode, phase, type, tag, or category fields.

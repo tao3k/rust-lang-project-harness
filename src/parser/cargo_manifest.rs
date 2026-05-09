@@ -15,6 +15,7 @@ pub(crate) struct CargoManifestFacts {
     pub(crate) test_target_files: Vec<PathBuf>,
     pub(crate) bench_targets: Vec<CargoBenchTargetFacts>,
     pub(crate) references_harness: bool,
+    pub(crate) references_harness_build_dependency: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -48,6 +49,8 @@ pub(crate) fn parse_cargo_manifest(project_root: &Path) -> CargoManifestFacts {
         return CargoManifestFacts::default();
     };
     let references_harness = manifest_references_harness(&manifest);
+    let references_harness_build_dependency =
+        manifest_references_harness_build_dependency(&manifest);
     let has_package = manifest.package.is_some();
     let (workspace_members, workspace_excludes) = manifest
         .workspace
@@ -63,6 +66,7 @@ pub(crate) fn parse_cargo_manifest(project_root: &Path) -> CargoManifestFacts {
         test_target_files,
         bench_targets,
         references_harness,
+        references_harness_build_dependency,
     }
 }
 
@@ -140,6 +144,14 @@ fn manifest_references_harness(manifest: &Manifest) -> bool {
                 || dependency_table_references_harness(&target.dev_dependencies)
                 || dependency_table_references_harness(&target.build_dependencies)
         })
+}
+
+fn manifest_references_harness_build_dependency(manifest: &Manifest) -> bool {
+    dependency_table_references_harness(&manifest.build_dependencies)
+        || manifest
+            .target
+            .values()
+            .any(|target| dependency_table_references_harness(&target.build_dependencies))
 }
 
 fn manifest_dependency_facts(manifest: &Manifest) -> Vec<CargoDependencyFacts> {

@@ -5,6 +5,8 @@ use tempfile::TempDir;
 
 use super::support::{findings_for_rule, has_rule, write_manifest};
 
+#[path = "project/build_gate.rs"]
+mod build_gate;
 #[path = "project/verification_integration.rs"]
 mod verification_integration;
 

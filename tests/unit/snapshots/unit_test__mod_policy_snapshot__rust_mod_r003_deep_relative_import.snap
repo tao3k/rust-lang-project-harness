@@ -3,8 +3,8 @@ source: tests/unit/mod_policy_snapshot.rs
 expression: rendered
 ---
 [RUST-MOD-R003] Warning: Deep relative import crosses owner boundaries
-   ,-[ $TEMP/src/domain.rs:2:1 ]
- 2 | pub use super::{super::MissingOwner, sibling::Thing};
-   | `- replace deep relative import with a clearer owner boundary
-   |Help: $TEMP/src/domain.rs uses deep relative import `super::super::MissingOwner`.
-   |Contract: Avoid super::super imports in library code; expose a clearer owner-level API instead.
+@ $TEMP/src/domain.rs:2:1
+fix: replace deep relative import with a clearer owner boundary
+line: 2 | pub use super::{super::MissingOwner, sibling::Thing};
+Help: $TEMP/src/domain.rs uses deep relative import `super::super::MissingOwner`.
+Contract: Avoid super::super imports in library code; expose a clearer owner-level API instead.
