@@ -1,0 +1,32 @@
+---
+source: tests/unit/verification/config/api_baseline.rs
+expression: rendered
+---
+[verify] src/api.rs
+   |owner: src/api
+   |stress: pending phase=after_unit_tests_pass fingerprint=rustv:bedd7013744dae92 api=GET:/v1/search
+   |why: stress=API path baseline GET:/v1/search declares public_api,security_boundary,latency_sensitive responsibility
+   |requires: stress=p50,p99,p999,load_steps,sla_result
+   |fact: stress.api_path=GET /v1/search
+   |fact: stress.profile=public_api,security_boundary,latency_sensitive
+   |fact: stress.rationale=public search route has auth and latency SLO
+   |contract: stress=stress skill must report p50/p99/p999, load steps, and SLA result for this fingerprint
+   |performance: pending phase=after_unit_tests_pass fingerprint=rustv:dd9353f89d363682 api=GET:/v1/search
+   |why: performance=API path baseline GET:/v1/search declares public_api,security_boundary,latency_sensitive responsibility
+   |requires: performance=benchmark_command,baseline,regression_threshold,latency_or_throughput,allocation_profile,profile_artifact
+   |fact: performance.api_path=GET /v1/search
+   |fact: performance.profile=public_api,security_boundary,latency_sensitive
+   |fact: performance.rationale=public search route has auth and latency SLO
+   |contract: performance=performance skill must report benchmark command, baseline, regression threshold, latency or throughput, allocation profile, and profiling artifact for this fingerprint
+   |security: pending phase=before_release fingerprint=rustv:30e3dd2530b99e11 api=GET:/v1/search
+   |why: security=API path baseline GET:/v1/search declares public_api,security_boundary,latency_sensitive responsibility
+   |requires: security=attack_classes,authorization_boundary,findings
+   |fact: security.api_path=GET /v1/search
+   |fact: security.profile=public_api,security_boundary,latency_sensitive
+   |fact: security.rationale=public search route has auth and latency SLO
+   |contract: security=security skill must report scanned attack classes and authorization-boundary result for this fingerprint
+
+[verify-report]
+   |bundle: renderer=render_rust_verification_report_bundle_json artifact=verification_report_bundle.json artifacts=2
+   |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=3 kinds=stress,performance,security
+   |required: performance_index_json renderer=build_rust_verification_performance_index + render_rust_verification_performance_index_json artifact=performance_index.json tasks=1 kinds=performance

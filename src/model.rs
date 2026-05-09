@@ -7,10 +7,10 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::verification::{
-    RustOwnerResponsibility, RustVerificationDependencySignal, RustVerificationPolicy,
-    RustVerificationProfileHint, RustVerificationReceipt, RustVerificationSkillBinding,
-    RustVerificationSkillDescriptor, RustVerificationTaskContract, RustVerificationTaskKind,
-    RustVerificationWaiver,
+    RustOwnerResponsibility, RustVerificationApiPathBaseline, RustVerificationDependencySignal,
+    RustVerificationPolicy, RustVerificationProfileHint, RustVerificationReceipt,
+    RustVerificationSkillBinding, RustVerificationSkillDescriptor, RustVerificationTaskContract,
+    RustVerificationTaskKind, RustVerificationWaiver,
 };
 
 /// Finding severity used by the Rust project harness.
@@ -432,6 +432,16 @@ impl RustHarnessConfig {
     #[must_use]
     pub fn with_verification_profile_hint(mut self, hint: RustVerificationProfileHint) -> Self {
         self.verification_policy.profile_hints.push(hint);
+        self
+    }
+
+    /// Return a config with one API path baseline appended.
+    #[must_use]
+    pub fn with_verification_api_path_baseline(
+        mut self,
+        baseline: RustVerificationApiPathBaseline,
+    ) -> Self {
+        self.verification_policy.api_path_baselines.push(baseline);
         self
     }
 

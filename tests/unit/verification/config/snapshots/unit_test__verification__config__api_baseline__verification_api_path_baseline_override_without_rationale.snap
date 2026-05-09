@@ -1,0 +1,24 @@
+---
+source: tests/unit/verification/config/api_baseline.rs
+expression: rendered
+---
+[verify] src/api.rs
+   |owner: src/api
+   |security: pending phase=before_release fingerprint=rustv:1428527a33752423 api=DELETE:/v1/orders/{id}
+   |why: security=API path baseline DELETE:/v1/orders/{id} explicitly requests security verification
+   |requires: security=attack_classes,authorization_boundary,findings
+   |fact: security.api_path=DELETE /v1/orders/{id}
+   |fact: security.profile=public_api
+   |contract: security=security skill must report scanned attack classes and authorization-boundary result for this fingerprint
+   |responsibility_review: pending phase=before_verification fingerprint=rustv:bb764b278efdf0d4 api=DELETE:/v1/orders/{id}
+   |why: responsibility_review=API path verification override needs compact rationale
+   |requires: responsibility_review=profile_resolution
+   |fact: responsibility_review.api_path=DELETE /v1/orders/{id}
+   |fact: responsibility_review.profile=public_api
+   |fact: responsibility_review.derived=stress
+   |fact: responsibility_review.configured=security
+   |contract: responsibility_review=update the verification profile hint to match parser facts, or attach a complete waiver
+
+[verify-report]
+   |bundle: renderer=render_rust_verification_report_bundle_json artifact=verification_report_bundle.json artifacts=1
+   |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=2 kinds=security,responsibility_review

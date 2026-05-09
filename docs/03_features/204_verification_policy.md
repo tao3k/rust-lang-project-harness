@@ -115,11 +115,14 @@ Verification config stays library-first. It does not introduce CLI flags or
 TOML precedence. Embedding projects can adjust the verification contract through
 `RustHarnessConfig` or `RustVerificationPolicy`.
 
-There are six configurable layers:
+There are seven configurable layers:
 
 - Profile index: derive a compact owner-profile draft from parser facts before
   the Agent writes config. It renders only missing or drifting hints, then goes
   quiet after matching `RustVerificationProfileHint` entries exist.
+- API path baseline: declare one public `METHOD:/path` surface under a
+  parser-known owner. This makes receipts and waivers path-scoped, so resolving
+  one route does not mute a different route in the same module.
 - Responsibility mapping: choose which task kinds a declared responsibility
   triggers. Mapping a responsibility to an empty set suppresses the default
   task for that responsibility.
@@ -203,10 +206,10 @@ performance, persistence, or availability responsibility.
 
 ```rust
 use rust_lang_project_harness::{
-    RustOwnerResponsibility, RustVerificationDependencySignal, RustVerificationPhase,
-    RustVerificationProfileHint, RustVerificationRequirement, RustVerificationSkillBinding,
-    RustVerificationSkillDescriptor, RustVerificationTaskContract, RustVerificationTaskKind,
-    default_rust_harness_config,
+    RustOwnerResponsibility, RustVerificationApiPathBaseline, RustVerificationDependencySignal,
+    RustVerificationPhase, RustVerificationProfileHint, RustVerificationRequirement,
+    RustVerificationSkillBinding, RustVerificationSkillDescriptor,
+    RustVerificationTaskContract, RustVerificationTaskKind, default_rust_harness_config,
 };
 
 let config = default_rust_harness_config()
@@ -233,6 +236,14 @@ let config = default_rust_harness_config()
             )
             .with_rationale("this slice changes route authorization"),
         ),
+    )
+    .with_verification_api_path_baseline(
+        RustVerificationApiPathBaseline::new("src/api.rs", "POST", "/v1/orders")
+            .with_task_kinds([
+                RustVerificationTaskKind::Security,
+                RustVerificationTaskKind::Performance,
+            ])
+            .with_rationale("order creation has tenant authz and latency SLO evidence"),
     )
     .with_verification_responsibility_task_kinds(
         RustOwnerResponsibility::LatencySensitive,
@@ -263,6 +274,16 @@ deliberately out of scope for external stress, performance, chaos, security, or
 regression evidence in this slice. Receipts and waivers still clear tasks through
 fingerprints, so changing the owner-local task kinds or contracts invalidates
 stale evidence automatically.
+
+API path baselines are more precise than owner profiles. Use
+`RustVerificationApiPathBaseline::new("src/api.rs", "GET", "/v1/search")`
+when the responsibility belongs to one route or command path, then add
+`with_responsibility(...)` or `with_task_kinds(...)` to define the expected
+security, performance, stress, chaos, or regression skill families. Compact
+verification output keeps the short `api=GET:/v1/search` token on the task line,
+including when a skill binding is configured and the long fact block is omitted.
+Because that API path evidence participates in the task fingerprint, a passed
+receipt or complete waiver clears only that path-level obligation.
 
 Owner-local overrides are allowed to differ from the responsibility-derived
 default, but they must explain the responsibility boundary. If a profile adds,

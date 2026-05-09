@@ -123,6 +123,9 @@ fn render_task(task: &RustVerificationTask, rendered: &mut String) {
     if let Some(contract_ref) = &task.skill_contract_ref {
         let _ = write!(rendered, " contract_ref={contract_ref}");
     }
+    if let Some(api_path) = task_api_path(task) {
+        let _ = write!(rendered, " api={api_path}");
+    }
     let _ = writeln!(rendered);
     if let Some(line) = task.line {
         let _ = writeln!(rendered, "   |line: {kind}={line}");
@@ -146,6 +149,13 @@ fn render_task(task: &RustVerificationTask, rendered: &mut String) {
         let _ = writeln!(rendered, "   |fact: {kind}.{}={}", fact.label, fact.value);
     }
     let _ = writeln!(rendered, "   |contract: {kind}={}", task.required_receipt);
+}
+
+fn task_api_path(task: &RustVerificationTask) -> Option<String> {
+    task.evidence
+        .iter()
+        .find(|fact| fact.label == "api_path")
+        .map(|fact| fact.value.replacen(' ', ":", 1))
 }
 
 fn render_task_resolution(task: &RustVerificationTask, rendered: &mut String, kind: &str) {

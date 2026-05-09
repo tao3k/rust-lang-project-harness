@@ -1,3 +1,4 @@
+mod api_baseline;
 mod contract;
 mod mapping;
 mod profile_override;

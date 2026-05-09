@@ -1,0 +1,18 @@
+---
+source: tests/unit/verification/config/api_baseline.rs
+expression: rendered
+---
+[verify] src/missing.rs
+   |responsibility_review: pending phase=before_verification fingerprint=rustv:945ad5a7ec8e5607 api=GET:/v1/missing
+   |why: responsibility_review=API path baseline target is not a parser-known Rust source module
+   |requires: responsibility_review=profile_resolution
+   |fact: responsibility_review.api_path=GET /v1/missing
+   |fact: responsibility_review.profile=public_api
+   |fact: responsibility_review.rationale=route config should point at the parser-known owner
+   |fact: responsibility_review.responsibilities=public_api
+   |fact: responsibility_review.task_kinds=security
+   |contract: responsibility_review=update the verification profile hint to match parser facts, or attach a complete waiver
+
+[verify-report]
+   |bundle: renderer=render_rust_verification_report_bundle_json artifact=verification_report_bundle.json artifacts=1
+   |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=responsibility_review

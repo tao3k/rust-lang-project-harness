@@ -1,11 +1,11 @@
 //! Verification profile mapping and default task contracts.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
-    RustOwnerResponsibility, RustVerificationEvidence, RustVerificationPhase,
-    RustVerificationPolicy, RustVerificationProfileHint, RustVerificationRequirement,
-    RustVerificationTaskContract, RustVerificationTaskKind,
+    RustOwnerResponsibility, RustVerificationApiPathBaseline, RustVerificationEvidence,
+    RustVerificationPhase, RustVerificationPolicy, RustVerificationProfileHint,
+    RustVerificationRequirement, RustVerificationTaskContract, RustVerificationTaskKind,
 };
 
 pub(super) fn responsibility_labels(
@@ -45,12 +45,38 @@ pub(super) fn profile_evidence(
     evidence
 }
 
+pub(super) fn api_path_baseline_evidence(
+    baseline: &RustVerificationApiPathBaseline,
+) -> Vec<RustVerificationEvidence> {
+    let mut evidence = vec![
+        RustVerificationEvidence::new("api_path", baseline.api_evidence_value()),
+        RustVerificationEvidence::new("profile", responsibility_labels(&baseline.responsibilities)),
+    ];
+    if let Some(rationale) = normalized_api_path_rationale(baseline) {
+        evidence.push(RustVerificationEvidence::new("rationale", rationale));
+    }
+    evidence
+}
+
 pub(super) fn hint_rationale_is_empty(hint: &RustVerificationProfileHint) -> bool {
     normalized_hint_rationale(hint).is_none()
 }
 
+pub(super) fn api_path_rationale_is_empty(baseline: &RustVerificationApiPathBaseline) -> bool {
+    normalized_api_path_rationale(baseline).is_none()
+}
+
 fn normalized_hint_rationale(hint: &RustVerificationProfileHint) -> Option<String> {
     hint.rationale
+        .as_deref()
+        .map(str::trim)
+        .filter(|rationale| !rationale.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn normalized_api_path_rationale(baseline: &RustVerificationApiPathBaseline) -> Option<String> {
+    baseline
+        .rationale
         .as_deref()
         .map(str::trim)
         .filter(|rationale| !rationale.is_empty())
@@ -80,6 +106,16 @@ pub(super) fn task_kinds_for_profile(
     hint.task_kinds
         .clone()
         .unwrap_or_else(|| task_kinds_for_responsibilities(&hint.responsibilities, policy))
+}
+
+pub(super) fn task_kinds_for_api_path_baseline(
+    baseline: &RustVerificationApiPathBaseline,
+    policy: &RustVerificationPolicy,
+) -> BTreeSet<RustVerificationTaskKind> {
+    baseline
+        .task_kinds
+        .clone()
+        .unwrap_or_else(|| task_kinds_for_responsibilities(&baseline.responsibilities, policy))
 }
 
 fn default_task_kinds_for_responsibility(
@@ -125,6 +161,34 @@ pub(super) fn profile_task_reason(
     }
 }
 
+pub(super) fn api_path_task_reason(
+    kind: RustVerificationTaskKind,
+    baseline: &RustVerificationApiPathBaseline,
+    uses_path_task_override: bool,
+) -> String {
+    if uses_path_task_override {
+        return format!(
+            "API path baseline {} explicitly requests {} verification",
+            baseline.compact_api_label(),
+            kind.as_str()
+        );
+    }
+    if baseline.responsibilities.iter().any(|responsibility| {
+        default_task_kinds_for_responsibility(*responsibility).contains(&kind)
+    }) {
+        return format!(
+            "API path baseline {} declares {} responsibility",
+            baseline.compact_api_label(),
+            responsibility_labels(&baseline.responsibilities)
+        );
+    }
+    format!(
+        "API path baseline {} maps responsibilities to {} verification",
+        baseline.compact_api_label(),
+        kind.as_str()
+    )
+}
+
 fn default_profile_task_reason(kind: RustVerificationTaskKind) -> &'static str {
     match kind {
         RustVerificationTaskKind::Stress => "profile declares public API or integration surface",
@@ -149,7 +213,24 @@ pub(super) fn task_contract_for_profile(
     hint: Option<&RustVerificationProfileHint>,
     kind: RustVerificationTaskKind,
 ) -> RustVerificationTaskContract {
-    hint.and_then(|hint| hint.task_contract_overrides.get(&kind).cloned())
+    task_contract_from_overrides(policy, hint.map(|hint| &hint.task_contract_overrides), kind)
+}
+
+pub(super) fn task_contract_for_api_path_baseline(
+    policy: &RustVerificationPolicy,
+    baseline: &RustVerificationApiPathBaseline,
+    kind: RustVerificationTaskKind,
+) -> RustVerificationTaskContract {
+    task_contract_from_overrides(policy, Some(&baseline.task_contract_overrides), kind)
+}
+
+fn task_contract_from_overrides(
+    policy: &RustVerificationPolicy,
+    local_overrides: Option<&BTreeMap<RustVerificationTaskKind, RustVerificationTaskContract>>,
+    kind: RustVerificationTaskKind,
+) -> RustVerificationTaskContract {
+    local_overrides
+        .and_then(|overrides| overrides.get(&kind).cloned())
         .or_else(|| policy.task_contract_overrides.get(&kind).cloned())
         .unwrap_or_else(|| default_task_contract(kind))
 }

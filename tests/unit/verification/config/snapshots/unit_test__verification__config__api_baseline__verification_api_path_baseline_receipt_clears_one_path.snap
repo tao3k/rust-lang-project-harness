@@ -1,0 +1,17 @@
+---
+source: tests/unit/verification/config/api_baseline.rs
+expression: rendered
+---
+[verify] src/api.rs
+   |owner: src/api
+   |security: pending phase=before_release fingerprint=rustv:3776a7511b5fbccf api=GET:/v1/orders/{id}
+   |why: security=API path baseline GET:/v1/orders/{id} explicitly requests security verification
+   |requires: security=attack_classes,authorization_boundary,findings
+   |fact: security.api_path=GET /v1/orders/{id}
+   |fact: security.profile=public_api
+   |fact: security.rationale=order read path has separate authorization evidence
+   |contract: security=security skill must report scanned attack classes and authorization-boundary result for this fingerprint
+
+[verify-report]
+   |bundle: renderer=render_rust_verification_report_bundle_json artifact=verification_report_bundle.json artifacts=1
+   |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=security

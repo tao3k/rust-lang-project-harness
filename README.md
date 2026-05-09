@@ -252,6 +252,15 @@ Agent say "this owner is a public API, but this change needs security
 evidence, not stress evidence", or "this owner has no external verification
 task in this slice", without changing unrelated owners.
 
+When an owner handles several public surfaces, use `RustVerificationApiPathBaseline`
+instead of making the whole owner louder. A path baseline attaches a compact
+`METHOD:/path` fact to the verification fingerprint, so a receipt for
+`POST:/v1/orders` does not clear `GET:/v1/orders/{id}`. This is still
+library-first configuration: the harness does not guess framework routes or
+force every API into stress, security, or performance. The Agent declares the
+path responsibilities or exact task kinds, runs the matching skill, then records
+a receipt or waiver for that path fingerprint.
+
 When an Agent does not yet know which owners need those profile hints, build a
 parser-native profile index first. The index is a low-token configuration
 draft: it inspects owner branches, public surfaces, local owner dependencies,
@@ -303,9 +312,10 @@ parser facts so crate-specific responsibilities can be configured deliberately.
 
 ```rust
 use rust_lang_project_harness::{
-    RustOwnerResponsibility, RustVerificationPhase, RustVerificationProfileHint,
-    RustVerificationRequirement, RustVerificationSkillBinding, RustVerificationSkillDescriptor,
-    RustVerificationTaskContract, RustVerificationTaskKind, default_rust_harness_config,
+    RustOwnerResponsibility, RustVerificationApiPathBaseline, RustVerificationPhase,
+    RustVerificationProfileHint, RustVerificationRequirement, RustVerificationSkillBinding,
+    RustVerificationSkillDescriptor, RustVerificationTaskContract, RustVerificationTaskKind,
+    default_rust_harness_config,
 };
 
 let config = default_rust_harness_config()
@@ -324,6 +334,14 @@ let config = default_rust_harness_config()
                 ),
             )
             .with_rationale("this slice changes route authorization"),
+    )
+    .with_verification_api_path_baseline(
+        RustVerificationApiPathBaseline::new("src/api.rs", "POST", "/v1/orders")
+            .with_task_kinds([
+                RustVerificationTaskKind::Security,
+                RustVerificationTaskKind::Performance,
+            ])
+            .with_rationale("order creation has tenant authz and latency SLO evidence"),
     )
     .with_verification_responsibility_task_kinds(
         RustOwnerResponsibility::LatencySensitive,

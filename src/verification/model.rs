@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use super::skill_descriptor::RustVerificationSkillDescriptor;
+
 /// Verification skill family requested by the harness.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -249,229 +251,6 @@ impl RustVerificationSkillBinding {
                 || self.skill_id.clone(),
                 |adapter| format!("{}@{adapter}", self.skill_id),
             )
-    }
-}
-
-/// Compact contract that explains how an Agent skill binding is executed.
-///
-/// Bindings keep the default verification render quiet. Descriptors are the
-/// optional reasoning-tree node an agent can expand when it needs the adapter's
-/// execution standard without loading a long Markdown skill.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct RustVerificationSkillDescriptor {
-    /// Stable local or external skill id.
-    pub skill_id: String,
-    /// Optional adapter name such as `criterion`, `divan`, `iai-callgrind`,
-    /// `k6`, or `semgrep`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub adapter: Option<String>,
-    /// Tool or runtime family used by the adapter.
-    pub tool: String,
-    /// Compact command template.
-    pub command: String,
-    /// Short pass/fail standard.
-    pub standard: String,
-    /// Inputs the Agent must resolve before dispatch.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub required_inputs: Vec<String>,
-    /// Criteria that make the run pass.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub pass_criteria: Vec<String>,
-    /// Receipt fields expected after the run.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub receipt_fields: Vec<String>,
-}
-
-impl RustVerificationSkillDescriptor {
-    /// Build a descriptor for a configured skill.
-    #[must_use]
-    pub fn new(skill_id: impl Into<String>) -> Self {
-        Self {
-            skill_id: skill_id.into(),
-            adapter: None,
-            tool: String::new(),
-            command: String::new(),
-            standard: String::new(),
-            required_inputs: Vec::new(),
-            pass_criteria: Vec::new(),
-            receipt_fields: Vec::new(),
-        }
-    }
-
-    /// Built-in compact descriptor for the k6 stress adapter.
-    ///
-    /// The contract intentionally stays short: k6 scenarios define load shape,
-    /// thresholds define pass/fail, and the receipt records the latency and SLA
-    /// fields the harness already requires.
-    #[must_use]
-    pub fn k6_stress() -> Self {
-        Self::new("rust-verification-stress")
-            .with_adapter("k6")
-            .with_tool("k6")
-            .with_command("k6 run <script>")
-            .with_standard("scenarios define load shape; thresholds define pass/fail")
-            .with_required_inputs(["script", "target_url", "scenario", "thresholds"])
-            .with_pass_criteria(["exit=0", "thresholds=pass"])
-            .with_receipt_fields(["p50", "p99", "p999", "load_steps", "sla_result", "artifact"])
-    }
-
-    /// Built-in compact descriptor for Criterion-based Rust performance checks.
-    ///
-    /// Criterion is the statistics-oriented Rust benchmark adapter. Use it for
-    /// code-level latency, throughput, and allocation-regression evidence rather
-    /// than service-boundary stress tests.
-    #[must_use]
-    pub fn criterion_performance() -> Self {
-        Self::new("rust-verification-performance")
-            .with_adapter("criterion")
-            .with_tool("criterion")
-            .with_command("cargo bench")
-            .with_standard("statistical benchmark baseline detects runtime regression")
-            .with_required_inputs(["bench_target", "baseline", "regression_threshold"])
-            .with_pass_criteria(["regression<=threshold"])
-            .with_receipt_fields([
-                "benchmark_command",
-                "baseline",
-                "regression_threshold",
-                "latency_or_throughput",
-                "allocation_profile",
-                "profile_artifact",
-            ])
-    }
-
-    /// Built-in compact descriptor for Divan-based Rust performance checks.
-    ///
-    /// Divan is a modern Rust benchmark adapter over `cargo bench`; keep it in
-    /// the Rust-native performance lane rather than the service stress lane.
-    #[must_use]
-    pub fn divan_performance() -> Self {
-        Self::new("rust-verification-performance")
-            .with_adapter("divan")
-            .with_tool("divan")
-            .with_command("cargo bench")
-            .with_standard("sampled Rust benchmark summary stays within regression threshold")
-            .with_required_inputs(["bench_target", "baseline", "regression_threshold"])
-            .with_pass_criteria(["median_or_mean_delta<=threshold"])
-            .with_receipt_fields([
-                "benchmark_command",
-                "baseline",
-                "regression_threshold",
-                "latency_or_throughput",
-                "allocation_profile",
-                "profile_artifact",
-                "samples",
-                "iters",
-            ])
-    }
-
-    /// Built-in compact descriptor for iai-callgrind Rust performance checks.
-    ///
-    /// iai-callgrind is the deterministic CI-oriented adapter for instruction,
-    /// cache, and allocation profiles. It complements wall-clock benchmarks when
-    /// the Agent needs lower-noise regression evidence.
-    #[must_use]
-    pub fn iai_callgrind_performance() -> Self {
-        Self::new("rust-verification-performance")
-            .with_adapter("iai-callgrind")
-            .with_tool("iai-callgrind")
-            .with_command("cargo bench")
-            .with_standard("instruction/cache/allocation metrics stay within regression threshold")
-            .with_required_inputs(["bench_target", "baseline", "metric", "regression_threshold"])
-            .with_pass_criteria(["metric_delta<=threshold"])
-            .with_receipt_fields([
-                "benchmark_command",
-                "baseline",
-                "regression_threshold",
-                "latency_or_throughput",
-                "allocation_profile",
-                "profile_artifact",
-                "instructions",
-                "cache_misses",
-            ])
-    }
-
-    /// Attach an adapter label for this descriptor.
-    #[must_use]
-    pub fn with_adapter(mut self, adapter: impl Into<String>) -> Self {
-        self.adapter = Some(adapter.into());
-        self
-    }
-
-    /// Set the tool family.
-    #[must_use]
-    pub fn with_tool(mut self, tool: impl Into<String>) -> Self {
-        self.tool = tool.into();
-        self
-    }
-
-    /// Set the command template.
-    #[must_use]
-    pub fn with_command(mut self, command: impl Into<String>) -> Self {
-        self.command = command.into();
-        self
-    }
-
-    /// Set the compact execution standard.
-    #[must_use]
-    pub fn with_standard(mut self, standard: impl Into<String>) -> Self {
-        self.standard = standard.into();
-        self
-    }
-
-    /// Set required adapter inputs.
-    #[must_use]
-    pub fn with_required_inputs<I, S>(mut self, inputs: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        self.required_inputs = inputs.into_iter().map(Into::into).collect();
-        self
-    }
-
-    /// Set pass criteria.
-    #[must_use]
-    pub fn with_pass_criteria<I, S>(mut self, criteria: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        self.pass_criteria = criteria.into_iter().map(Into::into).collect();
-        self
-    }
-
-    /// Set receipt fields.
-    #[must_use]
-    pub fn with_receipt_fields<I, S>(mut self, fields: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        self.receipt_fields = fields.into_iter().map(Into::into).collect();
-        self
-    }
-
-    pub(crate) fn compact_label(&self) -> String {
-        self.adapter
-            .as_deref()
-            .map(str::trim)
-            .filter(|adapter| !adapter.is_empty())
-            .map_or_else(
-                || self.skill_id.clone(),
-                |adapter| format!("{}@{adapter}", self.skill_id),
-            )
-    }
-
-    pub(crate) fn fingerprint_material(&self) -> String {
-        format!(
-            "tool={};command={};standard={};inputs={};pass={};receipt={}",
-            self.tool,
-            self.command,
-            self.standard,
-            self.required_inputs.join(","),
-            self.pass_criteria.join(","),
-            self.receipt_fields.join(",")
-        )
     }
 }
 
@@ -797,6 +576,131 @@ impl RustVerificationProfileHint {
     }
 }
 
+/// Path-level API verification baseline declared by the embedding project.
+///
+/// Profile hints describe an owner as a whole. API path baselines describe one
+/// public surface handled by that owner, so receipts can clear `GET /foo`
+/// without muting a different route in the same module.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RustVerificationApiPathBaseline {
+    /// Owner file path. Relative paths are resolved against each package root.
+    pub owner_path: PathBuf,
+    /// HTTP method, RPC verb, command verb, or equivalent stable action label.
+    pub method: String,
+    /// Public API path, route, command path, or equivalent stable surface label.
+    pub path: String,
+    /// Declared responsibilities for this API path.
+    pub responsibilities: BTreeSet<RustOwnerResponsibility>,
+    /// Explicit verification task kinds for this API path.
+    ///
+    /// `None` keeps the policy-derived responsibility mapping. `Some(empty)`
+    /// means this API path intentionally has no external verification task.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_kinds: Option<BTreeSet<RustVerificationTaskKind>>,
+    /// API-path-local contract overrides. These win over global policy overrides.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub task_contract_overrides: BTreeMap<RustVerificationTaskKind, RustVerificationTaskContract>,
+    /// Optional compact rationale.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rationale: Option<String>,
+}
+
+impl RustVerificationApiPathBaseline {
+    /// Build a baseline for one API path handled by an owner.
+    ///
+    /// The default responsibility is `PublicApi`, which maps through the
+    /// project's responsibility policy. Add or replace responsibilities when a
+    /// concrete path is latency-sensitive, security-sensitive, availability
+    /// critical, or intentionally different from the owner default.
+    #[must_use]
+    pub fn new(
+        owner_path: impl Into<PathBuf>,
+        method: impl Into<String>,
+        path: impl Into<String>,
+    ) -> Self {
+        Self {
+            owner_path: owner_path.into(),
+            method: normalize_api_method(method.into()),
+            path: normalize_api_path(path.into()),
+            responsibilities: BTreeSet::from([RustOwnerResponsibility::PublicApi]),
+            task_kinds: None,
+            task_contract_overrides: BTreeMap::new(),
+            rationale: None,
+        }
+    }
+
+    /// Replace the responsibilities for this API path.
+    #[must_use]
+    pub fn with_responsibilities<I>(mut self, responsibilities: I) -> Self
+    where
+        I: IntoIterator<Item = RustOwnerResponsibility>,
+    {
+        self.responsibilities = responsibilities.into_iter().collect();
+        self
+    }
+
+    /// Attach one additional responsibility for this API path.
+    #[must_use]
+    pub fn with_responsibility(mut self, responsibility: RustOwnerResponsibility) -> Self {
+        self.responsibilities.insert(responsibility);
+        self
+    }
+
+    /// Attach explicit verification task kinds for this API path.
+    ///
+    /// Passing an empty iterator suppresses path-derived verification tasks
+    /// for this API path without changing global responsibility defaults.
+    #[must_use]
+    pub fn with_task_kinds<I>(mut self, task_kinds: I) -> Self
+    where
+        I: IntoIterator<Item = RustVerificationTaskKind>,
+    {
+        self.task_kinds = Some(task_kinds.into_iter().collect());
+        self
+    }
+
+    /// Mark this API path as having no external verification tasks.
+    #[must_use]
+    pub fn without_verification_tasks(mut self) -> Self {
+        self.task_kinds = Some(BTreeSet::new());
+        self
+    }
+
+    /// Attach an API-path-local verification task contract override.
+    #[must_use]
+    pub fn with_task_contract(
+        mut self,
+        kind: RustVerificationTaskKind,
+        contract: RustVerificationTaskContract,
+    ) -> Self {
+        self.task_contract_overrides.insert(kind, contract);
+        self
+    }
+
+    /// Attach a compact rationale.
+    #[must_use]
+    pub fn with_rationale(mut self, rationale: impl Into<String>) -> Self {
+        self.rationale = Some(rationale.into());
+        self
+    }
+
+    pub(crate) fn compact_api_label(&self) -> String {
+        format!("{}:{}", self.method, self.path)
+    }
+
+    pub(crate) fn api_evidence_value(&self) -> String {
+        format!("{} {}", self.method, self.path)
+    }
+}
+
+fn normalize_api_method(method: String) -> String {
+    method.trim().to_ascii_uppercase()
+}
+
+fn normalize_api_path(path: String) -> String {
+    path.trim().to_string()
+}
+
 /// Project-owned Cargo dependency classification for verification profile inference.
 ///
 /// The harness resolves Rust import roots through `Cargo.toml` dependency facts
@@ -842,6 +746,9 @@ pub struct RustVerificationPolicy {
     /// Responsibility hints supplied by the embedding project or by an agent.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub profile_hints: Vec<RustVerificationProfileHint>,
+    /// API path baselines supplied by the embedding project or by an agent.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub api_path_baselines: Vec<RustVerificationApiPathBaseline>,
     /// Current receipts produced by external skill executions.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub receipts: Vec<RustVerificationReceipt>,
@@ -874,6 +781,7 @@ impl RustVerificationPolicy {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.profile_hints.is_empty()
+            && self.api_path_baselines.is_empty()
             && self.receipts.is_empty()
             && self.waivers.is_empty()
             && self.disabled_task_kinds.is_empty()
@@ -888,6 +796,13 @@ impl RustVerificationPolicy {
     #[must_use]
     pub fn with_profile_hint(mut self, hint: RustVerificationProfileHint) -> Self {
         self.profile_hints.push(hint);
+        self
+    }
+
+    /// Return a policy with one API path baseline appended.
+    #[must_use]
+    pub fn with_api_path_baseline(mut self, baseline: RustVerificationApiPathBaseline) -> Self {
+        self.api_path_baselines.push(baseline);
         self
     }
 

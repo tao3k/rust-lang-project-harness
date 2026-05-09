@@ -1,5 +1,6 @@
 //! Parser-native verification task planning for external agent skills.
 
+mod api_path;
 mod fingerprint;
 mod model;
 mod performance;
@@ -8,16 +9,17 @@ mod profile;
 mod profile_index;
 mod render;
 mod report;
+mod skill_descriptor;
+mod task_builder;
 mod task_index;
 
 pub use model::{
-    RustOwnerResponsibility, RustVerificationDependencySignal, RustVerificationEvidence,
-    RustVerificationPhase, RustVerificationPlan, RustVerificationPolicy,
+    RustOwnerResponsibility, RustVerificationApiPathBaseline, RustVerificationDependencySignal,
+    RustVerificationEvidence, RustVerificationPhase, RustVerificationPlan, RustVerificationPolicy,
     RustVerificationProfileHint, RustVerificationReceipt, RustVerificationReceiptStatus,
     RustVerificationReportObligation, RustVerificationRequirement, RustVerificationResolutionNote,
-    RustVerificationSkillBinding, RustVerificationSkillDescriptor, RustVerificationTask,
-    RustVerificationTaskContract, RustVerificationTaskKind, RustVerificationTaskState,
-    RustVerificationWaiver,
+    RustVerificationSkillBinding, RustVerificationTask, RustVerificationTaskContract,
+    RustVerificationTaskKind, RustVerificationTaskState, RustVerificationWaiver,
 };
 pub use performance::{
     RustVerificationPerformanceIndex, RustVerificationPerformanceRecord,
@@ -49,6 +51,7 @@ pub use report::{
     render_rust_verification_report_artifact_json, render_rust_verification_report_bundle_json,
     write_rust_verification_reports,
 };
+pub use skill_descriptor::RustVerificationSkillDescriptor;
 pub use task_index::{
     RustVerificationTaskIndex, RustVerificationTaskRecord, build_rust_verification_task_index,
     render_rust_verification_task_index_json,

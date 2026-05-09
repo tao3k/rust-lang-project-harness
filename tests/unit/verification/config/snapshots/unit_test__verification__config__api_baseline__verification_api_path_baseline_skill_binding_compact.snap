@@ -1,0 +1,12 @@
+---
+source: tests/unit/verification/config/api_baseline.rs
+expression: rendered
+---
+[verify] src/api.rs
+   |owner: src/api
+   |security: pending phase=before_release fingerprint=rustv:2a0d3b2a31d4f04a skill=rust-verification-security@security-scan api=POST:/v1/orders
+
+[verify-report]
+   |bundle: renderer=render_rust_verification_report_bundle_json artifact=verification_report_bundle.json artifacts=2
+   |required: verification_plan_json renderer=render_rust_verification_plan_json artifact=verification_plan.json tasks=1 kinds=security
+   |required: task_index_json renderer=build_rust_verification_task_index + render_rust_verification_task_index_json artifact=task_index.json tasks=1 kinds=security
