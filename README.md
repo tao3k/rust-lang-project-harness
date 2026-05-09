@@ -1,15 +1,31 @@
 # rust-lang-project-harness
 
-`rust-lang-project-harness` is a project-level Rust language harness
-library. It is a standalone extraction of the useful Rust project-governance
-surface from `xiuxian-testing`, shaped like the Python project harness:
-library-first APIs, deterministic rule catalogs, agent-facing compact rendered
-diagnostics, and non-blocking `AGENT-*` advice for repair-oriented agents.
+`rust-lang-project-harness` is a project-level Rust language harness for
+repair-oriented coding agents. Its job is not to replace `rustc`, `rustfmt`, or
+Clippy. Its job is to parse a Rust project through native Rust syntax and Cargo
+manifest facts, turn that project into package/module/owner/dependency facts,
+and expose compact policy feedback that lets an Agent keep writing Rust without
+searching a massive file list every time.
+
+The harness exists because LLM-written Rust tends to drift in predictable ways:
+scope gets broad, files grow, `lib.rs` and `build.rs` start owning
+implementation, `use super::*` hides dependencies, public APIs become primitive
+or stringly typed, and verification duties are forgotten after the first green
+test. The harness makes those structural risks explicit. It builds a
+parser-native reasoning tree, evaluates deterministic rule packs, and returns
+small repair contracts that an Agent can act on during `cargo test` or CI.
+
+Humans can read the output, but they are not the primary interface. Compact text
+is designed for Agents: stable rule id, `@ path:line:column`, `fix:`, optional
+`line:`, `Help:`, and `Contract:`. It avoids human audit headers, code-frame
+ornament, package counters, empty sections, and long JSON by default. Structured
+tooling can still use `render_rust_project_harness_json()`, while Agents that
+need project shape can use `--agent-snapshot` for a low-noise reasoning-tree
+summary instead of a raw file inventory.
 
 It also ships a small CLI for local and CI policy runs. Compact text is the
 default output; pass `--json` when a structured `RustHarnessReport` payload is
-needed, or `--agent-snapshot` when an LLM needs a low-noise reasoning-tree
-summary instead of a full file list.
+needed, or `--agent-snapshot` when an LLM needs the project reasoning tree.
 
 Project-root runners execute the full policy surface. By default they cover Rust
 code under the crate's `src/`, `tests/`, `examples/`, and `benches/` roots, plus
@@ -17,6 +33,21 @@ root `build.rs` when it exists. If the root is a Cargo workspace or a directory
 containing multiple Cargo packages, each package is evaluated with its own crate
 scope. Explicit-path runners are focused syntax probes because they do not have
 a project scope.
+
+The expected loop is library-first and Agent-complete:
+
+1. a downstream Rust crate adds the harness dependency and mounts a cargo-test
+   or build-time gate;
+2. `cargo test`, `cargo test --lib`, or a build script runs the harness with the
+   crate's parser-native project facts;
+3. missing configuration, structural drift, or verification obligations render
+   as compact findings;
+4. the next Agent edits code or `RustHarnessConfig` until the finding naturally
+   disappears, or records an explicit project-local rationale.
+
+That loop is the point of the crate. The harness should make the correct next
+Agent action visible without requiring a human to read a long handbook, inspect
+every file, or infer project ownership from search results.
 
 ## Self-Apply Policy
 

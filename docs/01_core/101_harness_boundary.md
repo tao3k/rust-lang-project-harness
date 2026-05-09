@@ -8,9 +8,21 @@
 4. rendering compact diagnostics for repair-oriented agents
 5. exposing assertion helpers that can be mounted in Cargo test targets
 
-The package is deliberately library-like. It does not know about a specific
-workspace, crate family, or CI provider. Callers pass a project root or explicit
-paths, then decide whether to assert, render, or inspect the report.
+The package is deliberately library-like and Agent-facing. It does not know
+about a specific workspace, crate family, or CI provider, and it does not assume
+a human will read a long audit report before code is repaired. Callers pass a
+project root or explicit paths, then decide whether to assert, render, or
+inspect the report. The usual downstream loop is: mount the harness in Cargo,
+let `cargo test` or a build script run it, and let the next coding Agent repair
+the compact finding or configure an explicit project-local rationale.
+
+The harness exists to reduce Agent search and keep long-lived Rust projects
+structurally clean. It parses the project into package, module, owner, import,
+child-edge, and dependency facts before policy runs. That parser-owned fact
+layer gives an Agent a reasoning tree instead of a massive file list, while the
+rule packs constrain common LLM drift such as broad scopes, oversized files,
+unclear facades, hidden glob imports, primitive public APIs, missing verification
+bindings, and partial harness configuration.
 
 Project-root runners execute the full policy surface. By default they cover Rust
 code under the crate's `src/`, `tests/`, `examples/`, and `benches/` roots, plus

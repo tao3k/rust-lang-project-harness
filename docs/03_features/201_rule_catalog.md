@@ -166,8 +166,9 @@ names, and other literal identifiers in backticks.
 
 ## Rendered Diagnostic Policy
 
-Rendered findings intentionally avoid large JSON payloads and human audit
-headers. The primary repair surface is compact text for agents:
+Rendered findings intentionally avoid large JSON payloads, human audit headers,
+and decorative code-frame markers such as `,-[` or pointer art. The primary
+repair surface is compact text for agents:
 
 1. stable rule id
 2. `@ path:line:column` locator
@@ -181,6 +182,12 @@ does not prepend global `Source`, `Files`, `Parsed`, `Issues`, `advice`, or
 `No blocking issues` sections; those counters are audit metadata, not repair
 instructions. A fully clean render is the only case that emits a global status,
 and that status is just `[ok] rust`.
+
+This format is part of the Agent contract. Paths may be long, especially in
+worktrees and CI sandboxes, so the renderer uses a single `@ path:line:column`
+locator instead of human-oriented code frames that wrap poorly and obscure the
+repair action. The `fix:` line names the intended edit, `Help:` explains the
+concrete parser fact, and `Contract:` states the stable rule expectation.
 
 `render_rust_project_harness()` includes advice by default. A report with only
 `Info` findings is still clean, but its advice remains visible as ordinary
