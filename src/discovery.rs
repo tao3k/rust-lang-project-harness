@@ -251,30 +251,62 @@ pub fn rust_project_harness_scope(
     source_dir_names: &[String],
     test_dir_names: &[String],
 ) -> RustProjectHarnessScope {
-    let package_paths = ["build.rs", "examples", "benches"]
+    let cargo_manifest = parse_cargo_manifest(project_root);
+    let mut package_paths = ["build.rs", "examples", "benches"]
         .iter()
         .map(|name| project_root.join(name))
         .filter(|path| path.exists())
-        .collect::<Vec<_>>();
-    let source_paths = source_dir_names
-        .iter()
-        .map(|name| project_root.join(name))
-        .filter(|path| path.exists())
-        .collect::<Vec<_>>();
-    let test_paths = if include_tests {
-        test_dir_names
+        .collect::<BTreeSet<_>>();
+    package_paths.extend(
+        cargo_manifest
+            .example_target_files
             .iter()
-            .map(|name| project_root.join(name))
+            .chain(
+                cargo_manifest
+                    .bench_targets
+                    .iter()
+                    .map(|target| &target.path),
+            )
             .filter(|path| path.exists())
-            .collect::<Vec<_>>()
+            .cloned(),
+    );
+
+    let mut source_paths = configured_existing_paths(project_root, source_dir_names);
+    source_paths.extend(existing_paths([project_root.join("src")]));
+    source_paths.extend(existing_paths(target_parent_paths(
+        &cargo_manifest.source_target_files,
+    )));
+
+    let test_paths = if include_tests {
+        let mut paths = configured_existing_paths(project_root, test_dir_names);
+        paths.extend(existing_paths([project_root.join("tests")]));
+        paths.extend(existing_paths(target_parent_paths(
+            &cargo_manifest.test_target_files,
+        )));
+        paths
     } else {
-        Vec::new()
+        BTreeSet::new()
     };
     RustProjectHarnessScope {
         project_root: project_root.to_path_buf(),
-        source_paths,
-        test_paths,
-        package_paths,
+        source_paths: source_paths.into_iter().collect(),
+        test_paths: test_paths.into_iter().collect(),
+        package_paths: package_paths.into_iter().collect(),
         fallback_paths: vec![project_root.to_path_buf()],
     }
+}
+
+fn configured_existing_paths(project_root: &Path, relative_paths: &[String]) -> BTreeSet<PathBuf> {
+    existing_paths(relative_paths.iter().map(|name| project_root.join(name)))
+}
+
+fn existing_paths(paths: impl IntoIterator<Item = PathBuf>) -> BTreeSet<PathBuf> {
+    paths.into_iter().filter(|path| path.exists()).collect()
+}
+
+fn target_parent_paths(target_files: &[PathBuf]) -> Vec<PathBuf> {
+    target_files
+        .iter()
+        .filter_map(|path| path.parent().map(Path::to_path_buf))
+        .collect()
 }

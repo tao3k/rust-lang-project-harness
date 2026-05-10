@@ -51,3 +51,12 @@ pub(super) fn has_module_path(report: &RustHarnessReport, suffix: &str) -> bool 
         .iter()
         .any(|module| module.path.ends_with(suffix))
 }
+
+pub(super) fn has_package_path(report: &RustHarnessReport, suffix: &str) -> bool {
+    report.project_scope.as_ref().is_some_and(|scope| {
+        scope
+            .package_paths
+            .iter()
+            .any(|path| path.ends_with(suffix))
+    })
+}

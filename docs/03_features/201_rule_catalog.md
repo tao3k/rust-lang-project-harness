@@ -42,6 +42,7 @@ version labels, searchable domains, and default modes. The first three packs are
 - `RUST-PROJ-R011`: harness gates must run with explicit verification config
 - `RUST-PROJ-R012`: harness-enabled build scripts must mount the build-time harness gate when build-time enforcement is in scope
 - `RUST-PROJ-R013`: custom harness source/test scope paths must carry an explicit explanation
+- `RUST-PROJ-R014`: Cargo-backed harness scopes must not be silently removed
 - `RUST-MOD-R001`: `mod.rs` should stay interface-only with external module declarations and re-exports
 - `RUST-MOD-R002`: oversized source file should split by responsibility, including private implementation piles
 - `RUST-MOD-R003`: native `use` trees containing `super::super` should move behind a clearer owner boundary
@@ -121,13 +122,19 @@ an existing bench source file. This keeps the compact verification plan from
 claiming a performance skill exists while `cargo test` has no way to remind the
 agent that the benchmark still needs to be wired.
 
-Custom harness scope paths are also policy-governed. `source_dir_names` and
-`test_dir_names` define what the Agent-facing harness can see, so narrowing
-those lists can hide existing policy debt. `RUST-PROJ-R013` requires every
+Harness scope configuration is policy-governed. Cargo manifest facts and
+conventional Cargo layout form the baseline coverage: `src`, explicit
+`[lib]`/`[[bin]]` target roots, `tests`, explicit `[[test]]` target roots,
+`examples`, explicit `[[example]]` targets, `benches`, explicit `[[bench]]`
+targets, and root `build.rs`. A build-script gate therefore cannot shrink the
+scan surface just by passing a smaller config. `RUST-PROJ-R013` requires every
 custom source or test scope path to have a non-empty explanation, preferably by
 using `RustHarnessConfig::with_source_path(path, explanation)` or
-`with_test_path(path, explanation)`. The default `src` and `tests` scopes do not
-need explanations.
+`with_test_path(path, explanation)`. `RUST-PROJ-R014` catches attempts to
+remove Cargo-backed `src`, `tests`, or manifest-declared test coverage without
+a matching explanation through `with_source_path_excluded(path, explanation)`,
+`with_test_path_excluded(path, explanation)`, or
+`with_tests_excluded(explanation)`.
 
 ## Agent Advice Rules
 

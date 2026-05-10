@@ -120,6 +120,7 @@ impl RustRulePack {
                 "RUST-PROJ-R011",
                 "RUST-PROJ-R012",
                 "RUST-PROJ-R013",
+                "RUST-PROJ-R014",
             ],
             Self::Modularity => &[
                 "RUST-MOD-R001",
@@ -332,6 +333,12 @@ pub struct RustHarnessConfig {
     /// Required explanations for custom test paths.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub test_path_explanations: BTreeMap<String, String>,
+    /// Required explanations for excluding default source paths.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub source_path_exclusion_explanations: BTreeMap<String, String>,
+    /// Required explanations for excluding default test paths.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub test_path_exclusion_explanations: BTreeMap<String, String>,
     /// Library-first verification policy used to plan external skill tasks.
     #[serde(default, skip_serializing_if = "RustVerificationPolicy::is_empty")]
     pub verification_policy: RustVerificationPolicy,
@@ -355,6 +362,8 @@ impl Default for RustHarnessConfig {
             test_dir_names: vec!["tests".to_string()],
             source_path_explanations: BTreeMap::new(),
             test_path_explanations: BTreeMap::new(),
+            source_path_exclusion_explanations: BTreeMap::new(),
+            test_path_exclusion_explanations: BTreeMap::new(),
             verification_policy: RustVerificationPolicy::default(),
         }
     }
@@ -438,7 +447,7 @@ impl RustHarnessConfig {
         explanation: impl Into<String>,
     ) -> Self {
         let path = normalize_config_scope_path(path.into());
-        self.source_dir_names.push(path.clone());
+        push_unique_scope_path(&mut self.source_dir_names, path.clone());
         self.source_path_explanations
             .insert(path, explanation.into());
         self
@@ -452,8 +461,45 @@ impl RustHarnessConfig {
         explanation: impl Into<String>,
     ) -> Self {
         let path = normalize_config_scope_path(path.into());
-        self.test_dir_names.push(path.clone());
+        push_unique_scope_path(&mut self.test_dir_names, path.clone());
         self.test_path_explanations.insert(path, explanation.into());
+        self
+    }
+
+    /// Return a config with one default source path excluded and explained.
+    #[must_use]
+    pub fn with_source_path_excluded(
+        mut self,
+        path: impl Into<String>,
+        explanation: impl Into<String>,
+    ) -> Self {
+        let path = normalize_config_scope_path(path.into());
+        retain_scope_paths_except(&mut self.source_dir_names, &path);
+        self.source_path_exclusion_explanations
+            .insert(path, explanation.into());
+        self
+    }
+
+    /// Return a config with one default test path excluded and explained.
+    #[must_use]
+    pub fn with_test_path_excluded(
+        mut self,
+        path: impl Into<String>,
+        explanation: impl Into<String>,
+    ) -> Self {
+        let path = normalize_config_scope_path(path.into());
+        retain_scope_paths_except(&mut self.test_dir_names, &path);
+        self.test_path_exclusion_explanations
+            .insert(path, explanation.into());
+        self
+    }
+
+    /// Return a config that skips test-root parsing with an explanation.
+    #[must_use]
+    pub fn with_tests_excluded(mut self, explanation: impl Into<String>) -> Self {
+        self.include_tests = false;
+        self.test_path_exclusion_explanations
+            .insert("tests".to_string(), explanation.into());
         self
     }
 
@@ -562,6 +608,16 @@ impl RustHarnessConfig {
 
 fn normalize_config_scope_path(path: String) -> String {
     path.trim().trim_matches('/').replace('\\', "/")
+}
+
+fn push_unique_scope_path(paths: &mut Vec<String>, path: String) {
+    if !paths.iter().any(|candidate| candidate == &path) {
+        paths.push(path);
+    }
+}
+
+fn retain_scope_paths_except(paths: &mut Vec<String>, excluded_path: &str) {
+    paths.retain(|path| normalize_config_scope_path(path.clone()) != excluded_path);
 }
 
 /// Aggregated harness report.

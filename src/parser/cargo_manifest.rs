@@ -12,6 +12,8 @@ pub(crate) struct CargoManifestFacts {
     pub(crate) has_package: bool,
     pub(crate) workspace_members: Vec<String>,
     pub(crate) workspace_excludes: Vec<String>,
+    pub(crate) source_target_files: Vec<PathBuf>,
+    pub(crate) example_target_files: Vec<PathBuf>,
     pub(crate) test_target_files: Vec<PathBuf>,
     pub(crate) bench_targets: Vec<CargoBenchTargetFacts>,
     pub(crate) references_harness: bool,
@@ -57,12 +59,16 @@ pub(crate) fn parse_cargo_manifest(project_root: &Path) -> CargoManifestFacts {
         .as_ref()
         .map(|workspace| (workspace.members.clone(), workspace.exclude.clone()))
         .unwrap_or_default();
+    let source_target_files = manifest_source_target_files(project_root, &manifest);
+    let example_target_files = manifest_product_target_files(project_root, &manifest.example);
     let test_target_files = manifest_test_target_files(project_root, &manifest.test);
     let bench_targets = manifest_bench_targets(project_root, &manifest.bench);
     CargoManifestFacts {
         has_package,
         workspace_members,
         workspace_excludes,
+        source_target_files,
+        example_target_files,
         test_target_files,
         bench_targets,
         references_harness,
@@ -92,8 +98,24 @@ fn read_manifest_slice(manifest_path: &Path) -> Result<Manifest, cargo_toml::Err
     Manifest::from_slice(&content)
 }
 
+fn manifest_source_target_files(project_root: &Path, manifest: &Manifest) -> Vec<PathBuf> {
+    let mut target_files = Vec::new();
+    if let Some(library_target) = &manifest.lib {
+        target_files.extend(manifest_product_target_files(
+            project_root,
+            std::slice::from_ref(library_target),
+        ));
+    }
+    target_files.extend(manifest_product_target_files(project_root, &manifest.bin));
+    target_files
+}
+
 fn manifest_test_target_files(project_root: &Path, test_targets: &[Product]) -> Vec<PathBuf> {
-    test_targets
+    manifest_product_target_files(project_root, test_targets)
+}
+
+fn manifest_product_target_files(project_root: &Path, targets: &[Product]) -> Vec<PathBuf> {
+    targets
         .iter()
         .filter_map(|target| {
             let target_path = target.path.as_deref().unwrap_or_default().trim();

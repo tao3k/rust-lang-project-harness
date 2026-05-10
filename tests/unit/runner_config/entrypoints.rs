@@ -5,7 +5,7 @@ use rust_lang_project_harness::{
 };
 use tempfile::TempDir;
 
-use super::support::{has_module_path, has_rule, write_manifest};
+use super::support::{has_module_path, has_package_path, has_rule, write_manifest};
 
 #[test]
 fn default_project_runner_covers_cargo_package_rust_targets() {
@@ -37,12 +37,9 @@ fn default_project_runner_covers_cargo_package_rust_targets() {
     assert!(has_module_path(&report, "src/lib.rs"));
     assert!(has_module_path(&report, "src/owned.rs"));
     assert!(has_module_path(&report, "tests/unit/helper.rs"));
-    assert!(
-        report
-            .project_scope
-            .as_ref()
-            .is_some_and(|scope| scope.package_paths.len() == 3)
-    );
+    assert!(has_package_path(&report, "build.rs"));
+    assert!(has_package_path(&report, "examples"));
+    assert!(has_package_path(&report, "benches"));
 }
 
 #[test]
@@ -94,7 +91,8 @@ fn include_tests_false_skips_test_root_parsing_not_test_layout_policy() {
     let config = RustHarnessConfig {
         include_tests: false,
         ..RustHarnessConfig::default()
-    };
+    }
+    .with_tests_excluded("fixture intentionally skips test-root parsing");
     let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
 
     assert!(!has_rule(&report, "RUST-SYN-R001"));

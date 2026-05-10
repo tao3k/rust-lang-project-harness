@@ -116,11 +116,26 @@ relative paths. Source-scoped rule packs use the resolved `source_paths` as
 their ownership boundary, so custom source roots receive the same source-test,
 modularity, and agent advice checks as `src`.
 
+Cargo is the baseline project manager for discovery. The project runner reads
+`Cargo.toml` through the parser layer and keeps Cargo-owned code coverage in
+scope even when an Agent passes a smaller config: conventional `src` and
+`tests`, explicit `[lib]`, `[[bin]]`, and `[[test]]` target roots, plus
+`examples`, `benches`, explicit `[[example]]`/`[[bench]]` targets, and root
+`build.rs`. This applies to build-script gates too, so `build.rs` cannot become
+a second hand-written scanner that quietly avoids old debt.
+
 Custom scope paths must explain why they exist. Prefer
 `with_source_path(path, explanation)` and `with_test_path(path, explanation)`;
 directly mutating `source_dir_names` or `test_dir_names` without the matching
 explanation map triggers `RUST-PROJ-R013`. This prevents an Agent from shrinking
 the harness to a few files just to avoid old policy debt.
+
+Removing Cargo-backed scopes also needs a reason. If `src`, `tests`, or a
+manifest-declared test target exists but an Agent removes it from the configured
+scope, `RUST-PROJ-R014` reports the attempt unless the config uses
+`with_source_path_excluded(path, explanation)`,
+`with_test_path_excluded(path, explanation)`, or
+`with_tests_excluded(explanation)`.
 
 Package target paths such as root `build.rs`, `examples/`, and `benches/` are
 tracked separately from source roots. They receive syntax checks and

@@ -32,6 +32,7 @@ pub(crate) const RUST_PROJ_R010: &str = "RUST-PROJ-R010";
 pub(crate) const RUST_PROJ_R011: &str = "RUST-PROJ-R011";
 pub(crate) const RUST_PROJ_R012: &str = "RUST-PROJ-R012";
 pub(crate) const RUST_PROJ_R013: &str = "RUST-PROJ-R013";
+pub(crate) const RUST_PROJ_R014: &str = "RUST-PROJ-R014";
 
 pub(crate) const MAX_UNIT_TEST_EFFECTIVE_LINES: usize = 260;
 pub(crate) const MIN_UNIT_TEST_FUNCTIONS: usize = 8;
@@ -59,7 +60,12 @@ pub(crate) fn evaluate(
     let cargo_test_targets = parse_cargo_test_targets(&scope.project_root, &cargo_manifest);
     let reasoning_tree = rust_reasoning_tree_facts(scope, modules);
     findings.extend(test_layout_findings(&scope.project_root, &policy, &rules));
-    findings.extend(source_scope_findings(&scope.project_root, config, &rules));
+    findings.extend(source_scope_findings(
+        &scope.project_root,
+        config,
+        &cargo_manifest,
+        &rules,
+    ));
     findings.extend(source_test_mount_findings(scope, modules, &rules));
     findings.extend(test_leaf_bloat_findings(&scope.project_root, &rules));
     findings.extend(library_cargo_test_gate_findings(
