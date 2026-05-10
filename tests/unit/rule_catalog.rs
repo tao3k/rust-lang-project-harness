@@ -94,6 +94,7 @@ fn rule_catalogs_expose_stable_rule_ids() {
             "RUST-PROJ-R010",
             "RUST-PROJ-R011",
             "RUST-PROJ-R012",
+            "RUST-PROJ-R013",
         ]
     );
 

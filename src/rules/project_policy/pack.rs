@@ -8,6 +8,7 @@ use crate::{RustHarnessConfig, RustHarnessFinding, RustHarnessRule, RustProjectH
 use super::build_gate::build_gate_findings;
 use super::catalog::rules_by_id;
 use super::config::load_layout_policy;
+use super::source_scope::source_scope_findings;
 use super::source_tests::source_test_mount_findings;
 use super::test_bloat::test_leaf_bloat_findings;
 use super::test_layout::test_layout_findings;
@@ -30,6 +31,7 @@ pub(crate) const RUST_PROJ_R009: &str = "RUST-PROJ-R009";
 pub(crate) const RUST_PROJ_R010: &str = "RUST-PROJ-R010";
 pub(crate) const RUST_PROJ_R011: &str = "RUST-PROJ-R011";
 pub(crate) const RUST_PROJ_R012: &str = "RUST-PROJ-R012";
+pub(crate) const RUST_PROJ_R013: &str = "RUST-PROJ-R013";
 
 pub(crate) const MAX_UNIT_TEST_EFFECTIVE_LINES: usize = 260;
 pub(crate) const MIN_UNIT_TEST_FUNCTIONS: usize = 8;
@@ -57,6 +59,7 @@ pub(crate) fn evaluate(
     let cargo_test_targets = parse_cargo_test_targets(&scope.project_root, &cargo_manifest);
     let reasoning_tree = rust_reasoning_tree_facts(scope, modules);
     findings.extend(test_layout_findings(&scope.project_root, &policy, &rules));
+    findings.extend(source_scope_findings(&scope.project_root, config, &rules));
     findings.extend(source_test_mount_findings(scope, modules, &rules));
     findings.extend(test_leaf_bloat_findings(&scope.project_root, &rules));
     findings.extend(library_cargo_test_gate_findings(

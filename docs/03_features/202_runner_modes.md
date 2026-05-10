@@ -112,9 +112,15 @@ must expose a complete build-time gate.
 ## Configuration
 
 `RustHarnessConfig.source_dir_names` and `test_dir_names` are project-root
-relative directories. Source-scoped rule packs use the resolved `source_paths` as
+relative paths. Source-scoped rule packs use the resolved `source_paths` as
 their ownership boundary, so custom source roots receive the same source-test,
 modularity, and agent advice checks as `src`.
+
+Custom scope paths must explain why they exist. Prefer
+`with_source_path(path, explanation)` and `with_test_path(path, explanation)`;
+directly mutating `source_dir_names` or `test_dir_names` without the matching
+explanation map triggers `RUST-PROJ-R013`. This prevents an Agent from shrinking
+the harness to a few files just to avoid old policy debt.
 
 Package target paths such as root `build.rs`, `examples/`, and `benches/` are
 tracked separately from source roots. They receive syntax checks and

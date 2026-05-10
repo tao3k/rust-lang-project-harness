@@ -59,9 +59,9 @@ fn custom_source_roots_are_policy_source_roots() {
 
     let config = RustHarnessConfig {
         include_tests: false,
-        source_dir_names: vec!["crates/core".to_string()],
         ..RustHarnessConfig::default()
-    };
+    }
+    .with_source_path("crates/core", "custom source root fixture");
     let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
 
     assert!(has_rule(&report, "RUST-PROJ-R003"));

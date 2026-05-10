@@ -1,7 +1,10 @@
 use std::fs;
 use std::path::Path;
 
-use rust_lang_project_harness::run_rust_project_harness;
+use rust_lang_project_harness::{
+    RustHarnessConfig, render_rust_project_harness, run_rust_project_harness,
+    run_rust_project_harness_with_config,
+};
 use tempfile::TempDir;
 
 #[test]
@@ -54,6 +57,74 @@ fn layout_policy_requires_explanations_for_directory_exceptions() {
     assert!(!has_rule(&report, "RUST-PROJ-R002"));
 }
 
+#[test]
+fn harness_scope_policy_requires_explanations_for_custom_source_paths() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_minimal_project(root);
+    fs::create_dir_all(root.join("src/integration_support")).expect("create custom source dir");
+    fs::write(
+        root.join("src/integration_support/search_strategy_flow.rs"),
+        "//! Focused support owner.\n",
+    )
+    .expect("write custom source");
+
+    let config = RustHarnessConfig {
+        source_dir_names: vec![
+            "src/lib.rs".to_owned(),
+            "src/integration_support/search_strategy_flow.rs".to_owned(),
+        ],
+        ..RustHarnessConfig::default()
+    };
+    let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
+    assert_eq!(rule_count(&report, "RUST-PROJ-R013"), 2);
+    let mut focused_report = report.clone();
+    focused_report
+        .findings
+        .retain(|finding| finding.rule_id == "RUST-PROJ-R013");
+    let rendered = normalize_temp_root(&render_rust_project_harness(&focused_report), root);
+    insta::assert_snapshot!("custom_scope_paths_require_explanations", rendered);
+
+    let config = RustHarnessConfig::default()
+        .with_source_path(
+            "src/lib.rs",
+            "source-backed cargo-test gate keeps cargo test --lib inside harness policy",
+        )
+        .with_source_path(
+            "src/integration_support/search_strategy_flow.rs",
+            "temporary focused migration owner while the integration support branch is split",
+        );
+    let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
+    assert!(!has_rule(&report, "RUST-PROJ-R013"));
+}
+
+#[test]
+fn harness_scope_policy_requires_explanations_for_custom_test_paths() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_minimal_project(root);
+    fs::create_dir_all(root.join("tests/contracts")).expect("create custom test dir");
+    fs::write(
+        root.join("tests/contracts/api.rs"),
+        "fn contract_fixture() {}\n",
+    )
+    .expect("write contract test");
+
+    let config = RustHarnessConfig {
+        test_dir_names: vec!["tests/contracts".to_owned()],
+        ..RustHarnessConfig::default()
+    };
+    let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
+    assert!(has_rule(&report, "RUST-PROJ-R013"));
+
+    let config = RustHarnessConfig::default().with_test_path(
+        "tests/contracts",
+        "contract fixtures are mounted through explicit root test targets",
+    );
+    let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
+    assert!(!has_rule(&report, "RUST-PROJ-R013"));
+}
+
 fn write_minimal_project(root: &Path) {
     fs::write(
         root.join("Cargo.toml"),
@@ -75,4 +146,19 @@ fn has_rule(report: &rust_lang_project_harness::RustHarnessReport, rule_id: &str
         .findings
         .iter()
         .any(|finding| finding.rule_id == rule_id)
+}
+
+fn rule_count(report: &rust_lang_project_harness::RustHarnessReport, rule_id: &str) -> usize {
+    report
+        .findings
+        .iter()
+        .filter(|finding| finding.rule_id == rule_id)
+        .count()
+}
+
+fn normalize_temp_root(rendered: &str, root: &Path) -> String {
+    let root_text = root.display().to_string();
+    rendered
+        .replace(&root_text, "$TEMP")
+        .replace(&root_text.replace('\\', "/"), "$TEMP")
 }

@@ -8,7 +8,7 @@ use crate::{RustDiagnosticSeverity, RustHarnessRule};
 use super::{
     PACK_ID, RUST_PROJ_R001, RUST_PROJ_R002, RUST_PROJ_R003, RUST_PROJ_R004, RUST_PROJ_R005,
     RUST_PROJ_R006, RUST_PROJ_R007, RUST_PROJ_R008, RUST_PROJ_R009, RUST_PROJ_R010, RUST_PROJ_R011,
-    RUST_PROJ_R012,
+    RUST_PROJ_R012, RUST_PROJ_R013,
 };
 
 pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
@@ -107,6 +107,14 @@ pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             RustDiagnosticSeverity::Warning,
             "Build-time harness gate is incomplete",
             "When a harness-enabled package has a root build.rs or a harness build-dependency, mount the build-time harness gate so filtered cargo test runs cannot bypass project policy.",
+            labels("project-policy"),
+        ),
+        RustHarnessRule::new(
+            RUST_PROJ_R013,
+            PACK_ID,
+            RustDiagnosticSeverity::Warning,
+            "Custom harness scope path lacks explanation",
+            "Custom source or test scope paths must be added with an explicit explanation so agents cannot shrink the harness to avoid existing policy debt.",
             labels("project-policy"),
         ),
     ]

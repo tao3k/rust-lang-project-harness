@@ -119,6 +119,7 @@ impl RustRulePack {
                 "RUST-PROJ-R010",
                 "RUST-PROJ-R011",
                 "RUST-PROJ-R012",
+                "RUST-PROJ-R013",
             ],
             Self::Modularity => &[
                 "RUST-MOD-R001",
@@ -321,10 +322,16 @@ pub struct RustHarnessConfig {
     pub rule_severity_overrides: BTreeMap<String, RustDiagnosticSeverity>,
     /// Whether project runs include conventional test roots.
     pub include_tests: bool,
-    /// Source directory names, relative to the project root.
+    /// Source paths, relative to the project root.
     pub source_dir_names: Vec<String>,
-    /// Test directory names, relative to the project root.
+    /// Test paths, relative to the project root.
     pub test_dir_names: Vec<String>,
+    /// Required explanations for custom source paths.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub source_path_explanations: BTreeMap<String, String>,
+    /// Required explanations for custom test paths.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub test_path_explanations: BTreeMap<String, String>,
     /// Library-first verification policy used to plan external skill tasks.
     #[serde(default, skip_serializing_if = "RustVerificationPolicy::is_empty")]
     pub verification_policy: RustVerificationPolicy,
@@ -346,6 +353,8 @@ impl Default for RustHarnessConfig {
             include_tests: true,
             source_dir_names: vec!["src".to_string()],
             test_dir_names: vec!["tests".to_string()],
+            source_path_explanations: BTreeMap::new(),
+            test_path_explanations: BTreeMap::new(),
             verification_policy: RustVerificationPolicy::default(),
         }
     }
@@ -418,6 +427,33 @@ impl RustHarnessConfig {
         I: IntoIterator<Item = RustDiagnosticSeverity>,
     {
         self.blocking_severities = severities.into_iter().collect();
+        self
+    }
+
+    /// Return a config with one custom source path and its required explanation.
+    #[must_use]
+    pub fn with_source_path(
+        mut self,
+        path: impl Into<String>,
+        explanation: impl Into<String>,
+    ) -> Self {
+        let path = normalize_config_scope_path(path.into());
+        self.source_dir_names.push(path.clone());
+        self.source_path_explanations
+            .insert(path, explanation.into());
+        self
+    }
+
+    /// Return a config with one custom test path and its required explanation.
+    #[must_use]
+    pub fn with_test_path(
+        mut self,
+        path: impl Into<String>,
+        explanation: impl Into<String>,
+    ) -> Self {
+        let path = normalize_config_scope_path(path.into());
+        self.test_dir_names.push(path.clone());
+        self.test_path_explanations.insert(path, explanation.into());
         self
     }
 
@@ -522,6 +558,10 @@ impl RustHarnessConfig {
         self.verification_policy.dependency_signals.push(signal);
         self
     }
+}
+
+fn normalize_config_scope_path(path: String) -> String {
+    path.trim().trim_matches('/').replace('\\', "/")
 }
 
 /// Aggregated harness report.
