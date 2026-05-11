@@ -232,7 +232,10 @@ ignored. The parser also records whether a `use` statement is inside an inline
 test context without weakening the default no-glob harness contract.
 The preferred repair for `super::super` is a stable `crate::...` owner/facade
 import. If the target is a leaf implementation, expose the needed API through
-the owner facade first instead of adding another relative hop.
+the owner facade first instead of adding another relative hop. The concrete
+`crate::...` candidate is derived by the reasoning-tree parser from the current
+module namespace and inline-module context; the policy renderer only consumes
+that parser fact.
 
 `AGENT-R001`, `AGENT-R002`, `AGENT-R004`, `AGENT-R005`, `AGENT-R006`,
 `AGENT-R008`, and `AGENT-R012` through `AGENT-R028` consume native facts from

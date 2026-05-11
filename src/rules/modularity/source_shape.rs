@@ -128,51 +128,33 @@ fn is_under_tests_dir(path: &Path) -> bool {
 }
 
 pub(super) fn deep_relative_import_findings(
+    module_facts: &RustReasoningModuleFacts,
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     let rule = &rules[RUST_MOD_R003];
-    module
-        .syntax_facts
-        .use_statements
+    module_facts
+        .import_summary
+        .deep_relative_import_facts
         .iter()
-        .filter_map(|use_syntax| {
-            if !use_syntax.deep_relative_imports.is_empty() {
-                Some(RustHarnessFinding::from_rule(
-                    rule,
-                    format!(
-                        "{} uses {}.",
-                        display_path(&module.report.path),
-                        deep_relative_import_descriptor(use_syntax)
-                    ),
-                    path_line_location(&module.report.path, use_syntax.line),
-                    source_line(&module.source, use_syntax.line),
-                    "replace deep relative import with crate::... owner/facade import",
-                ))
-            } else {
-                None
-            }
+        .map(|deep_relative_import| {
+            RustHarnessFinding::from_rule(
+                rule,
+                format!(
+                    "{} uses deep relative import `{}`; parser suggests `{}`.",
+                    display_path(&module.report.path),
+                    deep_relative_import.rendered_path(),
+                    deep_relative_import.rendered_crate_path()
+                ),
+                path_line_location(&module.report.path, deep_relative_import.line),
+                source_line(&module.source, deep_relative_import.line),
+                format!(
+                    "replace with {} or expose it through an owner facade",
+                    deep_relative_import.rendered_crate_path()
+                ),
+            )
         })
         .collect()
-}
-
-fn deep_relative_import_descriptor(use_syntax: &RustUseStatementSyntax) -> String {
-    let imports = &use_syntax.deep_relative_imports;
-    let Some(first_import) = imports.first() else {
-        return "deep relative import".to_string();
-    };
-    if imports.len() > 1 {
-        return format!(
-            "{} deep relative imports ({})",
-            imports.len(),
-            imports
-                .iter()
-                .map(|import| import.rendered_path())
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
-    }
-    format!("deep relative import `{}`", first_import.rendered_path())
 }
 
 pub(super) fn glob_import_findings(

@@ -114,6 +114,7 @@ impl RustUseGlobImportSyntax {
 }
 
 impl RustUseDeepRelativeImportSyntax {
+    #[cfg(test)]
     pub(crate) fn rendered_path(&self) -> String {
         self.prefix_segments.join("::")
     }

@@ -30,16 +30,22 @@ fn native_use_scope_facts_stay_in_parser_layer() {
     assert!(parser_source.contains("RustUseGlobScopeKind"));
     assert!(parser_source.contains("RustUseDeepRelativeImportSyntax"));
     assert!(parser_source.contains("fn is_deep_relative_import"));
+    let reasoning_tree_source =
+        fs::read_to_string(root.join("src/parser/reasoning_tree.rs")).expect("read parser facts");
+    assert!(reasoning_tree_source.contains("RustReasoningDeepRelativeImportFacts"));
+    assert!(reasoning_tree_source.contains("fn crate_relative_import_segments"));
 
     let rule_source = fs::read_to_string(root.join("src/rules/modularity/source_shape.rs"))
         .expect("read modularity source-shape rules");
     assert!(rule_source.contains("RustUseGlobScopeKind::CrateOwner"));
-    assert!(rule_source.contains("deep_relative_imports"));
+    assert!(rule_source.contains("deep_relative_import_facts"));
+    assert!(rule_source.contains("rendered_crate_path"));
 
     for forbidden in [
         "UseTree::Glob",
         "has_super_super",
         "contains_deep_relative_import",
+        "crate_relative_import_segments",
     ] {
         assert!(
             !rule_source.contains(forbidden),

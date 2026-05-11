@@ -87,11 +87,13 @@ The path-clarity surface is also project-scoped. Modularity policy consumes
 native Rust `use` tree facts from the parser to reject `super::super` owner
 escapes and all glob imports, including `use super::*`. `super::super` repairs
 should use stable `crate::...` owner/facade imports; leaf implementation targets
-should be exposed through their owner facade first. Those facts include
-inline-module and `#[cfg(test)]` context, and import clarity policy runs over
-both `src/` and conventional `tests/` roots. Agent advice reports repeated
-namespace segments across the default package surface, including test helpers
-and ordinary Rust file stems.
+should be exposed through their owner facade first. The reasoning-tree parser
+derives the concrete `crate::...` candidate from module namespace facts before
+the policy renderer emits advice. Those facts include inline-module and
+`#[cfg(test)]` context, and import clarity policy runs over both `src/` and
+conventional `tests/` roots. Agent advice reports repeated namespace segments
+across the default package surface, including test helpers and ordinary Rust
+file stems.
 
 Reasoning-tree reachability uses the same parser boundary: `mod` declarations,
 `#[path]` attributes, and literal `include!` source shards are resolved into

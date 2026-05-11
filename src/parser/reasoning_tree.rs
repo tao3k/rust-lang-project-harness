@@ -11,7 +11,7 @@ use super::module_tree::{
 };
 use super::{
     ParsedRustModule, RustSourcePathFacts, RustUseImportRootKind, RustUseImportSyntax,
-    rust_source_path_facts,
+    RustUseStatementSyntax, rust_source_path_facts,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -56,10 +56,20 @@ pub(crate) struct RustReasoningImportFacts {
     pub(crate) unknown_imports: usize,
     pub(crate) glob_imports: usize,
     pub(crate) deep_relative_imports: usize,
+    pub(crate) deep_relative_import_facts: Vec<RustReasoningDeepRelativeImportFacts>,
     pub(crate) prelude_imports: usize,
     pub(crate) test_context_imports: usize,
     pub(crate) local_owner_imports: Vec<Vec<String>>,
     pub(crate) local_owner_dependencies: Vec<RustReasoningOwnerDependencyFacts>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RustReasoningDeepRelativeImportFacts {
+    pub(crate) line: usize,
+    pub(crate) original_segments: Vec<String>,
+    pub(crate) crate_segments: Vec<String>,
+    pub(crate) parent_hops: usize,
+    pub(crate) is_test_context: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -81,6 +91,13 @@ struct RustReasoningOwnerDependencyKey {
     is_test_context: bool,
 }
 
+struct RustReasoningImportAccumulators<'a> {
+    summary: &'a mut RustReasoningImportFacts,
+    local_owner_imports: &'a mut BTreeSet<Vec<String>>,
+    local_owner_dependencies:
+        &'a mut BTreeMap<RustReasoningOwnerDependencyKey, RustReasoningOwnerDependencyFacts>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum RustReasoningOwnerBranchRole {
     Root,
@@ -95,6 +112,16 @@ pub(crate) enum RustReasoningOwnerBranchRole {
 impl RustReasoningTreeFacts {
     pub(crate) fn module(&self, path: &Path) -> Option<&RustReasoningModuleFacts> {
         self.modules.iter().find(|module| module.path == path)
+    }
+}
+
+impl RustReasoningDeepRelativeImportFacts {
+    pub(crate) fn rendered_path(&self) -> String {
+        self.original_segments.join("::")
+    }
+
+    pub(crate) fn rendered_crate_path(&self) -> String {
+        self.crate_segments.join("::")
     }
 }
 
@@ -233,65 +260,181 @@ fn import_summary(
     let mut local_owner_dependencies =
         BTreeMap::<RustReasoningOwnerDependencyKey, RustReasoningOwnerDependencyFacts>::new();
     for use_statement in &module.syntax_facts.use_statements {
-        let import_count = use_statement.imports.len();
-        summary.total_imports += import_count;
-        if use_statement.context.is_inside_cfg_test_module {
-            summary.test_context_imports += import_count;
-        }
-        for import in &use_statement.imports {
-            match import.root_kind {
-                RustUseImportRootKind::Absolute => summary.absolute_imports += 1,
-                RustUseImportRootKind::Crate => summary.crate_imports += 1,
-                RustUseImportRootKind::SelfScope => summary.self_imports += 1,
-                RustUseImportRootKind::Parent => summary.parent_imports += 1,
-                RustUseImportRootKind::External => summary.external_imports += 1,
-                RustUseImportRootKind::Unknown => summary.unknown_imports += 1,
-            }
-            if import.is_glob {
-                summary.glob_imports += 1;
-            }
-            if import.parent_hops >= 2 {
-                summary.deep_relative_imports += 1;
-            }
-            if import.is_prelude_import {
-                summary.prelude_imports += 1;
-            }
-            if let Some(dependency) = local_owner_dependency(
-                &module_facts.path,
-                &module_facts.source_path.namespace_components,
-                import,
-                use_statement.line,
-                use_statement.context.is_inside_cfg_test_module,
-                known_module_namespace_paths,
-            ) {
-                local_owner_imports.insert(dependency.target_namespace.clone());
-                merge_owner_dependency(&mut local_owner_dependencies, dependency);
-            }
-        }
+        let mut accumulators = RustReasoningImportAccumulators {
+            summary: &mut summary,
+            local_owner_imports: &mut local_owner_imports,
+            local_owner_dependencies: &mut local_owner_dependencies,
+        };
+        record_use_statement_imports(
+            &mut accumulators,
+            module_facts,
+            use_statement,
+            known_module_namespace_paths,
+        );
     }
     summary.local_owner_imports = local_owner_imports.into_iter().collect();
     summary.local_owner_dependencies = local_owner_dependencies.into_values().collect();
     summary
 }
 
+fn record_use_statement_imports(
+    accumulators: &mut RustReasoningImportAccumulators<'_>,
+    module_facts: &RustReasoningModuleFacts,
+    use_statement: &RustUseStatementSyntax,
+    known_module_namespace_paths: &BTreeMap<Vec<String>, PathBuf>,
+) {
+    let import_namespace = use_statement_namespace(
+        &module_facts.source_path.namespace_components,
+        &use_statement.context.enclosing_modules,
+    );
+    let import_count = use_statement.imports.len();
+    accumulators.summary.total_imports += import_count;
+    if use_statement.context.is_inside_cfg_test_module {
+        accumulators.summary.test_context_imports += import_count;
+    }
+    for import in &use_statement.imports {
+        record_import_fact(
+            accumulators,
+            module_facts,
+            &import_namespace,
+            use_statement,
+            import,
+            known_module_namespace_paths,
+        );
+    }
+}
+
+fn record_import_fact(
+    accumulators: &mut RustReasoningImportAccumulators<'_>,
+    module_facts: &RustReasoningModuleFacts,
+    import_namespace: &[String],
+    use_statement: &RustUseStatementSyntax,
+    import: &RustUseImportSyntax,
+    known_module_namespace_paths: &BTreeMap<Vec<String>, PathBuf>,
+) {
+    record_import_root(accumulators.summary, import.root_kind);
+    record_import_shape(
+        accumulators.summary,
+        import_namespace,
+        use_statement,
+        import,
+    );
+    if let Some(dependency) = local_owner_dependency(
+        &module_facts.path,
+        &module_facts.source_path.namespace_components,
+        import_namespace,
+        import,
+        use_statement.line,
+        use_statement.context.is_inside_cfg_test_module,
+        known_module_namespace_paths,
+    ) {
+        accumulators
+            .local_owner_imports
+            .insert(dependency.target_namespace.clone());
+        merge_owner_dependency(accumulators.local_owner_dependencies, dependency);
+    }
+}
+
+fn record_import_root(summary: &mut RustReasoningImportFacts, root_kind: RustUseImportRootKind) {
+    match root_kind {
+        RustUseImportRootKind::Absolute => summary.absolute_imports += 1,
+        RustUseImportRootKind::Crate => summary.crate_imports += 1,
+        RustUseImportRootKind::SelfScope => summary.self_imports += 1,
+        RustUseImportRootKind::Parent => summary.parent_imports += 1,
+        RustUseImportRootKind::External => summary.external_imports += 1,
+        RustUseImportRootKind::Unknown => summary.unknown_imports += 1,
+    }
+}
+
+fn record_import_shape(
+    summary: &mut RustReasoningImportFacts,
+    import_namespace: &[String],
+    use_statement: &RustUseStatementSyntax,
+    import: &RustUseImportSyntax,
+) {
+    if import.is_glob {
+        summary.glob_imports += 1;
+    }
+    if import.parent_hops >= 2 {
+        summary.deep_relative_imports += 1;
+        if let Some(deep_relative_import) = deep_relative_import_fact(
+            import_namespace,
+            import,
+            use_statement.line,
+            use_statement.context.is_inside_cfg_test_module,
+        ) {
+            summary
+                .deep_relative_import_facts
+                .push(deep_relative_import);
+        }
+    }
+    if import.is_prelude_import {
+        summary.prelude_imports += 1;
+    }
+}
+
+fn use_statement_namespace(
+    module_namespace: &[String],
+    enclosing_modules: &[String],
+) -> Vec<String> {
+    let mut namespace = module_namespace.to_vec();
+    namespace.extend(enclosing_modules.iter().cloned());
+    namespace
+}
+
+fn deep_relative_import_fact(
+    current_namespace: &[String],
+    import: &RustUseImportSyntax,
+    line: usize,
+    is_test_context: bool,
+) -> Option<RustReasoningDeepRelativeImportFacts> {
+    if import.root_kind != RustUseImportRootKind::Parent || import.parent_hops < 2 {
+        return None;
+    }
+    Some(RustReasoningDeepRelativeImportFacts {
+        line,
+        original_segments: import.segments.clone(),
+        crate_segments: crate_relative_import_segments(current_namespace, import)?,
+        parent_hops: import.parent_hops,
+        is_test_context,
+    })
+}
+
+fn crate_relative_import_segments(
+    current_namespace: &[String],
+    import: &RustUseImportSyntax,
+) -> Option<Vec<String>> {
+    let candidate = local_import_candidate_namespace(current_namespace, import)?;
+    let mut segments = vec!["crate".to_string()];
+    let candidate_segments =
+        if !current_namespace.is_empty() && candidate.first() == current_namespace.first() {
+            &candidate[1..]
+        } else {
+            candidate.as_slice()
+        };
+    segments.extend(candidate_segments.iter().cloned());
+    Some(segments)
+}
+
 fn local_owner_dependency(
     current_path: &Path,
-    current_namespace: &[String],
+    source_namespace: &[String],
+    import_namespace: &[String],
     import: &RustUseImportSyntax,
     line: usize,
     is_test_context: bool,
     known_module_namespace_paths: &BTreeMap<Vec<String>, PathBuf>,
 ) -> Option<RustReasoningOwnerDependencyFacts> {
-    let candidate = local_import_candidate_namespace(current_namespace, import)?;
+    let candidate = local_import_candidate_namespace(import_namespace, import)?;
     let target_namespace =
         longest_known_namespace_prefix(&candidate, known_module_namespace_paths)?;
-    if target_namespace.len() <= 1 || target_namespace.as_slice() == current_namespace {
+    if target_namespace.len() <= 1 || target_namespace.as_slice() == source_namespace {
         return None;
     }
     let target_path = known_module_namespace_paths.get(&target_namespace)?.clone();
     Some(RustReasoningOwnerDependencyFacts {
         source_path: current_path.to_path_buf(),
-        source_namespace: current_namespace.to_vec(),
+        source_namespace: source_namespace.to_vec(),
         target_path,
         target_namespace,
         via_root: import.root_kind,

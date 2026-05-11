@@ -75,7 +75,7 @@ pub(crate) fn evaluate(
             findings.extend(source_file_bloat_findings(module, &rules));
         }
         if is_import_policy_source {
-            findings.extend(deep_relative_import_findings(module, &rules));
+            findings.extend(deep_relative_import_findings(module_facts, module, &rules));
             findings.extend(glob_import_findings(module_facts, module, &rules));
         }
         findings.extend(build_script_entrypoint_findings(

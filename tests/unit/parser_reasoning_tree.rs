@@ -19,6 +19,8 @@ type DependencyEdge = (
     bool,
 );
 
+type DeepRelativeImportRepair = (String, String, usize, usize, bool);
+
 #[test]
 fn cargo_manifest_parser_records_dependency_facts() {
     let temp = TempDir::new().expect("temp dir");
@@ -385,6 +387,70 @@ fn reasoning_tree_deduplicates_owner_dependencies_by_context_and_keeps_earliest_
 }
 
 #[test]
+fn reasoning_tree_derives_crate_repairs_for_deep_relative_imports() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    let src = root.join("src");
+    fs::create_dir_all(src.join("gateway/studio")).expect("create source tree");
+    fs::write(src.join("lib.rs"), "//! Crate facade.\nmod gateway;\n").expect("write lib");
+    fs::write(src.join("gateway.rs"), "//! Gateway branch.\n").expect("write gateway");
+    fs::write(
+        src.join("gateway/studio/support.rs"),
+        "use super::super::{MarkdownLintIssue, MarkdownLintReport};\n\
+         #[cfg(test)]\n\
+         mod tests {\n\
+             use super::super::super::TestOnly;\n\
+         }\n",
+    )
+    .expect("write support");
+
+    let modules = [
+        parse_rust_file(&src.join("lib.rs")),
+        parse_rust_file(&src.join("gateway.rs")),
+        parse_rust_file(&src.join("gateway/studio/support.rs")),
+    ];
+    let scope = RustProjectHarnessScope {
+        project_root: root.to_path_buf(),
+        source_paths: vec![src.clone()],
+        test_paths: Vec::new(),
+        package_paths: Vec::new(),
+        fallback_paths: vec![root.to_path_buf()],
+    };
+
+    let reasoning_tree = rust_reasoning_tree_facts(&scope, &modules);
+    let support = reasoning_tree
+        .module(&src.join("gateway/studio/support.rs"))
+        .expect("support facts");
+
+    assert_eq!(
+        deep_relative_import_repairs(support),
+        vec![
+            (
+                "super::super::MarkdownLintIssue".to_string(),
+                "crate::gateway::MarkdownLintIssue".to_string(),
+                2,
+                1,
+                false,
+            ),
+            (
+                "super::super::MarkdownLintReport".to_string(),
+                "crate::gateway::MarkdownLintReport".to_string(),
+                2,
+                1,
+                false,
+            ),
+            (
+                "super::super::super::TestOnly".to_string(),
+                "crate::gateway::TestOnly".to_string(),
+                3,
+                4,
+                true,
+            ),
+        ]
+    );
+}
+
+#[test]
 fn reasoning_tree_marks_test_root_modules_as_test_sources() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
@@ -420,6 +486,25 @@ fn reasoning_tree_marks_test_root_modules_as_test_sources() {
             .iter()
             .any(|branch| branch.path.ends_with("tests/integration.rs"))
     );
+}
+
+fn deep_relative_import_repairs(
+    module: &crate::parser::RustReasoningModuleFacts,
+) -> Vec<DeepRelativeImportRepair> {
+    module
+        .import_summary
+        .deep_relative_import_facts
+        .iter()
+        .map(|deep_relative_import| {
+            (
+                deep_relative_import.rendered_path(),
+                deep_relative_import.rendered_crate_path(),
+                deep_relative_import.parent_hops,
+                deep_relative_import.line,
+                deep_relative_import.is_test_context,
+            )
+        })
+        .collect()
 }
 
 fn child_edges(
