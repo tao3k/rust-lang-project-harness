@@ -45,7 +45,7 @@ version labels, searchable domains, and default modes. The first three packs are
 - `RUST-PROJ-R014`: Cargo-backed harness scopes must not be silently removed
 - `RUST-MOD-R001`: `mod.rs` should stay interface-only with external module declarations and re-exports
 - `RUST-MOD-R002`: oversized source file should split by responsibility, including private implementation piles
-- `RUST-MOD-R003`: native `use` trees containing `super::super` should move behind a clearer owner boundary
+- `RUST-MOD-R003`: native `use` trees containing `super::super` should use `crate::...` owner/facade imports
 - `RUST-MOD-R004`: `lib.rs` should stay a crate facade with module declarations, re-exports, and parser-proven boundary macros only
 - `RUST-MOD-R005`: `src/main.rs` and `src/bin` entrypoints should stay thin
 - `RUST-MOD-R006`: root `build.rs` should stay a thin Cargo build-script entrypoint
@@ -230,6 +230,9 @@ glob imports such as `use super::*` are caught while comments and strings are
 ignored. The parser also records whether a `use` statement is inside an inline
 `#[cfg(test)]` module or a conventional `tests/` root, so glob findings can name
 test context without weakening the default no-glob harness contract.
+The preferred repair for `super::super` is a stable `crate::...` owner/facade
+import. If the target is a leaf implementation, expose the needed API through
+the owner facade first instead of adding another relative hop.
 
 `AGENT-R001`, `AGENT-R002`, `AGENT-R004`, `AGENT-R005`, `AGENT-R006`,
 `AGENT-R008`, and `AGENT-R012` through `AGENT-R028` consume native facts from

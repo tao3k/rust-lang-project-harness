@@ -33,7 +33,7 @@ pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             PACK_ID,
             RustDiagnosticSeverity::Warning,
             "Deep relative import crosses owner boundaries",
-            "Avoid super::super imports in library code; expose a clearer owner-level API instead.",
+            "Replace super::super imports with crate::... owner/facade imports; if the target is a leaf implementation, expose the needed API through an owner facade first.",
             labels("modularity"),
         ),
         RustHarnessRule::new(

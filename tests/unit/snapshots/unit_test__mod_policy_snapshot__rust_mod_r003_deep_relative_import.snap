@@ -4,7 +4,7 @@ expression: rendered
 ---
 [RUST-MOD-R003] Warning: Deep relative import crosses owner boundaries
 @ $TEMP/src/domain.rs:2:1
-fix: replace deep relative import with a clearer owner boundary
+fix: replace deep relative import with crate::... owner/facade import
 line: 2 | pub use super::{super::MissingOwner, sibling::Thing};
 Help: $TEMP/src/domain.rs uses deep relative import `super::super::MissingOwner`.
-Contract: Avoid super::super imports in library code; expose a clearer owner-level API instead.
+Contract: Replace super::super imports with crate::... owner/facade imports; if the target is a leaf implementation, expose the needed API through an owner facade first.

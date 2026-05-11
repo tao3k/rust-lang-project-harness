@@ -147,7 +147,7 @@ pub(super) fn deep_relative_import_findings(
                     ),
                     path_line_location(&module.report.path, use_syntax.line),
                     source_line(&module.source, use_syntax.line),
-                    "replace deep relative import with a clearer owner boundary",
+                    "replace deep relative import with crate::... owner/facade import",
                 ))
             } else {
                 None
