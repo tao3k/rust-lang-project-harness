@@ -10,6 +10,7 @@ use crate::{RustHarnessFinding, RustHarnessRule};
 
 use crate::rules::display_path;
 
+use super::doc_boundary::documented_agent_boundary;
 use super::{AGENT_R020, AGENT_R021, AGENT_R022, AGENT_R024, AGENT_R027, AGENT_R028};
 
 const MIN_SEMANTIC_PRIMITIVE_FIELDS: usize = 3;
@@ -55,6 +56,17 @@ fn public_data_struct_primitive_field_findings(
         .into_iter()
         .filter_map(|((struct_line, struct_name), mut fields)| {
             if fields.len() < MIN_SEMANTIC_PRIMITIVE_FIELDS {
+                return None;
+            }
+            if documented_agent_boundary(
+                &module.source,
+                struct_line,
+                &[
+                    "raw dto boundary",
+                    "primitive field boundary",
+                    "semantic field boundary",
+                ],
+            ) {
                 return None;
             }
             fields.sort_by_key(|(line, _)| *line);
@@ -106,6 +118,17 @@ fn public_enum_variant_primitive_payload_findings(
             if fields.len() < MIN_ENUM_VARIANT_SEMANTIC_PRIMITIVE_FIELDS {
                 return None;
             }
+            if documented_agent_boundary(
+                &module.source,
+                variant_line,
+                &[
+                    "raw dto boundary",
+                    "primitive payload boundary",
+                    "semantic payload boundary",
+                ],
+            ) {
+                return None;
+            }
             fields.sort_by_key(|(line, _)| *line);
             let field_list = fields
                 .into_iter()
@@ -147,7 +170,14 @@ fn public_type_generic_bound_findings(
     let rule = &rules[AGENT_R022];
     bounds_by_type
         .into_iter()
-        .map(|((type_line, type_kind, type_name), mut bounds)| {
+        .filter_map(|((type_line, type_kind, type_name), mut bounds)| {
+            if documented_agent_boundary(
+                &module.source,
+                type_line,
+                &["generic bound boundary", "derived bound boundary"],
+            ) {
+                return None;
+            }
             bounds.sort_by_key(|(line, _)| *line);
             bounds.dedup();
             let bound_list = bounds
@@ -155,7 +185,7 @@ fn public_type_generic_bound_findings(
                 .map(|(_, bound)| bound)
                 .collect::<Vec<_>>()
                 .join(", ");
-            RustHarnessFinding::from_rule(
+            Some(RustHarnessFinding::from_rule(
                 rule,
                 format!(
                     "{} exposes public {type_kind} `{type_name}` with duplicated data-type bounds: {bound_list}.",
@@ -164,7 +194,7 @@ fn public_type_generic_bound_findings(
                 path_line_location(&module.report.path, type_line),
                 source_line(&module.source, type_line),
                 "move these bounds to derived impls, inherent impls, or methods that actually require them",
-            )
+            ))
         })
         .collect()
 }
@@ -201,6 +231,17 @@ fn public_enum_tuple_variant_payload_findings(
             if fields.len() < MIN_ENUM_TUPLE_VARIANT_SEMANTIC_PRIMITIVE_FIELDS {
                 return None;
             }
+            if documented_agent_boundary(
+                &module.source,
+                variant_line,
+                &[
+                    "tuple payload boundary",
+                    "raw dto boundary",
+                    "anonymous payload boundary",
+                ],
+            ) {
+                return None;
+            }
             fields.sort_by_key(|(line, _)| *line);
             let field_list = fields
                 .into_iter()
@@ -232,6 +273,13 @@ fn public_type_alias_primitive_findings(
         .iter()
         .filter(|alias| !alias.is_test_context)
         .filter_map(|alias| {
+            if documented_agent_boundary(
+                &module.source,
+                alias.line,
+                &["primitive alias boundary", "newtype compatibility boundary"],
+            ) {
+                return None;
+            }
             let contract_type = public_type_alias_contract_type(alias)?;
             Some(RustHarnessFinding::from_rule(
                 rule,
@@ -282,14 +330,21 @@ fn public_struct_stringly_state_field_findings(
     }
     fields_by_struct
         .into_iter()
-        .map(|((struct_line, struct_name), mut fields)| {
+        .filter_map(|((struct_line, struct_name), mut fields)| {
+            if documented_agent_boundary(
+                &module.source,
+                struct_line,
+                &["stringly state boundary", "typed catalog boundary"],
+            ) {
+                return None;
+            }
             fields.sort_by_key(|(line, _)| *line);
             let field_list = fields
                 .into_iter()
                 .map(|(_, field)| field)
                 .collect::<Vec<_>>()
                 .join(", ");
-            RustHarnessFinding::from_rule(
+            Some(RustHarnessFinding::from_rule(
                 rule,
                 format!(
                     "{} exposes public data struct `{struct_name}` with stringly state fields: {field_list}.",
@@ -298,7 +353,7 @@ fn public_struct_stringly_state_field_findings(
                 path_line_location(&module.report.path, struct_line),
                 source_line(&module.source, struct_line),
                 "replace this stringly state surface with an enum, newtype, or typed catalog boundary",
-            )
+            ))
         })
         .collect()
 }
@@ -327,14 +382,21 @@ fn public_enum_variant_stringly_state_field_findings(
     }
     fields_by_variant
         .into_iter()
-        .map(|((variant_line, enum_name, variant_name), mut fields)| {
+        .filter_map(|((variant_line, enum_name, variant_name), mut fields)| {
+            if documented_agent_boundary(
+                &module.source,
+                variant_line,
+                &["stringly state boundary", "typed catalog boundary"],
+            ) {
+                return None;
+            }
             fields.sort_by_key(|(line, _)| *line);
             let field_list = fields
                 .into_iter()
                 .map(|(_, field)| field)
                 .collect::<Vec<_>>()
                 .join(", ");
-            RustHarnessFinding::from_rule(
+            Some(RustHarnessFinding::from_rule(
                 rule,
                 format!(
                     "{} exposes public enum `{enum_name}` variant `{variant_name}` with stringly state fields: {field_list}.",
@@ -343,7 +405,7 @@ fn public_enum_variant_stringly_state_field_findings(
                 path_line_location(&module.report.path, variant_line),
                 source_line(&module.source, variant_line),
                 "replace this stringly state payload with an enum, newtype, or typed catalog boundary",
-            )
+            ))
         })
         .collect()
 }

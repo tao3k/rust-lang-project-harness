@@ -31,6 +31,27 @@ fn public_multiple_flag_params_are_agent_advice() {
 }
 
 #[test]
+fn documented_public_multiple_flag_params_clear_agent_advice() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "documented-public-flag-params");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod api;\n").expect("write lib");
+    fs::write(
+        root.join("src/api.rs"),
+        "//! Public API owner.\n\
+         /// Flag mode boundary: this bridge mirrors an external query surface.\n\
+         pub fn load_users(include_inactive: bool, allow_cache: Option<bool>, limit: usize) {}\n",
+    )
+    .expect("write api");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    assert!(findings_for_rule(&report, "AGENT-R018").is_empty());
+    assert!(report.is_clean(), "{:?}", report.findings);
+}
+
+#[test]
 fn single_public_flag_param_is_not_agent_advice() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
@@ -79,6 +100,31 @@ fn public_many_constructor_params_are_agent_advice() {
     assert!(findings[0].summary.contains("`new`"));
     assert!(findings[0].summary.contains("5 positional parameters"));
     assert!(findings[0].summary.contains("endpoint, token"));
+    assert!(report.is_clean(), "{:?}", report.findings);
+}
+
+#[test]
+fn documented_public_many_constructor_params_clear_agent_advice() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "documented-public-many-constructor-params");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod api;\n").expect("write lib");
+    fs::write(
+        root.join("src/api.rs"),
+        "//! Public API owner.\n\
+         /// Client handle.\n\
+         pub struct Client;\n\
+         impl Client {\n\
+         \t/// Positional boundary: constructor preserves a generated compatibility bridge.\n\
+         \tpub fn new(endpoint: String, token: String, retries: usize, timeout_ms: u64, batch_size: usize) -> Self { Self }\n\
+         }\n",
+    )
+    .expect("write api");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    assert!(findings_for_rule(&report, "AGENT-R019").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 

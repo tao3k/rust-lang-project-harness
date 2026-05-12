@@ -8,6 +8,7 @@ use crate::{RustHarnessFinding, RustHarnessRule};
 use crate::rules::display_path;
 
 use super::AGENT_R023;
+use super::doc_boundary::documented_agent_boundary;
 
 pub(super) fn api_shape_findings(
     module: &ParsedRustModule,
@@ -26,9 +27,16 @@ fn public_tuple_api_surface_findings(
         .public_tuple_api_surfaces
         .iter()
         .filter(|surface| !surface.is_test_context)
-        .map(|surface| {
+        .filter_map(|surface| {
+            if documented_agent_boundary(
+                &module.source,
+                surface.function_line,
+                &["tuple api boundary", "raw dto boundary", "anonymous payload boundary"],
+            ) {
+                return None;
+            }
             let element_list = surface.element_contract_types.join(", ");
-            RustHarnessFinding::from_rule(
+            Some(RustHarnessFinding::from_rule(
                 rule,
                 format!(
                     "{} exposes public function `{}` {} as anonymous tuple with primitive elements: {element_list}.",
@@ -39,7 +47,7 @@ fn public_tuple_api_surface_findings(
                 path_line_location(&module.report.path, surface.line),
                 source_line(&module.source, surface.line),
                 "replace the tuple with a named struct, enum, or newtype that carries field intent",
-            )
+            ))
         })
         .collect()
 }

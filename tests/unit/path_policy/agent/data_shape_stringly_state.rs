@@ -41,6 +41,35 @@ fn public_stringly_state_fields_are_agent_advice() {
 }
 
 #[test]
+fn documented_public_stringly_state_fields_clear_agent_advice() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "documented-public-stringly-state-fields");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod api;\n").expect("write lib");
+    fs::write(
+        root.join("src/api.rs"),
+        "//! Public API owner.\n\
+         /// Stringly state boundary: serialized jobs keep catalog tokens from upstream.\n\
+         pub struct JobSnapshot {\n\
+         \tpub status: String,\n\
+         \tpub retry_mode: Option<String>,\n\
+         }\n\
+         /// Event emitted by the API.\n\
+         pub enum JobEvent {\n\
+         \t/// Stringly state boundary: serialized events keep upstream state tokens.\n\
+         \tChanged { state: String },\n\
+         }\n",
+    )
+    .expect("write api");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    assert!(findings_for_rule(&report, "AGENT-R028").is_empty());
+    assert!(report.is_clean(), "{:?}", report.findings);
+}
+
+#[test]
 fn typed_and_static_state_fields_clear_stringly_state_advice() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();

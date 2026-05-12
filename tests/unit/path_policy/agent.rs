@@ -13,6 +13,9 @@ mod dependency_graph;
 #[path = "agent/data_shape.rs"]
 mod data_shape;
 
+#[path = "agent/data_shape_boundaries.rs"]
+mod data_shape_boundaries;
+
 #[path = "agent/data_shape_stringly_state.rs"]
 mod data_shape_stringly_state;
 
@@ -27,6 +30,9 @@ mod flag_surface;
 
 #[path = "agent/source_surface.rs"]
 mod source_surface;
+
+#[path = "agent/source_surface_boundaries.rs"]
+mod source_surface_boundaries;
 
 #[path = "agent/test_support_reexport.rs"]
 mod test_support_reexport;

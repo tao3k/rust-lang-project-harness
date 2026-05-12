@@ -11,6 +11,7 @@ use crate::{RustHarnessFinding, RustHarnessRule};
 
 use crate::rules::display_path;
 
+use super::doc_boundary::{documented_agent_boundary, module_doc_contains};
 use super::{
     AGENT_R001, AGENT_R002, AGENT_R003, AGENT_R004, AGENT_R005, AGENT_R006, AGENT_R007, AGENT_R008,
     AGENT_R012, AGENT_R013, AGENT_R014, AGENT_R018, AGENT_R019,
@@ -100,6 +101,12 @@ pub(super) fn generic_module_path_findings(
                 .namespace_components
                 .iter()
                 .find(|component| is_generic_module_name(component.as_str()))?;
+            if module_doc_contains(
+                &module.source,
+                &["generic path boundary", "compatibility path boundary"],
+            ) {
+                return None;
+            }
             Some(RustHarnessFinding::from_rule(
                 rule,
                 format!(
@@ -127,6 +134,13 @@ pub(super) fn public_name_conflict_findings(
             let Some(name) = public_named_item(item) else {
                 continue;
             };
+            if documented_agent_boundary(
+                &module.source,
+                item.line,
+                &["namespace boundary", "compatibility namespace boundary"],
+            ) {
+                continue;
+            }
             names
                 .entry(name.to_owned())
                 .or_default()
@@ -335,6 +349,13 @@ fn public_primitive_identifier_findings(
                 return None;
             }
             let primitive_type = param.primitive_contract_type.as_ref()?;
+            if documented_agent_boundary(
+                &module.source,
+                param.function_line,
+                &["primitive boundary", "identifier boundary", "raw dto boundary"],
+            ) {
+                return None;
+            }
             Some(RustHarnessFinding::from_rule(
                 rule,
                 format!(
@@ -383,6 +404,14 @@ fn public_flag_parameter_findings(
                 .into_iter()
                 .map(|index| &module.syntax_facts.public_function_params[index])
                 .collect::<Vec<_>>();
+            let function_line = params.first()?.function_line;
+            if documented_agent_boundary(
+                &module.source,
+                function_line,
+                &["flag mode boundary", "typed flag boundary", "positional boundary"],
+            ) {
+                return None;
+            }
             let first_param = params.iter().min_by_key(|param| param.line)?;
             let flag_list = params
                 .iter()
@@ -431,6 +460,13 @@ fn public_broad_parameter_surface_findings(
         .into_iter()
         .filter_map(|((function_line, function_name), param_indices)| {
             if param_indices.len() < MIN_BROAD_POSITIONAL_PARAMS {
+                return None;
+            }
+            if documented_agent_boundary(
+                &module.source,
+                function_line,
+                &["positional boundary", "builder compatibility boundary"],
+            ) {
                 return None;
             }
             let params = param_indices
@@ -717,6 +753,9 @@ fn has_public_surface(module: &ParsedRustModule) -> bool {
 }
 
 fn public_named_item(item: &RustTopLevelItemSyntax) -> Option<&str> {
+    if item.kind == "mod" {
+        return None;
+    }
     item.is_public.then_some(item.name.as_deref()).flatten()
 }
 
