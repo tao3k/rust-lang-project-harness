@@ -473,7 +473,14 @@ fn attrs_have_cfg_test(attrs: &[syn::Attribute]) -> bool {
 }
 
 fn attrs_have_test(attrs: &[syn::Attribute]) -> bool {
-    attrs.iter().any(|attr| attr.path().is_ident("test"))
+    attrs.iter().any(|attr| {
+        attr.path().is_ident("test")
+            || attr
+                .path()
+                .segments
+                .last()
+                .is_some_and(|segment| segment.ident == "test")
+    })
 }
 
 fn attrs_have_doc(attrs: &[syn::Attribute]) -> bool {

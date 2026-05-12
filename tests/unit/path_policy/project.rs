@@ -251,7 +251,11 @@ fn large_unit_test_leaf_is_reported_from_parser_source_metrics() {
 fn large_unit_test_leaf() -> String {
     let mut source = String::new();
     for index in 0..8 {
-        source.push_str("#[test]\n");
+        if index % 2 == 0 {
+            source.push_str("#[test]\n");
+        } else {
+            source.push_str("#[tokio::test]\n");
+        }
         source.push_str(&format!("fn large_test_{index}() {{\n"));
         for value in 0..34 {
             source.push_str(&format!("    let value_{value} = {value};\n"));
