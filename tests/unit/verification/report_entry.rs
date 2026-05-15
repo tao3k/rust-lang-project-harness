@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use rust_lang_project_harness::{
     RustVerificationReportEntryAction, RustVerificationReportOptions,
     RustVerificationReportSidecarRole, RustVerificationReportWriteConfig,
@@ -80,21 +82,20 @@ fn report_entry_prefers_persisted_selection_sidecar_when_receipt_is_available() 
     assert!(compact.contains("first=performance_index_json role=baseline_evidence"));
     assert!(compact.contains("sidecar: key=selection_advice_json role=selection_advice"));
     assert!(compact.contains("artifact: key=performance_index_json role=baseline_evidence"));
-    assert!(
-        compact.contains(
-            &source_dir
-                .join("performance_index.json")
-                .display()
-                .to_string()
-        )
-    );
-    assert!(compact.contains(&selection_path.display().to_string()));
+    assert!(compact.contains(&display_agent_path(
+        source_dir.join("performance_index.json").as_path()
+    )));
+    assert!(compact.contains(&display_agent_path(&selection_path)));
     assert!(compact.contains(
         "|order: performance_index_json -> task_index_json -> verification_plan_json -> analysis_profile_json"
     ));
     assert_eq!(value["action"], "load_selection_advice_sidecar");
     assert_eq!(value["first_artifact"]["key"], "performance_index_json");
     assert_eq!(value["selection_sidecar"]["key"], "selection_advice_json");
+}
+
+fn display_agent_path(path: &Path) -> String {
+    path.display().to_string().replace('\\', "/")
 }
 
 #[test]

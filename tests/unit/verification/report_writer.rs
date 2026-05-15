@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use rust_lang_project_harness::{
     RUST_VERIFICATION_REPORT_MANIFEST_SCHEMA_ID, RUST_VERIFICATION_REPORT_MANIFEST_SCHEMA_VERSION,
@@ -116,10 +116,11 @@ fn verification_report_writer_advises_when_source_baseline_dir_is_temp_outside_r
         .first()
         .expect("materialization advice");
     let compact = render_rust_verification_report_write_receipt(&receipt);
-    let compact_snapshot = compact
-        .replace(&root.display().to_string(), "$CRATE_ROOT")
-        .replace(&temp.path().display().to_string(), "$TEMP")
-        .replace('\\', "/");
+    let compact_snapshot = redact_agent_path(
+        &redact_agent_path(&compact, &root, "$CRATE_ROOT"),
+        temp.path(),
+        "$TEMP",
+    );
     let json = render_rust_verification_report_write_receipt_json(&receipt).expect("json");
     let value: serde_json::Value = serde_json::from_str(&json).expect("parse json");
 
@@ -371,15 +372,15 @@ fn verification_report_write_receipt_renders_agent_paths() {
     ));
     assert!(compact.contains(&format!(
         "|source_manifest: {}",
-        source_dir.join("verification_report_manifest.json").display()
+        display_agent_path(source_dir.join("verification_report_manifest.json").as_path())
     )));
     assert!(compact.contains(&format!(
         "|runtime_manifest: {}",
-        cache_dir.join("verification_report_manifest.json").display()
+        display_agent_path(cache_dir.join("verification_report_manifest.json").as_path())
     )));
     assert!(compact.contains(&format!(
         "|selection_advice: {}",
-        cache_dir.join("selection_advice.json").display()
+        display_agent_path(cache_dir.join("selection_advice.json").as_path())
     )));
     assert!(compact.contains("sidecar: role=selection_advice key=selection_advice_json"));
     assert_eq!(
@@ -408,6 +409,17 @@ fn verification_report_write_receipt_renders_agent_paths() {
     assert_eq!(performance_artifact["role"], "baseline_evidence");
     assert_eq!(performance_artifact["persistence"], "source_baseline");
     assert_eq!(value["sidecar_paths"][0]["role"], "selection_advice");
+}
+
+fn display_agent_path(path: &Path) -> String {
+    path.display().to_string().replace('\\', "/")
+}
+
+fn redact_agent_path(rendered: &str, path: &Path, replacement: &str) -> String {
+    let path_text = path.display().to_string();
+    rendered
+        .replace(&path_text, replacement)
+        .replace(&path_text.replace('\\', "/"), replacement)
 }
 
 #[test]

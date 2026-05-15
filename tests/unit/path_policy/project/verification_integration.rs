@@ -243,5 +243,8 @@ fn configured_no_external_tasks_config() -> rust_lang_project_harness::RustHarne
 }
 
 fn normalize_temp_root(rendered: &str, root: &std::path::Path) -> String {
-    rendered.replace(&root.display().to_string(), "$TEMP")
+    let root_text = root.display().to_string();
+    rendered
+        .replace(&root_text, "$TEMP")
+        .replace(&root_text.replace('\\', "/"), "$TEMP")
 }
