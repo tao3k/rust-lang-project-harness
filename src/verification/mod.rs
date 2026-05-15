@@ -87,9 +87,10 @@ pub use report_select::{
     render_rust_verification_report_selection_advice_json,
 };
 pub use report_write::{
-    RustVerificationReportArtifactWriteReceipt, RustVerificationReportSidecarWriteReceipt,
-    RustVerificationReportWriteConfig, RustVerificationReportWriteError,
-    RustVerificationReportWriteReceipt, render_rust_verification_report_write_receipt,
+    RustVerificationReportArtifactWriteReceipt, RustVerificationReportMaterializationAdvice,
+    RustVerificationReportSidecarWriteReceipt, RustVerificationReportWriteConfig,
+    RustVerificationReportWriteError, RustVerificationReportWriteReceipt,
+    render_rust_verification_report_write_receipt,
     render_rust_verification_report_write_receipt_json, write_rust_verification_reports,
     write_rust_verification_reports_with_options,
 };

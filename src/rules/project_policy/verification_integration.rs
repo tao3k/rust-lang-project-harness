@@ -14,7 +14,7 @@ use crate::{RustHarnessConfig, RustHarnessFinding, RustHarnessRule};
 
 use super::build_gate::{module_default_build_gate_call_lines, root_build_script_module};
 use super::support::display_project_path;
-use super::{RUST_PROJ_R010, RUST_PROJ_R011};
+use super::{RUST_PROJ_R010, RUST_PROJ_R011, RUST_PROJ_R015};
 
 pub(super) fn verification_integration_findings(
     project_root: &Path,
@@ -28,6 +28,13 @@ pub(super) fn verification_integration_findings(
     findings.extend(empty_verification_config_gate_findings(
         project_root,
         reasoning_tree,
+        modules,
+        rules,
+    ));
+    findings.extend(advice_allow_explanation_findings(
+        project_root,
+        reasoning_tree,
+        config,
         modules,
         rules,
     ));
@@ -121,6 +128,55 @@ fn empty_verification_config_gate_findings(
                 path_line_location(&module.report.path, invocation.line),
                 source_line(&module.source, invocation.line),
                 "use rust_project_harness_cargo_test_gate!(config = { ... }) and declare verification profile hints, explicit suppressions, or skill bindings",
+            ))
+        })
+        .collect()
+}
+
+fn advice_allow_explanation_findings(
+    project_root: &Path,
+    reasoning_tree: &RustReasoningTreeFacts,
+    config: &RustHarnessConfig,
+    modules: &[ParsedRustModule],
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    if config
+        .agent_advice_allow_explanation
+        .as_deref()
+        .is_some_and(|explanation| !explanation.trim().is_empty())
+    {
+        return Vec::new();
+    }
+
+    let rule = &rules[RUST_PROJ_R015];
+    modules
+        .iter()
+        .filter(|module| {
+            reasoning_tree
+                .module(&module.report.path)
+                .is_some_and(|facts| facts.is_source_module)
+        })
+        .filter_map(|module| {
+            let invocation = module.syntax_facts.macro_invocations.iter().find(|invocation| {
+                invocation.terminal_name == "rust_project_harness_cargo_test_gate"
+                    && invocation
+                        .argument_top_level_idents
+                        .iter()
+                        .any(|ident| ident == "advice")
+                    && invocation
+                        .argument_top_level_idents
+                        .iter()
+                        .any(|ident| ident == "allow")
+            })?;
+            Some(RustHarnessFinding::from_rule(
+                rule,
+                format!(
+                    "{} mounts the cargo-test harness gate with advice allowance but no explicit allow explanation.",
+                    display_project_path(project_root, &module.report.path)
+                ),
+                path_line_location(&module.report.path, invocation.line),
+                source_line(&module.source, invocation.line),
+                "use with_agent_advice_allow_explanation(...) to explain why advisory findings may pass this cargo-test gate",
             ))
         })
         .collect()

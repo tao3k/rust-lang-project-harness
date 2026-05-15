@@ -339,6 +339,9 @@ pub struct RustHarnessConfig {
     /// Required explanations for excluding default test paths.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub test_path_exclusion_explanations: BTreeMap<String, String>,
+    /// Required explanation for allowing cargo-test agent advice to pass.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_advice_allow_explanation: Option<String>,
     /// Library-first verification policy used to plan external skill tasks.
     #[serde(default, skip_serializing_if = "RustVerificationPolicy::is_empty")]
     pub verification_policy: RustVerificationPolicy,
@@ -364,6 +367,7 @@ impl Default for RustHarnessConfig {
             test_path_explanations: BTreeMap::new(),
             source_path_exclusion_explanations: BTreeMap::new(),
             test_path_exclusion_explanations: BTreeMap::new(),
+            agent_advice_allow_explanation: None,
             verification_policy: RustVerificationPolicy::default(),
         }
     }
@@ -500,6 +504,13 @@ impl RustHarnessConfig {
         self.include_tests = false;
         self.test_path_exclusion_explanations
             .insert("tests".to_string(), explanation.into());
+        self
+    }
+
+    /// Return a config that explains why cargo-test agent advice may pass.
+    #[must_use]
+    pub fn with_agent_advice_allow_explanation(mut self, explanation: impl Into<String>) -> Self {
+        self.agent_advice_allow_explanation = Some(explanation.into());
         self
     }
 

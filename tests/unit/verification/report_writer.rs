@@ -50,6 +50,7 @@ fn verification_report_writer_splits_source_baseline_from_runtime_cache() {
     assert_eq!(receipt.source_baseline_paths.len(), 3);
     assert_eq!(receipt.runtime_cache_paths.len(), 2);
     assert_eq!(receipt.artifact_paths.len(), 3);
+    assert!(receipt.materialization_advice.is_empty());
     assert_eq!(
         receipt.artifact_path("performance_index_json"),
         Some(&source_dir.join("performance_index.json"))
@@ -91,6 +92,93 @@ fn verification_report_writer_splits_source_baseline_from_runtime_cache() {
     assert!(!cache_manifest.contains("selection_advice_json"));
     assert!(performance_index.contains("$CRATE_ROOT"));
     assert!(!performance_index.contains(&root.display().to_string()));
+}
+
+#[test]
+fn verification_report_writer_advises_when_source_baseline_dir_is_temp_outside_repo() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path().join("project");
+    std::fs::create_dir(&root).expect("create project");
+    write_api_project(&root);
+    let config = latency_sensitive_performance_config();
+    let plan = plan_rust_project_verification_with_config(&root, &config).expect("plan");
+    let source_dir = temp.path().join("tmp-verification-reports");
+    let cache_dir = root.join(".cache/agent/verification/sample");
+
+    let receipt = write_rust_verification_reports(
+        &plan,
+        &RustVerificationReportWriteConfig::new(&root, &source_dir, &cache_dir),
+    )
+    .expect("write reports");
+
+    let advice = receipt
+        .materialization_advice
+        .first()
+        .expect("materialization advice");
+    let compact = render_rust_verification_report_write_receipt(&receipt);
+    let compact_snapshot = compact
+        .replace(&root.display().to_string(), "$CRATE_ROOT")
+        .replace(&temp.path().display().to_string(), "$TEMP")
+        .replace('\\', "/");
+    let json = render_rust_verification_report_write_receipt_json(&receipt).expect("json");
+    let value: serde_json::Value = serde_json::from_str(&json).expect("parse json");
+
+    assert_eq!(
+        advice.persistence,
+        RustVerificationReportPersistence::SourceBaseline
+    );
+    assert_eq!(advice.path, source_dir);
+    assert_eq!(
+        advice.recommended_dir,
+        root.join("resources/verification/reports")
+    );
+    assert_eq!(advice.reason, "source_baseline_dir_outside_project_root");
+    assert_eq!(advice.action, "move_source_baseline_reports_to_repo");
+    assert_eq!(
+        advice.artifact_keys,
+        ["task_index_json", "performance_index_json"]
+    );
+    assert!(compact.contains("materialize: source_baseline"));
+    assert!(compact.contains("reason=source_baseline_dir_outside_project_root"));
+    assert!(compact.contains("action=move_source_baseline_reports_to_repo"));
+    assert!(compact.contains("artifacts=task_index_json,performance_index_json"));
+    insta::assert_snapshot!(
+        "verification_report_writer_materialization_advice",
+        compact_snapshot
+    );
+    assert_eq!(
+        value["materialization_advice"][0]["recommended_dir"],
+        root.join("resources/verification/reports")
+            .display()
+            .to_string()
+    );
+}
+
+#[test]
+fn verification_report_writer_advises_when_source_baseline_dir_is_runtime_cache() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_api_project(root);
+    let config = latency_sensitive_performance_config();
+    let plan = plan_rust_project_verification_with_config(root, &config).expect("plan");
+    let cache_dir = root.join(".cache/agent/verification/sample");
+    let source_dir = cache_dir.join("baselines");
+
+    let receipt = write_rust_verification_reports(
+        &plan,
+        &RustVerificationReportWriteConfig::new(root, &source_dir, &cache_dir),
+    )
+    .expect("write reports");
+
+    let advice = receipt
+        .materialization_advice
+        .first()
+        .expect("materialization advice");
+    assert_eq!(advice.reason, "source_baseline_dir_under_runtime_cache");
+    assert_eq!(
+        advice.recommended_dir,
+        root.join("resources/verification/reports")
+    );
 }
 
 #[test]

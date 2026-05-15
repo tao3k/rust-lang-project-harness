@@ -161,6 +161,13 @@ deterministic while giving downstream crates a narrow way to turn a rule or pack
 into advisory output or suppress rules they have intentionally replaced with
 local policy.
 
+Cargo-test `advice = allow` is not a generic pass switch. If a source gate uses
+`rust_project_harness_cargo_test_gate!(advice = allow, config = { ... })`, the
+same config should call `with_agent_advice_allow_explanation(...)`. Without that
+compact explanation, `RUST-PROJ-R015` keeps the finding visible so an Agent has
+to state why advisory policy may pass instead of silently using `allow` to avoid
+repairs.
+
 ## Explicit-Path Runner
 
 Use `run_rust_lang_harness()` or `assert_rust_lang_harness_clean()` when a caller

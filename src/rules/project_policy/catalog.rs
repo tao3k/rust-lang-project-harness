@@ -8,7 +8,7 @@ use crate::{RustDiagnosticSeverity, RustHarnessRule};
 use super::{
     PACK_ID, RUST_PROJ_R001, RUST_PROJ_R002, RUST_PROJ_R003, RUST_PROJ_R004, RUST_PROJ_R005,
     RUST_PROJ_R006, RUST_PROJ_R007, RUST_PROJ_R008, RUST_PROJ_R009, RUST_PROJ_R010, RUST_PROJ_R011,
-    RUST_PROJ_R012, RUST_PROJ_R013, RUST_PROJ_R014,
+    RUST_PROJ_R012, RUST_PROJ_R013, RUST_PROJ_R014, RUST_PROJ_R015,
 };
 
 pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
@@ -123,6 +123,14 @@ pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             RustDiagnosticSeverity::Warning,
             "Cargo-backed harness scope reduction lacks explanation",
             "Cargo-backed source or test scopes that exist in the package must stay covered or be removed with an explicit explanation so agents cannot skip existing source or test debt.",
+            labels("project-policy"),
+        ),
+        RustHarnessRule::new(
+            RUST_PROJ_R015,
+            PACK_ID,
+            RustDiagnosticSeverity::Warning,
+            "Harness advice allowance lacks explanation",
+            "Cargo-test advice allowance must include an explicit explanation so agents cannot silence advisory policy just to pass the harness.",
             labels("project-policy"),
         ),
     ]

@@ -39,6 +39,9 @@ mod embedded_cargo_test_gate_macro_smoke {
                             "macro smoke test exercises legacy advice allowance wiring",
                         ),
                     )
+                    .with_agent_advice_allow_explanation(
+                        "macro smoke test intentionally permits advisory findings",
+                    )
             }
         );
     }

@@ -3,7 +3,7 @@ use std::fs;
 use rust_lang_project_harness::{
     RustOwnerResponsibility, RustVerificationProfileHint, RustVerificationSkillBinding,
     RustVerificationSkillDescriptor, RustVerificationTaskKind, default_rust_harness_config,
-    run_rust_project_harness, run_rust_project_harness_with_config,
+    render_rust_project_harness, run_rust_project_harness, run_rust_project_harness_with_config,
 };
 use tempfile::TempDir;
 
@@ -90,10 +90,12 @@ fn advice_allow_gate_still_requires_explicit_verification_config() {
 
     let findings = findings_for_rule(&report, "RUST-PROJ-R011");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
+    let allow_findings = findings_for_rule(&report, "RUST-PROJ-R015");
+    assert_eq!(allow_findings.len(), 1, "{:?}", report.findings);
 }
 
 #[test]
-fn advice_allow_with_config_clears_verification_config_warning() {
+fn advice_allow_with_config_still_requires_allow_explanation() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_manifest(root, "advice-allow-with-config");
@@ -109,6 +111,54 @@ fn advice_allow_with_config_clears_verification_config_warning() {
 
     assert!(
         findings_for_rule(&report, "RUST-PROJ-R011").is_empty(),
+        "{:?}",
+        report.findings
+    );
+    let findings = findings_for_rule(&report, "RUST-PROJ-R015");
+    assert_eq!(findings.len(), 1, "{:?}", report.findings);
+    assert!(
+        findings[0]
+            .summary
+            .contains("advice allowance but no explicit allow explanation"),
+        "{:?}",
+        findings[0]
+    );
+
+    let mut focused_report = report.clone();
+    focused_report
+        .findings
+        .retain(|finding| finding.rule_id == "RUST-PROJ-R015");
+    let rendered = normalize_temp_root(&render_rust_project_harness(&focused_report), root);
+    insta::assert_snapshot!("advice_allow_requires_explanation", rendered);
+}
+
+#[test]
+fn advice_allow_with_explanation_clears_allow_warning() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "advice-allow-with-explanation");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(
+        root.join("src/lib.rs"),
+        "//! Test crate.\n#[cfg(test)]\nrust_lang_project_harness::rust_project_harness_cargo_test_gate!(advice = allow, config = {\n    rust_lang_project_harness::default_rust_harness_config()\n});\n",
+    )
+    .expect("write lib");
+
+    let report = run_rust_project_harness_with_config(
+        root,
+        &configured_no_external_tasks_config().with_agent_advice_allow_explanation(
+            "legacy fixture allows advisory output during migration",
+        ),
+    )
+    .expect("run project harness");
+
+    assert!(
+        findings_for_rule(&report, "RUST-PROJ-R011").is_empty(),
+        "{:?}",
+        report.findings
+    );
+    assert!(
+        findings_for_rule(&report, "RUST-PROJ-R015").is_empty(),
         "{:?}",
         report.findings
     );
@@ -190,4 +240,8 @@ fn configured_no_external_tasks_config() -> rust_lang_project_harness::RustHarne
             .without_verification_tasks()
             .with_rationale("this fixture only verifies cargo-test gate configuration plumbing"),
     )
+}
+
+fn normalize_temp_root(rendered: &str, root: &std::path::Path) -> String {
+    rendered.replace(&root.display().to_string(), "$TEMP")
 }

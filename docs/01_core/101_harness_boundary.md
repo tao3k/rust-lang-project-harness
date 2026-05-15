@@ -115,7 +115,10 @@ fails on compact agent advice so the next repair agent can see and enrich the
 project structure instead of losing the message inside passing test output.
 Projects can clear that notification by fixing the structure, by configuring
 the relevant rule surface, or by using an explicit
-`advice = allow, config = { ... }` waiver.
+`advice = allow, config = { ... }` waiver. Advice allowance is itself audited:
+the config must include `with_agent_advice_allow_explanation(...)`, otherwise
+the harness reports `RUST-PROJ-R015`. This keeps `allow` from becoming a cheap
+Agent escape hatch for passing cargo tests while ignoring advisory policy.
 
 New source-backed test modules should stay under `tests/unit` and be mounted
 with `#[path]`. Harness-enabled library crates should mount either

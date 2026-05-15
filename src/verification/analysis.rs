@@ -312,7 +312,11 @@ fn elapsed_micros(duration: Duration) -> u64 {
 fn compact_package_root(project_root: &Path, package_root: &Path) -> String {
     match package_root.strip_prefix(project_root) {
         Ok(relative_path) if relative_path.as_os_str().is_empty() => ".".to_string(),
-        Ok(relative_path) => relative_path.display().to_string(),
-        Err(_) => package_root.display().to_string(),
+        Ok(relative_path) => display_path(relative_path),
+        Err(_) => display_path(package_root),
     }
+}
+
+fn display_path(path: &Path) -> String {
+    path.display().to_string().replace('\\', "/")
 }

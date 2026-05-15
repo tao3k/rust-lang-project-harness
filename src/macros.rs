@@ -43,9 +43,11 @@ macro_rules! rust_project_harness_gate {
 /// project harness.
 ///
 /// By default, this cargo-test gate fails on non-blocking `Info` advice as an
-/// agent repair reminder. Use `advice = allow, config = { ... }` when a legacy
-/// crate needs to keep advisory findings visible in rendered reports without
-/// failing cargo tests.
+/// agent repair reminder. Use `advice = allow, config = { ... }` only when a
+/// legacy crate needs to keep advisory findings visible in rendered reports
+/// without failing cargo tests. That config must also call
+/// `with_agent_advice_allow_explanation(...)`, so allowing advice remains an
+/// auditable project decision instead of a silent harness escape.
 #[macro_export]
 macro_rules! rust_project_harness_cargo_test_gate {
     () => {

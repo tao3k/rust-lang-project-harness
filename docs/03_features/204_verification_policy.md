@@ -44,7 +44,9 @@ use rust_lang_project_harness::{
     render_rust_verification_report_manifest_schema_compatibility,
     render_rust_verification_report_selection_advice,
     render_rust_verification_report_selection_advice_json,
+    render_rust_verification_report_write_receipt,
     render_rust_verification_skill_contracts, RustVerificationReportOptions,
+    RustVerificationReportWriteConfig, write_rust_verification_reports_with_options,
 };
 
 let config = default_rust_harness_config().with_verification_profile_hint(
@@ -102,6 +104,21 @@ let report_entry =
 let report_entry_compact = render_rust_verification_report_entry_advice(&report_entry);
 let report_entry_json =
     render_rust_verification_report_entry_advice_json(&report_entry).expect("entry json");
+let report_project_root = std::env::current_dir().expect("project root");
+let report_write_config = RustVerificationReportWriteConfig::new(
+    &report_project_root,
+    RustVerificationReportWriteConfig::recommended_source_baseline_dir(&report_project_root),
+    report_project_root.join(".cache/agent/verification"),
+);
+let report_write_receipt = write_rust_verification_reports_with_options(
+    &plan,
+    &config,
+    &report_write_config,
+    &analysis_report_options,
+)
+.expect("write reports");
+let report_write_compact =
+    render_rust_verification_report_write_receipt(&report_write_receipt);
 let analysis_artifact_json =
     render_rust_verification_report_artifact_json_with_config(
         &plan,
@@ -219,6 +236,19 @@ artifacts and sidecars from the manifest or receipt instead of hard-coding
 filenames. If analysis profile persistence is also enabled, the sidecar includes
 scale facts and can choose a more precise first artifact without downstream
 reconstruction.
+
+Source-baseline report paths are self-audited. The writer treats
+`task_index_json`, `performance_index_json`, and future source-baseline report
+families as durable optimization state, not temporary run output. If
+`source_baseline_dir` is outside the project root, relative to the process CWD,
+or under transient project directories such as `.cache`, `.run`, `target`,
+`tmp`, or `temp`, the write receipt includes `materialization_advice`. The
+compact receipt renders a `materialize: source_baseline` line that tells the
+Agent to move those reports to a repository path such as
+`resources/verification/reports`. Runtime-only payloads still belong in cache;
+baseline evidence should remain in the source repository so later Agents can
+compare performance, security, stress, and regression state against previous
+runs.
 
 For the shortest Agent entrypoint, call
 `build_rust_verification_report_entry_advice` after loading a manifest. It

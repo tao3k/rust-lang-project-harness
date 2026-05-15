@@ -1,0 +1,8 @@
+---
+source: tests/unit/verification/report_writer.rs
+expression: compact_snapshot
+---
+[verify-report-write] schema=rust_verification_report_manifest/1 source_paths=3 runtime_paths=2 sidecars=0
+   |source_manifest: $TEMP/tmp-verification-reports/verification_report_manifest.json
+   |runtime_manifest: $CRATE_ROOT/.cache/agent/verification/sample/verification_report_manifest.json
+   |materialize: source_baseline reason=source_baseline_dir_outside_project_root action=move_source_baseline_reports_to_repo path=$TEMP/tmp-verification-reports recommend=$CRATE_ROOT/resources/verification/reports artifacts=task_index_json,performance_index_json

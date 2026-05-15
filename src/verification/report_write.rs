@@ -55,6 +55,12 @@ impl RustVerificationReportWriteConfig {
         }
     }
 
+    /// Return the default source-controlled report baseline directory.
+    #[must_use]
+    pub fn recommended_source_baseline_dir(project_root: impl Into<PathBuf>) -> PathBuf {
+        project_root.into().join("resources/verification/reports")
+    }
+
     /// Override the placeholder used for project-root path compaction.
     #[must_use]
     pub fn with_project_root_placeholder(mut self, placeholder: impl Into<String>) -> Self {
@@ -78,6 +84,28 @@ pub struct RustVerificationReportWriteReceipt {
     pub selection_advice_path: Option<PathBuf>,
     /// Structured paths for written sidecars.
     pub sidecar_paths: Vec<RustVerificationReportSidecarWriteReceipt>,
+    /// Agent-facing repair advice when source baselines were configured for a
+    /// transient or non-repository path.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub materialization_advice: Vec<RustVerificationReportMaterializationAdvice>,
+}
+
+/// Advice emitted when durable verification reports are configured for an
+/// unsuitable filesystem location.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RustVerificationReportMaterializationAdvice {
+    /// Persistence class that needs a durable location.
+    pub persistence: RustVerificationReportPersistence,
+    /// Configured path that should be moved.
+    pub path: PathBuf,
+    /// Recommended repository-owned baseline directory.
+    pub recommended_dir: PathBuf,
+    /// Stable reason code for the advice.
+    pub reason: String,
+    /// Stable Agent action token.
+    pub action: String,
+    /// Report artifact keys affected by this advice.
+    pub artifact_keys: Vec<String>,
 }
 
 /// Filesystem receipt for one persisted report artifact.
@@ -245,6 +273,11 @@ pub fn write_rust_verification_reports_with_options(
     let selection_profile = build_selection_advice_profile(plan, harness_config, options)?;
     let mut receipt = RustVerificationReportWriteReceipt {
         manifest_schema: bundle.schema.clone(),
+        materialization_advice: source_baseline_materialization_advice(
+            config,
+            &source_artifacts,
+            &source_sidecars,
+        ),
         ..RustVerificationReportWriteReceipt::default()
     };
     let source_bundle = bundle.with_parts(source_artifacts.clone(), source_sidecars);
@@ -317,15 +350,15 @@ pub fn render_rust_verification_report_write_receipt(
     );
     if let Some(path) = receipt.source_manifest_path() {
         let _ = writeln!(rendered);
-        let _ = write!(rendered, "   |source_manifest: {}", path.display());
+        let _ = write!(rendered, "   |source_manifest: {}", display_path(path));
     }
     if let Some(path) = receipt.runtime_manifest_path() {
         let _ = writeln!(rendered);
-        let _ = write!(rendered, "   |runtime_manifest: {}", path.display());
+        let _ = write!(rendered, "   |runtime_manifest: {}", display_path(path));
     }
     if let Some(path) = &receipt.selection_advice_path {
         let _ = writeln!(rendered);
-        let _ = write!(rendered, "   |selection_advice: {}", path.display());
+        let _ = write!(rendered, "   |selection_advice: {}", display_path(path));
     }
     for sidecar in &receipt.sidecar_paths {
         let _ = writeln!(rendered);
@@ -334,7 +367,20 @@ pub fn render_rust_verification_report_write_receipt(
             "   |sidecar: role={} key={} path={}",
             sidecar.role.as_str(),
             sidecar.key,
-            sidecar.path.display()
+            display_path(&sidecar.path)
+        );
+    }
+    for advice in &receipt.materialization_advice {
+        let _ = writeln!(rendered);
+        let _ = write!(
+            rendered,
+            "   |materialize: {} reason={} action={} path={} recommend={} artifacts={}",
+            advice.persistence.as_str(),
+            advice.reason,
+            advice.action,
+            display_path(&advice.path),
+            display_path(&advice.recommended_dir),
+            advice.artifact_keys.join(",")
         );
     }
     rendered
@@ -460,6 +506,85 @@ fn collect_report_sidecar_sets(
         .cloned()
         .collect();
     (source_sidecars, cache_sidecars)
+}
+
+fn source_baseline_materialization_advice(
+    config: &RustVerificationReportWriteConfig,
+    source_artifacts: &[RustVerificationReportArtifact],
+    source_sidecars: &[RustVerificationReportSidecar],
+) -> Vec<RustVerificationReportMaterializationAdvice> {
+    if source_artifacts.is_empty() && source_sidecars.is_empty() {
+        return Vec::new();
+    }
+    let Some(reason) = source_baseline_dir_issue(config) else {
+        return Vec::new();
+    };
+    vec![RustVerificationReportMaterializationAdvice {
+        persistence: RustVerificationReportPersistence::SourceBaseline,
+        path: config.source_baseline_dir.clone(),
+        recommended_dir: RustVerificationReportWriteConfig::recommended_source_baseline_dir(
+            &config.project_root,
+        ),
+        reason: reason.to_string(),
+        action: "move_source_baseline_reports_to_repo".to_string(),
+        artifact_keys: source_baseline_artifact_keys(source_artifacts, source_sidecars),
+    }]
+}
+
+fn source_baseline_artifact_keys(
+    source_artifacts: &[RustVerificationReportArtifact],
+    source_sidecars: &[RustVerificationReportSidecar],
+) -> Vec<String> {
+    source_artifacts
+        .iter()
+        .map(|artifact| artifact.key.clone())
+        .chain(source_sidecars.iter().map(|sidecar| sidecar.key.clone()))
+        .collect()
+}
+
+fn source_baseline_dir_issue(config: &RustVerificationReportWriteConfig) -> Option<&'static str> {
+    let source_dir = &config.source_baseline_dir;
+    if source_dir.as_os_str().is_empty() {
+        return Some("source_baseline_dir_empty");
+    }
+    if !source_dir.is_absolute() {
+        return Some("source_baseline_dir_not_project_anchored");
+    }
+    if path_same_or_under(source_dir, &config.runtime_cache_dir) {
+        return Some("source_baseline_dir_under_runtime_cache");
+    }
+    if !path_same_or_under(source_dir, &config.project_root) {
+        return Some("source_baseline_dir_outside_project_root");
+    }
+    if source_dir_is_under_transient_project_dir(source_dir, &config.project_root) {
+        return Some("source_baseline_dir_under_transient_project_dir");
+    }
+    None
+}
+
+fn path_same_or_under(path: &Path, root: &Path) -> bool {
+    !root.as_os_str().is_empty() && (path == root || path.starts_with(root))
+}
+
+fn source_dir_is_under_transient_project_dir(source_dir: &Path, project_root: &Path) -> bool {
+    let Ok(relative) = source_dir.strip_prefix(project_root) else {
+        return false;
+    };
+    relative
+        .components()
+        .next()
+        .is_some_and(|component| transient_project_dir(component.as_os_str().to_string_lossy()))
+}
+
+fn transient_project_dir(component: std::borrow::Cow<'_, str>) -> bool {
+    matches!(
+        component.as_ref(),
+        ".cache" | ".run" | "target" | "tmp" | "temp"
+    )
+}
+
+fn display_path(path: &Path) -> String {
+    path.display().to_string().replace('\\', "/")
 }
 
 fn write_report_manifest(

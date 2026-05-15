@@ -1,7 +1,7 @@
 //! Agent entry projection for reading modular verification reports.
 
 use std::fmt::Write as _;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -186,7 +186,7 @@ pub fn render_rust_verification_report_entry_advice(
             "   |sidecar: key={} role={} path={}",
             sidecar.key,
             sidecar.role.as_str(),
-            sidecar.path.display()
+            display_path(&sidecar.path)
         );
     }
     if let Some(artifact) = &advice.first_artifact {
@@ -196,7 +196,7 @@ pub fn render_rust_verification_report_entry_advice(
             "   |artifact: key={} role={} path={}",
             artifact.key,
             artifact.role.as_str(),
-            artifact.path.display()
+            display_path(&artifact.path)
         );
     }
     if let Some(selection) = &advice.selection {
@@ -310,4 +310,8 @@ impl From<&RustVerificationReportArtifactWriteReceipt> for RustVerificationRepor
             path: artifact.path.clone(),
         }
     }
+}
+
+fn display_path(path: &Path) -> String {
+    path.display().to_string().replace('\\', "/")
 }
