@@ -1,16 +1,12 @@
 //! Project scanner that builds verification profile candidates from parser facts.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use crate::RustProjectHarnessScope;
-use crate::discovery::{
-    discover_cargo_package_roots, discover_rust_files, rust_project_harness_scope,
-};
 use crate::model::RustHarnessConfig;
-use crate::parser::{
-    ParsedRustModule, parse_cargo_dependency_facts, parse_rust_file, rust_reasoning_tree_facts,
-};
 use crate::verification::RustVerificationPolicy;
+use crate::verification::analysis::{
+    RustVerificationCargoDependencyAnalysis, analyze_rust_verification_project,
+};
 
 use super::collect::{PackageCandidateInput, collect_package_candidates};
 use super::model::RustVerificationProfileIndex;
@@ -52,37 +48,22 @@ pub fn build_rust_verification_profile_index_with_policy(
     config: &RustHarnessConfig,
     policy: &RustVerificationPolicy,
 ) -> Result<RustVerificationProfileIndex, String> {
-    if !project_root.exists() {
-        return Err(format!(
-            "project root does not exist: {}",
-            project_root.display()
-        ));
-    }
-    let package_roots = discover_cargo_package_roots(project_root, &config.ignored_dir_names);
-    let package_roots = if should_run_member_scopes(project_root, &package_roots) {
-        package_roots
-    } else {
-        vec![project_root.to_path_buf()]
-    };
+    let analysis = analyze_rust_verification_project(
+        project_root,
+        config,
+        RustVerificationCargoDependencyAnalysis::Parse,
+    )?;
     let mut candidates = Vec::new();
-    for package_root in package_roots {
-        let cargo_dependencies = parse_cargo_dependency_facts(&package_root);
-        let scope = rust_project_harness_scope(
-            &package_root,
-            config.include_tests,
-            &config.source_dir_names,
-            &config.test_dir_names,
-        );
-        let parsed_modules = parse_scope(&scope, config);
-        let reasoning_tree = rust_reasoning_tree_facts(&scope, &parsed_modules);
+    for package_analysis in &analysis.package_analyses {
+        let reasoning_tree = &package_analysis.reasoning_tree;
         collect_package_candidates(
             PackageCandidateInput {
                 project_root,
                 package_root: &reasoning_tree.package_root,
                 modules: &reasoning_tree.modules,
                 branches: &reasoning_tree.owner_branches,
-                parsed_modules: &parsed_modules,
-                cargo_dependencies: &cargo_dependencies,
+                parsed_modules: &package_analysis.parsed_modules,
+                cargo_dependencies: &package_analysis.cargo_dependencies,
                 policy,
             },
             &mut candidates,
@@ -98,21 +79,4 @@ pub fn build_rust_verification_profile_index_with_policy(
         candidates,
         configured_profile_hint_count: policy.profile_hints.len(),
     })
-}
-
-fn parse_scope(
-    scope: &RustProjectHarnessScope,
-    config: &RustHarnessConfig,
-) -> Vec<ParsedRustModule> {
-    discover_rust_files(&scope.monitored_paths(), &config.ignored_dir_names)
-        .into_iter()
-        .map(|path| parse_rust_file(&path))
-        .collect()
-}
-
-fn should_run_member_scopes(project_root: &Path, package_roots: &[PathBuf]) -> bool {
-    package_roots.len() > 1
-        || package_roots
-            .first()
-            .is_some_and(|root| root != project_root)
 }

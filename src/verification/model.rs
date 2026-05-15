@@ -727,17 +727,6 @@ impl RustVerificationDependencySignal {
             responsibilities: responsibilities.into_iter().collect(),
         }
     }
-
-    pub(crate) fn matches_dependency(
-        &self,
-        dependency_key: &str,
-        import_name: &str,
-        package_name: &str,
-    ) -> bool {
-        self.dependency == dependency_key
-            || self.dependency == import_name
-            || self.dependency == package_name
-    }
 }
 
 /// Library-first verification configuration surface.

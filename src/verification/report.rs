@@ -1,16 +1,26 @@
 //! Modular verification report artifacts.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::fmt;
-use std::path::{Path, PathBuf};
+use std::fmt::{self, Write as _};
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::model::RustHarnessConfig;
+
+use super::analysis::{
+    build_rust_verification_analysis_profile_with_config,
+    render_rust_verification_analysis_profile_json,
+};
 use super::model::{
     RustVerificationPlan, RustVerificationReportObligation, RustVerificationTaskKind,
 };
 use super::performance::build_rust_verification_performance_index;
+use super::report_manifest::RustVerificationReportManifestSchema;
 use super::task_index::build_rust_verification_task_index;
+
+const ANALYSIS_PROFILE_ARTIFACT_KEY: &str = "analysis_profile_json";
+const SELECTION_ADVICE_SIDECAR_KEY: &str = "selection_advice_json";
 
 /// Recommended persistence target for one report artifact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -29,6 +39,57 @@ impl RustVerificationReportPersistence {
         match self {
             Self::RuntimeCache => "runtime_cache",
             Self::SourceBaseline => "source_baseline",
+        }
+    }
+}
+
+/// Agent-facing role for selecting one report artifact from a manifest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RustVerificationReportArtifactRole {
+    /// Full verification plan state for receipt, waiver, and drift matching.
+    PromptState,
+    /// Compact configured-skill task dispatch index.
+    SkillDispatchIndex,
+    /// Durable performance evidence and baseline comparison index.
+    BaselineEvidence,
+    /// Project-scale parser analysis profile for planning and optimization.
+    AnalysisProfile,
+    /// Caller-defined artifact not recognized by the upstream role table.
+    Custom,
+}
+
+impl RustVerificationReportArtifactRole {
+    /// Return a stable lowercase role label.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::PromptState => "prompt_state",
+            Self::SkillDispatchIndex => "skill_dispatch_index",
+            Self::BaselineEvidence => "baseline_evidence",
+            Self::AnalysisProfile => "analysis_profile",
+            Self::Custom => "custom",
+        }
+    }
+}
+
+/// Agent-facing role for a report sidecar entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RustVerificationReportSidecarRole {
+    /// Structured reading-order advice for windowed Agents.
+    SelectionAdvice,
+    /// Caller-defined sidecar not recognized by the upstream role table.
+    Custom,
+}
+
+impl RustVerificationReportSidecarRole {
+    /// Return a stable lowercase sidecar role label.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::SelectionAdvice => "selection_advice",
+            Self::Custom => "custom",
         }
     }
 }
@@ -156,6 +217,12 @@ impl RustVerificationReportTemplate {
 /// Configurable report manifest options supplied by the embedding project or Agent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RustVerificationReportOptions {
+    /// Include the project-scale analysis profile as an explicit runtime artifact.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub include_analysis_profile: bool,
+    /// Include a runtime-cache selection advice sidecar when writing reports.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub include_selection_advice: bool,
     /// Default trace config used when an artifact has no more specific config.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_trace: Option<RustVerificationReportTraceConfig>,
@@ -173,18 +240,28 @@ pub struct RustVerificationReportOptions {
 impl Default for RustVerificationReportOptions {
     fn default() -> Self {
         Self {
+            include_analysis_profile: false,
+            include_selection_advice: false,
             default_trace: Some(
                 RustVerificationReportTraceConfig::new("standard")
                     .with_max_seconds(60)
                     .with_sample_interval_ms(1000),
             ),
-            artifact_traces: BTreeMap::from([(
-                "performance_index_json".to_string(),
-                RustVerificationReportTraceConfig::new("performance")
-                    .with_max_seconds(300)
-                    .with_sample_interval_ms(250)
-                    .with_raw_traces(),
-            )]),
+            artifact_traces: BTreeMap::from([
+                (
+                    "performance_index_json".to_string(),
+                    RustVerificationReportTraceConfig::new("performance")
+                        .with_max_seconds(300)
+                        .with_sample_interval_ms(250)
+                        .with_raw_traces(),
+                ),
+                (
+                    ANALYSIS_PROFILE_ARTIFACT_KEY.to_string(),
+                    RustVerificationReportTraceConfig::new("analysis")
+                        .with_max_seconds(60)
+                        .with_sample_interval_ms(1000),
+                ),
+            ]),
             artifact_templates: BTreeMap::from([
                 (
                     "verification_plan_json".to_string(),
@@ -222,6 +299,21 @@ impl Default for RustVerificationReportOptions {
                         ],
                     ),
                 ),
+                (
+                    ANALYSIS_PROFILE_ARTIFACT_KEY.to_string(),
+                    RustVerificationReportTemplate::new(
+                        "verification-analysis-profile",
+                        "1",
+                        [
+                            "package_count",
+                            "rust_file_count",
+                            "source_module_count",
+                            "owner_branch_count",
+                            "cargo_dependency_count",
+                            "packages",
+                        ],
+                    ),
+                ),
             ]),
             artifact_persistence: BTreeMap::from([
                 (
@@ -236,12 +328,30 @@ impl Default for RustVerificationReportOptions {
                     "performance_index_json".to_string(),
                     RustVerificationReportPersistence::SourceBaseline,
                 ),
+                (
+                    ANALYSIS_PROFILE_ARTIFACT_KEY.to_string(),
+                    RustVerificationReportPersistence::RuntimeCache,
+                ),
             ]),
         }
     }
 }
 
 impl RustVerificationReportOptions {
+    /// Include the analysis profile as an explicit runtime-cache artifact.
+    #[must_use]
+    pub const fn with_analysis_profile_artifact(mut self) -> Self {
+        self.include_analysis_profile = true;
+        self
+    }
+
+    /// Include a runtime-cache artifact selection sidecar when reports are written.
+    #[must_use]
+    pub const fn with_selection_advice_sidecar(mut self) -> Self {
+        self.include_selection_advice = true;
+        self
+    }
+
     /// Return options without default trace guidance.
     #[must_use]
     pub fn without_default_trace(mut self) -> Self {
@@ -295,6 +405,8 @@ impl RustVerificationReportOptions {
 pub struct RustVerificationReportArtifact {
     /// Stable report contract key.
     pub key: String,
+    /// Agent-facing role for selecting this artifact from a manifest.
+    pub role: RustVerificationReportArtifactRole,
     /// Recommended artifact filename for embedding projects.
     pub artifact_name: String,
     /// Harness renderer or index builder that produces the artifact payload.
@@ -315,6 +427,23 @@ pub struct RustVerificationReportArtifact {
     pub trace: Option<RustVerificationReportTraceConfig>,
 }
 
+/// Manifest entry for a machine-local report sidecar.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RustVerificationReportSidecar {
+    /// Stable sidecar contract key.
+    pub key: String,
+    /// Agent-facing role for discovering this sidecar.
+    pub role: RustVerificationReportSidecarRole,
+    /// Recommended sidecar filename for embedding projects.
+    pub artifact_name: String,
+    /// Harness renderer that produces the sidecar payload.
+    pub renderer: String,
+    /// Why this sidecar should be persisted for local Agent access.
+    pub reason: String,
+    /// Where this sidecar should be persisted by default.
+    pub persistence: RustVerificationReportPersistence,
+}
+
 impl RustVerificationReportArtifact {
     /// Build one report manifest entry from an obligation.
     #[must_use]
@@ -324,6 +453,7 @@ impl RustVerificationReportArtifact {
     ) -> Self {
         Self {
             key: obligation.key.clone(),
+            role: report_artifact_role(&obligation.key),
             artifact_name: obligation.suggested_artifact_name.clone(),
             renderer: obligation.renderer.clone(),
             reason: obligation.reason.clone(),
@@ -353,11 +483,16 @@ impl RustVerificationReportArtifact {
 /// Small report manifest for all active modular report artifacts.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RustVerificationReportBundle {
+    /// Manifest schema metadata for downstream compatibility checks.
+    pub schema: RustVerificationReportManifestSchema,
     /// Root used to compact owner paths in agent renders.
     #[serde(default, skip_serializing_if = "path_buf_is_empty")]
     pub project_root: PathBuf,
     /// Persistable report artifacts requested by the active verification plan.
     pub artifacts: Vec<RustVerificationReportArtifact>,
+    /// Machine-local sidecars that help Agents discover or select artifacts.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sidecars: Vec<RustVerificationReportSidecar>,
 }
 
 impl RustVerificationReportBundle {
@@ -395,97 +530,100 @@ impl RustVerificationReportBundle {
             .collect()
     }
 
-    fn with_artifacts(&self, artifacts: Vec<RustVerificationReportArtifact>) -> Self {
-        Self {
-            project_root: self.project_root.clone(),
-            artifacts,
-        }
-    }
-}
-
-/// Filesystem layout used to persist modular verification reports.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RustVerificationReportWriteConfig {
-    /// Project root whose absolute path may appear in rendered artifacts.
-    pub project_root: PathBuf,
-    /// Source-controlled directory for compact baseline artifacts.
-    pub source_baseline_dir: PathBuf,
-    /// Runtime cache directory for verbose or machine-local artifacts.
-    pub runtime_cache_dir: PathBuf,
-    /// Stable placeholder used when compacting `project_root` in JSON output.
-    pub project_root_placeholder: String,
-}
-
-impl RustVerificationReportWriteConfig {
-    /// Build a report write config.
+    /// Return sidecars recommended for source-controlled baselines.
     #[must_use]
-    pub fn new(
-        project_root: impl Into<PathBuf>,
-        source_baseline_dir: impl Into<PathBuf>,
-        runtime_cache_dir: impl Into<PathBuf>,
+    pub fn source_baseline_sidecars(&self) -> Vec<&RustVerificationReportSidecar> {
+        self.sidecars
+            .iter()
+            .filter(|sidecar| {
+                sidecar.persistence == RustVerificationReportPersistence::SourceBaseline
+            })
+            .collect()
+    }
+
+    /// Return sidecars recommended for runtime cache.
+    #[must_use]
+    pub fn runtime_cache_sidecars(&self) -> Vec<&RustVerificationReportSidecar> {
+        self.sidecars
+            .iter()
+            .filter(|sidecar| {
+                sidecar.persistence == RustVerificationReportPersistence::RuntimeCache
+            })
+            .collect()
+    }
+
+    /// Return artifacts that match one Agent-facing selection role.
+    #[must_use]
+    pub fn artifacts_for_role(
+        &self,
+        role: RustVerificationReportArtifactRole,
+    ) -> Vec<&RustVerificationReportArtifact> {
+        self.artifacts
+            .iter()
+            .filter(|artifact| artifact.role == role)
+            .collect()
+    }
+
+    /// Return one report sidecar by contract key.
+    #[must_use]
+    pub fn sidecar(&self, key: &str) -> Option<&RustVerificationReportSidecar> {
+        self.sidecars.iter().find(|sidecar| sidecar.key == key)
+    }
+
+    /// Return sidecars that match one Agent-facing selection role.
+    #[must_use]
+    pub fn sidecars_for_role(
+        &self,
+        role: RustVerificationReportSidecarRole,
+    ) -> Vec<&RustVerificationReportSidecar> {
+        self.sidecars
+            .iter()
+            .filter(|sidecar| sidecar.role == role)
+            .collect()
+    }
+
+    pub(super) fn with_parts(
+        &self,
+        artifacts: Vec<RustVerificationReportArtifact>,
+        sidecars: Vec<RustVerificationReportSidecar>,
     ) -> Self {
         Self {
-            project_root: project_root.into(),
-            source_baseline_dir: source_baseline_dir.into(),
-            runtime_cache_dir: runtime_cache_dir.into(),
-            project_root_placeholder: "$CRATE_ROOT".to_string(),
+            schema: self.schema.clone(),
+            project_root: self.project_root.clone(),
+            artifacts,
+            sidecars,
         }
     }
-
-    /// Override the placeholder used for project-root path compaction.
-    #[must_use]
-    pub fn with_project_root_placeholder(mut self, placeholder: impl Into<String>) -> Self {
-        self.project_root_placeholder = placeholder.into();
-        self
-    }
 }
 
-/// Paths written by `write_rust_verification_reports`.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct RustVerificationReportWriteReceipt {
-    /// Files written under the source baseline directory.
-    pub source_baseline_paths: Vec<PathBuf>,
-    /// Files written under the runtime cache directory.
-    pub runtime_cache_paths: Vec<PathBuf>,
-}
-
-/// Error raised while writing modular verification reports.
+/// Error raised while rendering one modular verification report artifact.
 #[derive(Debug)]
-pub enum RustVerificationReportWriteError {
+pub enum RustVerificationReportArtifactRenderError {
     /// A report artifact could not be serialized.
     Json(serde_json::Error),
-    /// A filesystem operation failed.
-    Io {
-        /// Path being created or written when the error occurred.
-        path: PathBuf,
-        /// Underlying IO error.
-        source: std::io::Error,
-    },
+    /// Analysis profile construction failed before serialization.
+    Analysis(String),
 }
 
-impl fmt::Display for RustVerificationReportWriteError {
+impl fmt::Display for RustVerificationReportArtifactRenderError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Json(error) => write!(formatter, "failed to render verification report: {error}"),
-            Self::Io { path, source } => write!(
-                formatter,
-                "failed to write verification report at {}: {source}",
-                path.display()
-            ),
+            Self::Json(error) => write!(formatter, "{error}"),
+            Self::Analysis(error) => write!(formatter, "{error}"),
         }
     }
 }
 
-impl std::error::Error for RustVerificationReportWriteError {
+impl std::error::Error for RustVerificationReportArtifactRenderError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Json(error) => Some(error),
-            Self::Io { source, .. } => Some(source),
+            Self::Analysis(_) => None,
         }
     }
 }
 
-impl From<serde_json::Error> for RustVerificationReportWriteError {
+impl From<serde_json::Error> for RustVerificationReportArtifactRenderError {
     fn from(error: serde_json::Error) -> Self {
         Self::Json(error)
     }
@@ -508,13 +646,24 @@ pub fn build_rust_verification_report_bundle_with_options(
     plan: &RustVerificationPlan,
     options: &RustVerificationReportOptions,
 ) -> RustVerificationReportBundle {
+    let mut artifacts = plan
+        .report_obligations
+        .iter()
+        .map(|obligation| RustVerificationReportArtifact::from_obligation(obligation, options))
+        .collect::<Vec<_>>();
+    if options.include_analysis_profile {
+        artifacts.push(analysis_profile_artifact(options));
+    }
+    let sidecars = if options.include_selection_advice {
+        vec![selection_advice_sidecar()]
+    } else {
+        Vec::new()
+    };
     RustVerificationReportBundle {
+        schema: RustVerificationReportManifestSchema::default(),
         project_root: plan.project_root.clone(),
-        artifacts: plan
-            .report_obligations
-            .iter()
-            .map(|obligation| RustVerificationReportArtifact::from_obligation(obligation, options))
-            .collect(),
+        artifacts,
+        sidecars,
     }
 }
 
@@ -540,6 +689,29 @@ pub fn render_rust_verification_report_artifact_json(
     }
 }
 
+/// Render one modular verification report artifact with access to harness config.
+///
+/// # Errors
+///
+/// Returns an error if the selected artifact cannot be produced or serialized.
+pub fn render_rust_verification_report_artifact_json_with_config(
+    plan: &RustVerificationPlan,
+    harness_config: &RustHarnessConfig,
+    key: &str,
+) -> Result<Option<String>, RustVerificationReportArtifactRenderError> {
+    if key == ANALYSIS_PROFILE_ARTIFACT_KEY {
+        let profile = build_rust_verification_analysis_profile_with_config(
+            &plan.project_root,
+            harness_config,
+        )
+        .map_err(RustVerificationReportArtifactRenderError::Analysis)?;
+        return render_rust_verification_analysis_profile_json(&profile)
+            .map(Some)
+            .map_err(Into::into);
+    }
+    render_rust_verification_report_artifact_json(plan, key).map_err(Into::into)
+}
+
 /// Render the small modular verification report manifest as JSON.
 ///
 /// # Errors
@@ -552,187 +724,131 @@ pub fn render_rust_verification_report_bundle_json(
     serde_json::to_string(&bundle)
 }
 
-/// Write modular verification report artifacts using their persistence policy.
-///
-/// The source baseline manifest contains only source-controlled artifacts. The
-/// runtime cache manifest contains the full bundle so local tooling can inspect
-/// both source and cache report responsibilities from one machine-local file.
-///
-/// # Errors
-///
-/// Returns an error if directories cannot be created, artifacts cannot be
-/// serialized, or files cannot be written.
-pub fn write_rust_verification_reports(
-    plan: &RustVerificationPlan,
-    config: &RustVerificationReportWriteConfig,
-) -> Result<RustVerificationReportWriteReceipt, RustVerificationReportWriteError> {
-    prepare_report_directories(config)?;
-    let bundle = build_rust_verification_report_bundle(plan);
-    let (source_artifacts, cache_artifacts) = collect_report_artifact_sets(&bundle);
-    let mut receipt = RustVerificationReportWriteReceipt::default();
-    let source_bundle = bundle.with_artifacts(source_artifacts.clone());
-
-    write_report_manifest(
-        &source_bundle,
-        &config.source_baseline_dir,
-        config,
-        &mut receipt.source_baseline_paths,
-    )?;
-    write_report_manifest(
-        &bundle,
-        &config.runtime_cache_dir,
-        config,
-        &mut receipt.runtime_cache_paths,
-    )?;
-    write_report_artifacts(
-        plan,
-        source_artifacts,
-        &config.source_baseline_dir,
-        config,
-        &mut receipt.source_baseline_paths,
-    )?;
-    write_report_artifacts(
-        plan,
-        cache_artifacts,
-        &config.runtime_cache_dir,
-        config,
-        &mut receipt.runtime_cache_paths,
-    )?;
-
-    Ok(receipt)
-}
-
-fn prepare_report_directories(
-    config: &RustVerificationReportWriteConfig,
-) -> Result<(), RustVerificationReportWriteError> {
-    create_dir_all(&config.source_baseline_dir)?;
-    create_dir_all(&config.runtime_cache_dir)?;
-    Ok(())
-}
-
-fn collect_report_artifact_sets(
-    bundle: &RustVerificationReportBundle,
-) -> (
-    Vec<RustVerificationReportArtifact>,
-    Vec<RustVerificationReportArtifact>,
-) {
-    let source_artifacts = bundle
-        .source_baseline_artifacts()
-        .into_iter()
-        .cloned()
-        .collect();
-    let cache_artifacts = bundle
-        .runtime_cache_artifacts()
-        .into_iter()
-        .cloned()
-        .collect();
-    (source_artifacts, cache_artifacts)
-}
-
-fn write_report_manifest(
-    bundle: &RustVerificationReportBundle,
-    directory: &Path,
-    config: &RustVerificationReportWriteConfig,
-    paths: &mut Vec<PathBuf>,
-) -> Result<(), RustVerificationReportWriteError> {
-    let manifest = directory.join("verification_report_manifest.json");
-    write_json(
-        &manifest,
-        &compact_project_root(
-            &serde_json::to_string(bundle)?,
-            &config.project_root,
-            &config.project_root_placeholder,
-        ),
-    )?;
-    paths.push(manifest);
-    Ok(())
-}
-
-fn write_report_artifacts(
-    plan: &RustVerificationPlan,
-    artifacts: Vec<RustVerificationReportArtifact>,
-    directory: &Path,
-    config: &RustVerificationReportWriteConfig,
-    paths: &mut Vec<PathBuf>,
-) -> Result<(), RustVerificationReportWriteError> {
-    for artifact in artifacts {
-        write_artifact(plan, &artifact, directory, config, |path| paths.push(path))?;
+/// Render a compact report manifest for Agent artifact selection.
+#[must_use]
+pub fn render_rust_verification_report_bundle(bundle: &RustVerificationReportBundle) -> String {
+    let mut rendered = String::new();
+    let _ = writeln!(
+        rendered,
+        "[verify-report-bundle] artifacts={} sidecars={} source_baseline={} runtime_cache={} schema={}",
+        bundle.artifacts.len(),
+        bundle.sidecars.len(),
+        bundle.source_baseline_artifacts().len(),
+        bundle.runtime_cache_artifacts().len(),
+        bundle.schema.compact_label()
+    );
+    for artifact in &bundle.artifacts {
+        render_report_bundle_artifact(artifact, &mut rendered);
     }
-    Ok(())
-}
-
-fn write_artifact(
-    plan: &RustVerificationPlan,
-    artifact: &RustVerificationReportArtifact,
-    directory: &Path,
-    config: &RustVerificationReportWriteConfig,
-    mut record_path: impl FnMut(PathBuf),
-) -> Result<(), RustVerificationReportWriteError> {
-    let Some(payload) = render_rust_verification_report_artifact_json(plan, &artifact.key)? else {
-        return Ok(());
-    };
-    let path = directory.join(&artifact.artifact_name);
-    write_json(
-        &path,
-        &compact_project_root(
-            &payload,
-            &config.project_root,
-            &config.project_root_placeholder,
-        ),
-    )?;
-    record_path(path);
-    Ok(())
-}
-
-fn create_dir_all(path: &Path) -> Result<(), RustVerificationReportWriteError> {
-    std::fs::create_dir_all(path).map_err(|source| RustVerificationReportWriteError::Io {
-        path: path.to_path_buf(),
-        source,
-    })
-}
-
-fn write_json(path: &Path, payload: &str) -> Result<(), RustVerificationReportWriteError> {
-    std::fs::write(path, payload).map_err(|source| RustVerificationReportWriteError::Io {
-        path: path.to_path_buf(),
-        source,
-    })
-}
-
-fn compact_project_root(payload: &str, project_root: &Path, placeholder: &str) -> String {
-    let root = project_root.to_string_lossy();
-    if root.is_empty() {
-        return payload.to_string();
+    for sidecar in &bundle.sidecars {
+        render_report_bundle_sidecar(sidecar, &mut rendered);
     }
-
-    let replacement = json_string_fragment(placeholder);
-    let mut compacted = payload.to_string();
-    for candidate in project_root_compaction_candidates(root.as_ref()) {
-        compacted = compacted.replace(&candidate, &replacement);
-    }
-    compacted
-}
-
-fn project_root_compaction_candidates(root: &str) -> BTreeSet<String> {
-    let normalized = root.replace('\\', "/");
-    [root, normalized.as_str()]
-        .into_iter()
-        .flat_map(|candidate| [candidate.to_string(), json_string_fragment(candidate)])
-        .filter(|candidate| !candidate.is_empty())
-        .collect()
-}
-
-fn json_string_fragment(value: &str) -> String {
-    serde_json::to_string(value)
-        .ok()
-        .and_then(|encoded| {
-            encoded
-                .strip_prefix('"')
-                .and_then(|trimmed| trimmed.strip_suffix('"'))
-                .map(str::to_string)
-        })
-        .unwrap_or_else(|| value.to_string())
+    rendered.trim_end().to_string()
 }
 
 fn path_buf_is_empty(path: &std::path::Path) -> bool {
     path.as_os_str().is_empty()
+}
+
+fn render_report_bundle_artifact(artifact: &RustVerificationReportArtifact, rendered: &mut String) {
+    let _ = write!(
+        rendered,
+        "   |artifact: role={} key={} persistence={} file={} tasks={}",
+        artifact.role.as_str(),
+        artifact.key,
+        artifact.persistence.as_str(),
+        artifact.artifact_name,
+        artifact.task_count()
+    );
+    if let Some(trace) = &artifact.trace {
+        let _ = write!(rendered, " trace={}", trace.profile);
+        if let Some(max_seconds) = trace.max_seconds {
+            let _ = write!(rendered, " max_s={}", max_seconds.as_u64());
+        }
+        if let Some(sample_interval_ms) = trace.sample_interval_ms {
+            let _ = write!(rendered, " sample_ms={}", sample_interval_ms.as_u64());
+        }
+        if trace.include_raw_traces {
+            let _ = write!(rendered, " raw=true");
+        }
+    }
+    if let Some(template) = &artifact.template {
+        let _ = write!(rendered, " template={}", template.template_id);
+    }
+    let _ = writeln!(rendered);
+    let _ = writeln!(
+        rendered,
+        "   |renderer: {}={}",
+        artifact.key, artifact.renderer
+    );
+}
+
+fn render_report_bundle_sidecar(sidecar: &RustVerificationReportSidecar, rendered: &mut String) {
+    let _ = writeln!(
+        rendered,
+        "   |sidecar: role={} key={} persistence={} file={}",
+        sidecar.role.as_str(),
+        sidecar.key,
+        sidecar.persistence.as_str(),
+        sidecar.artifact_name
+    );
+    let _ = writeln!(
+        rendered,
+        "   |renderer: {}={}",
+        sidecar.key, sidecar.renderer
+    );
+}
+
+fn analysis_profile_artifact(
+    options: &RustVerificationReportOptions,
+) -> RustVerificationReportArtifact {
+    RustVerificationReportArtifact {
+        key: ANALYSIS_PROFILE_ARTIFACT_KEY.to_string(),
+        role: RustVerificationReportArtifactRole::AnalysisProfile,
+        artifact_name: "analysis_profile.json".to_string(),
+        renderer: "build_rust_verification_analysis_profile_with_config + render_rust_verification_analysis_profile_json".to_string(),
+        reason: "persist parser analysis scale profile for Agent planning and optimization passes"
+            .to_string(),
+        task_kinds: BTreeSet::new(),
+        task_fingerprints: Vec::new(),
+        persistence: options
+            .artifact_persistence
+            .get(ANALYSIS_PROFILE_ARTIFACT_KEY)
+            .copied()
+            .unwrap_or(RustVerificationReportPersistence::RuntimeCache),
+        template: options
+            .artifact_templates
+            .get(ANALYSIS_PROFILE_ARTIFACT_KEY)
+            .cloned(),
+        trace: options
+            .artifact_traces
+            .get(ANALYSIS_PROFILE_ARTIFACT_KEY)
+            .cloned()
+            .or_else(|| options.default_trace.clone()),
+    }
+}
+
+fn selection_advice_sidecar() -> RustVerificationReportSidecar {
+    RustVerificationReportSidecar {
+        key: SELECTION_ADVICE_SIDECAR_KEY.to_string(),
+        role: RustVerificationReportSidecarRole::SelectionAdvice,
+        artifact_name: "selection_advice.json".to_string(),
+        renderer: "build_rust_verification_report_selection_advice + render_rust_verification_report_selection_advice_json".to_string(),
+        reason: "persist Agent report reading order next to the runtime manifest".to_string(),
+        persistence: RustVerificationReportPersistence::RuntimeCache,
+    }
+}
+
+fn is_false(value: &bool) -> bool {
+    !value
+}
+
+fn report_artifact_role(key: &str) -> RustVerificationReportArtifactRole {
+    match key {
+        "verification_plan_json" => RustVerificationReportArtifactRole::PromptState,
+        "task_index_json" => RustVerificationReportArtifactRole::SkillDispatchIndex,
+        "performance_index_json" => RustVerificationReportArtifactRole::BaselineEvidence,
+        ANALYSIS_PROFILE_ARTIFACT_KEY => RustVerificationReportArtifactRole::AnalysisProfile,
+        _ => RustVerificationReportArtifactRole::Custom,
+    }
 }

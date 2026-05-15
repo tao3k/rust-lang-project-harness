@@ -5,6 +5,7 @@ use std::path::Path;
 
 use crate::parser::RustReasoningModuleFacts;
 
+use super::module_lookup::RustVerificationModuleLookup;
 use super::profile::{
     api_path_baseline_evidence, api_path_rationale_is_empty, api_path_task_reason,
     responsibility_labels, task_contract_for_api_path_baseline, task_kind_labels,
@@ -27,22 +28,13 @@ struct ApiPathConfigReviewTaskSpec<'a> {
 pub(super) fn collect_api_path_baseline_tasks(
     project_root: &Path,
     package_root: &Path,
-    modules: &[RustReasoningModuleFacts],
+    module_lookup: &RustVerificationModuleLookup<'_>,
     policy: &RustVerificationPolicy,
     matched_api_path_baselines: &mut BTreeSet<usize>,
     tasks: &mut BTreeMap<String, RustVerificationTask>,
 ) {
-    let source_modules = modules
-        .iter()
-        .filter(|module| module.is_source_module)
-        .collect::<Vec<_>>();
     for (baseline_index, baseline) in policy.api_path_baselines.iter().enumerate() {
-        let Some(module) = matching_api_path_baseline_module(
-            project_root,
-            package_root,
-            &source_modules,
-            baseline,
-        ) else {
+        let Some(module) = module_lookup.get_config_path(&baseline.owner_path) else {
             continue;
         };
         matched_api_path_baselines.insert(baseline_index);
@@ -292,24 +284,4 @@ fn api_path_config_review_evidence(
     let mut evidence = api_path_baseline_evidence(baseline);
     evidence.extend(extras);
     evidence
-}
-
-fn matching_api_path_baseline_module<'a>(
-    project_root: &Path,
-    package_root: &Path,
-    modules: &[&'a RustReasoningModuleFacts],
-    baseline: &RustVerificationApiPathBaseline,
-) -> Option<&'a RustReasoningModuleFacts> {
-    modules.iter().copied().find(|module| {
-        path_matches_baseline(&module.path, project_root, &baseline.owner_path)
-            || path_matches_baseline(&module.path, package_root, &baseline.owner_path)
-    })
-}
-
-fn path_matches_baseline(path: &Path, root: &Path, baseline_path: &Path) -> bool {
-    if baseline_path.is_absolute() {
-        return path == baseline_path;
-    }
-    path.strip_prefix(root)
-        .is_ok_and(|relative_path| relative_path == baseline_path)
 }

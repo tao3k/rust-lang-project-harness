@@ -1,0 +1,21 @@
+---
+source: tests/unit/verification/report_projection_contract.rs
+expression: "normalize_temp_root(&rendered, root)"
+---
+[entry]
+[verify-report-entry] schema=rust_verification_report_manifest/1 state=supported action=load_selection_advice_sidecar first=performance_index_json role=baseline_evidence reason=load_baseline_evidence_for_active_tasks
+   |sidecar: key=selection_advice_json role=selection_advice path=$TEMP/.cache/agent/verification/sample/selection_advice.json
+   |artifact: key=performance_index_json role=baseline_evidence path=$TEMP/resources/verification/reports/performance_index.json
+   |order: performance_index_json -> task_index_json -> verification_plan_json -> analysis_profile_json
+
+[selection]
+[verify-report-select] artifacts=4 first=performance_index_json role=baseline_evidence reason=load_baseline_evidence_for_active_tasks
+   |scale: packages=1 rust_files=2 source_modules=2 owner_branches=1 cargo_dependencies=0
+   |order: performance_index_json -> task_index_json -> verification_plan_json -> analysis_profile_json
+
+[write-receipt]
+[verify-report-write] schema=rust_verification_report_manifest/1 source_paths=3 runtime_paths=4 sidecars=1
+   |source_manifest: $TEMP/resources/verification/reports/verification_report_manifest.json
+   |runtime_manifest: $TEMP/.cache/agent/verification/sample/verification_report_manifest.json
+   |selection_advice: $TEMP/.cache/agent/verification/sample/selection_advice.json
+   |sidecar: role=selection_advice key=selection_advice_json path=$TEMP/.cache/agent/verification/sample/selection_advice.json

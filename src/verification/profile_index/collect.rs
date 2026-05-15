@@ -10,8 +10,8 @@ use super::model::{RustVerificationProfileCandidate, RustVerificationProfileCand
 use super::taxonomy::standard_import_responsibilities;
 use crate::verification::profile::task_kinds_for_responsibilities;
 use crate::verification::{
-    RustOwnerResponsibility, RustVerificationEvidence, RustVerificationPolicy,
-    RustVerificationProfileHint,
+    RustOwnerResponsibility, RustVerificationDependencySignal, RustVerificationEvidence,
+    RustVerificationPolicy, RustVerificationProfileHint,
 };
 
 #[derive(Debug, Default)]
@@ -30,6 +30,144 @@ struct ProfileSignals {
     persistence_roots: BTreeSet<String>,
     security_roots: BTreeSet<String>,
     performance_roots: BTreeSet<String>,
+}
+
+struct ProfileHintLookup<'a> {
+    absolute: BTreeMap<PathBuf, &'a RustVerificationProfileHint>,
+    relative: BTreeMap<PathBuf, &'a RustVerificationProfileHint>,
+}
+
+impl<'a> ProfileHintLookup<'a> {
+    fn new(hints: &'a [RustVerificationProfileHint]) -> Self {
+        let mut lookup = Self {
+            absolute: BTreeMap::new(),
+            relative: BTreeMap::new(),
+        };
+        for hint in hints {
+            if hint.owner_path.is_absolute() {
+                lookup
+                    .absolute
+                    .entry(hint.owner_path.clone())
+                    .or_insert(hint);
+            } else {
+                lookup
+                    .relative
+                    .entry(hint.owner_path.clone())
+                    .or_insert(hint);
+            }
+        }
+        lookup
+    }
+
+    fn get(
+        &self,
+        project_root: &Path,
+        package_root: &Path,
+        owner_path: &Path,
+    ) -> Option<&'a RustVerificationProfileHint> {
+        if let Some(hint) = self.absolute.get(owner_path).copied() {
+            return Some(hint);
+        }
+        owner_path
+            .strip_prefix(project_root)
+            .ok()
+            .and_then(|relative_path| self.relative.get(relative_path).copied())
+            .or_else(|| {
+                owner_path
+                    .strip_prefix(package_root)
+                    .ok()
+                    .and_then(|relative_path| self.relative.get(relative_path).copied())
+            })
+    }
+}
+
+struct DependencySignalLookup<'a> {
+    cargo_by_import_name: BTreeMap<String, &'a CargoDependencyFacts>,
+    responsibilities_by_dependency: BTreeMap<String, BTreeSet<RustOwnerResponsibility>>,
+}
+
+impl<'a> DependencySignalLookup<'a> {
+    fn new(
+        cargo_dependencies: &'a [CargoDependencyFacts],
+        dependency_signals: &[RustVerificationDependencySignal],
+    ) -> Self {
+        let cargo_by_import_name = cargo_dependencies
+            .iter()
+            .map(|dependency| (dependency.import_name.clone(), dependency))
+            .collect::<BTreeMap<_, _>>();
+        let mut responsibilities_by_dependency = BTreeMap::new();
+        for signal in dependency_signals {
+            responsibilities_by_dependency
+                .entry(signal.dependency.clone())
+                .or_insert_with(BTreeSet::new)
+                .extend(signal.responsibilities.iter().copied());
+        }
+        Self {
+            cargo_by_import_name,
+            responsibilities_by_dependency,
+        }
+    }
+
+    fn matching_cargo_dependency(&self, segments: &[String]) -> Option<&'a CargoDependencyFacts> {
+        let root = segments.first()?;
+        self.cargo_by_import_name.get(root).copied()
+    }
+
+    fn configured_dependency_responsibilities(
+        &self,
+        dependency: &CargoDependencyFacts,
+    ) -> BTreeSet<RustOwnerResponsibility> {
+        let mut responsibilities = BTreeSet::new();
+        for key in [
+            dependency.dependency_key.as_str(),
+            dependency.import_name.as_str(),
+            dependency.package_name.as_str(),
+        ] {
+            if let Some(configured) = self.responsibilities_by_dependency.get(key) {
+                responsibilities.extend(configured.iter().copied());
+            }
+        }
+        responsibilities
+    }
+}
+
+struct ProfileBranchLookup<'a> {
+    branch_by_namespace: BTreeMap<Vec<String>, &'a RustReasoningOwnerBranchFacts>,
+}
+
+impl<'a> ProfileBranchLookup<'a> {
+    fn new(branches: impl IntoIterator<Item = &'a RustReasoningOwnerBranchFacts>) -> Self {
+        let mut branch_by_namespace = BTreeMap::new();
+        for branch in branches {
+            branch_by_namespace
+                .entry(branch.owner_namespace.clone())
+                .or_insert(branch);
+        }
+        Self {
+            branch_by_namespace,
+        }
+    }
+
+    fn nearest_profile_branch(
+        &self,
+        module: &RustReasoningModuleFacts,
+    ) -> Option<&'a RustReasoningOwnerBranchFacts> {
+        let namespace = module.source_path.namespace_components.as_slice();
+        for prefix_len in (0..=namespace.len()).rev() {
+            if let Some(branch) = self.branch_by_namespace.get(&namespace[..prefix_len]) {
+                return Some(branch);
+            }
+        }
+        None
+    }
+}
+
+struct ProfileCandidatePushContext<'input, 'lookup, 'candidates> {
+    project_root: &'input Path,
+    package_root: &'input Path,
+    hint_lookup: &'lookup ProfileHintLookup<'input>,
+    policy: &'input RustVerificationPolicy,
+    candidates: &'candidates mut Vec<RustVerificationProfileCandidate>,
 }
 
 pub(super) struct PackageCandidateInput<'a> {
@@ -51,6 +189,11 @@ pub(super) fn collect_package_candidates(
         .iter()
         .map(|module| (module.report.path.clone(), module))
         .collect::<BTreeMap<_, _>>();
+    let modules_by_path = input
+        .modules
+        .iter()
+        .map(|module| (module.path.clone(), module))
+        .collect::<BTreeMap<_, _>>();
     let branches_by_path = input
         .branches
         .iter()
@@ -61,6 +204,17 @@ pub(super) fn collect_package_candidates(
         .iter()
         .filter(|branch| branch_is_profile_owner(branch))
         .collect::<Vec<_>>();
+    let branch_lookup = ProfileBranchLookup::new(profiled_branches.iter().copied());
+    let hint_lookup = ProfileHintLookup::new(&input.policy.profile_hints);
+    let dependency_lookup =
+        DependencySignalLookup::new(input.cargo_dependencies, &input.policy.dependency_signals);
+    let mut push_context = ProfileCandidatePushContext {
+        project_root: input.project_root,
+        package_root: input.package_root,
+        hint_lookup: &hint_lookup,
+        policy: input.policy,
+        candidates,
+    };
     let mut covered_leaf_paths = BTreeSet::new();
     let mut branch_modules_by_path = BTreeMap::<PathBuf, Vec<&RustReasoningModuleFacts>>::new();
     for module in input
@@ -68,7 +222,7 @@ pub(super) fn collect_package_candidates(
         .iter()
         .filter(|module| module.is_source_module)
     {
-        if let Some(branch) = nearest_profile_branch(module, &profiled_branches) {
+        if let Some(branch) = branch_lookup.nearest_profile_branch(module) {
             if module.path != branch.path {
                 covered_leaf_paths.insert(module.path.clone());
             }
@@ -79,11 +233,7 @@ pub(super) fn collect_package_candidates(
         }
     }
     for branch in &profiled_branches {
-        let Some(branch_module) = input
-            .modules
-            .iter()
-            .find(|module| module.path == branch.path)
-        else {
+        let Some(branch_module) = modules_by_path.get(&branch.path).copied() else {
             continue;
         };
         let Some(branch_modules) = branch_modules_by_path.get(&branch.path) else {
@@ -93,18 +243,9 @@ pub(super) fn collect_package_candidates(
             branch_modules,
             Some(branch),
             &parsed_by_path,
-            input.cargo_dependencies,
-            input.policy,
+            &dependency_lookup,
         );
-        push_profile_candidate(
-            input.project_root,
-            input.package_root,
-            branch_module,
-            Some(branch),
-            signals,
-            input.policy,
-            candidates,
-        );
+        push_profile_candidate(&mut push_context, branch_module, Some(branch), signals);
     }
     for module in input
         .modules
@@ -116,50 +257,37 @@ pub(super) fn collect_package_candidates(
         if branch.is_some_and(branch_is_profile_owner) {
             continue;
         }
-        let signals = aggregate_profile_signals(
-            &[module],
-            branch,
-            &parsed_by_path,
-            input.cargo_dependencies,
-            input.policy,
-        );
-        push_profile_candidate(
-            input.project_root,
-            input.package_root,
-            module,
-            branch,
-            signals,
-            input.policy,
-            candidates,
-        );
+        let signals =
+            aggregate_profile_signals(&[module], branch, &parsed_by_path, &dependency_lookup);
+        push_profile_candidate(&mut push_context, module, branch, signals);
     }
 }
 
 fn push_profile_candidate(
-    project_root: &Path,
-    package_root: &Path,
+    context: &mut ProfileCandidatePushContext<'_, '_, '_>,
     module: &RustReasoningModuleFacts,
     branch: Option<&RustReasoningOwnerBranchFacts>,
     signals: ProfileSignals,
-    policy: &RustVerificationPolicy,
-    candidates: &mut Vec<RustVerificationProfileCandidate>,
 ) {
     let responsibilities = suggested_responsibilities(module, branch, &signals);
     if responsibilities.is_empty() {
         return;
     }
-    let matching_hint = matching_profile_hint(project_root, package_root, &module.path, policy);
+    let matching_hint =
+        context
+            .hint_lookup
+            .get(context.project_root, context.package_root, &module.path);
     let configured_responsibilities = matching_hint
         .map(|hint| hint.responsibilities.clone())
         .unwrap_or_default();
     let state = profile_candidate_state(matching_hint, &responsibilities);
-    candidates.push(RustVerificationProfileCandidate {
-        package_root: package_root.to_path_buf(),
+    context.candidates.push(RustVerificationProfileCandidate {
+        package_root: context.package_root.to_path_buf(),
         owner_path: module.path.clone(),
-        hint_path: recommended_hint_path(project_root, package_root, &module.path),
+        hint_path: recommended_hint_path(context.project_root, context.package_root, &module.path),
         owner_namespace: module.source_path.namespace_components.clone(),
         state,
-        suggested_task_kinds: task_kinds_for_responsibilities(&responsibilities, policy),
+        suggested_task_kinds: task_kinds_for_responsibilities(&responsibilities, context.policy),
         suggested_responsibilities: responsibilities,
         configured_responsibilities,
         evidence: profile_evidence(&signals),
@@ -170,8 +298,7 @@ fn aggregate_profile_signals(
     modules: &[&RustReasoningModuleFacts],
     branch: Option<&RustReasoningOwnerBranchFacts>,
     parsed_by_path: &BTreeMap<PathBuf, &ParsedRustModule>,
-    cargo_dependencies: &[CargoDependencyFacts],
-    policy: &RustVerificationPolicy,
+    dependency_lookup: &DependencySignalLookup<'_>,
 ) -> ProfileSignals {
     let mut signals = ProfileSignals {
         owner_modules: modules.len(),
@@ -182,13 +309,7 @@ fn aggregate_profile_signals(
         let Some(parsed_module) = parsed_by_path.get(&module.path) else {
             continue;
         };
-        merge_profile_signals(
-            &mut signals,
-            module,
-            parsed_module,
-            cargo_dependencies,
-            policy,
-        );
+        merge_profile_signals(&mut signals, module, parsed_module, dependency_lookup);
     }
     signals
 }
@@ -197,8 +318,7 @@ fn merge_profile_signals(
     signals: &mut ProfileSignals,
     module: &RustReasoningModuleFacts,
     parsed_module: &ParsedRustModule,
-    cargo_dependencies: &[CargoDependencyFacts],
-    policy: &RustVerificationPolicy,
+    dependency_lookup: &DependencySignalLookup<'_>,
 ) {
     signals.owner_deps += module
         .import_summary
@@ -217,14 +337,13 @@ fn merge_profile_signals(
             signals.public_functions += 1;
         }
     }
-    collect_import_signals(parsed_module, signals, cargo_dependencies, policy);
+    collect_import_signals(parsed_module, signals, dependency_lookup);
 }
 
 fn collect_import_signals(
     parsed_module: &ParsedRustModule,
     signals: &mut ProfileSignals,
-    cargo_dependencies: &[CargoDependencyFacts],
-    policy: &RustVerificationPolicy,
+    dependency_lookup: &DependencySignalLookup<'_>,
 ) {
     for use_statement in &parsed_module.syntax_facts.use_statements {
         if use_statement.context.is_inside_cfg_test_module {
@@ -237,7 +356,7 @@ fn collect_import_signals(
             ) {
                 continue;
             }
-            add_import_signal(&import.segments, signals, cargo_dependencies, policy);
+            add_import_signal(&import.segments, signals, dependency_lookup);
         }
     }
 }
@@ -245,19 +364,18 @@ fn collect_import_signals(
 fn add_import_signal(
     segments: &[String],
     signals: &mut ProfileSignals,
-    cargo_dependencies: &[CargoDependencyFacts],
-    policy: &RustVerificationPolicy,
+    dependency_lookup: &DependencySignalLookup<'_>,
 ) {
     if segments.is_empty() {
         return;
     }
     let label = compact_import_label(segments);
     let mut responsibilities = standard_import_responsibilities(segments);
-    if let Some(dependency) = matching_cargo_dependency(segments, cargo_dependencies) {
+    if let Some(dependency) = dependency_lookup.matching_cargo_dependency(segments) {
         let dependency_label = compact_dependency_label(dependency);
         signals.dependency_roots.insert(dependency_label.clone());
         let configured_responsibilities =
-            configured_dependency_responsibilities(dependency, policy);
+            dependency_lookup.configured_dependency_responsibilities(dependency);
         if configured_responsibilities.is_empty() {
             signals
                 .unconfigured_dependency_roots
@@ -270,34 +388,6 @@ fn add_import_signal(
     for responsibility in responsibilities {
         add_import_responsibility(signals, responsibility, &label);
     }
-}
-
-fn matching_cargo_dependency<'a>(
-    segments: &[String],
-    cargo_dependencies: &'a [CargoDependencyFacts],
-) -> Option<&'a CargoDependencyFacts> {
-    let root = segments.first()?;
-    cargo_dependencies
-        .iter()
-        .find(|dependency| dependency.import_name == *root)
-}
-
-fn configured_dependency_responsibilities(
-    dependency: &CargoDependencyFacts,
-    policy: &RustVerificationPolicy,
-) -> BTreeSet<RustOwnerResponsibility> {
-    policy
-        .dependency_signals
-        .iter()
-        .filter(|signal| {
-            signal.matches_dependency(
-                &dependency.dependency_key,
-                &dependency.import_name,
-                &dependency.package_name,
-            )
-        })
-        .flat_map(|signal| signal.responsibilities.iter().copied())
-        .collect()
 }
 
 fn compact_dependency_label(dependency: &CargoDependencyFacts) -> String {
@@ -403,22 +493,6 @@ fn is_crate_root_facade(module: &RustReasoningModuleFacts) -> bool {
     module.is_module_tree_root && module.source_path.is_crate_facade
 }
 
-fn nearest_profile_branch<'a>(
-    module: &RustReasoningModuleFacts,
-    branches: &[&'a RustReasoningOwnerBranchFacts],
-) -> Option<&'a RustReasoningOwnerBranchFacts> {
-    branches
-        .iter()
-        .copied()
-        .filter(|branch| {
-            namespace_has_prefix(
-                &module.source_path.namespace_components,
-                &branch.owner_namespace,
-            )
-        })
-        .max_by_key(|branch| branch.owner_namespace.len())
-}
-
 fn branch_is_profile_owner(branch: &RustReasoningOwnerBranchFacts) -> bool {
     !branch.roles.contains(&RustReasoningOwnerBranchRole::Root)
         || branch.roles.contains(&RustReasoningOwnerBranchRole::Binary)
@@ -512,33 +586,9 @@ fn profile_candidate_state(
     }
 }
 
-fn matching_profile_hint<'a>(
-    project_root: &Path,
-    package_root: &Path,
-    owner_path: &Path,
-    policy: &'a RustVerificationPolicy,
-) -> Option<&'a RustVerificationProfileHint> {
-    policy.profile_hints.iter().find(|hint| {
-        path_matches_hint(owner_path, project_root, &hint.owner_path)
-            || path_matches_hint(owner_path, package_root, &hint.owner_path)
-    })
-}
-
-fn path_matches_hint(path: &Path, root: &Path, hint_path: &Path) -> bool {
-    if hint_path.is_absolute() {
-        return path == hint_path;
-    }
-    path.strip_prefix(root)
-        .is_ok_and(|relative_path| relative_path == hint_path)
-}
-
 fn recommended_hint_path(project_root: &Path, package_root: &Path, owner_path: &Path) -> PathBuf {
     owner_path
         .strip_prefix(project_root)
         .or_else(|_| owner_path.strip_prefix(package_root))
         .map_or_else(|_| owner_path.to_path_buf(), Path::to_path_buf)
-}
-
-fn namespace_has_prefix(namespace: &[String], prefix: &[String]) -> bool {
-    namespace.starts_with(prefix)
 }

@@ -3,7 +3,7 @@ use std::path::Path;
 
 use rust_lang_project_harness::{
     RustHarnessConfig, RustOwnerResponsibility, RustVerificationProfileHint,
-    default_rust_harness_config,
+    RustVerificationSkillBinding, RustVerificationTaskKind, default_rust_harness_config,
 };
 
 pub(super) fn public_api_profile_config() -> RustHarnessConfig {
@@ -11,6 +11,19 @@ pub(super) fn public_api_profile_config() -> RustHarnessConfig {
         "src/api.rs",
         [RustOwnerResponsibility::PublicApi],
     ))
+}
+
+pub(super) fn latency_sensitive_performance_config() -> RustHarnessConfig {
+    default_rust_harness_config()
+        .with_verification_profile_hint(RustVerificationProfileHint::new(
+            "src/api.rs",
+            [RustOwnerResponsibility::LatencySensitive],
+        ))
+        .with_verification_skill_binding(
+            RustVerificationTaskKind::Performance,
+            RustVerificationSkillBinding::new("rust-verification-performance")
+                .with_adapter("criterion"),
+        )
 }
 
 pub(super) fn write_manifest(root: &Path, name: &str) {

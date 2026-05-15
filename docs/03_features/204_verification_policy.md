@@ -29,10 +29,22 @@ use std::path::Path;
 
 use rust_lang_project_harness::{
     RustOwnerResponsibility, RustVerificationProfileHint, default_rust_harness_config,
+    build_rust_verification_analysis_profile_with_config,
     build_rust_verification_performance_index, build_rust_verification_report_bundle,
-    plan_rust_project_verification_with_config, render_rust_verification_performance_index_json,
+    build_rust_verification_report_bundle_with_options,
+    build_rust_verification_report_entry_advice,
+    build_rust_verification_report_selection_advice, plan_rust_project_verification_with_config,
+    check_rust_verification_report_manifest_schema,
+    render_rust_verification_analysis_profile, render_rust_verification_performance_index_json,
     render_rust_verification_plan, render_rust_verification_report_artifact_json,
-    render_rust_verification_report_bundle_json, render_rust_verification_skill_contracts,
+    render_rust_verification_report_artifact_json_with_config,
+    render_rust_verification_report_bundle, render_rust_verification_report_bundle_json,
+    render_rust_verification_report_entry_advice,
+    render_rust_verification_report_entry_advice_json,
+    render_rust_verification_report_manifest_schema_compatibility,
+    render_rust_verification_report_selection_advice,
+    render_rust_verification_report_selection_advice_json,
+    render_rust_verification_skill_contracts, RustVerificationReportOptions,
 };
 
 let config = default_rust_harness_config().with_verification_profile_hint(
@@ -47,16 +59,57 @@ let config = default_rust_harness_config().with_verification_profile_hint(
 
 let plan =
     plan_rust_project_verification_with_config(Path::new("."), &config).expect("plan");
+let analysis_profile =
+    build_rust_verification_analysis_profile_with_config(Path::new("."), &config)
+        .expect("analysis profile");
 let compact = render_rust_verification_plan(&plan);
+let analysis_compact = render_rust_verification_analysis_profile(&analysis_profile);
 let contract_tree = render_rust_verification_skill_contracts(&plan);
 let perf_index = build_rust_verification_performance_index(&plan);
 let perf_json = render_rust_verification_performance_index_json(&perf_index).expect("json");
 let report_bundle = build_rust_verification_report_bundle(&plan);
+let report_manifest_compact = render_rust_verification_report_bundle(&report_bundle);
 let report_manifest_json = render_rust_verification_report_bundle_json(&plan).expect("json");
+let report_manifest_schema_state =
+    check_rust_verification_report_manifest_schema(&report_bundle.schema);
+let report_manifest_schema_advice =
+    render_rust_verification_report_manifest_schema_compatibility(&report_bundle.schema);
 let performance_artifact_json =
     render_rust_verification_report_artifact_json(&plan, "performance_index_json")
         .expect("json")
         .expect("active performance artifact");
+let analysis_report_options =
+    RustVerificationReportOptions::default()
+        .with_analysis_profile_artifact()
+        .with_selection_advice_sidecar();
+let analysis_report_bundle =
+    build_rust_verification_report_bundle_with_options(&plan, &analysis_report_options);
+let artifact_selection =
+    build_rust_verification_report_selection_advice(
+        &analysis_report_bundle,
+        Some(&analysis_profile),
+    );
+let artifact_reading_order_compact =
+    render_rust_verification_report_selection_advice(
+        &analysis_report_bundle,
+        Some(&analysis_profile),
+    );
+let artifact_reading_order_json =
+    render_rust_verification_report_selection_advice_json(&artifact_selection)
+        .expect("selection json");
+let report_entry =
+    build_rust_verification_report_entry_advice(&analysis_report_bundle, Some(&analysis_profile));
+let report_entry_compact = render_rust_verification_report_entry_advice(&report_entry);
+let report_entry_json =
+    render_rust_verification_report_entry_advice_json(&report_entry).expect("entry json");
+let analysis_artifact_json =
+    render_rust_verification_report_artifact_json_with_config(
+        &plan,
+        &config,
+        "analysis_profile_json",
+    )
+    .expect("json")
+    .expect("explicit analysis artifact");
 ```
 
 Relative profile paths are matched against parser-known modules. In a single
@@ -94,11 +147,94 @@ Agents and CI integrations do not need to reconstruct those artifact contracts
 manually. `build_rust_verification_report_bundle(&plan)` and
 `render_rust_verification_report_bundle_json(&plan)` produce a small manifest,
 not one large all-in-one payload. The manifest lists modular artifacts,
-template metadata, trace guidance, runtime budgets, and task fingerprints.
-Call `render_rust_verification_report_artifact_json(&plan, key)` to render one
-artifact at a time, such as `verification_plan_json` or `performance_index_json`.
-This keeps performance evidence, plan state, and future report families
-separately persistable and separately comparable.
+template metadata, trace guidance, runtime budgets, task fingerprints, and a
+stable `role` so Agents can select an artifact by purpose instead of guessing
+from a filename. `render_rust_verification_report_bundle(&bundle)` is the
+compact Agent selector; it lists each artifact's role, persistence target,
+trace budget, template id, and renderer without embedding the payload. Call
+`render_rust_verification_report_artifact_json(&plan, key)` to render one
+artifact at a time, such as `verification_plan_json` or
+`performance_index_json`. This keeps performance evidence, plan state, and
+future report families separately persistable and separately comparable.
+Every report manifest includes `RustVerificationReportManifestSchema` under
+`schema`, currently `rust_verification_report_manifest` version `1`.
+`RUST_VERIFICATION_REPORT_MANIFEST_SCHEMA_ID` and
+`RUST_VERIFICATION_REPORT_MANIFEST_SCHEMA_VERSION` are exported for downstream
+compatibility checks. Call
+`check_rust_verification_report_manifest_schema` before loading artifact
+payloads, or render
+`render_rust_verification_report_manifest_schema_compatibility` when an Agent
+needs one compact line with `supported`, `unsupported_schema_id`, or
+`unsupported_schema_version` plus the expected action. The compact manifest
+renderer also prints the same schema label so an Agent can reject an unsupported
+manifest before loading payloads.
+
+For planning and optimization passes, callers can render a separate analysis
+profile with `render_rust_verification_analysis_profile`. This projection is
+not a default report obligation: it gives Agents a compact scale snapshot
+(`packages`, `rust_files`, `source_modules`, `owner_branches`,
+`cargo_dependencies`, and elapsed microseconds) without changing the durable
+report contract. When a cache or Agent wants to persist the same projection,
+use `RustVerificationReportOptions::with_analysis_profile_artifact()` and render
+`analysis_profile_json` with
+`render_rust_verification_report_artifact_json_with_config`. The explicit
+artifact defaults to `runtime_cache`, so source baselines do not grow unless a
+caller deliberately overrides persistence. Its manifest role is
+`analysis_profile`, while the default performance artifact role is
+`baseline_evidence`; this gives windowed Agents a low-token selector before
+they decide which JSON payload to load.
+
+`build_rust_verification_report_selection_advice(&bundle, analysis_profile)`
+turns those roles into a structured DTO: artifact count, first artifact, reason
+code, optional scale facts, and ordered artifact refs. If no profile has been
+loaded yet, and an explicit `analysis_profile` artifact exists, the advice tells
+the Agent to load `analysis_profile_json` before heavier payloads. Once a caller
+already has the profile, small single-package projects can jump straight to
+`baseline_evidence`; multi-package or broad source surfaces continue to scope
+the Agent window through `analysis_profile_json` first. Use
+`render_rust_verification_report_selection_advice` for compact prompts and
+`render_rust_verification_report_selection_advice_json` for structured Agent
+APIs. This keeps selection policy upstream and avoids downstream tools
+hard-coding filename heuristics.
+
+When reports are persisted with `write_rust_verification_reports_with_options`,
+`RustVerificationReportOptions::with_selection_advice_sidecar()` writes the same
+structured advice as `selection_advice.json` under the runtime cache directory.
+The sidecar is intentionally not a source baseline. The runtime manifest exposes
+it through `RustVerificationReportBundle::sidecars` with key
+`selection_advice_json`, role `selection_advice`, persistence `runtime_cache`,
+artifact name, and renderer. The writer receipt also records structured
+`artifact_paths` and `sidecar_paths`, while `selection_advice_path` remains a
+convenience pointer for the built-in sidecar.
+`RustVerificationReportWriteReceipt::artifact_path(key)` and `sidecar_path(key)`
+are the downstream-safe lookup API; consumers should use those instead of
+rebuilding paths from filenames. `RustVerificationReportWriteReceipt::manifest_schema`
+echoes the same schema metadata used for both source and runtime manifests, and
+`source_manifest_path()` / `runtime_manifest_path()` locate the written
+manifests from the receipt path sets. Use
+`render_rust_verification_report_write_receipt` for a compact Agent handoff and
+`render_rust_verification_report_write_receipt_json` when the receipt needs to
+round-trip through cache or another process. Downstream Agents should discover
+artifacts and sidecars from the manifest or receipt instead of hard-coding
+filenames. If analysis profile persistence is also enabled, the sidecar includes
+scale facts and can choose a more precise first artifact without downstream
+reconstruction.
+
+For the shortest Agent entrypoint, call
+`build_rust_verification_report_entry_advice` after loading a manifest. It
+combines schema compatibility and artifact selection into one DTO with an
+action: `stop_and_refresh_harness_contract`, `load_selection_advice_sidecar`,
+`read_first_artifact`, or `no_active_report_artifacts`. When a writer receipt is
+available, `build_rust_verification_report_entry_advice_with_receipt` also
+attaches the persisted `selection_advice.json` path and the selected first
+artifact path. Local Agents can therefore read the sidecar first and then open
+the exact artifact path chosen by upstream selection policy. The compact
+Agent-facing projection is covered by the
+`verification_report_agent_projection_contract` snapshot, which keeps entry,
+selection, and write-receipt renders stable together. The
+`report_projection_public_api_surface_smoke` test also exercises the same flow
+through crate-root exports so downstream crates do not need internal module
+paths.
 
 The manifest also classifies each artifact by persistence target.
 `performance_index_json` defaults to `source_baseline` because benchmark

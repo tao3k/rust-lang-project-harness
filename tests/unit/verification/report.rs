@@ -1,14 +1,15 @@
 use rust_lang_project_harness::{
-    RustOwnerResponsibility, RustVerificationProfileHint, RustVerificationReportOptions,
-    RustVerificationReportPersistence, RustVerificationReportTraceConfig,
-    RustVerificationReportWriteConfig, RustVerificationSkillBinding, RustVerificationTaskKind,
-    RustVerificationTraceMaxSeconds, build_rust_verification_report_bundle,
-    build_rust_verification_report_bundle_with_options, default_rust_harness_config,
-    plan_rust_project_verification_with_config, render_rust_verification_plan,
-    render_rust_verification_report_artifact_json, render_rust_verification_report_bundle_json,
-    write_rust_verification_reports,
+    RUST_VERIFICATION_REPORT_MANIFEST_SCHEMA_ID, RUST_VERIFICATION_REPORT_MANIFEST_SCHEMA_VERSION,
+    RustOwnerResponsibility, RustVerificationProfileHint, RustVerificationReportArtifactRole,
+    RustVerificationReportOptions, RustVerificationReportPersistence,
+    RustVerificationReportSidecarRole, RustVerificationReportTraceConfig,
+    RustVerificationSkillBinding, RustVerificationTaskKind, RustVerificationTraceMaxSeconds,
+    build_rust_verification_report_bundle, build_rust_verification_report_bundle_with_options,
+    default_rust_harness_config, plan_rust_project_verification_with_config,
+    render_rust_verification_plan, render_rust_verification_report_artifact_json,
+    render_rust_verification_report_artifact_json_with_config,
+    render_rust_verification_report_bundle, render_rust_verification_report_bundle_json,
 };
-use std::path::PathBuf;
 use tempfile::TempDir;
 
 use crate::verification::support::write_api_project;
@@ -32,6 +33,7 @@ fn verification_report_bundle_materializes_required_artifacts() {
 
     let rendered = render_rust_verification_plan(&plan);
     let bundle = build_rust_verification_report_bundle(&plan);
+    let compact_bundle = render_rust_verification_report_bundle(&bundle);
     let json = render_rust_verification_report_bundle_json(&plan).expect("report json");
     let value: serde_json::Value = serde_json::from_str(&json).expect("parse json");
     let perf_json = render_rust_verification_report_artifact_json(&plan, "performance_index_json")
@@ -44,13 +46,29 @@ fn verification_report_bundle_materializes_required_artifacts() {
     let task_value: serde_json::Value = serde_json::from_str(&task_json).expect("parse task json");
 
     assert!(rendered.contains("render_rust_verification_report_bundle_json"));
+    assert!(compact_bundle.starts_with("[verify-report-bundle] artifacts=3"));
+    assert!(compact_bundle.contains("schema=rust_verification_report_manifest/1"));
+    assert!(compact_bundle.contains(
+        "|artifact: role=baseline_evidence key=performance_index_json persistence=source_baseline file=performance_index.json tasks=1 trace=performance max_s=300 sample_ms=250 raw=true template=performance-index"
+    ));
+    assert!(compact_bundle.contains(
+        "|renderer: performance_index_json=build_rust_verification_performance_index + render_rust_verification_performance_index_json"
+    ));
     assert_eq!(bundle.artifacts.len(), 3);
+    assert!(bundle.artifact("analysis_profile_json").is_none());
     assert_eq!(
         bundle
             .artifact("verification_plan_json")
             .expect("plan artifact")
             .task_count(),
         1
+    );
+    assert_eq!(
+        bundle
+            .artifact("task_index_json")
+            .expect("task artifact")
+            .role,
+        RustVerificationReportArtifactRole::SkillDispatchIndex
     );
     assert_eq!(
         bundle
@@ -63,8 +81,22 @@ fn verification_report_bundle_materializes_required_artifacts() {
         bundle
             .artifact("performance_index_json")
             .expect("performance artifact")
+            .role,
+        RustVerificationReportArtifactRole::BaselineEvidence
+    );
+    assert_eq!(
+        bundle
+            .artifact("performance_index_json")
+            .expect("performance artifact")
             .persistence,
         RustVerificationReportPersistence::SourceBaseline
+    );
+    assert_eq!(
+        bundle
+            .artifact("verification_plan_json")
+            .expect("plan artifact")
+            .role,
+        RustVerificationReportArtifactRole::PromptState
     );
     assert_eq!(
         bundle
@@ -75,6 +107,12 @@ fn verification_report_bundle_materializes_required_artifacts() {
     );
     assert_eq!(bundle.source_baseline_artifacts().len(), 2);
     assert_eq!(bundle.runtime_cache_artifacts().len(), 1);
+    assert_eq!(
+        bundle
+            .artifacts_for_role(RustVerificationReportArtifactRole::BaselineEvidence)
+            .len(),
+        1
+    );
     assert_eq!(
         bundle
             .artifact("performance_index_json")
@@ -91,6 +129,14 @@ fn verification_report_bundle_materializes_required_artifacts() {
         value["artifacts"][0]["artifact_name"],
         "verification_plan.json"
     );
+    assert_eq!(
+        value["schema"]["schema_id"],
+        RUST_VERIFICATION_REPORT_MANIFEST_SCHEMA_ID
+    );
+    assert_eq!(
+        value["schema"]["schema_version"],
+        RUST_VERIFICATION_REPORT_MANIFEST_SCHEMA_VERSION
+    );
     assert_eq!(value["artifacts"][1]["artifact_name"], "task_index.json");
     assert_eq!(
         value["artifacts"][2]["artifact_name"],
@@ -100,7 +146,70 @@ fn verification_report_bundle_materializes_required_artifacts() {
         value["artifacts"][2]["template"]["template_id"],
         "performance-index"
     );
+    assert_eq!(value["artifacts"][2]["role"], "baseline_evidence");
     assert!(value["artifacts"][2].get("payload").is_none());
+    assert!(value.get("sidecars").is_none());
+}
+
+#[test]
+fn verification_report_bundle_can_include_analysis_profile_artifact_explicitly() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_api_project(root);
+    let config = default_rust_harness_config()
+        .with_verification_profile_hint(RustVerificationProfileHint::new(
+            "src/api.rs",
+            [RustOwnerResponsibility::LatencySensitive],
+        ))
+        .with_verification_skill_binding(
+            RustVerificationTaskKind::Performance,
+            RustVerificationSkillBinding::new("rust-verification-performance")
+                .with_adapter("criterion"),
+        );
+    let plan = plan_rust_project_verification_with_config(root, &config).expect("plan");
+    let options = RustVerificationReportOptions::default().with_analysis_profile_artifact();
+
+    let bundle = build_rust_verification_report_bundle_with_options(&plan, &options);
+    let compact_bundle = render_rust_verification_report_bundle(&bundle);
+    let analysis = bundle
+        .artifact("analysis_profile_json")
+        .expect("analysis artifact");
+    let analysis_json = render_rust_verification_report_artifact_json_with_config(
+        &plan,
+        &config,
+        "analysis_profile_json",
+    )
+    .expect("render analysis artifact")
+    .expect("analysis artifact");
+    let value: serde_json::Value = serde_json::from_str(&analysis_json).expect("parse analysis");
+
+    assert_eq!(bundle.artifacts.len(), 4);
+    assert!(compact_bundle.contains(
+        "|artifact: role=analysis_profile key=analysis_profile_json persistence=runtime_cache file=analysis_profile.json tasks=0 trace=analysis max_s=60 sample_ms=1000 template=verification-analysis-profile"
+    ));
+    assert_eq!(analysis.artifact_name, "analysis_profile.json");
+    assert_eq!(
+        analysis.role,
+        RustVerificationReportArtifactRole::AnalysisProfile
+    );
+    assert_eq!(analysis.task_count(), 0);
+    assert_eq!(
+        bundle
+            .artifacts_for_role(RustVerificationReportArtifactRole::AnalysisProfile)
+            .len(),
+        1
+    );
+    assert_eq!(
+        analysis.persistence,
+        RustVerificationReportPersistence::RuntimeCache
+    );
+    assert_eq!(
+        analysis.template.as_ref().expect("template").template_id,
+        "verification-analysis-profile"
+    );
+    assert_eq!(analysis.trace.as_ref().expect("trace").profile, "analysis");
+    assert_eq!(value["package_count"], 1);
+    assert_eq!(value["rust_file_count"], 2);
 }
 
 #[test]
@@ -142,7 +251,7 @@ fn verification_report_bundle_allows_agent_trace_overrides() {
 }
 
 #[test]
-fn verification_report_writer_splits_source_baseline_from_runtime_cache() {
+fn verification_report_bundle_exposes_selection_advice_sidecar_contract() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_api_project(root);
@@ -157,85 +266,42 @@ fn verification_report_writer_splits_source_baseline_from_runtime_cache() {
                 .with_adapter("criterion"),
         );
     let plan = plan_rust_project_verification_with_config(root, &config).expect("plan");
-    let source_dir = root.join("resources/verification/reports");
-    let cache_dir = root.join(".cache/agent/verification/sample");
+    let options = RustVerificationReportOptions::default().with_selection_advice_sidecar();
 
-    let receipt = write_rust_verification_reports(
-        &plan,
-        &RustVerificationReportWriteConfig::new(root, &source_dir, &cache_dir),
-    )
-    .expect("write reports");
+    let bundle = build_rust_verification_report_bundle_with_options(&plan, &options);
+    let compact_bundle = render_rust_verification_report_bundle(&bundle);
+    let value = serde_json::to_value(&bundle).expect("bundle json");
+    let sidecar = bundle
+        .sidecar("selection_advice_json")
+        .expect("selection sidecar");
 
-    assert!(
-        source_dir
-            .join("verification_report_manifest.json")
-            .exists()
+    assert_eq!(bundle.sidecars.len(), 1);
+    assert_eq!(
+        bundle.schema.schema_id,
+        RUST_VERIFICATION_REPORT_MANIFEST_SCHEMA_ID
     );
-    assert!(source_dir.join("performance_index.json").exists());
-    assert!(source_dir.join("task_index.json").exists());
-    assert!(!source_dir.join("verification_plan.json").exists());
-    assert!(cache_dir.join("verification_report_manifest.json").exists());
-    assert!(cache_dir.join("verification_plan.json").exists());
-    assert_eq!(receipt.source_baseline_paths.len(), 3);
-    assert_eq!(receipt.runtime_cache_paths.len(), 2);
-
-    let source_manifest =
-        std::fs::read_to_string(source_dir.join("verification_report_manifest.json"))
-            .expect("source manifest");
-    let cache_manifest =
-        std::fs::read_to_string(cache_dir.join("verification_report_manifest.json"))
-            .expect("cache manifest");
-    let performance_index = std::fs::read_to_string(source_dir.join("performance_index.json"))
-        .expect("performance index");
-
-    assert!(source_manifest.contains("performance_index_json"));
-    assert!(source_manifest.contains("task_index_json"));
-    assert!(!source_manifest.contains("verification_plan_json"));
-    assert!(cache_manifest.contains("verification_plan_json"));
-    assert!(cache_manifest.contains("task_index_json"));
-    assert!(cache_manifest.contains("performance_index_json"));
-    assert!(performance_index.contains("$CRATE_ROOT"));
-    assert!(!performance_index.contains(&root.display().to_string()));
-}
-
-#[test]
-fn verification_report_writer_compacts_windows_json_escaped_project_root() {
-    let temp = TempDir::new().expect("temp dir");
-    let root = temp.path();
-    write_api_project(root);
-    let config = default_rust_harness_config()
-        .with_verification_profile_hint(RustVerificationProfileHint::new(
-            "src/api.rs",
-            [RustOwnerResponsibility::LatencySensitive],
-        ))
-        .with_verification_skill_binding(
-            RustVerificationTaskKind::Performance,
-            RustVerificationSkillBinding::new("rust-verification-performance")
-                .with_adapter("criterion"),
-        );
-    let mut plan = plan_rust_project_verification_with_config(root, &config).expect("plan");
-    let windows_root = PathBuf::from(r"C:\agent\work\verification-api");
-    let windows_api = PathBuf::from(r"C:\agent\work\verification-api\src\api.rs");
-    plan.project_root = windows_root.clone();
-    for task in &mut plan.tasks {
-        task.package_root = windows_root.clone();
-        task.owner_path = windows_api.clone();
-    }
-
-    let source_dir = root.join("resources/verification/reports");
-    let cache_dir = root.join(".cache/agent/verification/sample");
-    write_rust_verification_reports(
-        &plan,
-        &RustVerificationReportWriteConfig::new(&windows_root, &source_dir, &cache_dir),
-    )
-    .expect("write reports");
-
-    let performance_index = std::fs::read_to_string(source_dir.join("performance_index.json"))
-        .expect("performance index");
-
-    assert!(performance_index.contains("$CRATE_ROOT"));
-    assert!(!performance_index.contains(r"C:\agent\work"));
-    assert!(!performance_index.contains(r"C:\\agent\\work"));
+    assert_eq!(
+        bundle.schema.schema_version,
+        RUST_VERIFICATION_REPORT_MANIFEST_SCHEMA_VERSION
+    );
+    assert_eq!(bundle.runtime_cache_sidecars().len(), 1);
+    assert_eq!(bundle.source_baseline_sidecars().len(), 0);
+    assert_eq!(
+        sidecar.role,
+        RustVerificationReportSidecarRole::SelectionAdvice
+    );
+    assert_eq!(sidecar.artifact_name, "selection_advice.json");
+    assert_eq!(
+        bundle
+            .sidecars_for_role(RustVerificationReportSidecarRole::SelectionAdvice)
+            .len(),
+        1
+    );
+    assert!(compact_bundle.contains(
+        "|sidecar: role=selection_advice key=selection_advice_json persistence=runtime_cache file=selection_advice.json"
+    ));
+    assert_eq!(value["sidecars"][0]["key"], "selection_advice_json");
+    assert_eq!(value["sidecars"][0]["role"], "selection_advice");
 }
 
 #[test]

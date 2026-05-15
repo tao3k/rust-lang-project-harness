@@ -1,5 +1,6 @@
 //! Structured performance-status retrieval for verification plans.
 
+use std::collections::BTreeSet;
 use std::fmt::Write;
 use std::path::{Path, PathBuf};
 
@@ -146,9 +147,14 @@ impl RustVerificationPerformanceRecord {
     /// Return required evidence keys not present in the matching receipt.
     #[must_use]
     pub fn missing_receipt_evidence_keys(&self) -> Vec<&str> {
+        let present_keys = self
+            .receipt_evidence
+            .iter()
+            .map(|evidence| evidence.label.as_str())
+            .collect::<BTreeSet<_>>();
         self.required_evidence_keys
             .iter()
-            .filter(|key| self.receipt_evidence_value(key).is_none())
+            .filter(|key| !present_keys.contains(key.as_str()))
             .map(String::as_str)
             .collect()
     }

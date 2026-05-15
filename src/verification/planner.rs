@@ -1,19 +1,20 @@
 //! Verification task planner derived from parser reasoning-tree facts.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use crate::discovery::{
-    discover_cargo_package_roots, discover_rust_files, rust_project_harness_scope,
-};
 use crate::model::RustHarnessConfig;
 use crate::parser::{
-    ParsedRustModule, RustReasoningImportFacts, RustReasoningModuleFacts,
-    RustReasoningOwnerBranchFacts, RustReasoningOwnerBranchRole, parse_rust_file,
-    rust_reasoning_tree_facts,
+    RustReasoningImportFacts, RustReasoningModuleFacts, RustReasoningOwnerBranchFacts,
+    RustReasoningOwnerBranchRole,
 };
 
+use super::analysis::{
+    RustVerificationCargoDependencyAnalysis, RustVerificationPackageAnalysis,
+    analyze_rust_verification_project,
+};
 use super::api_path::{collect_api_path_baseline_tasks, collect_unmatched_api_path_baselines};
+use super::module_lookup::RustVerificationModuleLookup;
 use super::profile::{
     hint_rationale_is_empty, profile_evidence, profile_task_reason, responsibility_labels,
     task_contract_for_profile, task_kind_labels, task_kinds_for_profile,
@@ -40,6 +41,40 @@ struct VerificationTaskCollections<'a> {
     matched_profile_hints: &'a mut BTreeSet<usize>,
     matched_api_path_baselines: &'a mut BTreeSet<usize>,
     tasks: &'a mut BTreeMap<String, RustVerificationTask>,
+}
+
+#[derive(Default)]
+struct ReportObligationFacts {
+    task_kinds: BTreeSet<RustVerificationTaskKind>,
+    task_fingerprints: Vec<String>,
+    configured_skill_task_kinds: BTreeSet<RustVerificationTaskKind>,
+    configured_skill_task_fingerprints: Vec<String>,
+    performance_fingerprints: Vec<String>,
+}
+
+impl ReportObligationFacts {
+    fn from_tasks(tasks: &[RustVerificationTask]) -> Self {
+        tasks
+            .iter()
+            .filter(|task| task.is_active())
+            .fold(Self::default(), |mut facts, task| {
+                facts.record_task(task);
+                facts
+            })
+    }
+
+    fn record_task(&mut self, task: &RustVerificationTask) {
+        self.task_kinds.insert(task.kind);
+        self.task_fingerprints.push(task.fingerprint.clone());
+        if task.skill_binding.is_some() {
+            self.configured_skill_task_kinds.insert(task.kind);
+            self.configured_skill_task_fingerprints
+                .push(task.fingerprint.clone());
+        }
+        if task.kind == RustVerificationTaskKind::Performance {
+            self.performance_fingerprints.push(task.fingerprint.clone());
+        }
+    }
 }
 
 /// Plan parser-native verification tasks for a conventional Rust project.
@@ -74,18 +109,11 @@ pub fn plan_rust_project_verification_with_policy(
     config: &RustHarnessConfig,
     policy: &RustVerificationPolicy,
 ) -> Result<RustVerificationPlan, String> {
-    if !project_root.exists() {
-        return Err(format!(
-            "project root does not exist: {}",
-            project_root.display()
-        ));
-    }
-    let package_roots = discover_cargo_package_roots(project_root, &config.ignored_dir_names);
-    let package_roots = if should_run_member_scopes(project_root, &package_roots) {
-        package_roots
-    } else {
-        vec![project_root.to_path_buf()]
-    };
+    let analysis = analyze_rust_verification_project(
+        project_root,
+        config,
+        RustVerificationCargoDependencyAnalysis::Skip,
+    )?;
     let mut tasks = BTreeMap::new();
     let mut matched_profile_hints = BTreeSet::new();
     let mut matched_api_path_baselines = BTreeSet::new();
@@ -95,11 +123,10 @@ pub fn plan_rust_project_verification_with_policy(
             matched_api_path_baselines: &mut matched_api_path_baselines,
             tasks: &mut tasks,
         };
-        for package_root in package_roots {
+        for package_analysis in &analysis.package_analyses {
             collect_package_verification_tasks(
                 project_root,
-                &package_root,
-                config,
+                package_analysis,
                 policy,
                 &mut collections,
             );
@@ -131,23 +158,23 @@ pub fn plan_rust_project_verification_with_policy(
 
 fn collect_package_verification_tasks(
     project_root: &Path,
-    package_root: &Path,
-    config: &RustHarnessConfig,
+    package_analysis: &RustVerificationPackageAnalysis,
     policy: &RustVerificationPolicy,
     collections: &mut VerificationTaskCollections<'_>,
 ) {
-    let scope = rust_project_harness_scope(
-        package_root,
-        config.include_tests,
-        &config.source_dir_names,
-        &config.test_dir_names,
+    let reasoning_tree = &package_analysis.reasoning_tree;
+    let module_lookup = RustVerificationModuleLookup::new(
+        project_root,
+        &reasoning_tree.package_root,
+        reasoning_tree
+            .modules
+            .iter()
+            .filter(|module| module.is_source_module),
     );
-    let parsed_modules = parse_scope(&scope, config);
-    let reasoning_tree = rust_reasoning_tree_facts(&scope, &parsed_modules);
     collect_profile_tasks(
         project_root,
         &reasoning_tree.package_root,
-        &reasoning_tree.modules,
+        &module_lookup,
         policy,
         &mut *collections.matched_profile_hints,
         &mut *collections.tasks,
@@ -155,7 +182,7 @@ fn collect_package_verification_tasks(
     collect_api_path_baseline_tasks(
         project_root,
         &reasoning_tree.package_root,
-        &reasoning_tree.modules,
+        &module_lookup,
         policy,
         &mut *collections.matched_api_path_baselines,
         &mut *collections.tasks,
@@ -172,22 +199,17 @@ fn collect_package_verification_tasks(
 fn report_obligations_for_tasks(
     tasks: &[RustVerificationTask],
 ) -> Vec<RustVerificationReportObligation> {
-    let active_tasks = tasks
-        .iter()
-        .filter(|task| task.is_active())
-        .collect::<Vec<_>>();
-    if active_tasks.is_empty() {
+    let ReportObligationFacts {
+        task_kinds,
+        task_fingerprints,
+        configured_skill_task_kinds,
+        configured_skill_task_fingerprints,
+        performance_fingerprints,
+    } = ReportObligationFacts::from_tasks(tasks);
+    if task_fingerprints.is_empty() {
         return Vec::new();
     }
 
-    let task_kinds = active_tasks
-        .iter()
-        .map(|task| task.kind)
-        .collect::<BTreeSet<_>>();
-    let task_fingerprints = active_tasks
-        .iter()
-        .map(|task| task.fingerprint.clone())
-        .collect::<Vec<_>>();
     let mut obligations = vec![RustVerificationReportObligation::new(
         "verification_plan_json",
         "render_rust_verification_plan_json",
@@ -196,32 +218,17 @@ fn report_obligations_for_tasks(
         task_kinds,
         task_fingerprints,
     )];
-    let configured_skill_tasks = active_tasks
-        .iter()
-        .filter(|task| task.skill_binding.is_some())
-        .collect::<Vec<_>>();
-    if !configured_skill_tasks.is_empty() {
+    if !configured_skill_task_fingerprints.is_empty() {
         obligations.push(RustVerificationReportObligation::new(
             "task_index_json",
             "build_rust_verification_task_index + render_rust_verification_task_index_json",
             "task_index.json",
             "persist compact configured-skill task state for security, performance, stress, chaos, and regression",
-            configured_skill_tasks
-                .iter()
-                .map(|task| task.kind)
-                .collect::<BTreeSet<_>>(),
-            configured_skill_tasks
-                .iter()
-                .map(|task| task.fingerprint.clone())
-                .collect::<Vec<_>>(),
+            configured_skill_task_kinds,
+            configured_skill_task_fingerprints,
         ));
     }
 
-    let performance_fingerprints = active_tasks
-        .iter()
-        .filter(|task| task.kind == RustVerificationTaskKind::Performance)
-        .map(|task| task.fingerprint.clone())
-        .collect::<Vec<_>>();
     if !performance_fingerprints.is_empty() {
         obligations.push(RustVerificationReportObligation::new(
             "performance_index_json",
@@ -239,18 +246,13 @@ fn report_obligations_for_tasks(
 fn collect_profile_tasks(
     project_root: &Path,
     package_root: &Path,
-    modules: &[RustReasoningModuleFacts],
+    module_lookup: &RustVerificationModuleLookup<'_>,
     policy: &RustVerificationPolicy,
     matched_profile_hints: &mut BTreeSet<usize>,
     tasks: &mut BTreeMap<String, RustVerificationTask>,
 ) {
-    let source_modules = modules
-        .iter()
-        .filter(|module| module.is_source_module)
-        .collect::<Vec<_>>();
     for (hint_index, hint) in policy.profile_hints.iter().enumerate() {
-        let Some(module) = matching_hint_module(project_root, package_root, &source_modules, hint)
-        else {
+        let Some(module) = module_lookup.get_config_path(&hint.owner_path) else {
             continue;
         };
         matched_profile_hints.insert(hint_index);
@@ -571,47 +573,10 @@ fn push_profile_config_review_task(
     );
 }
 
-fn parse_scope(
-    scope: &crate::RustProjectHarnessScope,
-    config: &RustHarnessConfig,
-) -> Vec<ParsedRustModule> {
-    discover_rust_files(&scope.monitored_paths(), &config.ignored_dir_names)
-        .into_iter()
-        .map(|path| parse_rust_file(&path))
-        .collect()
-}
-
-fn matching_hint_module<'a>(
-    project_root: &Path,
-    package_root: &Path,
-    modules: &[&'a RustReasoningModuleFacts],
-    hint: &RustVerificationProfileHint,
-) -> Option<&'a RustReasoningModuleFacts> {
-    modules.iter().copied().find(|module| {
-        path_matches_hint(&module.path, project_root, &hint.owner_path)
-            || path_matches_hint(&module.path, package_root, &hint.owner_path)
-    })
-}
-
-fn path_matches_hint(path: &Path, root: &Path, hint_path: &Path) -> bool {
-    if hint_path.is_absolute() {
-        return path == hint_path;
-    }
-    path.strip_prefix(root)
-        .is_ok_and(|relative_path| relative_path == hint_path)
-}
-
 fn non_test_owner_dependency_count(imports: &RustReasoningImportFacts) -> usize {
     imports
         .local_owner_dependencies
         .iter()
         .filter(|dependency| !dependency.is_test_context)
         .count()
-}
-
-fn should_run_member_scopes(project_root: &Path, package_roots: &[PathBuf]) -> bool {
-    package_roots.len() > 1
-        || package_roots
-            .first()
-            .is_some_and(|root| root != project_root)
 }

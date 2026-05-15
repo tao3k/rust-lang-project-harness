@@ -1,7 +1,13 @@
+mod analysis;
 mod config;
 mod lifecycle;
 mod performance_index;
 mod profile_index;
 mod report;
+mod report_entry;
+mod report_manifest;
+mod report_projection_contract;
+mod report_select;
+mod report_writer;
 mod support;
 mod workspace;
