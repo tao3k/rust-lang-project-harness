@@ -237,7 +237,13 @@ fn path_only_owner_path(context: &PackageSearchContext, query: &str) -> Option<P
     };
     if absolute.exists() {
         Some(absolute)
-    } else {
+    } else if query_path.is_absolute() {
         None
+    } else {
+        context
+            .package_root
+            .ancestors()
+            .map(|ancestor| ancestor.join(query_path))
+            .find(|candidate| candidate.exists() && candidate.starts_with(&context.package_root))
     }
 }

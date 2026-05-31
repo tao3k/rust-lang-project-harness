@@ -306,6 +306,9 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
             .as_str()
             .is_some_and(|reason| {
                 reason.contains("[rs-harness-flow] blocked=read-rs")
+                    && reason.contains(
+                        "rs-harness search owner src/lib.rs items --trace --view seeds --seeds 8",
+                    )
                     && reason
                         .contains("rs-harness search owner src/lib.rs items --trace --view both")
                     && reason.contains("rs-harness search owner src/lib.rs --explain --view seeds")
@@ -339,6 +342,34 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
                     && reason.contains("pipe-to-ingest")
                     && reason.contains("rs-harness search deps <dep[/subpath][::api]> public-api")
                     && reason.contains("[search-subagent]")
+            }),
+        "{value}"
+    );
+
+    let shell_single_read = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"sed -n '1,120p' src/lib.rs\"}}",
+    );
+    assert!(shell_single_read.status.success(), "{shell_single_read:?}");
+    let value =
+        serde_json::from_slice::<Value>(&shell_single_read.stdout).expect("shell single read JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["permissionDecision"].as_str(),
+        Some("deny")
+    );
+    assert!(
+        value["hookSpecificOutput"]["permissionDecisionReason"]
+            .as_str()
+            .is_some_and(|reason| {
+                reason.contains("[rs-harness-flow] blocked=read-rs path=src/lib.rs")
+                    && reason.contains("rs-harness search owner src/lib.rs items")
             }),
         "{value}"
     );

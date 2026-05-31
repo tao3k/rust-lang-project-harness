@@ -203,11 +203,16 @@ symbol, import, text, pattern, docs, tests, and ingest views.
 `method=search/<view>` for tools, while `check --changed` and `check --full`
 provide the RFC validation entrypoints.
 `search --view seeds` emits only prioritized `next=` follow-up axes, defaults
-to 8 seeds, and accepts `--seeds N` when a caller needs a tighter packet.
+to 8 seeds, and accepts `--seeds N` when a caller needs a tighter packet. Seed
+and detail views merge equivalent package headers and same-kind seed rows so
+large workspace packets stay subagent-friendly.
 `agent install` and `agent doctor` manage client-specific integration assets
 without assuming a specific agent client. Codex installs project-local
 `.codex/config.toml`, `.codex/harness-policy.json`, and
 `.codex/skills/rs-harness/SKILL.org`.
+Global CLI install helpers live in `Justfile`: `just install-bin-macos` installs
+to `/opt/homebrew/bin`, `just install-bin-linux` installs to `/usr/local/bin`,
+and both accept an optional prefix argument.
 `agent doctor --json` emits the semantic-language registry with callable methods
 and method descriptors.
 `search docs` and `search docs-use` prefer native parser facts for local public

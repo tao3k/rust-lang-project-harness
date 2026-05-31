@@ -72,19 +72,8 @@ fn grouped_owner_hits(
 ) -> Vec<(PathBuf, Vec<String>)> {
     let mut owner_hits = BTreeMap::<PathBuf, Vec<String>>::new();
     for (path, location) in candidates {
-        for package_root in package_roots {
-            let absolute = if path.is_absolute() {
-                path.clone()
-            } else {
-                package_root.join(&path)
-            };
-            if absolute.exists() {
-                owner_hits
-                    .entry(absolute)
-                    .or_default()
-                    .extend(location.clone());
-                break;
-            }
+        if let Some(absolute) = resolve_candidate_path(project_root, &path, package_roots) {
+            owner_hits.entry(absolute).or_default().extend(location);
         }
     }
     let mut sorted_hits = owner_hits.into_iter().collect::<Vec<_>>();
@@ -373,9 +362,36 @@ fn path_exists_in_packages(path: &str, package_roots: &[PathBuf]) -> bool {
     if path.is_absolute() {
         return path.exists();
     }
-    package_roots
-        .iter()
-        .any(|package_root| package_root.join(path).exists())
+    package_roots.iter().any(|package_root| {
+        package_root.join(path).exists()
+            || package_root
+                .ancestors()
+                .any(|ancestor| ancestor.join(path).exists())
+    })
+}
+
+fn resolve_candidate_path(
+    project_root: &Path,
+    path: &Path,
+    package_roots: &[PathBuf],
+) -> Option<PathBuf> {
+    if path.is_absolute() {
+        return path.exists().then(|| path.to_path_buf());
+    }
+    let project_relative = project_root.join(path);
+    if project_relative.exists() {
+        return Some(project_relative);
+    }
+    package_roots.iter().find_map(|package_root| {
+        let package_relative = package_root.join(path);
+        if package_relative.exists() {
+            return Some(package_relative);
+        }
+        package_root
+            .ancestors()
+            .map(|ancestor| ancestor.join(path))
+            .find(|candidate| candidate.exists())
+    })
 }
 
 fn has_non_empty_input(input: &str) -> bool {

@@ -70,5 +70,20 @@ pub(super) fn owner_branch_matches(
 
 pub(super) fn owner_path_matches(package_root: &Path, path: &Path, query: &str) -> bool {
     let display = display_project_path(package_root, path);
-    display == query || display.ends_with(query) || display.contains(query)
+    display == query
+        || display.ends_with(query)
+        || display.contains(query)
+        || query_matches_absolute_path_from_ancestor(package_root, path, query)
+}
+
+fn query_matches_absolute_path_from_ancestor(
+    package_root: &Path,
+    path: &Path,
+    query: &str,
+) -> bool {
+    let query_path = Path::new(query);
+    !query_path.is_absolute()
+        && package_root
+            .ancestors()
+            .any(|ancestor| ancestor.join(query_path) == path)
 }

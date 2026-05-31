@@ -23,7 +23,10 @@ pub(super) fn bulk_rust_read_reason(
     {
         return Some(rust_direct_read_flow(&path));
     }
-    shell_bulk_reads_rust(command).then(rust_bulk_pipe_flow)
+    if shell_bulk_reads_rust(command) {
+        return Some(rust_bulk_pipe_flow());
+    }
+    shell_rust_content_read_path(command).map(|path| rust_direct_read_flow(&path))
 }
 
 pub(super) fn broad_raw_search_profiles(
@@ -417,6 +420,16 @@ fn shell_bulk_reads_rust(command: &str) -> bool {
     reads_content && lower.matches(".rs").count() > 1
 }
 
+fn shell_rust_content_read_path(command: &str) -> Option<String> {
+    let lower = command.replace('\\', "/").to_ascii_lowercase();
+    if !command_has_content_reader(&lower) {
+        return None;
+    }
+    command_candidate_paths(command)
+        .into_iter()
+        .find(|path| rust_source_path_or_glob(path))
+}
+
 fn has_rust_glob(command: &str) -> bool {
     command.contains("*.rs") || command.contains("**/*.rs")
 }
@@ -443,7 +456,8 @@ fn command_has_content_reader(command: &str) -> bool {
 fn rust_direct_read_flow(path: &str) -> String {
     format!(
         "[rs-harness-flow] blocked=read-rs path={path} policy=search-first\n\
-         |prefer run=`rs-harness search owner {path} items --trace --view both .`\n\
+         |prefer run=`rs-harness search owner {path} items --trace --view seeds --seeds 8 .`\n\
+         |detail run=`rs-harness search owner {path} items --trace --view both .`\n\
          |tests run=`rs-harness search tests {path} --view seeds --seeds 4 .`\n\
          |orient run=`rs-harness search prime --view seeds --seeds 8 .`\n\
          |plan run=`rs-harness search owner {path} --explain --view seeds --seeds 6 .`\n\

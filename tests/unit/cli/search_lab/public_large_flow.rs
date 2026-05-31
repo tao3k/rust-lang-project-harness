@@ -143,6 +143,31 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
         FORBIDDEN_FLOW_PATTERNS,
     );
 
+    let prime_seeds = run_search(
+        root,
+        &[
+            "prime",
+            "--package",
+            "ext/web-search",
+            "--view",
+            "seeds",
+            "--seeds",
+            "8",
+        ],
+    );
+    assert_lab_packet(
+        "public_codex_web_search_prime_seed_flow",
+        &prime_seeds,
+        10,
+        &[
+            "[search-prime] mode=package package=ext/web-search",
+            "|seed owner:ext/web-search/src/lib.rs",
+            "|seed tests",
+            "|seed docs:WebSearchTool,tool,run_command,command_action",
+        ],
+        FORBIDDEN_FLOW_PATTERNS,
+    );
+
     let owner_flow = run_search(
         root,
         &[
@@ -273,6 +298,94 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
             "13:",
             "|item command_action kind=fn line=6 public=true doc=false next=symbol:command_action",
             "|item run_command kind=fn line=13 public=true doc=false next=symbol:run_command",
+            "|test tests/web_search.rs functions=1 owner=src/tool.rs",
+        ],
+        FORBIDDEN_FLOW_PATTERNS,
+    );
+
+    let workspace_prefixed_owner =
+        run_search(root, &["owner", "ext/web-search/src/tool.rs", "items"]);
+    assert_lab_packet(
+        "public_codex_web_search_workspace_prefixed_owner_flow",
+        &workspace_prefixed_owner,
+        14,
+        &[
+            "[search-owner] q=ext/web-search/src/tool.rs pkg=ext/web-search own=1",
+            "|owner src/tool.rs role=source public=false source=parser-visible-module",
+            "|item command_action kind=fn",
+            "|item run_command kind=fn",
+        ],
+        FORBIDDEN_FLOW_PATTERNS,
+    );
+
+    let workspace_prefixed_owner_seeds = run_search(
+        root,
+        &[
+            "owner",
+            "ext/web-search/src/tool.rs",
+            "items",
+            "--view",
+            "seeds",
+            "--seeds",
+            "8",
+        ],
+    );
+    assert_lab_packet(
+        "public_codex_web_search_workspace_prefixed_owner_seed_flow",
+        &workspace_prefixed_owner_seeds,
+        8,
+        &[
+            "[search-owner] q=ext/web-search/src/tool.rs pkg=crates/codex-api,crates/codex-protocol own=0 item=0",
+            "[search-owner] q=ext/web-search/src/tool.rs pkg=ext/web-search own=1 item=",
+            "|seed owner:ext/web-search/src/tool.rs",
+            "|seed symbol:WebSearchTool",
+        ],
+        FORBIDDEN_FLOW_PATTERNS,
+    );
+
+    let workspace_prefixed_owner_detail = run_search(
+        root,
+        &[
+            "owner",
+            "ext/web-search/src/tool.rs",
+            "items",
+            "--view",
+            "both",
+        ],
+    );
+    assert_lab_packet(
+        "public_codex_web_search_workspace_prefixed_owner_detail_flow",
+        &workspace_prefixed_owner_detail,
+        16,
+        &[
+            "[search-owner] q=ext/web-search/src/tool.rs pkg=crates/codex-api,crates/codex-protocol own=0 item=0",
+            "[search-owner] q=ext/web-search/src/tool.rs pkg=ext/web-search own=1 item=",
+            "|owner src/tool.rs role=source public=false source=parser-visible-module",
+            "|item command_action kind=fn",
+        ],
+        FORBIDDEN_FLOW_PATTERNS,
+    );
+    assert_eq!(
+        workspace_prefixed_owner_detail
+            .matches("kind=not-found")
+            .count(),
+        1,
+        "detail view should merge repeated not-found package blocks:\n{workspace_prefixed_owner_detail}"
+    );
+
+    let workspace_prefixed_ingest = run_search_with_stdin(
+        root,
+        &["ingest", "items", "tests"],
+        "ext/web-search/src/tool.rs:6:pub fn command_action(command: SearchCommands) -> WebSearchAction {\n",
+    );
+    assert_lab_packet(
+        "public_codex_web_search_workspace_prefixed_ingest_flow",
+        &workspace_prefixed_ingest,
+        10,
+        &[
+            "[search-ingest] src=rg-n in=1 own=1",
+            "|owner src/tool.rs role=source hit_kind=text locations=6:1 next=owner",
+            "|item command_action kind=fn line=6 public=true doc=false next=symbol:command_action",
             "|test tests/web_search.rs functions=1 owner=src/tool.rs",
         ],
         FORBIDDEN_FLOW_PATTERNS,
