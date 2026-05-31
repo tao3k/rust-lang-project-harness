@@ -155,7 +155,7 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
     let hooks_value = serde_json::from_str::<Value>(&hooks_config).expect("hooks json");
     assert_eq!(
         hooks_value["hooks"]["PreToolUse"][0]["matcher"],
-        "Bash|apply_patch|Edit|Write"
+        "Bash|exec_command|apply_patch|Edit|Write"
     );
     assert!(
         hooks_value["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
@@ -270,6 +270,36 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
             .as_str()
             .is_some_and(|reason| reason.contains("search ingest")),
         "{value}"
+    );
+
+    let exec_command_pre_tool = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &serde_json::json!({
+            "hook_event_name": "PreToolUse",
+            "cwd": root.display().to_string(),
+            "tool_name": "exec_command",
+            "tool_input": {
+                "cmd": "rg -n \"timeout\" src tests"
+            }
+        })
+        .to_string(),
+    );
+    assert!(
+        exec_command_pre_tool.status.success(),
+        "{exec_command_pre_tool:?}"
+    );
+    let value =
+        serde_json::from_slice::<Value>(&exec_command_pre_tool.stdout).expect("pre-tool JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["permissionDecision"].as_str(),
+        Some("deny")
     );
 
     let docs_search = run_cli_with_stdin(

@@ -58,7 +58,9 @@ under =.codex/hooks= with =agent_rs_harness_codex_*= names. The default state
 file is =.codex/harness-state/session.json= and the default policy file is
 =.codex/harness-policy.json=. Codex clients can wire their =SessionStart=,
 =UserPromptSubmit=, =PreToolUse=, =PostToolUse=, =SubagentStart=,
-=SubagentStop=, and =Stop= events through the generated hooks config.
+=SubagentStop=, and =Stop= events through the generated hooks config. Local
+shell matching includes both =Bash= and Codex Desktop's =exec_command= tool
+name.
 
 * Non-negotiable rules
 
