@@ -8,4 +8,4 @@ mod project;
 mod runner;
 mod state;
 
-pub(super) use runner::run_agent_hook;
+pub(super) use runner::{run_agent_guard, run_agent_hook};

@@ -65,6 +65,52 @@ pub(crate) fn run_agent_hook(project_root: &Path, client: &str, event: &str) -> 
     Ok(())
 }
 
+pub(crate) fn run_agent_guard(
+    project_root: &Path,
+    client: &str,
+    command: &str,
+    json_output: bool,
+) -> Result<bool, String> {
+    if client != "codex" {
+        return Err(format!("unsupported agent hook client: {client}"));
+    }
+
+    let payload = HookPayload {
+        turn_id: None,
+        hook_event_name: Some(HookEvent::PreToolUse.codex_name().to_string()),
+        cwd: Some(project_root.to_path_buf()),
+        tool_name: Some("functions.exec_command".to_string()),
+        tool_input: json!({ "cmd": command }),
+        prompt: None,
+        last_assistant_message: None,
+        stop_hook_active: false,
+    };
+    let root = hook_project_root(project_root, &payload);
+    let policy = CodexHookPolicy::load(&root);
+    let project = ProjectProfiles::detect(&root, &policy);
+    let state = HookState::load(&root)?;
+
+    if let Some(response) = pre_tool_response(&payload, &policy, &project, &state) {
+        if json_output {
+            println!(
+                "{}",
+                serde_json::to_string(&response)
+                    .map_err(|error| format!("failed to render guard response: {error}"))?
+            );
+        } else {
+            let message = response
+                .get("systemMessage")
+                .and_then(Value::as_str)
+                .or_else(|| response.get("reason").and_then(Value::as_str))
+                .unwrap_or("rs-harness agent guard denied command");
+            eprintln!("{message}");
+        }
+        return Ok(false);
+    }
+
+    Ok(true)
+}
+
 fn user_prompt_response(payload: &HookPayload, project: &ProjectProfiles) -> Option<Value> {
     let prompt = payload.prompt.as_deref().unwrap_or_default();
     if !looks_like_complex_harness_task(prompt) || project.enabled_profiles().is_empty() {

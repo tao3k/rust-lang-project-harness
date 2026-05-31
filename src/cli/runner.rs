@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use super::agent_assets::{install_agent_assets, print_agent_doctor};
-use super::agent_hooks::run_agent_hook;
+use super::agent_hooks::{run_agent_guard, run_agent_hook};
 use super::agent_registry::print_agent_registry;
 #[cfg(feature = "search")]
 use super::search_output::{SearchOutputControls, apply_search_output_controls};
@@ -140,6 +140,14 @@ fn run_agent(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitC
                 .ok_or_else(|| "expected agent hook event".to_string())?;
             run_agent_hook(&project_root, client, event)?;
         }
+        "guard" => {
+            let client = require_agent_client(&options)?;
+            let command = options.guard_command()?;
+            if run_agent_guard(&project_root, client, &command, options.json)? {
+                return Ok(ExitCode::SUCCESS);
+            }
+            return Ok(ExitCode::FAILURE);
+        }
         other => return Err(format!("unknown agent command: {other}")),
     }
     Ok(ExitCode::SUCCESS)
@@ -236,6 +244,7 @@ struct AgentOptions {
     json: bool,
     help: bool,
     paths: Vec<PathBuf>,
+    guard_command: Vec<std::ffi::OsString>,
 }
 
 impl Default for AgentOptions {
@@ -247,6 +256,7 @@ impl Default for AgentOptions {
             json: false,
             help: false,
             paths: Vec::new(),
+            guard_command: Vec::new(),
         }
     }
 }
@@ -527,7 +537,11 @@ impl AgentOptions {
                 continue;
             }
             if positional_only {
-                options.paths.push(PathBuf::from(arg));
+                if options.command == "guard" {
+                    options.guard_command.push(arg);
+                } else {
+                    options.paths.push(PathBuf::from(arg));
+                }
                 continue;
             }
             let Some(value) = arg.to_str() else {
@@ -543,7 +557,7 @@ impl AgentOptions {
                 value if value.starts_with('-') => {
                     return Err(format!("unknown agent option: {value}"));
                 }
-                "install" | "doctor" | "hook" if options.command == "doctor" => {
+                "install" | "doctor" | "hook" | "guard" if options.command == "doctor" => {
                     options.command = value.to_string();
                 }
                 value if options.command == "hook" && options.hook_event.is_none() => {
@@ -557,6 +571,9 @@ impl AgentOptions {
         }
         if options.paths.len() > 1 {
             return Err("expected at most one PROJECT_ROOT argument".to_string());
+        }
+        if options.command == "guard" && options.guard_command.is_empty() && !options.help {
+            return Err("expected guarded command after --".to_string());
         }
         Ok(options)
     }
@@ -584,6 +601,21 @@ impl AgentOptions {
         }
         self.client = Some(client.to_string());
         Ok(())
+    }
+
+    fn guard_command(&self) -> Result<String, String> {
+        if self.command != "guard" {
+            return Err("expected agent guard command".to_string());
+        }
+        self.guard_command
+            .iter()
+            .map(|arg| {
+                arg.to_str()
+                    .map(ToOwned::to_owned)
+                    .ok_or_else(|| "expected UTF-8 guard command".to_string())
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map(|parts| parts.join(" "))
     }
 }
 
@@ -636,7 +668,7 @@ fn print_help() {
         "rs-harness [--json | --agent-snapshot] [PROJECT_ROOT]\n\
          rs-harness search <view> [ARGS] [PIPE...] [--json] [--package PACKAGE] [PROJECT_ROOT]\n\
          rs-harness check <--changed|--full> [--json] [PROJECT_ROOT]\n\
-         rs-harness agent <install|doctor> [--json] [PROJECT_ROOT]\n\n\
+         rs-harness agent <install|doctor|guard> [--json] [PROJECT_ROOT]\n\n\
          Runs the default package-level Rust harness.\n\n\
          Compact text is the default agent-facing repair surface.\n\
          Use --json to emit the structured RustHarnessReport audit shape.\n\
@@ -677,10 +709,12 @@ fn print_agent_help() {
     println!(
         "rs-harness agent install --client codex [--json] [PROJECT_ROOT]\n\
          rs-harness agent doctor [--client codex] [--json] [PROJECT_ROOT]\n\
-         rs-harness agent hook --client codex <event> [PROJECT_ROOT]\n\n\
+         rs-harness agent hook --client codex <event> [PROJECT_ROOT]\n\
+         rs-harness agent guard --client codex [--json] [PROJECT_ROOT] -- <command...>\n\n\
          Installs or checks client-specific agent SKILL.org and hook assets.\n\
          Codex assets use the project-local .codex/config.toml hook config.\n\
-         Use --json to emit the semantic-language registry contract."
+         Guard evaluates one shell/RTK command through the same pre-tool policy.\n\
+         Use --json to emit the semantic-language registry contract or guard decision."
     );
 }
 

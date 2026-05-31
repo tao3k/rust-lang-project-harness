@@ -1,4 +1,4 @@
-use std::fs;
+use std::{env, fs, process::Command};
 
 use serde_json::Value;
 use tempfile::TempDir;
@@ -138,6 +138,10 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
     assert!(root.join(".codex/skills/rs-harness/SKILL.org").exists());
     assert!(root.join(".codex/harness-policy.json").exists());
     assert!(root.join(".codex/config.toml").exists());
+    assert!(root.join(".codex/rs-harness/bin/rtk").exists());
+    assert!(root.join(".codex/rs-harness/bin/rg").exists());
+    assert!(root.join(".codex/rs-harness/bin/sed").exists());
+    assert!(root.join(".codex/rs-harness/env.sh").exists());
     assert!(!root.join(".codex/hooks.json").exists());
     let hooks_config =
         fs::read_to_string(root.join(".codex/config.toml")).expect("codex config.toml");
@@ -155,6 +159,55 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
     assert!(skill.contains("Profile selection"));
     assert!(skill.contains("versionScope=external"));
     assert!(skill.contains("source=registry-source"));
+    let guard_env = fs::read_to_string(root.join(".codex/rs-harness/env.sh")).expect("guard env");
+    assert!(guard_env.contains(".codex/rs-harness/bin"));
+
+    let harness_bin_dir = std::path::Path::new(env!("CARGO_BIN_EXE_rs-harness"))
+        .parent()
+        .expect("harness bin dir");
+    let path = format!(
+        "{}:{}",
+        harness_bin_dir.display(),
+        env::var("PATH").unwrap_or_default()
+    );
+    let shim_rtk_read = Command::new(root.join(".codex/rs-harness/bin/rtk"))
+        .args(["read", "src/lib.rs"])
+        .current_dir(root)
+        .env("PATH", &path)
+        .output()
+        .expect("run rtk guard shim");
+    assert!(!shim_rtk_read.status.success(), "{shim_rtk_read:?}");
+    assert!(
+        String::from_utf8(shim_rtk_read.stderr)
+            .expect("stderr")
+            .contains("[rs-harness-flow] blocked=read-rs path=src/lib.rs")
+    );
+
+    let shim_rtk_grep = Command::new(root.join(".codex/rs-harness/bin/rtk"))
+        .args(["rg", "-n", "Hook", "src", "tests"])
+        .current_dir(root)
+        .env("PATH", &path)
+        .output()
+        .expect("run rtk guard shim");
+    assert!(!shim_rtk_grep.status.success(), "{shim_rtk_grep:?}");
+    assert!(
+        String::from_utf8(shim_rtk_grep.stderr)
+            .expect("stderr")
+            .contains("Raw broad Rust search")
+    );
+
+    let shim_sed = Command::new(root.join(".codex/rs-harness/bin/sed"))
+        .args(["-n", "1,40p", "src/lib.rs"])
+        .current_dir(root)
+        .env("PATH", &path)
+        .output()
+        .expect("run sed guard shim");
+    assert!(!shim_sed.status.success(), "{shim_sed:?}");
+    assert!(
+        String::from_utf8(shim_sed.stderr)
+            .expect("stderr")
+            .contains("[rs-harness-flow] blocked=read-rs path=src/lib.rs")
+    );
 
     let registry = run_cli([
         "agent".as_ref(),
@@ -191,6 +244,12 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
         methods
             .iter()
             .any(|method| method.as_str() == Some("agent/hook")),
+        "{value}"
+    );
+    assert!(
+        methods
+            .iter()
+            .any(|method| method.as_str() == Some("agent/guard")),
         "{value}"
     );
     let descriptors = value["languages"][0]["methodDescriptors"]
@@ -237,6 +296,119 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
                     })
         }),
         "{value}"
+    );
+    assert!(
+        descriptors.iter().any(|descriptor| {
+            descriptor["method"] == "agent/guard"
+                && descriptor["supportsJson"] == true
+                && descriptor["supportsCompact"] == true
+                && descriptor["outputSchemaIds"]
+                    .as_array()
+                    .is_some_and(|schemas| {
+                        schemas.iter().any(|schema| {
+                            schema.as_str() == Some("agent.semantic-protocols.agent-hook-decision")
+                        })
+                    })
+        }),
+        "{value}"
+    );
+
+    let guard_read = run_cli([
+        "agent".as_ref(),
+        "guard".as_ref(),
+        "--client".as_ref(),
+        "codex".as_ref(),
+        "--json".as_ref(),
+        root.as_os_str(),
+        "--".as_ref(),
+        "rtk".as_ref(),
+        "read".as_ref(),
+        "src/lib.rs".as_ref(),
+    ]);
+    assert!(!guard_read.status.success(), "{guard_read:?}");
+    let value = serde_json::from_slice::<Value>(&guard_read.stdout).expect("guard JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["permissionDecision"].as_str(),
+        Some("deny")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["reasonKind"].as_str(),
+        Some("direct-source-read")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["subject"]["paths"],
+        serde_json::json!(["src/lib.rs"])
+    );
+
+    let guard_raw_search = run_cli([
+        "agent".as_ref(),
+        "guard".as_ref(),
+        "--client".as_ref(),
+        "codex".as_ref(),
+        "--json".as_ref(),
+        root.as_os_str(),
+        "--".as_ref(),
+        "rtk".as_ref(),
+        "rg".as_ref(),
+        "-n".as_ref(),
+        "Hook".as_ref(),
+        "src".as_ref(),
+        "tests".as_ref(),
+    ]);
+    assert!(!guard_raw_search.status.success(), "{guard_raw_search:?}");
+    let value = serde_json::from_slice::<Value>(&guard_raw_search.stdout).expect("guard JSON");
+    assert_eq!(
+        value["agentHookDecision"]["reasonKind"].as_str(),
+        Some("raw-broad-search")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["routes"][0]["kind"].as_str(),
+        Some("ingest")
+    );
+
+    let guard_shell_read = run_cli([
+        "agent".as_ref(),
+        "guard".as_ref(),
+        "--client".as_ref(),
+        "codex".as_ref(),
+        root.as_os_str(),
+        "--".as_ref(),
+        "sed".as_ref(),
+        "-n".as_ref(),
+        "1,40p".as_ref(),
+        "src/lib.rs".as_ref(),
+    ]);
+    assert!(!guard_shell_read.status.success(), "{guard_shell_read:?}");
+    assert!(guard_shell_read.stdout.is_empty(), "{guard_shell_read:?}");
+    assert!(
+        String::from_utf8(guard_shell_read.stderr)
+            .expect("stderr")
+            .contains("[rs-harness-flow] blocked=read-rs path=src/lib.rs")
+    );
+
+    let guard_exact_search = run_cli([
+        "agent".as_ref(),
+        "guard".as_ref(),
+        "--client".as_ref(),
+        "codex".as_ref(),
+        root.as_os_str(),
+        "--".as_ref(),
+        "rg".as_ref(),
+        "-n".as_ref(),
+        "Hook".as_ref(),
+        "src/lib.rs".as_ref(),
+    ]);
+    assert!(
+        guard_exact_search.status.success(),
+        "{guard_exact_search:?}"
+    );
+    assert!(
+        guard_exact_search.stdout.is_empty(),
+        "{guard_exact_search:?}"
+    );
+    assert!(
+        guard_exact_search.stderr.is_empty(),
+        "{guard_exact_search:?}"
     );
 
     let pre_tool = run_cli_with_stdin(

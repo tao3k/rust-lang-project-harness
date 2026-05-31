@@ -1,10 +1,18 @@
 //! Agent-client asset installation and doctor reporting.
 
 use std::fs;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
 const AGENT_SKILL_CONTENT: &str = include_str!("../../skills/SKILL.org");
 const CODEX_DIR: &str = ".codex";
+const CODEX_GUARD_BIN_DIR: &str = ".codex/rs-harness/bin";
+const CODEX_GUARD_ENV: &str = ".codex/rs-harness/env.sh";
+const CODEX_GUARD_TOOLS: &[&str] = &[
+    "rtk", "rg", "grep", "fd", "find", "cat", "sed", "nl", "head", "tail", "awk", "bat", "less",
+    "more",
+];
 const CODEX_SKILL_DIR: &str = ".codex/skills/rs-harness";
 const CODEX_CONFIG: &str = ".codex/config.toml";
 const CODEX_POLICY_PATH: &str = ".codex/harness-policy.json";
@@ -61,6 +69,77 @@ pub(super) fn install_agent_assets(project_root: &Path, client: &str) -> Result<
         .map_err(|error| format!("failed to write agent hook policy: {error}"))?;
     fs::write(config_path, agent_config_toml())
         .map_err(|error| format!("failed to write codex config.toml: {error}"))?;
+    install_guard_shims(project_root)?;
+    Ok(())
+}
+
+fn install_guard_shims(project_root: &Path) -> Result<(), String> {
+    let guard_bin = project_root.join(CODEX_GUARD_BIN_DIR);
+    fs::create_dir_all(&guard_bin)
+        .map_err(|error| format!("failed to create agent guard bin dir: {error}"))?;
+    for tool in CODEX_GUARD_TOOLS {
+        let path = guard_bin.join(tool);
+        fs::write(&path, guard_shim_script(tool))
+            .map_err(|error| format!("failed to write agent guard shim {tool}: {error}"))?;
+        make_executable(&path)?;
+    }
+    fs::write(project_root.join(CODEX_GUARD_ENV), guard_env_script())
+        .map_err(|error| format!("failed to write agent guard env script: {error}"))?;
+    Ok(())
+}
+
+fn guard_shim_script(tool: &str) -> String {
+    format!(
+        r#"#!/usr/bin/env sh
+set -eu
+
+tool="{tool}"
+repo_root="${{RS_HARNESS_PROJECT_ROOT:-$(pwd)}}"
+rs-harness agent guard --client codex "$repo_root" -- "$tool" "$@" || exit $?
+
+self_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+clean_path=""
+old_ifs=$IFS
+IFS=:
+for entry in ${{PATH:-}}; do
+  if [ "$entry" = "$self_dir" ]; then
+    continue
+  fi
+  if [ -z "$clean_path" ]; then
+    clean_path=$entry
+  else
+    clean_path=$clean_path:$entry
+  fi
+done
+IFS=$old_ifs
+export PATH=$clean_path
+exec "$tool" "$@"
+"#
+    )
+}
+
+fn guard_env_script() -> &'static str {
+    r#"# Source from the repository root to route raw shell/RTK reads through rs-harness.
+rs_harness_guard_bin="$(pwd)/.codex/rs-harness/bin"
+case ":${PATH:-}:" in
+  *":$rs_harness_guard_bin:"*) ;;
+  *) export PATH="$rs_harness_guard_bin:${PATH:-}" ;;
+esac
+"#
+}
+
+#[cfg(unix)]
+fn make_executable(path: &Path) -> Result<(), String> {
+    let mut permissions = fs::metadata(path)
+        .map_err(|error| format!("failed to stat agent guard shim: {error}"))?
+        .permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(path, permissions)
+        .map_err(|error| format!("failed to chmod agent guard shim: {error}"))
+}
+
+#[cfg(not(unix))]
+fn make_executable(_path: &Path) -> Result<(), String> {
     Ok(())
 }
 
@@ -73,6 +152,7 @@ fn agent_config_toml() -> String {
 # - Subagents should receive bounded search commands, not raw file inventories.
 # - Pipe broad external candidates into `rs-harness search ingest items tests`.
 # - Run one search command at a time; do not chain denied-read recovery commands.
+# - Shells that bypass hook runtime can source `.codex/rs-harness/env.sh`.
 
 [[hooks.SessionStart]]
 matcher = "startup|resume|clear|compact"
@@ -199,9 +279,11 @@ pub(super) fn print_agent_doctor(
     let skill = project_root.join(CODEX_SKILL_DIR).join("SKILL.org");
     let policy = project_root.join(CODEX_POLICY_PATH);
     let config = project_root.join(CODEX_CONFIG);
+    let guard_bin = project_root.join(CODEX_GUARD_BIN_DIR);
+    let guard_env = project_root.join(CODEX_GUARD_ENV);
     let config_exists = config.exists();
     println!(
-        "[agent-doctor] action={action} client=codex skill={} policy={} config={} hooks={} daemon=missing protocol=cli-cold",
+        "[agent-doctor] action={action} client=codex skill={} policy={} config={} hooks={} guardBin={} guardEnv={} daemon=missing protocol=cli-cold",
         skill.exists(),
         policy.exists(),
         config_exists,
@@ -209,7 +291,9 @@ pub(super) fn print_agent_doctor(
             CODEX_CONFIG_HOOK_COUNT
         } else {
             0
-        }
+        },
+        guard_bin.exists(),
+        guard_env.exists()
     );
     println!(
         "|skill {} present={}",
@@ -225,6 +309,16 @@ pub(super) fn print_agent_doctor(
         "|config {} present={}",
         display_cli_path(project_root, &config),
         config_exists
+    );
+    println!(
+        "|guard-bin {} present={}",
+        display_cli_path(project_root, &guard_bin),
+        guard_bin.exists()
+    );
+    println!(
+        "|guard-env {} present={}",
+        display_cli_path(project_root, &guard_env),
+        guard_env.exists()
     );
     for event in CODEX_CONFIG_HOOK_EVENTS {
         println!("|hook event={event} source=config present={config_exists}");

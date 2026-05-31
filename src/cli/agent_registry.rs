@@ -46,6 +46,7 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "agent/install".to_string(),
             "agent/doctor".to_string(),
             "agent/hook".to_string(),
+            "agent/guard".to_string(),
         ])
         .collect::<Vec<_>>();
     methods.sort();
@@ -93,6 +94,20 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "outputSchemaIds": ["agent.semantic-protocols.agent-hook-decision"],
             "supportsJson": true,
             "supportsCompact": false,
+            "capabilities": [
+                semantic_capability("agent-hook-policy"),
+                rust_capability("harness-search-checkpoints")
+            ]
+        }),
+        json!({
+            "method": "agent/guard",
+            "command": "agent",
+            "clients": ["codex"],
+            "requiredOptions": ["--client codex", "--"],
+            "input": "command argv after --",
+            "outputSchemaIds": ["agent.semantic-protocols.agent-hook-decision"],
+            "supportsJson": true,
+            "supportsCompact": true,
             "capabilities": [
                 semantic_capability("agent-hook-policy"),
                 rust_capability("harness-search-checkpoints")
