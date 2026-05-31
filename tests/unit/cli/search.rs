@@ -209,42 +209,42 @@ fn cli_search_deps_distinguishes_external_version_queries() {
     let current = run_search(root, &["deps", "serde@1"]);
     assert!(
         current.starts_with(
-            "[search-deps] q=serde@1 pkg=. dep=1 own=1 api=0 requestedVersion=1 versionScope=current"
+            "[search-deps] q=serde@1 pkg=. dep=1 own=1 api=0 requestedVersion=1 currentWorkspaceVersion=1 versionScope=current"
         ),
         "{current}"
     );
     assert!(
-        current.contains("|owner src/lib.rs hitKind=dependency"),
+        current.contains("|owner src/lib.rs hit_kind=dependency"),
         "{current}"
     );
 
     let current_api = run_search(root, &["deps", "serde@1::Serialize"]);
     assert!(
         current_api.starts_with(
-            "[search-deps] q=serde@1::Serialize pkg=. dep=1 own=1 api=0 requestedVersion=1 versionScope=current apiQuery=Serialize"
+            "[search-deps] q=serde@1::Serialize pkg=. dep=1 own=1 api=0 requestedVersion=1 currentWorkspaceVersion=1 versionScope=current apiQuery=Serialize"
         ),
         "{current_api}"
     );
     assert!(
-        current_api.contains("|owner src/lib.rs hitKind=dependency-api apiQuery=Serialize"),
+        current_api.contains("|owner src/lib.rs hit_kind=dependency-api apiQuery=Serialize"),
         "{current_api}"
     );
 
     let current_subpath_api = run_search(root, &["deps", "serde/de@1::DeserializeOwned"]);
     assert!(
         current_subpath_api.starts_with(
-            "[search-deps] q=serde/de@1::DeserializeOwned pkg=. dep=1 own=1 api=0 requestedVersion=1 versionScope=current subpath=de apiQuery=DeserializeOwned"
+            "[search-deps] q=serde/de@1::DeserializeOwned pkg=. dep=1 own=1 api=0 requestedVersion=1 currentWorkspaceVersion=1 versionScope=current subpath=de apiQuery=DeserializeOwned"
         ),
         "{current_subpath_api}"
     );
     assert!(
         current_subpath_api.contains(
-            "|owner src/lib.rs hitKind=dependency-api subpath=de apiQuery=DeserializeOwned"
+            "|owner src/lib.rs hit_kind=dependency-api subpath=de apiQuery=DeserializeOwned"
         ),
         "{current_subpath_api}"
     );
     assert!(
-        current_subpath_api.contains("|next dependency:serde,docs-use:serde/de::DeserializeOwned"),
+        current_subpath_api.contains("|next dependency:serde,docs:serde/de::DeserializeOwned"),
         "{current_subpath_api}"
     );
 
@@ -252,7 +252,7 @@ fn cli_search_deps_distinguishes_external_version_queries() {
 
     assert!(
         external.starts_with(
-            "[search-deps] q=serde@2::Serialize pkg=. dep=1 own=0 api=0 requestedVersion=2 versionScope=external apiQuery=Serialize"
+            "[search-deps] q=serde@2::Serialize pkg=. dep=1 own=0 api=0 requestedVersion=2 currentWorkspaceVersion=1 versionScope=external apiQuery=Serialize"
         ),
         "{external}"
     );
@@ -261,7 +261,13 @@ fn cli_search_deps_distinguishes_external_version_queries() {
         "{external}"
     );
     assert!(
-        external.contains("|note requestedVersion=2 scope=external currentWorkspaceVersion=1 next=docs-use:serde@2::Serialize"),
+        external.contains("|note kind=version-scope message=requested-version-is-outside-current-workspace-version"),
+        "{external}"
+    );
+    assert!(
+        external.contains(
+            "|next dependency:serde,docs:serde::Serialize,text:Serialize,tests:Serialize"
+        ),
         "{external}"
     );
     assert!(!external.contains("|owner src/lib.rs"), "{external}");
@@ -279,6 +285,7 @@ fn cli_search_deps_distinguishes_external_version_queries() {
         .as_object()
         .expect("header fields");
     assert_eq!(header_fields["requestedVersion"], "2");
+    assert_eq!(header_fields["currentWorkspaceVersion"], "1");
     assert_eq!(header_fields["versionScope"], "external");
     assert_eq!(header_fields["apiQuery"], "Serialize");
     assert!(!header_fields.contains_key("requested_version"));
@@ -287,20 +294,27 @@ fn cli_search_deps_distinguishes_external_version_queries() {
     let note_fields = value["notes"][0]["fields"]
         .as_object()
         .expect("note fields");
-    assert_eq!(note_fields["currentWorkspaceVersion"], "1");
-    assert!(!note_fields.contains_key("current_workspace_version"));
+    assert_eq!(note_fields["kind"], "version-scope");
+    assert_eq!(
+        note_fields["message"],
+        "requested-version-is-outside-current-workspace-version"
+    );
 
     let external_subpath_api = run_search(root, &["deps", "serde/de@2::DeserializeOwned"]);
     assert!(
         external_subpath_api.starts_with(
-            "[search-deps] q=serde/de@2::DeserializeOwned pkg=. dep=1 own=0 api=0 requestedVersion=2 versionScope=external subpath=de apiQuery=DeserializeOwned"
+            "[search-deps] q=serde/de@2::DeserializeOwned pkg=. dep=1 own=0 api=0 requestedVersion=2 currentWorkspaceVersion=1 versionScope=external subpath=de apiQuery=DeserializeOwned"
         ),
         "{external_subpath_api}"
     );
     assert!(
         external_subpath_api.contains(
-            "|note requestedVersion=2 scope=external currentWorkspaceVersion=1 next=docs-use:serde/de@2::DeserializeOwned"
+            "|note kind=version-scope message=requested-version-is-outside-current-workspace-version"
         ),
+        "{external_subpath_api}"
+    );
+    assert!(
+        external_subpath_api.contains("|next dependency:serde,docs:serde/de::DeserializeOwned"),
         "{external_subpath_api}"
     );
     assert!(
@@ -340,11 +354,11 @@ fn cli_search_views_render_rfc_line_protocol() {
         "{dep}"
     );
     assert!(
-        dep.contains("|owner src/lib.rs hitKind=dependency"),
+        dep.contains("|owner src/lib.rs hit_kind=dependency"),
         "{dep}"
     );
     assert!(
-        dep.contains("|owner src/domain/mod.rs hitKind=dependency"),
+        dep.contains("|owner src/domain/mod.rs hit_kind=dependency"),
         "{dep}"
     );
 
@@ -354,11 +368,11 @@ fn cli_search_views_render_rfc_line_protocol() {
         "{dep_usage}"
     );
     assert!(
-        dep_usage.contains("|owner src/lib.rs hitKind=dependency"),
+        dep_usage.contains("|owner src/lib.rs hit_kind=dependency"),
         "{dep_usage}"
     );
     assert!(
-        dep_usage.contains("|owner src/domain/mod.rs hitKind=dependency"),
+        dep_usage.contains("|owner src/domain/mod.rs hit_kind=dependency"),
         "{dep_usage}"
     );
 

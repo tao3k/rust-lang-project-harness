@@ -172,8 +172,9 @@ fn render_search_dep(
         if let Some(requested_version) = parsed_query.requested_version.as_deref() {
             let _ = write!(
                 block,
-                " requestedVersion={} versionScope={}",
+                " requestedVersion={} currentWorkspaceVersion={} versionScope={}",
                 requested_version,
+                current_workspace_versions(&context.cargo_dependencies, &parsed_query.dependency),
                 version_scope.label()
             );
         }
@@ -190,16 +191,13 @@ fn render_search_dep(
         if version_scope == DependencyVersionScope::External {
             let _ = writeln!(
                 block,
-                "|note requestedVersion={} scope=external currentWorkspaceVersion={} next={}",
-                parsed_query.requested_version.as_deref().unwrap_or("-"),
-                current_workspace_versions(&context.cargo_dependencies, &parsed_query.dependency),
-                parsed_query.external_next()
+                "|note kind=version-scope message=requested-version-is-outside-current-workspace-version"
             );
         }
         for hit in usage.into_iter().take(SEARCH_HIT_LIMIT) {
             let _ = writeln!(
                 block,
-                "|owner {} hitKind={}{} locations={} next=owner:{}",
+                "|owner {} hit_kind={}{} locations={} next=owner:{}",
                 display_project_path(&context.package_root, &hit.path),
                 parsed_query.owner_hit_kind(),
                 parsed_query.owner_metadata(),
@@ -260,36 +258,22 @@ impl DependencySearchQuery {
         let docs_dependency = self.docs_dependency(version_scope);
         if let Some(api) = self.api.as_deref() {
             format!(
-                "dependency:{},docs-use:{}::{},text:{},tests:{}",
+                "dependency:{},docs:{}::{},text:{},tests:{}",
                 self.dependency, docs_dependency, api, api, api
             )
         } else {
             format!(
-                "dependency:{},docs-use:{},import:{},tests",
+                "dependency:{},docs:{},import:{},tests",
                 self.dependency, docs_dependency, self.dependency
             )
         }
     }
 
-    fn external_next(&self) -> String {
-        let dependency = self.docs_dependency(DependencyVersionScope::External);
-        self.api.as_deref().map_or_else(
-            || format!("docs-use:{dependency}"),
-            |api| format!("docs-use:{dependency}::{api}"),
-        )
-    }
-
-    fn docs_dependency(&self, version_scope: DependencyVersionScope) -> String {
-        let dependency = self.subpath.as_deref().map_or_else(
+    fn docs_dependency(&self, _version_scope: DependencyVersionScope) -> String {
+        self.subpath.as_deref().map_or_else(
             || self.dependency.clone(),
             |subpath| format!("{}/{subpath}", self.dependency),
-        );
-        if version_scope == DependencyVersionScope::External
-            && let Some(version) = self.requested_version.as_deref()
-        {
-            return format!("{dependency}@{version}");
-        }
-        dependency
+        )
     }
 
     fn owner_hit_kind(&self) -> &'static str {
