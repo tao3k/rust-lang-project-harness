@@ -16,6 +16,10 @@ const AGENT_CLOSEOUT_HOOK: &str = "#!/usr/bin/env bash\nset -euo pipefail\n\nrs-
 
 use super::agent_registry::print_agent_registry;
 #[cfg(feature = "search")]
+use super::search_output::{SearchOutputControls, apply_search_output_controls};
+#[cfg(feature = "search")]
+use super::search_plan::{SearchPlanOptions, render_search_plan};
+#[cfg(feature = "search")]
 use super::search_trace::{SearchTraceOptions, render_search_trace};
 #[cfg(feature = "search")]
 use super::semantic_search_json::{SemanticSearchJsonOptions, render_search_json};
@@ -173,7 +177,13 @@ fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
         };
         render_rust_project_harness_search_view_with_config(&request)?
     };
-    let rendered = apply_search_output_controls(options, &rendered);
+    let rendered = apply_search_output_controls(
+        SearchOutputControls {
+            depth: options.depth,
+            output_view: options.output_view.as_deref(),
+        },
+        &rendered,
+    );
     if options.json {
         let json_options = options.semantic_json_options();
         println!(
@@ -186,7 +196,7 @@ fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
             print!("{}", render_search_trace(&trace_options, &rendered));
         }
         if options.explain {
-            print!("{}", render_search_plan(options));
+            print!("{}", render_search_plan(options.search_plan_options()));
         }
         print!("{rendered}");
     }
@@ -368,6 +378,19 @@ impl SearchOptions {
 
     pub(super) fn command_label(&self) -> String {
         self.view.clone()
+    }
+
+    #[cfg(feature = "search")]
+    fn search_plan_options(&self) -> SearchPlanOptions<'_> {
+        SearchPlanOptions {
+            view: &self.view,
+            query: self.query.as_deref(),
+            output_view: self.output_view.as_deref(),
+            depth: self.depth,
+            dir: self.dir.as_deref(),
+            edges: &self.edges,
+            pipes: &self.pipes,
+        }
     }
 
     #[cfg(feature = "search")]
@@ -615,43 +638,6 @@ fn print_agent_help() {
          Installs or checks generic agent SKILL.org and hook assets under .agents/.\n\
          Use --json to emit the semantic-language registry contract."
     );
-}
-
-#[cfg(feature = "search")]
-fn render_search_plan(options: &SearchOptions) -> String {
-    format!(
-        "[search-plan] view={} q={} mode={} depth={} dir={} edge={}\n|step resolve-project\n|step render:{}\n",
-        options.command_label(),
-        options.query.as_deref().unwrap_or("-"),
-        options.output_view.as_deref().unwrap_or("graph"),
-        options
-            .depth
-            .map(|depth| depth.to_string())
-            .unwrap_or_else(|| "1".to_string()),
-        options.dir.as_deref().unwrap_or("-"),
-        if options.edges.is_empty() {
-            "-".to_string()
-        } else {
-            options.edges.join(",")
-        },
-        options.command_label()
-    )
-}
-
-#[cfg(feature = "search")]
-fn apply_search_output_controls(options: &SearchOptions, rendered: &str) -> String {
-    if options.depth == Some(0) {
-        let mut header_only = rendered
-            .lines()
-            .filter(|line| !line.starts_with('|'))
-            .collect::<Vec<_>>()
-            .join("\n");
-        if !header_only.is_empty() {
-            header_only.push('\n');
-        }
-        return header_only;
-    }
-    rendered.to_string()
 }
 
 fn install_agent_assets(project_root: &Path) -> Result<(), String> {

@@ -224,3 +224,124 @@ fn cli_rust_flow_sandbox_drill_exercises_registry_prime_search_and_ingest() {
         "{ingest}"
     );
 }
+
+#[test]
+fn cli_rust_flow_sandbox_reduces_search_rounds_with_seeds_and_recipe_plan() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_search_fixture(root);
+
+    let full = run_search(
+        root,
+        &[
+            "dependency",
+            "serde",
+            "items",
+            "public-api",
+            "docs",
+            "tests",
+        ],
+    );
+    assert!(full.contains("|owner src/lib.rs"), "{full}");
+    assert!(full.contains("|item load kind=fn"), "{full}");
+    assert!(
+        full.contains("|api src/domain/mod.rs line=4 dep=serde kind=struct name=Thing"),
+        "{full}"
+    );
+    assert!(
+        full.contains("|test tests/domain.rs functions=1 owner=src/lib.rs"),
+        "{full}"
+    );
+
+    let seeds = run_cli([
+        "search".as_ref(),
+        "dependency".as_ref(),
+        "serde".as_ref(),
+        "items".as_ref(),
+        "public-api".as_ref(),
+        "docs".as_ref(),
+        "tests".as_ref(),
+        "--view".as_ref(),
+        "seeds".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(seeds.status.success(), "{seeds:?}");
+    let seeds = normalize_temp_root(&String::from_utf8(seeds.stdout).expect("seed stdout"), root);
+    assert!(
+        seeds.starts_with("[search-dependency] q=serde pkg=. dep=1 own=2 api=8"),
+        "{seeds}"
+    );
+    assert!(seeds.lines().count() < full.lines().count(), "{seeds}");
+    assert!(seeds.contains("|seed tests"), "{seeds}");
+    assert!(seeds.contains("|seed docs:Thing"), "{seeds}");
+    assert!(seeds.contains("|seed owner:tests/domain.rs"), "{seeds}");
+    assert!(seeds.contains("|seed deps:serde"), "{seeds}");
+    assert!(seeds.contains("|seed import:serde"), "{seeds}");
+    assert!(!seeds.contains("|owner src/lib.rs"), "{seeds}");
+    assert!(!seeds.contains("|item load"), "{seeds}");
+    assert!(!seeds.contains("|api src/domain/mod.rs"), "{seeds}");
+    assert!(!seeds.contains("|edge "), "{seeds}");
+
+    let plan = run_cli([
+        "search".as_ref(),
+        "dependency".as_ref(),
+        "serde".as_ref(),
+        "--explain".as_ref(),
+        "--view".as_ref(),
+        "seeds".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(plan.status.success(), "{plan:?}");
+    let plan = normalize_temp_root(&String::from_utf8(plan.stdout).expect("plan stdout"), root);
+    assert!(
+        plan.starts_with("[search-plan] view=dependency q=serde mode=seeds"),
+        "{plan}"
+    );
+    assert!(
+        plan.contains("|recipe dependency-change focus=multi-pipe token=final-only"),
+        "{plan}"
+    );
+    assert!(
+        plan.contains("|prefer search:dependency:serde(items,public-api,docs,tests)"),
+        "{plan}"
+    );
+    assert!(
+        plan.contains("|subagent deps=search:deps:serde[::api]"),
+        "{plan}"
+    );
+    assert!(
+        plan.contains("|fallback ingest=rg-n:serde(scope=src,tests)"),
+        "{plan}"
+    );
+    assert!(
+        plan.contains("|budget commands=3 rounds=2 output=bounded"),
+        "{plan}"
+    );
+    assert!(
+        plan.contains("[search-dependency] q=serde pkg=. dep=1 own=2 api=0"),
+        "{plan}"
+    );
+    assert!(plan.contains("|seed tests"), "{plan}");
+
+    let ingest = run_search_with_stdin(
+        root,
+        &["ingest", "items", "tests"],
+        "src/lib.rs:6:pub fn load() -> Thing\n",
+    );
+    assert!(
+        ingest.starts_with("[search-ingest] src=rg-n in=1 own=1"),
+        "{ingest}"
+    );
+    assert!(
+        ingest.contains("|owner src/lib.rs role=source hit_kind=text locations=6:1 next=owner"),
+        "{ingest}"
+    );
+    assert!(
+        ingest.contains("|item load kind=fn line=6 public=true doc=false next=symbol:load"),
+        "{ingest}"
+    );
+    assert!(
+        ingest.contains("|test tests/domain.rs functions=1 owner=src/lib.rs"),
+        "{ingest}"
+    );
+}

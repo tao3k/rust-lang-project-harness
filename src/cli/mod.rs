@@ -3,6 +3,10 @@
 mod agent_registry;
 mod runner;
 #[cfg(feature = "search")]
+mod search_output;
+#[cfg(feature = "search")]
+mod search_plan;
+#[cfg(feature = "search")]
 mod search_trace;
 #[cfg(feature = "search")]
 mod semantic_search_json;
