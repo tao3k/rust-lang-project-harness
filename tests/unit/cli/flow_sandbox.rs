@@ -2,7 +2,8 @@ use serde_json::Value;
 use tempfile::TempDir;
 
 use super::support::{
-    normalize_temp_root, run_cli, run_search, run_search_with_stdin, write_search_fixture,
+    normalize_temp_root, run_cli, run_search, run_search_with_stdin,
+    write_complex_dependency_fixture, write_search_fixture,
 };
 
 #[test]
@@ -431,4 +432,202 @@ fn cli_rust_flow_sandbox_reduces_search_rounds_with_seeds_and_recipe_plan() {
         unknown.contains("|fix pipe paths, rg -n, rg --json, git diff --name-only, or fd output"),
         "{unknown}"
     );
+}
+
+#[test]
+fn cli_rust_flow_sandbox_regresses_tokio_ignore_bytes_style_flow() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_complex_dependency_fixture(root);
+
+    let prime = run_search(root, &["prime"]);
+    assert!(
+        prime.starts_with("[search-prime] mode=package package=."),
+        "{prime}"
+    );
+    assert!(prime.contains("dep=bytes,ignore,tokio"), "{prime}");
+    assert!(prime.contains("|feature runtime"), "{prime}");
+    assert!(prime.contains("|feature walk"), "{prime}");
+    assert!(
+        prime.contains("|edge O:src/http/mod.rs -mod-> O:src/http/client.rs"),
+        "{prime}"
+    );
+    assert!(
+        prime.contains("|edge O:src/io/mod.rs -mod-> O:src/io/walk.rs"),
+        "{prime}"
+    );
+    assert!(
+        prime.contains("|api-candidate RuntimeClient reason=public-item owner=src/http/client.rs"),
+        "{prime}"
+    );
+    assert!(
+        prime.contains("|api-candidate WalkPlan reason=public-item owner=src/io/walk.rs"),
+        "{prime}"
+    );
+
+    let tokio_sender = run_search(root, &["deps", "tokio@1::Sender"]);
+    assert!(
+        tokio_sender.starts_with(
+            "[search-deps] q=tokio@1::Sender pkg=. dep=1 own=1 api=0 requestedVersion=1 currentWorkspaceVersion=1 versionScope=current apiQuery=Sender"
+        ),
+        "{tokio_sender}"
+    );
+    assert!(
+        tokio_sender.contains("|owner src/http/client.rs hit_kind=dependency-api apiQuery=Sender"),
+        "{tokio_sender}"
+    );
+    assert!(
+        tokio_sender.contains("|next dependency:tokio,docs:tokio::Sender,text:Sender,tests:Sender"),
+        "{tokio_sender}"
+    );
+
+    let ignore_external = run_search(root, &["deps", "ignore@0.3::WalkBuilder"]);
+    assert!(
+        ignore_external.starts_with(
+            "[search-deps] q=ignore@0.3::WalkBuilder pkg=. dep=1 own=0 api=0 requestedVersion=0.3 currentWorkspaceVersion=0.4 versionScope=external apiQuery=WalkBuilder"
+        ),
+        "{ignore_external}"
+    );
+    assert!(
+        ignore_external.contains(
+            "|note kind=version-scope message=requested-version-is-outside-current-workspace-version"
+        ),
+        "{ignore_external}"
+    );
+    assert!(
+        !ignore_external.contains("|owner src/io/walk.rs"),
+        "{ignore_external}"
+    );
+
+    let bytes_dependency = run_search(
+        root,
+        &[
+            "dependency",
+            "bytes",
+            "items",
+            "public-api",
+            "docs",
+            "tests",
+        ],
+    );
+    assert!(
+        bytes_dependency.starts_with("[search-dependency] q=bytes pkg=. dep=1 own=2 api="),
+        "{bytes_dependency}"
+    );
+    assert!(
+        bytes_dependency.contains("|owner src/http/client.rs hit_kind=dependency"),
+        "{bytes_dependency}"
+    );
+    assert!(
+        bytes_dependency.contains("|owner src/io/walk.rs hit_kind=dependency"),
+        "{bytes_dependency}"
+    );
+    assert!(
+        bytes_dependency
+            .contains("|api src/http/client.rs line=4 dep=bytes kind=struct name=RuntimeClient"),
+        "{bytes_dependency}"
+    );
+    assert!(
+        bytes_dependency.contains("|test tests/flow.rs functions=1 owner=src/http/client.rs"),
+        "{bytes_dependency}"
+    );
+
+    let external_types = run_search(root, &["public-external-types"]);
+    assert!(
+        external_types.starts_with("[search-public-external-types] pkg=. dep=3 hit="),
+        "{external_types}"
+    );
+    assert!(
+        external_types.contains(
+            "|external-type src/http/client.rs:4 dep=tokio surface=field:sender item=RuntimeClient type=Sender<Bytes>"
+        ),
+        "{external_types}"
+    );
+    assert!(
+        external_types.contains(
+            "|external-type src/io/walk.rs:4 dep=ignore surface=field:builder item=WalkPlan type=WalkBuilder"
+        ),
+        "{external_types}"
+    );
+    assert!(
+        external_types.contains(
+            "|external-type src/io/walk.rs:4 dep=bytes surface=field:seed item=WalkPlan type=Bytes"
+        ),
+        "{external_types}"
+    );
+
+    let api = run_search(root, &["api", "send_bytes"]);
+    assert!(
+        api.starts_with("[search-api] q=send_bytes pkg=. api=1 source=native-parser"),
+        "{api}"
+    );
+    assert!(
+        api.contains("signature=fn(sender:Sender<Bytes>;payload:Bytes)->Result<()+tokio::sync::mpsc::error::SendError<Bytes>>"),
+        "{api}"
+    );
+    assert!(api.contains(" async=true "), "{api}");
+
+    let feature = run_search(root, &["features", "runtime", "cfg", "owners", "tests"]);
+    assert!(
+        feature.starts_with("[search-features] q=runtime pkg=. feat=1 dep=2"),
+        "{feature}"
+    );
+    assert!(feature.contains(" cfg=1"), "{feature}");
+    assert!(feature.contains(" own=2"), "{feature}");
+    assert!(feature.contains(" tests=1"), "{feature}");
+    assert!(
+        feature.contains("|dep tokio import=tokio pkg=tokio version=1 kind=normal opt=true"),
+        "{feature}"
+    );
+    assert!(
+        feature.contains("|dep bytes import=bytes pkg=bytes version=1 kind=normal opt=true"),
+        "{feature}"
+    );
+    assert!(
+        feature.contains("|test tests/flow.rs functions=1 owner=src/http/client.rs"),
+        "{feature}"
+    );
+
+    let ingest = run_search_with_stdin(
+        root,
+        &["ingest", "items", "tests"],
+        "src/http/client.rs:4:pub struct RuntimeClient { pub sender: Sender<Bytes>, pub buffer: Bytes }\n\
+         src/io/walk.rs:4:pub struct WalkPlan { pub builder: WalkBuilder, pub seed: Bytes }\n",
+    );
+    assert!(
+        ingest.starts_with("[search-ingest] src=rg-n in=2 own=2"),
+        "{ingest}"
+    );
+    assert!(
+        ingest.contains(
+            "|owner src/http/client.rs role=source hit_kind=text locations=4:1 next=owner"
+        ),
+        "{ingest}"
+    );
+    assert!(
+        ingest.contains("|item RuntimeClient kind=struct line=4 public=true"),
+        "{ingest}"
+    );
+    assert!(
+        ingest.contains("|owner src/io/walk.rs role=source hit_kind=text locations=4:1 next=owner"),
+        "{ingest}"
+    );
+    assert!(
+        ingest.contains("|item WalkPlan kind=struct line=4 public=true"),
+        "{ingest}"
+    );
+    assert!(
+        ingest.contains("|test tests/flow.rs functions=1 owner=src/http/client.rs"),
+        "{ingest}"
+    );
+
+    let ingest_json = run_search_with_stdin(
+        root,
+        &["ingest", "--json"],
+        "{\"type\":\"match\",\"data\":{\"path\":{\"text\":\"src/io/walk.rs\"},\"line_number\":4,\"absolute_offset\":0,\"lines\":{\"text\":\"pub struct WalkPlan { pub builder: WalkBuilder, pub seed: Bytes }\\n\"},\"submatches\":[{\"match\":{\"text\":\"WalkBuilder\"},\"start\":42,\"end\":53}]}}\n",
+    );
+    let ingest_json = serde_json::from_str::<Value>(&ingest_json).expect("ingest json");
+    assert_eq!(ingest_json["method"], "search/ingest");
+    assert_eq!(ingest_json["inputDetection"]["source"], "rg-json");
+    assert_eq!(ingest_json["inputDetection"]["lineCount"], 1);
 }
