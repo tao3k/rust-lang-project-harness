@@ -1,10 +1,11 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use crate::RustDiagnosticSeverity;
 use crate::parser::{
-    CargoDependencyFacts, ParsedRustModule, RustModuleChildEdge, RustReasoningOwnerDependencyFacts,
-    RustReasoningTreeFacts, RustUseImportRootKind,
+    CargoDependencyFacts, CargoManifestFacts, ParsedRustModule, RustModuleChildEdge,
+    RustReasoningOwnerDependencyFacts, RustReasoningTreeFacts, RustUseImportRootKind,
+    parse_cargo_cfg_facts,
 };
 use crate::{RustHarnessFinding, RustProjectHarnessScope};
 
@@ -131,11 +132,47 @@ pub(super) fn target_labels(scope: &RustProjectHarnessScope) -> String {
     {
         labels.push("build");
     }
+    if scope.package_paths.iter().any(|path| {
+        path.components()
+            .any(|component| component.as_os_str() == "examples")
+    }) {
+        labels.push("example");
+    }
+    if scope.package_paths.iter().any(|path| {
+        path.components()
+            .any(|component| component.as_os_str() == "benches")
+    }) {
+        labels.push("bench");
+    }
     if labels.is_empty() {
         "-".to_string()
     } else {
         labels.join(",")
     }
+}
+
+pub(super) fn target_lines(package_root: &Path, manifest: &CargoManifestFacts) -> Vec<String> {
+    let mut lines = Vec::new();
+    lines.extend(manifest.example_targets.iter().take(4).map(|target| {
+        format!(
+            "|target example:{} path={} required_features={} source=manifest manager=cargo next=owner:{}",
+            target.name,
+            display_project_path(package_root, &target.path),
+            empty_dash(&target.required_features),
+            display_project_path(package_root, &target.path)
+        )
+    }));
+    lines.extend(manifest.bench_targets.iter().take(4).map(|target| {
+        format!(
+            "|target bench:{} path={} harness={} required_features={} source=manifest manager=cargo next=owner:{}",
+            target.name,
+            display_project_path(package_root, &target.path),
+            target.harness,
+            empty_dash(&target.required_features),
+            display_project_path(package_root, &target.path)
+        )
+    }));
+    lines
 }
 
 pub(super) fn dependency_labels(dependencies: &[CargoDependencyFacts]) -> String {
@@ -167,7 +204,7 @@ pub(super) fn feature_lines(features: &[(String, Vec<String>)]) -> Vec<String> {
         .collect()
 }
 
-pub(super) fn cfg_lines(parsed_modules: &[ParsedRustModule]) -> Vec<String> {
+pub(super) fn cfg_lines(package_root: &Path, parsed_modules: &[ParsedRustModule]) -> Vec<String> {
     let mut cfgs = parsed_modules
         .iter()
         .flat_map(|module| {
@@ -180,9 +217,34 @@ pub(super) fn cfg_lines(parsed_modules: &[ParsedRustModule]) -> Vec<String> {
         .collect::<Vec<_>>();
     cfgs.sort();
     cfgs.dedup();
-    cfgs.into_iter()
+    let mut lines = cfgs
+        .into_iter()
         .take(PRIME_CFG_LIMIT)
         .map(|cfg| format!("|cfg {cfg} next=cfg:{cfg}"))
+        .collect::<Vec<_>>();
+    let remaining = PRIME_CFG_LIMIT.saturating_sub(lines.len());
+    let mut seen_cfgs = cfgs_for_lines(&lines);
+    lines.extend(
+        parse_cargo_cfg_facts(package_root)
+            .into_iter()
+            .filter(|cfg| seen_cfgs.insert(cfg.cfg.clone()))
+            .take(remaining)
+            .map(|cfg| {
+                format!(
+                    "|cfg {} declared_in={} expr={} source=manifest manager=cargo next=cfg:{}",
+                    cfg.cfg, cfg.declared_in, cfg.expression, cfg.cfg
+                )
+            }),
+    );
+    lines
+}
+
+fn cfgs_for_lines(lines: &[String]) -> BTreeSet<String> {
+    lines
+        .iter()
+        .filter_map(|line| line.strip_prefix("|cfg "))
+        .filter_map(|tail| tail.split_whitespace().next())
+        .map(ToOwned::to_owned)
         .collect()
 }
 
@@ -253,6 +315,14 @@ fn compact_feature_enables(enables: &[String]) -> String {
             .cloned()
             .collect::<Vec<_>>()
             .join(",")
+    }
+}
+
+fn empty_dash(values: &[String]) -> String {
+    if values.is_empty() {
+        "-".to_string()
+    } else {
+        values.join(",")
     }
 }
 

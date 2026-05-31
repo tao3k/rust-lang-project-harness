@@ -57,13 +57,13 @@ pub(super) fn render_search_targets(
             manifest.source_target_files.len(),
             manifest.test_target_files.len(),
             manifest.bench_targets.len(),
-            manifest.example_target_files.len()
+            manifest.example_targets.len()
         );
         for path in manifest
             .source_target_files
             .iter()
             .chain(manifest.test_target_files.iter())
-            .chain(manifest.example_target_files.iter())
+            .chain(manifest.example_targets.iter().map(|target| &target.path))
             .take(SEARCH_HIT_LIMIT)
         {
             let _ = writeln!(

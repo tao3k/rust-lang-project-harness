@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use crate::discovery::{discover_cargo_package_roots, rust_project_harness_scope};
 use crate::parser::{
     RustReasoningOwnerBranchFacts, RustReasoningOwnerBranchRole, RustReasoningTreeFacts,
-    parse_cargo_dependency_facts, rust_reasoning_tree_facts,
+    parse_cargo_dependency_facts, parse_cargo_manifest, rust_reasoning_tree_facts,
 };
 use crate::rules::evaluate_default_rule_packs_with_config;
 use crate::{RustHarnessConfig, RustHarnessFinding};
@@ -25,7 +25,7 @@ use super::limits::{
 use super::prime_support::{
     api_candidate_lines, cfg_lines, child_edge_count, child_edge_lines, dependency_labels,
     feature_lines, grouped_finding_lines, owner_dependency_lines, surface_line, target_labels,
-    test_surface_line,
+    target_lines, test_surface_line,
 };
 use super::recency::compare_paths_by_recency;
 
@@ -146,6 +146,7 @@ fn render_package_prime(
         .map(|module| (module.report.path.clone(), module))
         .collect::<BTreeMap<_, _>>();
     let cargo_dependencies = parse_cargo_dependency_facts(package_root);
+    let cargo_manifest = parse_cargo_manifest(package_root);
     let features = manifest_features(package_root);
     let package_label = package_label(project_root, package_root);
     let mut rendered = format!(
@@ -167,7 +168,10 @@ fn render_package_prime(
     for line in feature_lines(&features) {
         let _ = writeln!(rendered, "{line}");
     }
-    for line in cfg_lines(&parsed_modules) {
+    for line in cfg_lines(package_root, &parsed_modules) {
+        let _ = writeln!(rendered, "{line}");
+    }
+    for line in target_lines(package_root, &cargo_manifest) {
         let _ = writeln!(rendered, "{line}");
     }
     if let Some(line) = surface_line(&parsed_modules) {

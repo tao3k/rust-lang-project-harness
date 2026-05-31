@@ -17,11 +17,18 @@ pub(crate) struct CargoManifestFacts {
     pub(crate) workspace_members: Vec<String>,
     pub(crate) workspace_excludes: Vec<String>,
     pub(crate) source_target_files: Vec<PathBuf>,
-    pub(crate) example_target_files: Vec<PathBuf>,
+    pub(crate) example_targets: Vec<CargoExampleTargetFacts>,
     pub(crate) test_target_files: Vec<PathBuf>,
     pub(crate) bench_targets: Vec<CargoBenchTargetFacts>,
     pub(crate) references_harness: bool,
     pub(crate) references_harness_build_dependency: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct CargoExampleTargetFacts {
+    pub(crate) name: String,
+    pub(crate) path: PathBuf,
+    pub(crate) required_features: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -73,7 +80,7 @@ pub(crate) fn parse_cargo_manifest(project_root: &Path) -> CargoManifestFacts {
         .map(|workspace| (workspace.members.clone(), workspace.exclude.clone()))
         .unwrap_or_default();
     let source_target_files = manifest_source_target_files(project_root, &manifest);
-    let example_target_files = manifest_product_target_files(project_root, &manifest.example);
+    let example_targets = manifest_example_targets(project_root, &manifest.example);
     let test_target_files = manifest_test_target_files(project_root, &manifest.test);
     let bench_targets = manifest_bench_targets(project_root, &manifest.bench);
     CargoManifestFacts {
@@ -81,12 +88,44 @@ pub(crate) fn parse_cargo_manifest(project_root: &Path) -> CargoManifestFacts {
         workspace_members,
         workspace_excludes,
         source_target_files,
-        example_target_files,
+        example_targets,
         test_target_files,
         bench_targets,
         references_harness,
         references_harness_build_dependency,
     }
+}
+
+fn manifest_example_targets(
+    project_root: &Path,
+    example_targets: &[Product],
+) -> Vec<CargoExampleTargetFacts> {
+    example_targets
+        .iter()
+        .filter_map(|target| {
+            let name = target.name.as_deref()?.trim();
+            if name.is_empty() {
+                return None;
+            }
+            let path = target
+                .path
+                .as_deref()
+                .map(str::trim)
+                .filter(|path| !path.is_empty())
+                .map_or_else(
+                    || project_root.join("examples").join(format!("{name}.rs")),
+                    |path| project_root.join(path),
+                );
+            let mut required_features = target.required_features.clone();
+            required_features.sort();
+            required_features.dedup();
+            Some(CargoExampleTargetFacts {
+                name: name.to_string(),
+                path,
+                required_features,
+            })
+        })
+        .collect()
 }
 
 pub(crate) fn parse_cargo_dependency_facts(project_root: &Path) -> Vec<CargoDependencyFacts> {

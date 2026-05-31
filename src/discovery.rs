@@ -259,8 +259,9 @@ pub fn rust_project_harness_scope(
         .collect::<BTreeSet<_>>();
     package_paths.extend(
         cargo_manifest
-            .example_target_files
+            .example_targets
             .iter()
+            .map(|target| &target.path)
             .chain(
                 cargo_manifest
                     .bench_targets
