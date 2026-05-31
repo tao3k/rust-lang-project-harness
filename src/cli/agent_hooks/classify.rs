@@ -174,13 +174,9 @@ pub(super) fn touched_file_count(touched: &BTreeMap<Profile, Vec<String>>) -> us
 }
 
 pub(super) fn tool_command(payload: &HookPayload) -> String {
-    payload
-        .tool_input
-        .get("command")
-        .or_else(|| payload.tool_input.get("cmd"))
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string()
+    let mut commands = Vec::new();
+    collect_commands_from_tool_input(&payload.tool_input, &mut commands);
+    commands.join("\n")
 }
 
 fn raw_command_profiles(command: &str, project: &ProjectProfiles) -> BTreeSet<Profile> {
@@ -336,6 +332,28 @@ fn collect_paths_from_tool_input(value: &Value, files: &mut BTreeSet<String>) {
     }
 }
 
+fn collect_commands_from_tool_input(value: &Value, commands: &mut Vec<String>) {
+    match value {
+        Value::Array(values) => {
+            for value in values {
+                collect_commands_from_tool_input(value, commands);
+            }
+        }
+        Value::Object(fields) => {
+            for (key, value) in fields {
+                if matches!(key.as_str(), "command" | "cmd")
+                    && let Some(command) = value.as_str()
+                    && !command.trim().is_empty()
+                {
+                    commands.push(command.to_string());
+                }
+                collect_commands_from_tool_input(value, commands);
+            }
+        }
+        _ => {}
+    }
+}
+
 fn is_edit_tool(payload: &HookPayload) -> bool {
     payload
         .tool_name
@@ -421,6 +439,9 @@ fn shell_bulk_reads_rust(command: &str) -> bool {
     }
     let lower = command.replace('\\', "/").to_ascii_lowercase();
     let reads_content = command_has_content_reader(&lower);
+    if rtk_reads_rust(command) && has_rust_glob(&lower) {
+        return true;
+    }
     if reads_content && has_rust_glob(&lower) {
         return true;
     }
@@ -435,12 +456,21 @@ fn shell_bulk_reads_rust(command: &str) -> bool {
 
 fn shell_rust_content_read_path(command: &str) -> Option<String> {
     let lower = command.replace('\\', "/").to_ascii_lowercase();
-    if !command_has_content_reader(&lower) {
+    if !command_has_content_reader(&lower) && !rtk_reads_rust(command) {
         return None;
     }
     command_candidate_paths(command)
         .into_iter()
         .find(|path| rust_source_path_or_glob(path))
+}
+
+fn rtk_reads_rust(command: &str) -> bool {
+    let lower = command.replace('\\', "/").to_ascii_lowercase();
+    command_has_tool(&lower, "rtk")
+        && command_has_tool(&lower, "read")
+        && command_candidate_paths(command)
+            .iter()
+            .any(|path| rust_source_path_or_glob(path))
 }
 
 fn has_rust_glob(command: &str) -> bool {

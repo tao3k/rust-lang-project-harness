@@ -315,6 +315,81 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
         Some("raw-broad-search")
     );
 
+    let rtk_read_pre_tool = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &serde_json::json!({
+            "hook_event_name": "PreToolUse",
+            "cwd": root.display().to_string(),
+            "tool_name": "functions.exec_command",
+            "tool_input": {
+                "cmd": "rtk read src/lib.rs"
+            }
+        })
+        .to_string(),
+    );
+    assert!(rtk_read_pre_tool.status.success(), "{rtk_read_pre_tool:?}");
+    let value = serde_json::from_slice::<Value>(&rtk_read_pre_tool.stdout).expect("pre-tool JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["permissionDecision"].as_str(),
+        Some("deny")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["reasonKind"].as_str(),
+        Some("direct-source-read")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["subject"]["paths"],
+        serde_json::json!(["src/lib.rs"])
+    );
+
+    let parallel_pre_tool = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &serde_json::json!({
+            "hook_event_name": "PreToolUse",
+            "cwd": root.display().to_string(),
+            "tool_name": "multi_tool_use.parallel",
+            "tool_input": {
+                "tool_uses": [
+                    {
+                        "recipient_name": "functions.exec_command",
+                        "parameters": {
+                            "cmd": "rtk read src/lib.rs"
+                        }
+                    }
+                ]
+            }
+        })
+        .to_string(),
+    );
+    assert!(parallel_pre_tool.status.success(), "{parallel_pre_tool:?}");
+    let value = serde_json::from_slice::<Value>(&parallel_pre_tool.stdout).expect("pre-tool JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["permissionDecision"].as_str(),
+        Some("deny")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["reasonKind"].as_str(),
+        Some("direct-source-read")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["subject"]["paths"],
+        serde_json::json!(["src/lib.rs"])
+    );
+
     let direct_read = run_cli_with_stdin(
         [
             "agent".as_ref(),
