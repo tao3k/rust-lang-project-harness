@@ -1,12 +1,5 @@
-//! Codex hook policy for installed harness assets.
+//! Agent hook bridge into the root semantic-agent-hook runtime.
 
-mod classify;
-mod classify_command;
-mod classify_shell;
-mod model;
-mod policy;
-mod project;
-mod runner;
-mod state;
+mod bridge;
 
-pub(super) use runner::{print_agent_guide, run_agent_guard, run_agent_hook};
+pub(super) use bridge::{print_agent_guide, run_agent_guard, run_agent_hook};

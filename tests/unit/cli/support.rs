@@ -1,6 +1,7 @@
+use std::env;
 use std::fs;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::process::{Command, Output};
 
@@ -53,6 +54,34 @@ where
     child.wait_with_output().expect("run cli")
 }
 
+pub(crate) fn run_cli_with_env_and_stdin<I, S, K, V>(
+    args: I,
+    envs: impl IntoIterator<Item = (K, V)>,
+    stdin: &str,
+) -> Output
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<std::ffi::OsStr>,
+    K: AsRef<std::ffi::OsStr>,
+    V: AsRef<std::ffi::OsStr>,
+{
+    let mut child = Command::new(env!("CARGO_BIN_EXE_rs-harness"))
+        .args(args)
+        .envs(envs)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn cli");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin")
+        .write_all(stdin.as_bytes())
+        .expect("write stdin");
+    child.wait_with_output().expect("run cli")
+}
+
 #[cfg(feature = "search")]
 pub(crate) fn run_search(root: &Path, args: &[&str]) -> String {
     let mut command_args = Vec::<std::ffi::OsString>::new();
@@ -88,6 +117,67 @@ pub(crate) fn write_manifest(root: &Path, name: &str) {
     )
     .expect("write manifest");
 }
+
+pub(crate) fn install_semantic_agent_hook_shim(root: &Path) -> (PathBuf, String) {
+    let bin_dir = root.join("bin");
+    fs::create_dir_all(&bin_dir).expect("create semantic hook shim bin dir");
+    let log_path = root.join("semantic-agent-hook-invocations.json");
+    let shim = bin_dir.join("semantic-agent-hook");
+    fs::write(
+        &shim,
+        [
+            "#!/usr/bin/env python3",
+            "import json, os, pathlib, shutil, sys",
+            "log_path = pathlib.Path(os.environ['SEMANTIC_AGENT_HOOK_LOG'])",
+            "stdin = sys.stdin.read()",
+            "entries = json.loads(log_path.read_text()) if log_path.exists() else []",
+            "entries.append({'argv': sys.argv[1:], 'cwd': os.getcwd(), 'stdin': stdin})",
+            "log_path.write_text(json.dumps(entries, indent=2))",
+            "argv = sys.argv[1:]",
+            "if argv and argv[0] == 'install':",
+            "    profile_path = pathlib.Path(argv[argv.index('--profiles') + 1])",
+            "    root = pathlib.Path(argv[-1])",
+            "    target = root / '.codex' / 'semantic-agent-hook' / 'profiles.json'",
+            "    target.parent.mkdir(parents=True, exist_ok=True)",
+            "    shutil.copyfile(profile_path, target)",
+            "    (root / '.codex' / 'config.toml').write_text('# BEGIN semantic-agent-hook agent hooks\\n')",
+            "    print('[agent-install] client=codex profiles=.codex/semantic-agent-hook/profiles.json config=.codex/config.toml binary=.codex/semantic-agent-hook/bin/semantic-agent-hook mode=updated')",
+            "elif argv and argv[0] == 'doctor':",
+            "    print('[agent-doctor] status=ok client=codex profiles=1 profileRegistry=.codex/semantic-agent-hook/profiles.rs-harness.json config=true hook=true binary=true protocol=agent.semantic-protocols.agent-hooks')",
+            "elif argv and argv[0] == 'hook':",
+            "    emit = 'decision' if '--emit' in argv and argv[argv.index('--emit') + 1] == 'decision' else 'platform'",
+            "    decision = {'schemaId': 'agent.semantic-protocols.agent-hook-decision', 'schemaVersion': '1', 'protocolId': 'agent.semantic-protocols.agent-hooks', 'protocolVersion': '1', 'platform': 'codex', 'event': argv[3], 'decision': 'deny', 'reasonKind': 'direct-source-read', 'languageIds': ['rust'], 'subject': {'toolName': 'functions.exec_command'}, 'routes': [], 'message': 'Use semantic search before dumping source content.'}",
+            "    if emit == 'decision':",
+            "        print(json.dumps(decision))",
+            "    else:",
+            "        print(json.dumps({'agentHookDecision': decision, 'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'deny', 'permissionDecisionReason': decision['message']}}))",
+            "else:",
+            "    print('unexpected semantic-agent-hook argv: ' + ' '.join(argv), file=sys.stderr)",
+            "    sys.exit(2)",
+        ]
+        .join("\n"),
+    )
+    .expect("write semantic-agent-hook shim");
+    make_executable(&shim);
+    let path = format!(
+        "{}:{}",
+        bin_dir.display(),
+        env::var("PATH").unwrap_or_default()
+    );
+    (log_path, path)
+}
+
+#[cfg(unix)]
+fn make_executable(path: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+
+    let mut permissions = fs::metadata(path).expect("shim metadata").permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(path, permissions).expect("chmod shim");
+}
+
+#[cfg(not(unix))]
+fn make_executable(_path: &Path) {}
 
 #[cfg(feature = "search")]
 pub(crate) fn write_search_fixture(root: &Path) {

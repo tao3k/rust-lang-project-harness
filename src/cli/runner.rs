@@ -6,9 +6,7 @@ use std::io::{self, Read};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use super::agent_assets::{
-    AgentConfigScope, default_codex_profile_name, install_agent_assets, print_agent_doctor,
-};
+use super::agent_assets::{AgentConfigScope, install_agent_assets, print_agent_doctor};
 use super::agent_hooks::{print_agent_guide, run_agent_guard, run_agent_hook};
 use super::agent_registry::print_agent_registry;
 #[cfg(feature = "search")]
@@ -120,11 +118,11 @@ fn run_agent(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitC
     match options.command.as_str() {
         "install" => {
             let client = require_agent_client(&options)?;
-            install_agent_assets(&project_root, client, &options.scope)?;
+            let output = install_agent_assets(&project_root, client, &options.scope)?;
             if options.json {
                 print_agent_registry(&project_root)?;
             } else {
-                print_agent_doctor(&project_root, "installed", Some(client), &options.scope)?;
+                print!("{output}");
             }
         }
         "doctor" => {
@@ -298,6 +296,7 @@ pub(super) struct SearchOptions {
     pub(super) scope: Option<String>,
     pub(super) lines: bool,
     pub(super) pipes: Vec<String>,
+    pub(super) query_set: Vec<String>,
     paths: Vec<PathBuf>,
 }
 
@@ -327,6 +326,7 @@ impl SearchOptions {
                     "--seeds" => options.seeds = Some(parse_usize_option(&option, value)?),
                     "--owners" => options.owners = Some(parse_usize_option(&option, value)?),
                     "--hits" => options.hits = Some(parse_usize_option(&option, value)?),
+                    "--query-set" => options.query_set.extend(split_csv_values(value)),
                     _ => unreachable!("known pending search option"),
                 }
                 continue;
@@ -348,9 +348,8 @@ impl SearchOptions {
                 "--explain" => options.explain = true,
                 "--item-slice" => options.pipes.push("items".to_string()),
                 "--package" | "--owner" | "--dependency" | "--scope" | "--view" | "--depth"
-                | "--dir" | "--edge" | "--per-owner" | "--seeds" | "--owners" | "--hits" => {
-                    pending_option = Some(value.to_string())
-                }
+                | "--dir" | "--edge" | "--per-owner" | "--seeds" | "--owners" | "--hits"
+                | "--query-set" => pending_option = Some(value.to_string()),
                 value if value.starts_with('-') => {
                     return Err(format!("unknown search option: {value}"));
                 }
@@ -388,10 +387,14 @@ impl SearchOptions {
         }
         self.view = values.remove(0);
         if search_view_requires_query(&self.view) {
-            if values.is_empty() {
-                return Err(format!("search {} requires a query", self.command_label()));
+            if !self.query_set.is_empty() {
+                self.query = Some(self.query_set.join(","));
+            } else {
+                if values.is_empty() {
+                    return Err(format!("search {} requires a query", self.command_label()));
+                }
+                self.query = Some(values.remove(0));
             }
-            self.query = Some(values.remove(0));
         } else if search_view_accepts_optional_query(&self.view)
             && values
                 .first()
@@ -448,6 +451,7 @@ impl SearchOptions {
             scope: self.scope.clone(),
             lines: self.lines,
             pipes: self.pipes.clone(),
+            query_set: self.query_set(),
         }
     }
 
@@ -472,6 +476,7 @@ impl SearchOptions {
             lines: self.lines,
             output_view: self.output_view.clone(),
             seeds: self.seeds,
+            query_set: self.query_set(),
         }
     }
 
@@ -484,6 +489,20 @@ impl SearchOptions {
             }
             _ => unreachable!("parse enforces at most one path"),
         }
+    }
+
+    fn query_set(&self) -> Vec<String> {
+        if !search_view_supports_query_set(&self.view) {
+            return Vec::new();
+        }
+        if !self.query_set.is_empty() {
+            return self.query_set.clone();
+        }
+        let Some(query) = self.query.as_deref() else {
+            return Vec::new();
+        };
+        let terms = split_csv_values(query);
+        if terms.len() > 1 { terms } else { Vec::new() }
     }
 }
 
@@ -707,13 +726,14 @@ fn print_search_help() {
          rs-harness search features [feature] [cfg owners tests] [PROJECT_ROOT]\n\
          rs-harness search dependency <crate-or-import-or-package> [items public-api docs tests] [PROJECT_ROOT]\n\
          rs-harness search <symbol|callsite|import|text|cfg|pattern|docs|docs-use|api> <query> [PROJECT_ROOT]\n\
+         rs-harness search <owner|dependency|text|tests> --query-set TERM [--query-set TERM...] [PROJECT_ROOT]\n\
          rs-harness search public-external-types [--dependency DEP] [PROJECT_ROOT]\n\
          rg -n '<query>' src tests | rs-harness search ingest [items tests] [PROJECT_ROOT]\n\n\
          Emits compact RFC line protocol for deterministic agent exploration.\n\
          Compact text is the default; --json wraps the same packet for tools.\n\
          RFC controls accepted here: --trace, --explain, --view graph|hits|both|seeds,\n\
          --depth N, --dir out|in|both, --edge LIST, --item-slice, --dependency DEP,\n\
-         --seeds N, --lines."
+         --seeds N, --query-set TERM, --lines."
     );
 }
 
@@ -727,18 +747,15 @@ fn print_check_help() {
 
 fn print_agent_help() {
     println!(
-        "rs-harness agent install --client codex [--scope project|profile] [--profile NAME] [--json] [PROJECT_ROOT]\n\
-         rs-harness agent doctor [--client codex] [--scope project|profile] [--profile NAME] [--json] [PROJECT_ROOT]\n\
+        "rs-harness agent install --client codex [--json] [PROJECT_ROOT]\n\
+         rs-harness agent doctor [--client codex] [--json] [PROJECT_ROOT]\n\
          rs-harness agent guide --client codex [PROJECT_ROOT]\n\
          rs-harness agent hook --client codex <event> [PROJECT_ROOT]\n\n\
          rs-harness agent guard --client codex [--json] [PROJECT_ROOT] -- <command...>\n\n\
-         Installs or checks client-specific agent SKILL.org and hook assets.\n\
+         Publishes the rs-harness profile and delegates hook runtime to semantic-agent-hook.\n\
          agent guide prints the command-line search flow guide used by hooks.\n\
-         agent guard runs the Codex pre-tool policy against a command without executing it.\n\
-         Project scope writes .codex/config.toml for Desktop/project hooks.\n\
-         Profile scope writes $CODEX_HOME/<name>.config.toml for `codex --profile {}` exec hooks.\n\
-         Use --json to emit the semantic-language registry contract.",
-        default_codex_profile_name()
+         agent guard delegates Codex pre-tool policy to semantic-agent-hook without executing the command.\n\
+         Use --json to emit the semantic-language registry contract."
     );
 }
 
@@ -775,6 +792,10 @@ fn search_view_requires_query(view: &str) -> bool {
 
 fn search_view_accepts_optional_query(view: &str) -> bool {
     matches!(view, "deps" | "features")
+}
+
+fn search_view_supports_query_set(view: &str) -> bool {
+    matches!(view, "owner" | "dependency" | "text" | "tests")
 }
 
 fn is_search_pipe(value: &str) -> bool {
@@ -822,6 +843,12 @@ fn validate_search_options(options: &SearchOptions) -> Result<(), String> {
         && !matches!(dir, "out" | "in" | "both")
     {
         return Err(format!("unknown search --dir mode: {dir}"));
+    }
+    if !options.query_set.is_empty() && !search_view_supports_query_set(&options.view) {
+        return Err(format!(
+            "search {} does not support --query-set",
+            options.command_label()
+        ));
     }
     Ok(())
 }

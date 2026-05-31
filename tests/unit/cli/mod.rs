@@ -1,5 +1,6 @@
 pub(crate) mod support;
 
+mod agent_hooks;
 mod basics;
 #[cfg(feature = "search")]
 mod flow_drill;
