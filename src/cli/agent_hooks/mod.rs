@@ -1,6 +1,7 @@
 //! Codex hook policy for installed harness assets.
 
 mod classify;
+mod decision;
 mod model;
 mod policy;
 mod project;

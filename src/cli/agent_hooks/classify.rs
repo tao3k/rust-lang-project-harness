@@ -9,24 +9,37 @@ use super::model::{
 use super::policy::CodexHookPolicy;
 use super::project::ProjectProfiles;
 
-pub(super) fn bulk_rust_read_reason(
+pub(super) enum RustReadBlock {
+    Direct { path: String, reason: String },
+    Bulk { reason: String },
+}
+
+pub(super) fn bulk_rust_read_block(
     payload: &HookPayload,
     command: &str,
     policy: &CodexHookPolicy,
     project: &ProjectProfiles,
-) -> Option<String> {
+) -> Option<RustReadBlock> {
     if !project.rust.enabled || !policy.profile(Profile::Rust).raw_search_requires_ingest {
         return None;
     }
     if is_read_tool(payload)
         && let Some(path) = rust_source_path_from_value(&payload.tool_input)
     {
-        return Some(rust_direct_read_flow(&path));
+        return Some(RustReadBlock::Direct {
+            reason: rust_direct_read_flow(&path),
+            path,
+        });
     }
     if shell_bulk_reads_rust(command) {
-        return Some(rust_bulk_pipe_flow());
+        return Some(RustReadBlock::Bulk {
+            reason: rust_bulk_pipe_flow(),
+        });
     }
-    shell_rust_content_read_path(command).map(|path| rust_direct_read_flow(&path))
+    shell_rust_content_read_path(command).map(|path| RustReadBlock::Direct {
+        reason: rust_direct_read_flow(&path),
+        path,
+    })
 }
 
 pub(super) fn broad_raw_search_profiles(
@@ -331,7 +344,7 @@ fn is_edit_tool(payload: &HookPayload) -> bool {
 }
 
 fn command_has_raw_search_tool(command: &str) -> bool {
-    ["fd", "grep", "find", "ast-grep"]
+    ["rg", "fd", "grep", "find", "ast-grep"]
         .into_iter()
         .any(|tool| command_has_tool(command, tool))
 }

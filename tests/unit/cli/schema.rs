@@ -192,6 +192,13 @@ fn semantic_schema_files() -> &'static [SemanticSchemaFile] {
             syncs_with_protocol_repository: true,
         },
         SemanticSchemaFile {
+            schema_id: "agent.semantic-protocols.agent-hook-decision",
+            file_name: "semantic-agent-hook-decision.v1.schema.json",
+            registry_path: "schemas/semantic-agent-hook-decision.v1.schema.json",
+            identity_pointer: &["properties", "schemaId", "const"],
+            syncs_with_protocol_repository: true,
+        },
+        SemanticSchemaFile {
             schema_id: "agent.semantic-protocols.languages.rust.rs-harness.capabilities",
             file_name: "rust-semantic-capabilities.v1.schema.json",
             registry_path: "schemas/rust-semantic-capabilities.v1.schema.json",

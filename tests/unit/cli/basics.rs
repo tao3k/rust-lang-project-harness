@@ -225,6 +225,19 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
         }),
         "{value}"
     );
+    assert!(
+        descriptors.iter().any(|descriptor| {
+            descriptor["method"] == "agent/hook"
+                && descriptor["outputSchemaIds"]
+                    .as_array()
+                    .is_some_and(|schemas| {
+                        schemas.iter().any(|schema| {
+                            schema.as_str() == Some("agent.semantic-protocols.agent-hook-decision")
+                        })
+                    })
+        }),
+        "{value}"
+    );
 
     let pre_tool = run_cli_with_stdin(
         [
@@ -246,7 +259,31 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
         .to_string(),
     );
     assert!(pre_tool.status.success(), "{pre_tool:?}");
-    assert!(pre_tool.stdout.is_empty(), "{pre_tool:?}");
+    let value = serde_json::from_slice::<Value>(&pre_tool.stdout).expect("pre-tool JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["permissionDecision"].as_str(),
+        Some("deny")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["schemaId"].as_str(),
+        Some("agent.semantic-protocols.agent-hook-decision")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["reasonKind"].as_str(),
+        Some("raw-broad-search")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["languageIds"],
+        serde_json::json!(["rust"])
+    );
+    assert_eq!(
+        value["agentHookDecision"]["routes"][0]["kind"].as_str(),
+        Some("ingest")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["routes"][0]["stdinMode"].as_str(),
+        Some("pipe-candidates")
+    );
 
     let exec_command_pre_tool = run_cli_with_stdin(
         [
@@ -271,9 +308,11 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
         exec_command_pre_tool.status.success(),
         "{exec_command_pre_tool:?}"
     );
-    assert!(
-        exec_command_pre_tool.stdout.is_empty(),
-        "{exec_command_pre_tool:?}"
+    let value =
+        serde_json::from_slice::<Value>(&exec_command_pre_tool.stdout).expect("pre-tool JSON");
+    assert_eq!(
+        value["agentHookDecision"]["reasonKind"].as_str(),
+        Some("raw-broad-search")
     );
 
     let direct_read = run_cli_with_stdin(
@@ -300,6 +339,22 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
     assert_eq!(
         value["hookSpecificOutput"]["permissionDecision"].as_str(),
         Some("deny")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["decision"].as_str(),
+        Some("deny")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["reasonKind"].as_str(),
+        Some("direct-source-read")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["subject"]["paths"],
+        serde_json::json!(["src/lib.rs"])
+    );
+    assert_eq!(
+        value["agentHookDecision"]["routes"][0]["kind"].as_str(),
+        Some("owner")
     );
     assert!(
         value["hookSpecificOutput"]["permissionDecisionReason"]
@@ -337,6 +392,14 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
         value["hookSpecificOutput"]["permissionDecision"].as_str(),
         Some("deny")
     );
+    assert_eq!(
+        value["agentHookDecision"]["reasonKind"].as_str(),
+        Some("bulk-source-dump")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["routes"][0]["kind"].as_str(),
+        Some("ingest")
+    );
     assert!(
         value["hookSpecificOutput"]["permissionDecisionReason"]
             .as_str()
@@ -369,6 +432,10 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
         value["hookSpecificOutput"]["permissionDecision"].as_str(),
         Some("deny")
     );
+    assert_eq!(
+        value["agentHookDecision"]["reasonKind"].as_str(),
+        Some("direct-source-read")
+    );
     assert!(
         value["hookSpecificOutput"]["permissionDecisionReason"]
             .as_str()
@@ -400,6 +467,14 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
     assert_eq!(
         value["hookSpecificOutput"]["decision"]["behavior"].as_str(),
         Some("deny")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["event"].as_str(),
+        Some("permission-request")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["reasonKind"].as_str(),
+        Some("bulk-source-dump")
     );
     assert!(
         value["hookSpecificOutput"]["decision"]["message"]
@@ -467,6 +542,14 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
     );
     let value = serde_json::from_slice::<Value>(&stop_without_check.stdout).expect("stop JSON");
     assert_eq!(value["decision"].as_str(), Some("block"));
+    assert_eq!(
+        value["agentHookDecision"]["reasonKind"].as_str(),
+        Some("changed-check-required")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["routes"][0]["kind"].as_str(),
+        Some("check-changed")
+    );
     assert!(
         value["reason"]
             .as_str()
@@ -516,6 +599,10 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
     assert!(subagent_stop.status.success(), "{subagent_stop:?}");
     let value = serde_json::from_slice::<Value>(&subagent_stop.stdout).expect("subagent-stop JSON");
     assert_eq!(value["decision"].as_str(), Some("block"));
+    assert_eq!(
+        value["agentHookDecision"]["reasonKind"].as_str(),
+        Some("subagent-receipt-required")
+    );
     assert!(
         value["reason"]
             .as_str()

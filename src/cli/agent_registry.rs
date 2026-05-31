@@ -90,6 +90,7 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "clients": ["codex"],
             "requiredOptions": ["--client codex"],
             "input": "hook event JSON on stdin",
+            "outputSchemaIds": ["agent.semantic-protocols.agent-hook-decision"],
             "supportsJson": true,
             "supportsCompact": false,
             "capabilities": [
@@ -124,6 +125,11 @@ fn agent_registry_json(project_root: &Path) -> Value {
                         "schemaId": "agent.semantic-protocols.semantic-search-packet",
                         "schemaVersion": "1",
                         "path": "schemas/semantic-search-packet.v1.schema.json"
+                    },
+                    {
+                        "schemaId": "agent.semantic-protocols.agent-hook-decision",
+                        "schemaVersion": "1",
+                        "path": "schemas/semantic-agent-hook-decision.v1.schema.json"
                     },
                     {
                         "schemaId": "agent.semantic-protocols.languages.rust.rs-harness.capabilities",

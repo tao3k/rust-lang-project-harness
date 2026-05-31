@@ -5,10 +5,11 @@ use std::path::Path;
 use serde_json::{Value, json};
 
 use super::classify::{
-    broad_raw_search_profiles, bulk_rust_read_reason, changed_check_profiles, changed_check_reason,
-    command_evidence_profiles, prime_required_reason, raw_search_reason, tool_command,
-    touched_file_count, touched_files_by_profile,
+    RustReadBlock, broad_raw_search_profiles, bulk_rust_read_block, changed_check_profiles,
+    changed_check_reason, command_evidence_profiles, prime_required_reason, raw_search_reason,
+    tool_command, touched_file_count, touched_files_by_profile,
 };
+use super::decision;
 use super::model::{
     HookEvent, HookPayload, Profile, hook_project_root, normalize_event, parse_hook_payload,
 };
@@ -35,9 +36,11 @@ pub(crate) fn run_agent_hook(project_root: &Path, client: &str, event: &str) -> 
     state.start_turn(payload.turn_id.as_deref());
 
     let response = match normalize_event(event, payload.hook_event_name.as_deref())? {
-        HookEvent::SessionStart => {
-            Some(context(HookEvent::SessionStart, project.session_context()))
-        }
+        HookEvent::SessionStart => Some(context(
+            HookEvent::SessionStart,
+            project.session_context(),
+            None,
+        )),
         HookEvent::UserPromptSubmit => user_prompt_response(&payload, &project),
         HookEvent::PreToolUse => pre_tool_response(&payload, &policy, &project, &state),
         HookEvent::PermissionRequest => permission_request_response(&payload, &policy, &project),
@@ -45,6 +48,7 @@ pub(crate) fn run_agent_hook(project_root: &Path, client: &str, event: &str) -> 
         HookEvent::SubagentStart => Some(context(
             HookEvent::SubagentStart,
             subagent_start_context(&payload),
+            None,
         )),
         HookEvent::SubagentStop => subagent_stop_response(&payload, &mut state),
         HookEvent::Stop => stop_response(&payload, &policy, &state),
@@ -69,6 +73,7 @@ fn user_prompt_response(payload: &HookPayload, project: &ProjectProfiles) -> Opt
     Some(context(
         HookEvent::UserPromptSubmit,
         "Complex code task: run `rs-harness search prime --view seeds --seeds 8 .`, pick the next seed, and use subagents only for bounded `rs-harness search ... --view seeds` or `rg -n ... | rs-harness search ingest items tests .` lanes.",
+        None,
     ))
 }
 
@@ -79,13 +84,38 @@ fn pre_tool_response(
     state: &HookState,
 ) -> Option<Value> {
     let command = tool_command(payload);
-    if let Some(reason) = bulk_rust_read_reason(payload, &command, policy, project) {
-        return Some(pre_tool_deny(&reason));
+    if let Some(block) = bulk_rust_read_block(payload, &command, policy, project) {
+        return Some(match block {
+            RustReadBlock::Direct { path, reason } => pre_tool_deny(
+                &reason,
+                decision::direct_source_read(
+                    HookEvent::PreToolUse,
+                    payload,
+                    &command,
+                    &path,
+                    &reason,
+                ),
+            ),
+            RustReadBlock::Bulk { reason } => pre_tool_deny(
+                &reason,
+                decision::bulk_source_dump(HookEvent::PreToolUse, payload, &command, &reason),
+            ),
+        });
     }
 
     let raw_profiles = broad_raw_search_profiles(&command, policy, project);
     if !raw_profiles.is_empty() {
-        return Some(pre_tool_deny(raw_search_reason(&raw_profiles)));
+        let reason = raw_search_reason(&raw_profiles);
+        return Some(pre_tool_deny(
+            reason,
+            decision::raw_broad_search(
+                HookEvent::PreToolUse,
+                payload,
+                &command,
+                &raw_profiles,
+                reason,
+            ),
+        ));
     }
 
     let touched = touched_files_by_profile(payload, &command, policy, project);
@@ -101,12 +131,30 @@ fn pre_tool_response(
         return None;
     }
     if policy.global.exact_file_edit_exception && touched_file_count(&touched) == 1 {
+        let reason = "Exact-file code edit allowed before prime; run the matching profile check after editing.";
         return Some(context(
             HookEvent::PreToolUse,
-            "Exact-file code edit allowed before prime; run the matching profile check after editing.",
+            reason,
+            Some(decision::exact_file_edit_context(
+                HookEvent::PreToolUse,
+                payload,
+                &command,
+                &missing_prime,
+                reason,
+            )),
         ));
     }
-    Some(pre_tool_deny(prime_required_reason(&missing_prime)))
+    let reason = prime_required_reason(&missing_prime);
+    Some(pre_tool_deny(
+        reason,
+        decision::edit_before_prime(
+            HookEvent::PreToolUse,
+            payload,
+            &command,
+            &missing_prime,
+            reason,
+        ),
+    ))
 }
 
 fn permission_request_response(
@@ -115,8 +163,22 @@ fn permission_request_response(
     project: &ProjectProfiles,
 ) -> Option<Value> {
     let command = tool_command(payload);
-    bulk_rust_read_reason(payload, &command, policy, project)
-        .map(|reason| permission_request_deny(&reason))
+    bulk_rust_read_block(payload, &command, policy, project).map(|block| match block {
+        RustReadBlock::Direct { path, reason } => permission_request_deny(
+            &reason,
+            decision::direct_source_read(
+                HookEvent::PermissionRequest,
+                payload,
+                &command,
+                &path,
+                &reason,
+            ),
+        ),
+        RustReadBlock::Bulk { reason } => permission_request_deny(
+            &reason,
+            decision::bulk_source_dump(HookEvent::PermissionRequest, payload, &command, &reason),
+        ),
+    })
 }
 
 fn post_tool_response(
@@ -172,7 +234,12 @@ fn subagent_stop_response(payload: &HookPayload, state: &mut HookState) -> Optio
     }
     Some(json!({
         "decision": "block",
-        "reason": "Return one compact line: `[search-subagent] role=... evidence=... missing=... next=... risk=...`."
+        "reason": "Return one compact line: `[search-subagent] role=... evidence=... missing=... next=... risk=...`.",
+        "agentHookDecision": decision::subagent_receipt_required(
+            HookEvent::SubagentStop,
+            payload,
+            "Return one compact line: `[search-subagent] role=... evidence=... missing=... next=... risk=...`."
+        )
     }))
 }
 
@@ -195,16 +262,24 @@ fn stop_response(
         })
         .collect::<Vec<_>>();
     (!dirty.is_empty()).then(|| {
+        let reason = changed_check_reason(&dirty);
         json!({
             "decision": "block",
-            "reason": changed_check_reason(&dirty)
+            "reason": reason,
+            "agentHookDecision": decision::changed_check_required(
+                HookEvent::Stop,
+                payload,
+                &dirty,
+                &reason
+            )
         })
     })
 }
 
-fn pre_tool_deny(reason: &str) -> Value {
+fn pre_tool_deny(reason: &str, agent_hook_decision: Value) -> Value {
     json!({
         "systemMessage": reason,
+        "agentHookDecision": agent_hook_decision,
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
@@ -213,9 +288,10 @@ fn pre_tool_deny(reason: &str) -> Value {
     })
 }
 
-fn permission_request_deny(reason: &str) -> Value {
+fn permission_request_deny(reason: &str, agent_hook_decision: Value) -> Value {
     json!({
         "systemMessage": reason,
+        "agentHookDecision": agent_hook_decision,
         "hookSpecificOutput": {
             "hookEventName": "PermissionRequest",
             "decision": {
@@ -226,13 +302,17 @@ fn permission_request_deny(reason: &str) -> Value {
     })
 }
 
-fn context(event: HookEvent, message: &str) -> Value {
-    json!({
+fn context(event: HookEvent, message: &str, agent_hook_decision: Option<Value>) -> Value {
+    let mut response = json!({
         "hookSpecificOutput": {
             "hookEventName": event.codex_name(),
             "additionalContext": message
         }
-    })
+    });
+    if let Some(agent_hook_decision) = agent_hook_decision {
+        response["agentHookDecision"] = agent_hook_decision;
+    }
+    response
 }
 
 fn looks_like_complex_harness_task(prompt: &str) -> bool {

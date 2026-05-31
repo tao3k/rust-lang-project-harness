@@ -15,6 +15,24 @@ pub(super) enum Profile {
 }
 
 impl Profile {
+    pub(super) fn language_id(self) -> &'static str {
+        match self {
+            Self::Rust => "rust",
+            Self::TypeScript => "typescript",
+        }
+    }
+
+    pub(super) fn provider_id(self) -> &'static str {
+        match self {
+            Self::Rust => "rs-harness",
+            Self::TypeScript => "ts-harness",
+        }
+    }
+
+    pub(super) fn binary(self) -> &'static str {
+        self.provider_id()
+    }
+
     pub(super) fn check_command(self) -> &'static str {
         match self {
             Self::Rust => RUST_CHECK,
@@ -53,6 +71,19 @@ impl HookEvent {
             Self::SubagentStart => "SubagentStart",
             Self::SubagentStop => "SubagentStop",
             Self::Stop => "Stop",
+        }
+    }
+
+    pub(super) fn semantic_name(self) -> &'static str {
+        match self {
+            Self::SessionStart => "session-start",
+            Self::UserPromptSubmit => "user-prompt",
+            Self::PreToolUse => "pre-tool",
+            Self::PermissionRequest => "permission-request",
+            Self::PostToolUse => "post-tool",
+            Self::SubagentStart => "subagent-start",
+            Self::SubagentStop => "subagent-stop",
+            Self::Stop => "stop",
         }
     }
 }
