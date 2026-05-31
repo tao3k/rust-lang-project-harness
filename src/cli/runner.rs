@@ -679,7 +679,7 @@ fn print_agent_help() {
          rs-harness agent doctor [--client codex] [--json] [PROJECT_ROOT]\n\
          rs-harness agent hook --client codex <event> [PROJECT_ROOT]\n\n\
          Installs or checks client-specific agent SKILL.org and hook assets.\n\
-         Codex assets use the project-local .codex/hooks.json hook config.\n\
+         Codex assets use the project-local .codex/config.toml hook config.\n\
          Use --json to emit the semantic-language registry contract."
     );
 }

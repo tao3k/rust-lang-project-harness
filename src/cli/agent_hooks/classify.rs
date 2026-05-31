@@ -14,14 +14,16 @@ pub(super) fn bulk_rust_read_reason(
     command: &str,
     policy: &CodexHookPolicy,
     project: &ProjectProfiles,
-) -> Option<&'static str> {
+) -> Option<String> {
     if !project.rust.enabled || !policy.profile(Profile::Rust).raw_search_requires_ingest {
         return None;
     }
-    if is_read_tool(payload) && value_has_rust_source_path(&payload.tool_input) {
-        return Some(rust_read_guard_reason());
+    if is_read_tool(payload)
+        && let Some(path) = rust_source_path_from_value(&payload.tool_input)
+    {
+        return Some(rust_direct_read_flow(&path));
     }
-    shell_bulk_reads_rust(command).then_some(rust_read_guard_reason())
+    shell_bulk_reads_rust(command).then(rust_bulk_pipe_flow)
 }
 
 pub(super) fn broad_raw_search_profiles(
@@ -76,20 +78,8 @@ pub(super) fn touched_files_by_profile(
 pub(super) fn command_evidence_profiles(command: &str) -> BTreeSet<Profile> {
     let lower = command.to_ascii_lowercase();
     [
-        (
-            lower.contains("rs-harness search prime")
-                || lower.contains("rs-harness search owner")
-                || lower.contains("rs-harness search dependency")
-                || lower.contains("rs-harness search deps"),
-            Profile::Rust,
-        ),
-        (
-            lower.contains("ts-harness search prime")
-                || lower.contains("ts-harness search owner")
-                || lower.contains("ts-harness search package")
-                || lower.contains("ts-harness search extension"),
-            Profile::TypeScript,
-        ),
+        (lower.contains("rs-harness search "), Profile::Rust),
+        (lower.contains("ts-harness search "), Profile::TypeScript),
     ]
     .into_iter()
     .filter_map(|(matched, profile)| matched.then_some(profile))
@@ -116,7 +106,7 @@ pub(super) fn raw_search_reason(profiles: &BTreeSet<Profile>) -> &'static str {
             "Broad search crosses harness profiles. Use profile-specific ingest through rs-harness or ts-harness."
         }
         (true, false) => {
-            "Raw broad Rust search must pipe to harness ingest: `rg -n \"<query>\" --glob '*.rs' src tests | rs-harness search ingest`."
+            "Raw broad Rust search must enter the rs-harness flow: `rg -n \"<query>\" --glob '*.rs' src tests | rs-harness search ingest items tests .`; if scope is unclear run `rs-harness search text <query> --explain --view seeds --seeds 6 .` and follow `|seed`/`next=`."
         }
         (false, true) => {
             "Raw broad TS/JS search must pipe to harness ingest: `rg -n \"<query>\" --glob '*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}' src tests apps packages | ts-harness search ingest`."
@@ -134,7 +124,7 @@ pub(super) fn prime_required_reason(profiles: &BTreeSet<Profile>) -> &'static st
             "Run Rust and TS/JS prime or focused owner search before editing mixed profile files."
         }
         (true, false) => {
-            "Run `rs-harness search prime` or `rs-harness search owner <path>` before editing Rust files."
+            "Run search flow before editing Rust: `rs-harness search prime --view seeds --seeds 8 .`, then `rs-harness search owner <path-or-owner> items --explain --view seeds .` or `rg -n \"<query>\" --glob '*.rs' src tests | rs-harness search ingest items tests .`."
         }
         (false, true) => {
             "Run `ts-harness search prime` or `ts-harness search owner <path>` before editing TS/JS files."
@@ -376,27 +366,31 @@ fn known_config_file(path: &str) -> bool {
         .any(|file| path.ends_with(file))
 }
 
-fn rust_read_guard_reason() -> &'static str {
-    "Direct Rust source reads are blocked. Use `rs-harness search prime .` for the project map, `rs-harness search owner <path-or-owner> items .` before opening an owner/file, `rs-harness search symbol <name> .` or `rs-harness search callsite <name> .` for symbols, and `rs-harness search deps <dep[/subpath][::api]> public-api .` for dependency API questions. Focused `rg -n \"<query>\" src tests` is allowed only when you already know the query."
-}
-
 fn is_read_tool(payload: &HookPayload) -> bool {
-    payload
-        .tool_name
-        .as_deref()
-        .is_some_and(|tool| tool == "Read" || tool == "read" || tool.ends_with("__read_file"))
+    payload.tool_name.as_deref().is_some_and(|tool| {
+        matches!(
+            tool,
+            "Read" | "read" | "read_file" | "mcp__filesystem__read_file"
+        ) || tool.ends_with("__read_file")
+            || (tool.starts_with("mcp__") && tool.contains("__read"))
+    })
 }
 
-fn value_has_rust_source_path(value: &Value) -> bool {
+fn rust_source_path_from_value(value: &Value) -> Option<String> {
     match value {
-        Value::String(text) => rust_source_path_or_glob(text),
-        Value::Array(values) => values.iter().any(value_has_rust_source_path),
-        Value::Object(fields) => fields.iter().any(|(key, value)| {
+        Value::String(text) => rust_source_path_or_glob(text).then(|| text.to_string()),
+        Value::Array(values) => values.iter().find_map(rust_source_path_from_value),
+        Value::Object(fields) => fields.iter().find_map(|(key, value)| {
             let path_key = matches!(key.as_str(), "path" | "file" | "filename" | "file_path");
-            (path_key && value.as_str().is_some_and(rust_source_path_or_glob))
-                || value_has_rust_source_path(value)
+            if path_key
+                && let Some(path) = value.as_str()
+                && rust_source_path_or_glob(path)
+            {
+                return Some(path.to_string());
+            }
+            rust_source_path_from_value(value)
         }),
-        _ => false,
+        _ => None,
     }
 }
 
@@ -444,4 +438,27 @@ fn command_has_content_reader(command: &str) -> bool {
     ]
     .into_iter()
     .any(|tool| command_has_tool(command, tool))
+}
+
+fn rust_direct_read_flow(path: &str) -> String {
+    format!(
+        "[rs-harness-flow] blocked=read-rs path={path} policy=search-first\n\
+         |prefer run=`rs-harness search owner {path} items --trace --view both .`\n\
+         |tests run=`rs-harness search tests {path} --view seeds --seeds 4 .`\n\
+         |orient run=`rs-harness search prime --view seeds --seeds 8 .`\n\
+         |plan run=`rs-harness search owner {path} --explain --view seeds --seeds 6 .`\n\
+         |pipe run=`rg -n \"<query>\" --glob '*.rs' src tests | rs-harness search ingest items tests .`\n\
+         |rule follow `|seed` and `next=` lines; do not Read Rust source files directly"
+    )
+}
+
+fn rust_bulk_pipe_flow() -> String {
+    "[rs-harness-flow] blocked=bulk-rs-dump policy=pipe-to-ingest\n\
+     |prefer run=`rg -n \"<query>\" --glob '*.rs' src tests | rs-harness search ingest items tests .`\n\
+     |paths run=`fd -e rs . src tests | rs-harness search ingest items tests .`\n\
+     |after run=`rs-harness search owner <top-owner> items --trace --view both .`\n\
+     |deps run=`rs-harness search deps <dep[/subpath][::api]> public-api --trace --view seeds --seeds 6 .`\n\
+     |plan run=`rs-harness search text <query> --explain --view seeds --seeds 6 .`\n\
+     |subagent assign only one bounded search packet and require `[search-subagent] role=... evidence=... missing=... next=... risk=...`"
+        .to_string()
 }

@@ -40,6 +40,7 @@ pub(crate) fn run_agent_hook(project_root: &Path, client: &str, event: &str) -> 
         }
         HookEvent::UserPromptSubmit => user_prompt_response(&payload, &project),
         HookEvent::PreToolUse => pre_tool_response(&payload, &policy, &project, &state),
+        HookEvent::PermissionRequest => permission_request_response(&payload, &policy, &project),
         HookEvent::PostToolUse => post_tool_response(&payload, &policy, &project, &mut state),
         HookEvent::SubagentStart => Some(context(
             HookEvent::SubagentStart,
@@ -67,7 +68,7 @@ fn user_prompt_response(payload: &HookPayload, project: &ProjectProfiles) -> Opt
     }
     Some(context(
         HookEvent::UserPromptSubmit,
-        "Complex code task: choose Rust or TS/JS profile first, run that profile's deep prime, then use profile-specific ingest for broad candidates.",
+        "Complex code task: run `rs-harness search prime --view seeds --seeds 8 .`, pick the next seed, and use subagents only for bounded `rs-harness search ... --view seeds` or `rg -n ... | rs-harness search ingest items tests .` lanes.",
     ))
 }
 
@@ -79,7 +80,7 @@ fn pre_tool_response(
 ) -> Option<Value> {
     let command = tool_command(payload);
     if let Some(reason) = bulk_rust_read_reason(payload, &command, policy, project) {
-        return Some(pre_tool_deny(reason));
+        return Some(pre_tool_deny(&reason));
     }
 
     let raw_profiles = broad_raw_search_profiles(&command, policy, project);
@@ -108,6 +109,16 @@ fn pre_tool_response(
     Some(pre_tool_deny(prime_required_reason(&missing_prime)))
 }
 
+fn permission_request_response(
+    payload: &HookPayload,
+    policy: &CodexHookPolicy,
+    project: &ProjectProfiles,
+) -> Option<Value> {
+    let command = tool_command(payload);
+    bulk_rust_read_reason(payload, &command, policy, project)
+        .map(|reason| permission_request_deny(&reason))
+}
+
 fn post_tool_response(
     payload: &HookPayload,
     policy: &CodexHookPolicy,
@@ -134,7 +145,7 @@ fn subagent_start_context(payload: &HookPayload) -> &'static str {
         tool_command(payload)
     );
     if text.contains("rs-harness") {
-        return "Read-only Rust search subagent. Use only assigned rs-harness commands and return `[search-subagent] role=... evidence=... missing=... next=... risk=...`.";
+        return "Read-only Rust search subagent. Use assigned `rs-harness search ... --view seeds` or `rg -n ... | rs-harness search ingest items tests .` only; return one line `[search-subagent] role=... evidence=... missing=... next=... risk=...`.";
     }
     if text.contains("ts-harness") {
         return "Read-only TS/JS search subagent. Use only assigned ts-harness commands and return `[search-subagent] role=... evidence=... missing=... next=... risk=...`.";
@@ -198,6 +209,19 @@ fn pre_tool_deny(reason: &str) -> Value {
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
             "permissionDecisionReason": reason
+        }
+    })
+}
+
+fn permission_request_deny(reason: &str) -> Value {
+    json!({
+        "systemMessage": reason,
+        "hookSpecificOutput": {
+            "hookEventName": "PermissionRequest",
+            "decision": {
+                "behavior": "deny",
+                "message": reason
+            }
         }
     })
 }

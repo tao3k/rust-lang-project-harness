@@ -206,7 +206,8 @@ provide the RFC validation entrypoints.
 to 8 seeds, and accepts `--seeds N` when a caller needs a tighter packet.
 `agent install` and `agent doctor` manage client-specific integration assets
 without assuming a specific agent client. Codex installs project-local
-`.codex/hooks.json`, `.codex/hooks/*`, and `.codex/skills/rs-harness/SKILL.org`.
+`.codex/config.toml`, `.codex/harness-policy.json`, and
+`.codex/skills/rs-harness/SKILL.org`.
 `agent doctor --json` emits the semantic-language registry with callable methods
 and method descriptors.
 `search docs` and `search docs-use` prefer native parser facts for local public

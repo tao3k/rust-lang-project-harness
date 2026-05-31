@@ -53,14 +53,14 @@ Raw TS/JS rg must pipe to ingest: `rg -n "<query>" --glob "*.{ts,tsx,js,jsx,mts,
 Subagent must return `[search-subagent] role=... evidence=... missing=... next=... risk=...`.
 #+end_src
 
-Installed Codex hook assets use project-local =.codex/hooks.json= and scripts
-under =.codex/hooks= with =agent_rs_harness_codex_*= names. The default state
-file is =.codex/harness-state/session.json= and the default policy file is
+Installed Codex hook assets use project-local =.codex/config.toml= that calls
+=rs-harness agent hook --client codex <event>= directly. The default state file
+is =.codex/harness-state/session.json= and the default policy file is
 =.codex/harness-policy.json=. Codex clients can wire their =SessionStart=,
-=UserPromptSubmit=, =PreToolUse=, =PostToolUse=, =SubagentStart=,
-=SubagentStop=, and =Stop= events through the generated hooks config. Local
-shell matching includes both =Bash= and Codex Desktop's =exec_command= tool
-name.
+=UserPromptSubmit=, =PreToolUse=, =PermissionRequest=, =PostToolUse=,
+=SubagentStart=, =SubagentStop=, and =Stop= events through the generated TOML
+config. Local tool matching includes =Read=, MCP read-file aliases, =Bash=, and
+Codex Desktop's =exec_command= tool name.
 
 * Non-negotiable rules
 

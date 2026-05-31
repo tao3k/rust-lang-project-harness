@@ -131,38 +131,24 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
     let stdout = String::from_utf8(install.stdout).expect("utf8 stdout");
     assert!(
         stdout.starts_with(
-            "[agent-doctor] action=installed client=codex skill=true policy=true config=true hooks=7"
+            "[agent-doctor] action=installed client=codex skill=true policy=true config=true hooks=8"
         ),
         "{stdout}"
     );
     assert!(root.join(".codex/skills/rs-harness/SKILL.org").exists());
     assert!(root.join(".codex/harness-policy.json").exists());
-    assert!(root.join(".codex/hooks.json").exists());
-    assert!(
-        root.join(".codex/hooks/agent_rs_harness_codex_session_start.sh")
-            .exists()
-    );
-    assert!(
-        root.join(".codex/hooks/agent_rs_harness_codex_pre_tool.sh")
-            .exists()
-    );
-    assert!(
-        root.join(".codex/hooks/agent_rs_harness_codex_subagent_stop.sh")
-            .exists()
-    );
+    assert!(root.join(".codex/config.toml").exists());
+    assert!(!root.join(".codex/hooks.json").exists());
     let hooks_config =
-        fs::read_to_string(root.join(".codex/hooks.json")).expect("codex hooks config");
-    let hooks_value = serde_json::from_str::<Value>(&hooks_config).expect("hooks json");
-    assert_eq!(
-        hooks_value["hooks"]["PreToolUse"][0]["matcher"],
-        "Read|Bash|exec_command|apply_patch|Edit|Write"
-    );
-    assert!(
-        hooks_value["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
-            .as_str()
-            .expect("pre-tool command")
-            .contains(".codex/hooks/agent_rs_harness_codex_pre_tool.sh")
-    );
+        fs::read_to_string(root.join(".codex/config.toml")).expect("codex config.toml");
+    assert!(hooks_config.contains("[[hooks.SessionStart]]"));
+    assert!(hooks_config.contains("[[hooks.UserPromptSubmit]]"));
+    assert!(hooks_config.contains("[[hooks.PermissionRequest]]"));
+    assert!(hooks_config.contains("[[hooks.SubagentStart]]"));
+    assert!(hooks_config.contains("[[hooks.Stop]]"));
+    assert!(hooks_config.contains("Read|read_file|mcp__.*__read.*|Bash|exec_command"));
+    assert!(hooks_config.contains("rs-harness agent hook --client codex pre-tool"));
+    assert!(hooks_config.contains("rs-harness agent hook --client codex permission-request"));
     let skill = fs::read_to_string(root.join(".codex/skills/rs-harness/SKILL.org")).expect("skill");
     assert!(skill.contains("rs-harness Skill"));
     assert!(skill.contains("Hooks boundary"));
@@ -319,8 +305,11 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
         value["hookSpecificOutput"]["permissionDecisionReason"]
             .as_str()
             .is_some_and(|reason| {
-                reason.contains("rs-harness search owner")
-                    && reason.contains("rs-harness search prime")
+                reason.contains("[rs-harness-flow] blocked=read-rs")
+                    && reason
+                        .contains("rs-harness search owner src/lib.rs items --trace --view both")
+                    && reason.contains("rs-harness search owner src/lib.rs --explain --view seeds")
+                    && reason.contains("rs-harness search ingest items tests")
             }),
         "{value}"
     );
@@ -341,6 +330,45 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
     assert_eq!(
         value["hookSpecificOutput"]["permissionDecision"].as_str(),
         Some("deny")
+    );
+    assert!(
+        value["hookSpecificOutput"]["permissionDecisionReason"]
+            .as_str()
+            .is_some_and(|reason| {
+                reason.contains("[rs-harness-flow] blocked=bulk-rs-dump")
+                    && reason.contains("pipe-to-ingest")
+                    && reason.contains("rs-harness search deps <dep[/subpath][::api]> public-api")
+                    && reason.contains("[search-subagent]")
+            }),
+        "{value}"
+    );
+
+    let permission_request = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "permission-request".as_ref(),
+            root.as_os_str(),
+        ],
+        "{\"hook_event_name\":\"PermissionRequest\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"cat src/*.rs\"}}",
+    );
+    assert!(
+        permission_request.status.success(),
+        "{permission_request:?}"
+    );
+    let value = serde_json::from_slice::<Value>(&permission_request.stdout)
+        .expect("permission-request JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["decision"]["behavior"].as_str(),
+        Some("deny")
+    );
+    assert!(
+        value["hookSpecificOutput"]["decision"]["message"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("rs-harness search ingest items tests")),
+        "{value}"
     );
 
     let docs_search = run_cli_with_stdin(
