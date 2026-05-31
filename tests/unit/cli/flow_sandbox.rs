@@ -58,6 +58,7 @@ fn cli_rust_flow_sandbox_drill_exercises_registry_prime_search_and_ingest() {
     for schema_id in [
         "agent.semantic-protocols.semantic-language-registry",
         "agent.semantic-protocols.semantic-search-packet",
+        "agent.semantic-protocols.languages.rust.rs-harness.capabilities",
     ] {
         assert!(
             schemas

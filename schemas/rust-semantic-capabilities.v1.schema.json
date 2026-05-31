@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-semantic-protocols.local/languages/rust/schemas/rust-semantic-capabilities.v1.schema.json",
+  "title": "Rust Semantic Capabilities",
+  "description": "Rust provider-specific capability vocabulary for semantic-language registry method descriptors.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaId", "schemaVersion", "languageId", "providerId"],
+  "properties": {
+    "schemaId": {
+      "const": "agent.semantic-protocols.languages.rust.rs-harness.capabilities"
+    },
+    "schemaVersion": {
+      "const": "1"
+    },
+    "languageId": {
+      "const": "rust"
+    },
+    "providerId": {
+      "const": "rs-harness"
+    },
+    "capability": {
+      "$ref": "#/$defs/capabilityDescriptor"
+    },
+    "ingestSurface": {
+      "$ref": "#/$defs/ingestSurfaceDescriptor"
+    }
+  },
+  "$defs": {
+    "namespace": {
+      "enum": ["semantic", "rust"]
+    },
+    "capabilityDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["languageId", "namespace", "name"],
+      "properties": {
+        "languageId": {
+          "const": "rust"
+        },
+        "namespace": {
+          "$ref": "#/$defs/namespace"
+        },
+        "name": {
+          "enum": [
+            "workspace-router",
+            "cargo-workspace-search",
+            "package-prime-map",
+            "rust-module-tree-prime",
+            "reasoning-owner-search",
+            "parser-visible-module-owner-search",
+            "test-owner-search",
+            "path-owner-fallback",
+            "dependency-manifest-search",
+            "dependency-local-usage-search",
+            "dependency-version-scope",
+            "dependency-api-token-usage-search",
+            "cargo-feature-search",
+            "cargo-target-search",
+            "cargo-cfg-search",
+            "symbol-definition-search",
+            "owner-callsite-search",
+            "import-edge-search",
+            "owner-path-text-search",
+            "parser-visible-source-text-search",
+            "native-api-shape-search",
+            "native-docs-api-search",
+            "public-external-type-search",
+            "pattern-recipe-search",
+            "external-candidate-ingest",
+            "stdin-shape-detection",
+            "owner-grouped-ingest"
+          ]
+        }
+      }
+    },
+    "ingestSurfaceDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["languageId", "namespace", "name"],
+      "properties": {
+        "languageId": {
+          "const": "rust"
+        },
+        "namespace": {
+          "$ref": "#/$defs/namespace"
+        },
+        "name": {
+          "enum": [
+            "non-parser-path",
+            "non-parser-text",
+            "docs-text",
+            "schema-json",
+            "generated-artifact"
+          ]
+        }
+      }
+    }
+  }
+}
