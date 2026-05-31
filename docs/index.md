@@ -3,6 +3,7 @@
 This package is the Rust-language counterpart to
 `xiuxian-harness-python-lang-project`.
 
+- [Overview](00_overview.md)
 - [Harness Boundary](01_core/101_harness_boundary.md)
 - [Rule Catalog](03_features/201_rule_catalog.md)
 - [Runner Modes](03_features/202_runner_modes.md)
