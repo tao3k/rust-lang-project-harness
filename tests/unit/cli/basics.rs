@@ -94,44 +94,69 @@ fn cli_check_command_renders_policy_surface() {
 }
 
 #[test]
-fn cli_agent_install_and_doctor_are_agent_generic() {
+fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
+    write_manifest(root, "codex-hooks");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Hook fixture.\n").expect("write source");
 
     let doctor = run_cli(["agent".as_ref(), "doctor".as_ref(), root.as_os_str()]);
     assert!(doctor.status.success(), "{doctor:?}");
     let stdout = String::from_utf8(doctor.stdout).expect("utf8 stdout");
     assert!(
-        stdout.starts_with("[agent-doctor] action=checked skill=false policy=false hooks=0"),
+        stdout.starts_with(
+            "[agent-doctor] action=checked client=none skill=false policy=false hooks=0"
+        ),
         "{stdout}"
     );
-    assert!(!stdout.contains("codex"), "{stdout}");
+    assert!(stdout.contains("--client codex"), "{stdout}");
 
-    let install = run_cli(["agent".as_ref(), "install".as_ref(), root.as_os_str()]);
+    let missing_client = run_cli(["agent".as_ref(), "install".as_ref(), root.as_os_str()]);
+    assert!(!missing_client.status.success(), "{missing_client:?}");
+    assert!(
+        String::from_utf8(missing_client.stderr)
+            .expect("stderr")
+            .contains("--client codex")
+    );
+
+    let install = run_cli([
+        "agent".as_ref(),
+        "install".as_ref(),
+        "--client".as_ref(),
+        "codex".as_ref(),
+        root.as_os_str(),
+    ]);
     assert!(install.status.success(), "{install:?}");
     let stdout = String::from_utf8(install.stdout).expect("utf8 stdout");
     assert!(
-        stdout.starts_with("[agent-doctor] action=installed skill=true policy=true hooks=7"),
+        stdout.starts_with(
+            "[agent-doctor] action=installed client=codex skill=true policy=true hooks=7"
+        ),
         "{stdout}"
     );
-    assert!(root.join(".agents/skills/rs-harness/SKILL.org").exists());
-    assert!(root.join(".agents/harness-policy.json").exists());
     assert!(
-        root.join(".agents/hooks/agent_rs_harness_session_start.sh")
+        root.join(".agents/codex/skills/rs-harness/SKILL.org")
+            .exists()
+    );
+    assert!(root.join(".agents/codex/harness-policy.json").exists());
+    assert!(
+        root.join(".agents/codex/hooks/agent_rs_harness_codex_session_start.sh")
             .exists()
     );
     assert!(
-        root.join(".agents/hooks/agent_rs_harness_pre_tool.sh")
+        root.join(".agents/codex/hooks/agent_rs_harness_codex_pre_tool.sh")
             .exists()
     );
     assert!(
-        root.join(".agents/hooks/agent_rs_harness_subagent_stop.sh")
+        root.join(".agents/codex/hooks/agent_rs_harness_codex_subagent_stop.sh")
             .exists()
     );
     let skill =
-        fs::read_to_string(root.join(".agents/skills/rs-harness/SKILL.org")).expect("skill");
+        fs::read_to_string(root.join(".agents/codex/skills/rs-harness/SKILL.org")).expect("skill");
     assert!(skill.contains("rs-harness Skill"));
     assert!(skill.contains("Hooks boundary"));
+    assert!(skill.contains("Profile selection"));
     assert!(skill.contains("versionScope=external"));
     assert!(skill.contains("source=registry-source"));
 
@@ -143,7 +168,6 @@ fn cli_agent_install_and_doctor_are_agent_generic() {
     ]);
     assert!(registry.status.success(), "{registry:?}");
     let stdout = String::from_utf8(registry.stdout).expect("utf8 stdout");
-    assert!(!stdout.contains("codex"), "{stdout}");
     let value = serde_json::from_str::<Value>(&stdout).expect("agent registry json");
     assert_eq!(
         value["registryId"],
@@ -210,6 +234,8 @@ fn cli_agent_install_and_doctor_are_agent_generic() {
         [
             "agent".as_ref(),
             "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
             "pre-tool".as_ref(),
             root.as_os_str(),
         ],
@@ -236,29 +262,54 @@ fn cli_agent_install_and_doctor_are_agent_generic() {
         "{value}"
     );
 
+    let docs_search = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"rg -n \\\"timeout\\\" README.md docs/\"}}",
+    );
+    assert!(docs_search.status.success(), "{docs_search:?}");
+    assert!(docs_search.stdout.is_empty(), "{docs_search:?}");
+
+    let exact_file_search = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"rg -n \\\"timeout\\\" src/lib.rs\"}}",
+    );
+    assert!(exact_file_search.status.success(), "{exact_file_search:?}");
+    assert!(exact_file_search.stdout.is_empty(), "{exact_file_search:?}");
+
     let post_edit = run_cli_with_stdin(
         [
             "agent".as_ref(),
             "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
             "post-tool".as_ref(),
             root.as_os_str(),
         ],
         "{\"hook_event_name\":\"PostToolUse\",\"turn_id\":\"t1\",\"tool_name\":\"apply_patch\",\"tool_input\":{\"command\":\"*** Begin Patch\\n*** Update File: src/lib.rs\\n@@\\n+pub fn changed() {}\\n*** End Patch\\n\"}}",
     );
     assert!(post_edit.status.success(), "{post_edit:?}");
-    let value = serde_json::from_slice::<Value>(&post_edit.stdout).expect("post-edit JSON");
-    assert_eq!(value["decision"].as_str(), Some("block"));
-    assert!(
-        value["reason"]
-            .as_str()
-            .is_some_and(|reason| reason.contains("check --changed")),
-        "{value}"
-    );
+    assert!(post_edit.stdout.is_empty(), "{post_edit:?}");
 
     let stop_without_check = run_cli_with_stdin(
         [
             "agent".as_ref(),
             "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
             "stop".as_ref(),
             root.as_os_str(),
         ],
@@ -281,6 +332,8 @@ fn cli_agent_install_and_doctor_are_agent_generic() {
         [
             "agent".as_ref(),
             "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
             "post-tool".as_ref(),
             root.as_os_str(),
         ],
@@ -289,50 +342,26 @@ fn cli_agent_install_and_doctor_are_agent_generic() {
     assert!(changed_check.status.success(), "{changed_check:?}");
     assert!(changed_check.stdout.is_empty(), "{changed_check:?}");
 
-    let stop_without_synthesis = run_cli_with_stdin(
+    let stop_after_check = run_cli_with_stdin(
         [
             "agent".as_ref(),
             "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
             "stop".as_ref(),
             root.as_os_str(),
         ],
         "{\"hook_event_name\":\"Stop\",\"turn_id\":\"t1\",\"last_assistant_message\":\"draft\"}",
     );
-    assert!(
-        stop_without_synthesis.status.success(),
-        "{stop_without_synthesis:?}"
-    );
-    let value = serde_json::from_slice::<Value>(&stop_without_synthesis.stdout).expect("stop JSON");
-    assert_eq!(value["decision"].as_str(), Some("block"));
-    assert!(
-        value["reason"]
-            .as_str()
-            .is_some_and(|reason| reason.contains("[search-synthesis]")),
-        "{value}"
-    );
-
-    let stop_with_synthesis = run_cli_with_stdin(
-        [
-            "agent".as_ref(),
-            "hook".as_ref(),
-            "stop".as_ref(),
-            root.as_os_str(),
-        ],
-        "{\"hook_event_name\":\"Stop\",\"turn_id\":\"t1\",\"last_assistant_message\":\"[search-synthesis] flow=hook owners=src/lib.rs findings=0 missing=- next=- edit=done\"}",
-    );
-    assert!(
-        stop_with_synthesis.status.success(),
-        "{stop_with_synthesis:?}"
-    );
-    assert!(
-        stop_with_synthesis.stdout.is_empty(),
-        "{stop_with_synthesis:?}"
-    );
+    assert!(stop_after_check.status.success(), "{stop_after_check:?}");
+    assert!(stop_after_check.stdout.is_empty(), "{stop_after_check:?}");
 
     let subagent_stop = run_cli_with_stdin(
         [
             "agent".as_ref(),
             "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
             "subagent-stop".as_ref(),
             root.as_os_str(),
         ],

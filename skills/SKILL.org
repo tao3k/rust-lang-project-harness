@@ -12,10 +12,28 @@ Default output is compact agent text. Use =--json= only for structured tools.
 There is no =--compact= flag. Installed wrappers may expose the protocol as
 =rs-harness=.
 
+* Profile selection
+
+Use =rs-harness= only for Rust project files:
+
+- =*.rs=
+- =Cargo.toml=, =Cargo.lock=, =build.rs=
+- Rust tool and lint config files
+
+Use =ts-harness= only for TypeScript/JavaScript project files:
+
+- =*.ts=, =*.tsx=, =*.js=, =*.jsx=, =*.mts=, =*.cts=, =*.mjs=, =*.cjs=
+- =package.json=
+- =tsconfig*.json=, =jsconfig.json=
+- JS/TS build and test config files
+
+Do not invoke either harness for docs-only edits unless the docs mention source
+changes that require code validation.
+
 * Hooks boundary
 
-This skill teaches the search protocol. Hooks enforce checkpoints. Do not move
-intent planning into hooks.
+This skill teaches the search protocol. Codex hooks enforce checkpoints. Do not
+move intent planning into hooks.
 
 Hooks may nudge or block these gaps:
 
@@ -31,14 +49,16 @@ Hook feedback must stay compact and actionable. Examples:
 #+begin_src text
 Run deep prime first: `rs-harness search prime`.
 Raw rg must pipe to ingest: `rg -n "<query>" src tests | rs-harness search ingest`.
+Raw TS/JS rg must pipe to ingest: `rg -n "<query>" --glob "*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}" src tests apps packages | ts-harness search ingest`.
 Subagent must return `[search-subagent] role=... evidence=... missing=... next=... risk=...`.
 #+end_src
 
-Installed hook assets live under =.agents/hooks= with =agent_rs_harness_*= names.
-The default state file is =.agents/harness-state/session.json= and the default
-policy file is =.agents/harness-policy.json=. Codex-compatible clients can wire
-their =SessionStart=, =UserPromptSubmit=, =PreToolUse=, =PostToolUse=,
-=SubagentStart=, =SubagentStop=, and =Stop= events to these generic scripts.
+Installed Codex hook assets live under =.agents/codex/hooks= with
+=agent_rs_harness_codex_*= names. The default state file is
+=.agents/codex/harness-state/session.json= and the default policy file is
+=.agents/codex/harness-policy.json=. Codex clients can wire their
+=SessionStart=, =UserPromptSubmit=, =PreToolUse=, =PostToolUse=,
+=SubagentStart=, =SubagentStop=, and =Stop= events to these scripts.
 
 * Non-negotiable rules
 
@@ -307,19 +327,29 @@ rs-harness search owner <top-owner-or-path>
 rs-harness search tests <top-owner-or-path>
 #+end_src
 
-* Flow: external candidate streams
+* Flow: Rust external candidate streams
 
 Use this only after built-in search is too sparse or the task needs lexical/file
 expansion.
 
 #+begin_src sh
-rg -n "<query>" src tests | rs-harness search ingest
-fd -e rs "<name>" src tests | rs-harness search ingest
+rg -n "<query>" --glob "*.rs" src tests benches examples | rs-harness search ingest
+fd -e rs "<name>" src tests benches examples | rs-harness search ingest
 git diff --name-only | rs-harness search ingest
 #+end_src
 
 =ingest= auto-detects stdin format and groups candidates by owner/item/test.
 Never paste raw =rg= / =fd= output into the chat.
+
+* Flow: TypeScript / JavaScript external candidate streams
+
+Use the TS/JS harness only for TS/JS source, package, and build/test config
+surfaces.
+
+#+begin_src sh
+rg -n "<query>" --glob "*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}" src tests apps packages | ts-harness search ingest
+fd -e ts -e tsx -e js -e jsx "<name>" src tests apps packages | ts-harness search ingest
+#+end_src
 
 * Flow: structural pattern
 

@@ -70,6 +70,8 @@ fn agent_registry_json(project_root: &Path) -> Value {
         json!({
             "method": "agent/install",
             "command": "agent",
+            "clients": ["codex"],
+            "requiredOptions": ["--client codex"],
             "outputSchemaIds": ["agent.semantic-protocols.semantic-language-registry"],
             "supportsJson": true,
             "supportsCompact": true
@@ -77,6 +79,7 @@ fn agent_registry_json(project_root: &Path) -> Value {
         json!({
             "method": "agent/doctor",
             "command": "agent",
+            "clients": ["codex"],
             "outputSchemaIds": ["agent.semantic-protocols.semantic-language-registry"],
             "supportsJson": true,
             "supportsCompact": true
@@ -84,6 +87,8 @@ fn agent_registry_json(project_root: &Path) -> Value {
         json!({
             "method": "agent/hook",
             "command": "agent",
+            "clients": ["codex"],
+            "requiredOptions": ["--client codex"],
             "input": "hook event JSON on stdin",
             "supportsJson": true,
             "supportsCompact": false,

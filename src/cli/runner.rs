@@ -9,15 +9,25 @@ use std::process::ExitCode;
 
 const AGENT_SKILL_CONTENT: &str = include_str!("../../skills/SKILL.org");
 const AGENT_POLICY_CONTENT: &str = r#"{
-  "mode": "strict",
-  "prime_required_before_edit": true,
-  "raw_rg_requires_ingest": true,
-  "raw_fd_requires_ingest": true,
-  "raw_ast_grep_blocked": true,
-  "changed_check_required_after_edit": true,
-  "subagent_evidence_required": true,
-  "synthesis_required_after_edit": true,
-  "exact_file_edit_exception": true
+  "profiles": {
+    "rust": {
+      "enabled": true,
+      "prime_required_before_edit": true,
+      "raw_search_requires_ingest": true,
+      "changed_check_required": true
+    },
+    "typescript": {
+      "enabled": true,
+      "prime_required_before_edit": true,
+      "raw_search_requires_ingest": true,
+      "changed_check_required": true
+    }
+  },
+  "global": {
+    "raw_ast_grep_blocked": true,
+    "exact_file_edit_exception": true,
+    "docs_only_exception": true
+  }
 }
 "#;
 
@@ -131,26 +141,28 @@ fn run_agent(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitC
     let project_root = options.project_root()?;
     match options.command.as_str() {
         "install" => {
-            install_agent_assets(&project_root)?;
+            let client = require_agent_client(&options)?;
+            install_agent_assets(&project_root, client)?;
             if options.json {
                 print_agent_registry(&project_root)?;
             } else {
-                print_agent_doctor(&project_root, "installed")?;
+                print_agent_doctor(&project_root, "installed", Some(client))?;
             }
         }
         "doctor" => {
             if options.json {
                 print_agent_registry(&project_root)?;
             } else {
-                print_agent_doctor(&project_root, "checked")?;
+                print_agent_doctor(&project_root, "checked", options.client.as_deref())?;
             }
         }
         "hook" => {
+            let client = require_agent_client(&options)?;
             let event = options
                 .hook_event
                 .as_deref()
                 .ok_or_else(|| "expected agent hook event".to_string())?;
-            run_agent_hook(&project_root, event)?;
+            run_agent_hook(&project_root, client, event)?;
         }
         other => return Err(format!("unknown agent command: {other}")),
     }
@@ -244,6 +256,7 @@ struct CheckOptions {
 struct AgentOptions {
     command: String,
     hook_event: Option<String>,
+    client: Option<String>,
     json: bool,
     help: bool,
     paths: Vec<PathBuf>,
@@ -254,6 +267,7 @@ impl Default for AgentOptions {
         Self {
             command: "doctor".to_string(),
             hook_event: None,
+            client: None,
             json: false,
             help: false,
             paths: Vec::new(),
@@ -524,7 +538,18 @@ impl AgentOptions {
     fn parse(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<Self, String> {
         let mut options = Self::default();
         let mut positional_only = false;
+        let mut pending_option: Option<String> = None;
         for arg in args {
+            if let Some(option) = pending_option.take() {
+                let Some(value) = arg.to_str() else {
+                    return Err(format!("expected UTF-8 value for {option}"));
+                };
+                match option.as_str() {
+                    "--client" => options.set_client(value)?,
+                    _ => unreachable!("unknown pending option"),
+                }
+                continue;
+            }
             if positional_only {
                 options.paths.push(PathBuf::from(arg));
                 continue;
@@ -536,6 +561,8 @@ impl AgentOptions {
             match value {
                 "--" => positional_only = true,
                 "--json" => options.json = true,
+                "--client" => pending_option = Some(value.to_string()),
+                "--codex" => options.set_client("codex")?,
                 "--help" | "-h" => options.help = true,
                 value if value.starts_with('-') => {
                     return Err(format!("unknown agent option: {value}"));
@@ -548,6 +575,9 @@ impl AgentOptions {
                 }
                 _ => options.paths.push(PathBuf::from(arg)),
             }
+        }
+        if let Some(option) = pending_option {
+            return Err(format!("expected value after {option}"));
         }
         if options.paths.len() > 1 {
             return Err("expected at most one PROJECT_ROOT argument".to_string());
@@ -563,6 +593,21 @@ impl AgentOptions {
             }
             _ => unreachable!("parse enforces at most one path"),
         }
+    }
+
+    fn set_client(&mut self, client: &str) -> Result<(), String> {
+        if !matches!(client, "codex") {
+            return Err(format!("unsupported agent client: {client}"));
+        }
+        if self
+            .client
+            .as_deref()
+            .is_some_and(|existing| existing != client)
+        {
+            return Err("expected only one agent client".to_string());
+        }
+        self.client = Some(client.to_string());
+        Ok(())
     }
 }
 
@@ -654,18 +699,28 @@ fn print_check_help() {
 
 fn print_agent_help() {
     println!(
-        "rs-harness agent install [--json] [PROJECT_ROOT]\n\
-         rs-harness agent doctor [--json] [PROJECT_ROOT]\n\
-         rs-harness agent hook <event> [PROJECT_ROOT]\n\n\
-         Installs or checks generic agent SKILL.org and hook assets under .agents/.\n\
+        "rs-harness agent install --client codex [--json] [PROJECT_ROOT]\n\
+         rs-harness agent doctor [--client codex] [--json] [PROJECT_ROOT]\n\
+         rs-harness agent hook --client codex <event> [PROJECT_ROOT]\n\n\
+         Installs or checks client-specific agent SKILL.org and hook assets under .agents/.\n\
          Use --json to emit the semantic-language registry contract."
     );
 }
 
-fn install_agent_assets(project_root: &Path) -> Result<(), String> {
-    let skill_dir = project_root.join(".agents/skills/rs-harness");
-    let hook_dir = project_root.join(".agents/hooks");
-    let policy_path = project_root.join(".agents/harness-policy.json");
+fn require_agent_client(options: &AgentOptions) -> Result<&str, String> {
+    options
+        .client
+        .as_deref()
+        .ok_or_else(|| "expected agent client: --client codex".to_string())
+}
+
+fn install_agent_assets(project_root: &Path, client: &str) -> Result<(), String> {
+    if client != "codex" {
+        return Err(format!("unsupported agent client: {client}"));
+    }
+    let skill_dir = project_root.join(".agents/codex/skills/rs-harness");
+    let hook_dir = project_root.join(".agents/codex/hooks");
+    let policy_path = project_root.join(".agents/codex/harness-policy.json");
     fs::create_dir_all(&skill_dir)
         .map_err(|error| format!("failed to create agent skill dir: {error}"))?;
     fs::create_dir_all(&hook_dir)
@@ -695,43 +750,45 @@ fn agent_hook_assets() -> &'static [AgentHookAsset] {
         AgentHookAsset {
             label: "session-start",
             event: "session-start",
-            file_name: "agent_rs_harness_session_start.sh",
+            file_name: "agent_rs_harness_codex_session_start.sh",
         },
         AgentHookAsset {
             label: "user-prompt",
             event: "user-prompt",
-            file_name: "agent_rs_harness_user_prompt.sh",
+            file_name: "agent_rs_harness_codex_user_prompt.sh",
         },
         AgentHookAsset {
             label: "pre-tool",
             event: "pre-tool",
-            file_name: "agent_rs_harness_pre_tool.sh",
+            file_name: "agent_rs_harness_codex_pre_tool.sh",
         },
         AgentHookAsset {
             label: "post-tool",
             event: "post-tool",
-            file_name: "agent_rs_harness_post_tool.sh",
+            file_name: "agent_rs_harness_codex_post_tool.sh",
         },
         AgentHookAsset {
             label: "subagent-start",
             event: "subagent-start",
-            file_name: "agent_rs_harness_subagent_start.sh",
+            file_name: "agent_rs_harness_codex_subagent_start.sh",
         },
         AgentHookAsset {
             label: "subagent-stop",
             event: "subagent-stop",
-            file_name: "agent_rs_harness_subagent_stop.sh",
+            file_name: "agent_rs_harness_codex_subagent_stop.sh",
         },
         AgentHookAsset {
             label: "stop",
             event: "stop",
-            file_name: "agent_rs_harness_stop.sh",
+            file_name: "agent_rs_harness_codex_stop.sh",
         },
     ]
 }
 
 fn agent_hook_script(event: &str) -> String {
-    format!("#!/usr/bin/env bash\nset -euo pipefail\n\nrs-harness agent hook {event}\n")
+    format!(
+        "#!/usr/bin/env bash\nset -euo pipefail\n\nrs-harness agent hook --client codex {event}\n"
+    )
 }
 
 fn write_agent_hook(path: &Path, content: &str) -> Result<(), String> {
@@ -749,20 +806,38 @@ fn write_agent_hook(path: &Path, content: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn print_agent_doctor(project_root: &Path, action: &str) -> Result<(), String> {
-    let skill = project_root.join(".agents/skills/rs-harness/SKILL.org");
-    let policy = project_root.join(".agents/harness-policy.json");
+fn print_agent_doctor(
+    project_root: &Path,
+    action: &str,
+    client: Option<&str>,
+) -> Result<(), String> {
+    let Some(client) = client else {
+        println!(
+            "[agent-doctor] action={action} client=none skill=false policy=false hooks=0 daemon=missing protocol=cli-cold"
+        );
+        println!(
+            "|note kind=client-required message=\"pass --client codex to inspect Codex assets\""
+        );
+        return Ok(());
+    };
+    if client != "codex" {
+        return Err(format!("unsupported agent client: {client}"));
+    }
+    let skill = project_root.join(".agents/codex/skills/rs-harness/SKILL.org");
+    let policy = project_root.join(".agents/codex/harness-policy.json");
     let hook_paths = agent_hook_assets()
         .iter()
         .map(|hook| {
             (
                 hook.label,
-                project_root.join(".agents/hooks").join(hook.file_name),
+                project_root
+                    .join(".agents/codex/hooks")
+                    .join(hook.file_name),
             )
         })
         .collect::<Vec<_>>();
     println!(
-        "[agent-doctor] action={action} skill={} policy={} hooks={} daemon=missing protocol=cli-cold",
+        "[agent-doctor] action={action} client=codex skill={} policy={} hooks={} daemon=missing protocol=cli-cold",
         skill.exists(),
         policy.exists(),
         hook_paths.iter().filter(|(_, path)| path.exists()).count()
