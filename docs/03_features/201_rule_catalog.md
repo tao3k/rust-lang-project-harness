@@ -34,15 +34,17 @@ version labels, searchable domains, and default modes. The first three packs are
 - `RUST-PROJ-R003`: source tests must be externalized instead of inline
 - `RUST-PROJ-R004`: external test mount must point to an existing `tests/unit` file
 - `RUST-PROJ-R005`: large test leaf should split into a folder-first suite
-- `RUST-PROJ-R006`: standalone Cargo test target must mount the project harness gate when no source-backed cargo-test gate exists
+- `RUST-PROJ-R006`: legacy root Cargo test target harness gate should migrate to the cargo-check build gate
 - `RUST-PROJ-R007`: root Cargo test target should stay a thin harness aggregate
 - `RUST-PROJ-R008`: root Cargo test target modules should use explicit suite `#[path]` mounts
-- `RUST-PROJ-R009`: harness-enabled library target must mount the cargo-test gate for `cargo test --lib`
+- `RUST-PROJ-R009`: legacy source cargo-test harness gate should migrate to the cargo-check build gate
 - `RUST-PROJ-R010`: Rust-native performance verification bindings must have a runnable `harness = false` Cargo bench target
-- `RUST-PROJ-R011`: harness gates must run with explicit verification config
-- `RUST-PROJ-R012`: harness-enabled build scripts must mount the build-time harness gate when build-time enforcement is in scope
+- `RUST-PROJ-R011`: cargo-check build gates must run with explicit verification config
+- `RUST-PROJ-R012`: harness-enabled packages must mount the build-time harness gate for `cargo check`
 - `RUST-PROJ-R013`: custom harness source/test scope paths must carry an explicit explanation
 - `RUST-PROJ-R014`: Cargo-backed harness scopes must not be silently removed
+- `RUST-PROJ-R015`: legacy cargo-test advice allowance must carry an explicit explanation
+- `RUST-PROJ-R016`: legacy cargo-test compatibility gates must run with explicit verification config
 - `RUST-MOD-R001`: `mod.rs` should stay interface-only with external module declarations and re-exports
 - `RUST-MOD-R002`: oversized source file should split by responsibility, including private implementation piles
 - `RUST-MOD-R003`: native `use` trees containing `super::super` should use `crate::...` owner/facade imports
@@ -68,59 +70,66 @@ they look like source to search tools but are invisible to the Rust module tree
 and therefore unsafe for agents to treat as live owners.
 
 Root Cargo test target files under `tests/*.rs` are also special entrypoints.
-They should mount the harness gate and external suite modules, while test bodies
-and helpers live under `tests/unit`, `tests/integration`, or another documented
-suite directory. Module mounts from those root targets must use explicit
+They should mount external suite modules only, while test bodies and helpers
+live under `tests/unit`, `tests/integration`, or another documented suite
+directory. Module mounts from those root targets must use explicit
 `#[path = "suite/file.rs"]` attributes so Rust's implicit module lookup does not
 create unclear root-level test structure.
 
-Library crates have one additional cargo-test escape hatch: `cargo test --lib`
-does not execute root test targets under `tests/*.rs`. `RUST-PROJ-R009` closes
-that path for harness-enabled projects by requiring either a source-tree
-cargo-test mount or a complete build-time harness gate. The harness-enabled
-decision comes from parsed Cargo manifest dependency tables or native Rust gate
-invocations, not comment or string matches. The source mount normally looks
-like:
+The primary downstream harness gate is the build-time gate. Current policy is
+parser-native: it needs Cargo manifest facts and Rust syntax facts, not runtime
+test evaluation. A complete build gate has both a Cargo build-dependency on
+`rust-lang-project-harness` and a root `build.rs` call to
+`assert_rust_project_harness_cargo_check_clean_from_env_with_config(...)` or another
+build-gate assertion:
+
+```toml
+[build-dependencies]
+rust-lang-project-harness = { git = "https://github.com/tao3k/rust-lang-project-harness", branch = "main" }
+```
 
 ```rust
-#[cfg(test)]
-rust_lang_project_harness::rust_project_harness_cargo_test_gate!(config = {
-    rust_lang_project_harness::default_rust_harness_config()
+fn main() {
+    let config = rust_lang_project_harness::default_rust_harness_config()
         .with_verification_profile_hint(
             rust_lang_project_harness::RustVerificationProfileHint::new(
                 "src/lib.rs",
                 [rust_lang_project_harness::RustOwnerResponsibility::PublicApi],
             ),
-        )
-});
+        );
+    rust_lang_project_harness::assert_rust_project_harness_cargo_check_clean_from_env_with_config(
+        &config,
+    );
+}
 ```
 
-The mount should live in `src/lib.rs` or in a source module declared by
-`src/lib.rs`, so both `cargo test` and `cargo test --lib` execute project
-policy. `RUST-PROJ-R011` keeps that gate from silently running the default empty
-verification policy: use the `config = { ... }` form to declare profile hints,
-explicit suppressions, receipts, waivers, or skill bindings for the Agent-facing
-verification surface.
+`RUST-PROJ-R011` keeps the cargo-check gate from silently running the default
+empty verification policy: use the configured form to declare profile hints,
+explicit suppressions, receipts, waivers, or skill bindings for the
+Agent-facing verification surface. `RUST-PROJ-R012` is the Agent-facing closure rule: when a
+harness-enabled package lacks the build-dependency, lacks root `build.rs`, has a
+root `build.rs` that omits the harness call, or calls the gate without the build
+dependency, `cargo check` prints a compact finding that tells the next Agent
+exactly which configuration surface to add. `RUST-PROJ-R006` and
+`RUST-PROJ-R009` are migration warnings: if a harness-enabled package still
+mounts parser-native policy through a root test target or source cargo-test
+macro, the compact finding tells the next Agent to move that policy to
+`[build-dependencies]` plus root `build.rs`.
 
-Build-time gates are the filter-proof alternative. A complete build gate has
-both a Cargo build-dependency on `rust-lang-project-harness` and a root
-`build.rs` call to
-`assert_rust_project_harness_build_clean_from_env_with_config(...)` or another
-build-gate assertion. `RUST-PROJ-R012` is the Agent-facing closure rule: when a
-harness-enabled package already has root `build.rs`, or already declared the
-harness as a build-dependency, but the build gate is incomplete, cargo test
-prints a compact finding that tells the next Agent exactly which configuration
-surface to add. A complete build gate also satisfies `RUST-PROJ-R006` and
-`RUST-PROJ-R009`, so projects do not need to mount both `build.rs` and `lib.rs`
-gates unless they deliberately want both lifecycle hooks.
+Cargo-test policy is intentionally narrower. Use it only for behavior that is
+about the test layer itself: legacy source gate configuration, explicit advice
+allowance, or future checks that consume runtime test/verification receipts.
+`RUST-PROJ-R015` and `RUST-PROJ-R016` are therefore cargo-test compatibility
+rules. Parser-native structure, module ownership, import clarity, scope
+coverage, and verification planning reminders belong to cargo check.
 
 Verification policy wiring also has a physical Cargo target check. When a
 project configures an active Rust-native performance binding such as
 `rust-verification-performance@criterion`, `@divan`, or `@iai-callgrind`,
 `RUST-PROJ-R010` requires a real `[[bench]]` target with `harness = false` and
 an existing bench source file. This keeps the compact verification plan from
-claiming a performance skill exists while `cargo test` has no way to remind the
-agent that the benchmark still needs to be wired.
+claiming a performance skill exists while Cargo has no runnable benchmark
+target for the Agent to execute.
 
 Harness scope configuration is policy-governed. Cargo manifest facts and
 conventional Cargo layout form the baseline coverage: `src`, explicit
@@ -140,13 +149,15 @@ a matching explanation through `with_source_path_excluded(path, explanation)`,
 
 `AGENT-*` rules are `Info` findings. They are designed as repair hints for LLMs
 and are not blocking by default.
-Source-embedded cargo-test gates add one Agent-facing layer on top of that
-library policy: because passing tests hide output, the default
-`rust_project_harness_cargo_test_gate!(config = ...)` assertion fails on compact
-agent advice so the repair contract is visible during `cargo test`. This does
-not change rule severity or JSON metadata. Use
-`advice = allow, config = { ... }` for an explicit legacy waiver, or configure
-the relevant rule/pack when the crate has a clearer local responsibility model.
+Build-script gates add one Agent-facing layer on top of that library policy:
+the default `assert_rust_project_harness_cargo_check_clean_from_env_with_config(...)`
+assertion fails on compact agent advice so the repair contract is visible during
+`cargo check`. This does not change rule severity or JSON metadata. Use
+`with_cargo_check_advice_allow_explanation(...)` for an explicit cargo-check
+policy waiver, or configure the relevant rule/pack when the crate has a clearer local
+responsibility model. Source-embedded cargo-test gates keep the same advice
+behavior for compatibility, but they are no longer the preferred downstream
+entrypoint.
 Rules that ask an agent to add Rust doc comments require Clippy-compatible
 Markdown: use `clippy::doc_markdown` style and wrap API names, rule IDs, command
 names, and other literal identifiers in backticks.

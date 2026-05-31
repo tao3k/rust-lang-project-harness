@@ -6,6 +6,7 @@
 
 mod agent_snapshot;
 mod build_gate;
+#[cfg(feature = "cli")]
 mod cli;
 mod discovery;
 mod macros;
@@ -14,6 +15,8 @@ mod parser;
 mod render;
 mod rules;
 mod runner;
+#[cfg(feature = "search")]
+mod search;
 mod self_policy;
 mod verification;
 
@@ -57,7 +60,12 @@ pub use build_gate::{
     assert_rust_project_harness_build_clean, assert_rust_project_harness_build_clean_from_env,
     assert_rust_project_harness_build_clean_from_env_with_config,
     assert_rust_project_harness_build_clean_with_config,
+    assert_rust_project_harness_cargo_check_clean,
+    assert_rust_project_harness_cargo_check_clean_from_env,
+    assert_rust_project_harness_cargo_check_clean_from_env_with_config,
+    assert_rust_project_harness_cargo_check_clean_with_config,
 };
+#[cfg(feature = "cli")]
 pub use cli::run_cli_from_env;
 pub use discovery::{DEFAULT_IGNORED_DIR_NAMES, discover_rust_files, rust_project_harness_scope};
 pub use model::{
@@ -79,6 +87,13 @@ pub use runner::{
     assert_rust_project_harness_clean_with_config, default_rust_harness_config,
     run_rust_lang_harness, run_rust_lang_harness_with_config, run_rust_project_harness,
     run_rust_project_harness_with_config,
+};
+#[cfg(feature = "search")]
+pub use search::{
+    RustSearchOptions, RustSearchViewRequest,
+    render_rust_project_harness_search_ingest_with_config,
+    render_rust_project_harness_search_prime, render_rust_project_harness_search_prime_with_config,
+    render_rust_project_harness_search_view_with_config,
 };
 pub use verification::{
     RUST_VERIFICATION_REPORT_MANIFEST_SCHEMA_ID, RUST_VERIFICATION_REPORT_MANIFEST_SCHEMA_VERSION,

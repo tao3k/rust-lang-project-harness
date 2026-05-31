@@ -21,14 +21,24 @@ pub(super) fn build_gate_findings(
     let has_build_gate_call = build_script.is_some_and(module_contains_build_gate_call);
     let harness_enabled = cargo_manifest.references_harness || has_build_gate_call;
 
-    if !harness_enabled
-        || (!build_script_exists && !cargo_manifest.references_harness_build_dependency)
-        || project_has_complete_build_gate(project_root, cargo_manifest, modules)
-    {
+    if !harness_enabled || project_has_complete_build_gate(project_root, cargo_manifest, modules) {
         return Vec::new();
     }
 
     let rule = &rules[RUST_PROJ_R012];
+    if !cargo_manifest.references_harness_build_dependency && !build_script_exists {
+        return vec![RustHarnessFinding::from_rule(
+            rule,
+            format!(
+                "{} enables the harness without a cargo-check build gate.",
+                display_project_path(project_root, &project_root.join("Cargo.toml"))
+            ),
+            file_location(project_root.join("Cargo.toml")),
+            None,
+            "add rust-lang-project-harness under [build-dependencies] and add a thin root build.rs that calls rust_lang_project_harness::assert_rust_project_harness_cargo_check_clean_from_env_with_config(...)",
+        )];
+    }
+
     if cargo_manifest.references_harness_build_dependency && !build_script_exists {
         return vec![RustHarnessFinding::from_rule(
             rule,
@@ -38,7 +48,7 @@ pub(super) fn build_gate_findings(
             ),
             file_location(project_root.join("Cargo.toml")),
             None,
-            "add a thin build.rs that calls rust_lang_project_harness::assert_rust_project_harness_build_clean_from_env_with_config(...)",
+            "add a thin root build.rs that calls rust_lang_project_harness::assert_rust_project_harness_cargo_check_clean_from_env_with_config(...)",
         )];
     }
 
@@ -51,7 +61,7 @@ pub(super) fn build_gate_findings(
             ),
             file_location(&build_script_path),
             None,
-            "add the harness to [build-dependencies] and call rust_lang_project_harness::assert_rust_project_harness_build_clean_from_env_with_config(...) from build.rs",
+            "add the harness to [build-dependencies] and call rust_lang_project_harness::assert_rust_project_harness_cargo_check_clean_from_env_with_config(...) from root build.rs",
         )];
     }
 
@@ -124,9 +134,15 @@ const BUILD_GATE_FUNCTIONS: &[&str] = &[
     "assert_rust_project_harness_build_clean_with_config",
     "assert_rust_project_harness_build_clean_from_env",
     "assert_rust_project_harness_build_clean_from_env_with_config",
+    "assert_rust_project_harness_cargo_check_clean",
+    "assert_rust_project_harness_cargo_check_clean_with_config",
+    "assert_rust_project_harness_cargo_check_clean_from_env",
+    "assert_rust_project_harness_cargo_check_clean_from_env_with_config",
 ];
 
 const DEFAULT_BUILD_GATE_FUNCTIONS: &[&str] = &[
     "assert_rust_project_harness_build_clean",
     "assert_rust_project_harness_build_clean_from_env",
+    "assert_rust_project_harness_cargo_check_clean",
+    "assert_rust_project_harness_cargo_check_clean_from_env",
 ];

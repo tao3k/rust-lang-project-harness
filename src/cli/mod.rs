@@ -1,0 +1,16 @@
+//! Command-line execution for the Rust project harness binary.
+
+mod agent_assets;
+mod agent_hooks;
+mod agent_registry;
+mod runner;
+#[cfg(feature = "search")]
+mod search_output;
+#[cfg(feature = "search")]
+mod search_plan;
+#[cfg(feature = "search")]
+mod search_trace;
+#[cfg(feature = "search")]
+mod semantic_search_json;
+
+pub use runner::run_cli_from_env;

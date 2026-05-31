@@ -88,7 +88,7 @@ fn harness_scope_policy_requires_explanations_for_custom_source_paths() {
     let config = RustHarnessConfig::default()
         .with_source_path(
             "src/lib.rs",
-            "source-backed cargo-test gate keeps cargo test --lib inside harness policy",
+            "cargo-check build gate keeps the crate facade inside harness policy",
         )
         .with_source_path(
             "src/integration_support/search_strategy_flow.rs",
@@ -139,7 +139,7 @@ fn harness_scope_policy_requires_explanations_for_default_source_reduction() {
     }
     .with_source_path(
         "src/lib.rs",
-        "source-backed cargo-test gate keeps cargo test --lib inside harness policy",
+        "cargo-check build gate keeps the crate facade inside harness policy",
     );
     let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
     let mut focused_report = report.clone();
@@ -156,11 +156,11 @@ fn harness_scope_policy_requires_explanations_for_default_source_reduction() {
     }
     .with_source_path(
         "src/lib.rs",
-        "source-backed cargo-test gate keeps cargo test --lib inside harness policy",
+        "cargo-check build gate keeps the crate facade inside harness policy",
     )
     .with_source_path_excluded(
         "src",
-        "temporary migration keeps only the source-backed harness gate until live.rs is split",
+        "temporary migration keeps only the crate facade until live.rs is split",
     );
     let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
     assert!(!has_rule(&report, "RUST-PROJ-R014"));

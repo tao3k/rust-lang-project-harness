@@ -23,7 +23,7 @@ fn cargo_test_gate_requires_explicit_verification_config() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "RUST-PROJ-R011");
+    let findings = findings_for_rule(&report, "RUST-PROJ-R016");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(
         findings[0]
@@ -32,6 +32,18 @@ fn cargo_test_gate_requires_explicit_verification_config() {
         "{:?}",
         findings[0]
     );
+    assert!(
+        findings_for_rule(&report, "RUST-PROJ-R011").is_empty(),
+        "{:?}",
+        report.findings
+    );
+
+    let mut focused_report = report.clone();
+    focused_report
+        .findings
+        .retain(|finding| finding.rule_id == "RUST-PROJ-R016");
+    let rendered = normalize_temp_root(&render_rust_project_harness(&focused_report), root);
+    insta::assert_snapshot!("cargo_test_gate_requires_verification_config", rendered);
 }
 
 #[test]
@@ -50,7 +62,7 @@ fn configured_cargo_test_gate_clears_verification_config_warning() {
         .expect("run project harness");
 
     assert!(
-        findings_for_rule(&report, "RUST-PROJ-R011").is_empty(),
+        findings_for_rule(&report, "RUST-PROJ-R016").is_empty(),
         "{:?}",
         report.findings
     );
@@ -70,7 +82,7 @@ fn positional_config_gate_still_requires_named_verification_config() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "RUST-PROJ-R011");
+    let findings = findings_for_rule(&report, "RUST-PROJ-R016");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
 }
 
@@ -88,7 +100,7 @@ fn advice_allow_gate_still_requires_explicit_verification_config() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "RUST-PROJ-R011");
+    let findings = findings_for_rule(&report, "RUST-PROJ-R016");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     let allow_findings = findings_for_rule(&report, "RUST-PROJ-R015");
     assert_eq!(allow_findings.len(), 1, "{:?}", report.findings);
@@ -110,7 +122,7 @@ fn advice_allow_with_config_still_requires_allow_explanation() {
         .expect("run project harness");
 
     assert!(
-        findings_for_rule(&report, "RUST-PROJ-R011").is_empty(),
+        findings_for_rule(&report, "RUST-PROJ-R016").is_empty(),
         "{:?}",
         report.findings
     );
@@ -146,14 +158,14 @@ fn advice_allow_with_explanation_clears_allow_warning() {
 
     let report = run_rust_project_harness_with_config(
         root,
-        &configured_no_external_tasks_config().with_agent_advice_allow_explanation(
+        &configured_no_external_tasks_config().with_cargo_test_advice_allow_explanation(
             "legacy fixture allows advisory output during migration",
         ),
     )
     .expect("run project harness");
 
     assert!(
-        findings_for_rule(&report, "RUST-PROJ-R011").is_empty(),
+        findings_for_rule(&report, "RUST-PROJ-R016").is_empty(),
         "{:?}",
         report.findings
     );
@@ -238,7 +250,9 @@ fn configured_no_external_tasks_config() -> rust_lang_project_harness::RustHarne
     default_rust_harness_config().with_verification_profile_hint(
         RustVerificationProfileHint::new("src/lib.rs", [RustOwnerResponsibility::PublicApi])
             .without_verification_tasks()
-            .with_rationale("this fixture only verifies cargo-test gate configuration plumbing"),
+            .with_rationale(
+                "this fixture only verifies legacy cargo-test gate configuration plumbing",
+            ),
     )
 }
 

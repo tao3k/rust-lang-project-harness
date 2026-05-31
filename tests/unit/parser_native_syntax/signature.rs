@@ -207,14 +207,19 @@ fn native_syntax_facts_record_public_function_returns() {
         &source,
         "pub enum UserError {}\n\
          pub fn load_user() -> anyhow::Result<String> { todo!() }\n\
+         pub async unsafe fn fallible_user() -> anyhow::Result<String> { todo!() }\n\
          pub fn save_user() -> Result<(), Box<dyn std::error::Error + Send + Sync>> { todo!() }\n\
          pub fn typed_user() -> Result<(), UserError> { todo!() }\n\
          fn private_user() -> anyhow::Result<()> { todo!() }\n\
          #[cfg(test)]\n\
          pub fn fixture_user() -> eyre::Result<()> { todo!() }\n\
+         pub trait LoadApi { fn trait_connect(&self) -> Result<String, UserError>; }\n\
          pub struct Loader;\n\
          impl Loader {\n\
-         \tpub fn connect() -> color_eyre::Result<Self> { todo!() }\n\
+         \tpub async unsafe fn connect(&mut self) -> color_eyre::Result<Self> { todo!() }\n\
+         }\n\
+         impl LoadApi for Loader {\n\
+         \tfn trait_connect(&self) -> Result<String, UserError> { todo!() }\n\
          }\n",
     )
     .expect("write source");
@@ -229,28 +234,44 @@ fn native_syntax_facts_record_public_function_returns() {
             .collect::<Vec<_>>(),
         vec![
             "load_user",
+            "fallible_user",
             "save_user",
             "typed_user",
             "fixture_user",
-            "connect"
+            "connect",
+            "trait_connect"
         ]
     );
     assert_eq!(
         returns[0].application_error_boundary.as_deref(),
         Some("anyhow::Result")
     );
+    assert!(returns[1].is_async);
+    assert!(returns[1].is_unsafe);
     assert_eq!(
         returns[1].application_error_boundary.as_deref(),
+        Some("anyhow::Result")
+    );
+    assert_eq!(
+        returns[2].application_error_boundary.as_deref(),
         Some("Result<_, Box<dyn Error>>")
     );
-    assert_eq!(returns[2].application_error_boundary, None);
-    assert_eq!(
-        returns[3].application_error_boundary.as_deref(),
-        Some("eyre::Result")
-    );
-    assert!(returns[3].is_test_context);
+    assert_eq!(returns[3].application_error_boundary, None);
     assert_eq!(
         returns[4].application_error_boundary.as_deref(),
+        Some("eyre::Result")
+    );
+    assert!(returns[4].is_test_context);
+    assert!(returns[5].is_async);
+    assert!(returns[5].is_unsafe);
+    assert_eq!(returns[5].receiver.as_deref(), Some("&mut-self"));
+    assert_eq!(
+        returns[5].application_error_boundary.as_deref(),
         Some("color_eyre::Result")
     );
+    assert_eq!(returns[5].impl_type.as_deref(), Some("Loader"));
+    assert_eq!(returns[5].trait_path, None);
+    assert_eq!(returns[6].receiver.as_deref(), Some("&self"));
+    assert_eq!(returns[6].impl_type.as_deref(), Some("Loader"));
+    assert_eq!(returns[6].trait_path.as_deref(), Some("LoadApi"));
 }

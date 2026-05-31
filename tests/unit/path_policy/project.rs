@@ -7,6 +7,8 @@ use super::support::{findings_for_rule, has_rule, write_manifest};
 
 #[path = "project/build_gate.rs"]
 mod build_gate;
+#[path = "project/legacy_gate.rs"]
+mod legacy_gate;
 #[path = "project/verification_integration.rs"]
 mod verification_integration;
 
@@ -94,7 +96,7 @@ fn root_test_target_accepts_library_cargo_test_gate_macro() {
 }
 
 #[test]
-fn root_test_target_ignores_comment_mentions_of_harness_gate() {
+fn root_test_target_comment_mentions_do_not_count_as_structure() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_manifest(root, "comment-mention-root-gate");
@@ -109,11 +111,16 @@ fn root_test_target_ignores_comment_mentions_of_harness_gate() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R006"), "{:?}", report.findings);
+    assert!(
+        !has_rule(&report, "RUST-PROJ-R006"),
+        "{:?}",
+        report.findings
+    );
+    assert!(has_rule(&report, "RUST-PROJ-R007"), "{:?}", report.findings);
 }
 
 #[test]
-fn library_target_requires_cargo_test_gate_when_harness_is_dev_dependency() {
+fn harness_dev_dependency_requires_cargo_check_build_gate() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_manifest(root, "missing-embedded-lib-gate");
@@ -127,7 +134,12 @@ fn library_target_requires_cargo_test_gate_when_harness_is_dev_dependency() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R009"), "{:?}", report.findings);
+    assert!(has_rule(&report, "RUST-PROJ-R012"), "{:?}", report.findings);
+    assert!(
+        !has_rule(&report, "RUST-PROJ-R009"),
+        "{:?}",
+        report.findings
+    );
 }
 
 #[test]
@@ -148,27 +160,7 @@ fn library_target_ignores_comment_mentions_of_embedded_cargo_test_gate() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R009"), "{:?}", report.findings);
-}
-
-#[test]
-fn library_target_accepts_embedded_cargo_test_gate() {
-    let temp = TempDir::new().expect("temp dir");
-    let root = temp.path();
-    fs::write(
-        root.join("Cargo.toml"),
-        "[package]\nname = \"embedded-lib-gate\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dev-dependencies]\nrust-lang-project-harness = { path = \".\" }\n",
-    )
-    .expect("write manifest");
-    fs::create_dir(root.join("src")).expect("create src");
-    fs::write(
-        root.join("src/lib.rs"),
-        "//! Test crate.\n#[cfg(test)]\nrust_lang_project_harness::rust_project_harness_cargo_test_gate!();\n",
-    )
-    .expect("write lib");
-
-    let report = run_rust_project_harness(root).expect("run project harness");
-
+    assert!(has_rule(&report, "RUST-PROJ-R012"), "{:?}", report.findings);
     assert!(
         !has_rule(&report, "RUST-PROJ-R009"),
         "{:?}",
@@ -195,6 +187,11 @@ fn manifest_comment_does_not_enable_library_harness_policy() {
         "{:?}",
         report.findings
     );
+    assert!(
+        !has_rule(&report, "RUST-PROJ-R012"),
+        "{:?}",
+        report.findings
+    );
 }
 
 #[test]
@@ -211,7 +208,12 @@ fn manifest_package_field_uses_the_canonical_harness_identity() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R009"), "{:?}", report.findings);
+    assert!(has_rule(&report, "RUST-PROJ-R012"), "{:?}", report.findings);
+    assert!(
+        !has_rule(&report, "RUST-PROJ-R009"),
+        "{:?}",
+        report.findings
+    );
 }
 
 #[test]
@@ -228,7 +230,12 @@ fn target_dependency_table_uses_canonical_harness_identity() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R009"), "{:?}", report.findings);
+    assert!(has_rule(&report, "RUST-PROJ-R012"), "{:?}", report.findings);
+    assert!(
+        !has_rule(&report, "RUST-PROJ-R009"),
+        "{:?}",
+        report.findings
+    );
 }
 
 #[test]

@@ -10,7 +10,7 @@ fn native_syntax_facts_record_cfg_and_module_declaring_macros() {
     let source = temp.path().join("lib.rs");
     fs::write(
         &source,
-        "#[cfg(feature = \"fs\")]\ncompile_error!(\"fs is not supported here\");\nrust_project_harness_cargo_test_gate!();\nrust_project_harness_cargo_test_gate!(advice = allow, config = { default_rust_harness_config() });\nfn main() {\n    rust_lang_project_harness::assert_rust_project_harness_build_clean_from_env_with_config(&config());\n}\ncfg_feature! {\n    pub(crate) mod optional;\n}\ncfg_macros! {\n    pub use crate::optional::Thing;\n}\ncfg_nested! {\n    cfg_inner! {\n        pub(crate) use crate::optional::Other;\n    }\n}\ncfg_bad! {\n    pub fn leaked() {}\n}\nmacro_rules! declare_mod { () => { mod generated; } }\n",
+        "#[cfg(feature = \"fs\")]\ncompile_error!(\"fs is not supported here\");\nrust_project_harness_cargo_test_gate!();\nrust_project_harness_cargo_test_gate!(advice = allow, config = { default_rust_harness_config() });\nfn main() {\n    rust_lang_project_harness::assert_rust_project_harness_cargo_check_clean_from_env_with_config(&config());\n}\ncfg_feature! {\n    pub(crate) mod optional;\n}\ncfg_macros! {\n    pub use crate::optional::Thing;\n}\ncfg_nested! {\n    cfg_inner! {\n        pub(crate) use crate::optional::Other;\n    }\n}\ncfg_bad! {\n    pub fn leaked() {}\n}\nmacro_rules! declare_mod { () => { mod generated; } }\n",
     )
     .expect("write source");
 
@@ -62,7 +62,7 @@ fn native_syntax_facts_record_cfg_and_module_declaring_macros() {
         .iter()
         .find(|invocation| {
             invocation.terminal_name
-                == "assert_rust_project_harness_build_clean_from_env_with_config"
+                == "assert_rust_project_harness_cargo_check_clean_from_env_with_config"
         })
         .expect("configured build gate call");
     assert_eq!(configured_build_gate_call.argument_token_count, 1);

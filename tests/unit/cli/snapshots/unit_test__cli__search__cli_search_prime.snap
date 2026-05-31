@@ -1,0 +1,18 @@
+---
+source: tests/unit/cli/search.rs
+assertion_line: 52
+expression: stdout
+---
+[search-prime] mode=package package=. src=2 own=2 edge=2 find=4 dep=0
+|package . t=lib dep=-
+|surface public_api=Thing,load public_external=-
+|api-candidate Thing reason=public-item owner=src/domain/mod.rs next=docs:Thing
+|api-candidate load reason=public-item owner=src/lib.rs next=docs:load
+|owner src/lib.rs role=root,facade owner=src imports=crate:1 next=owner:src/lib.rs
+|owner src/domain/mod.rs role=interface owner=src/domain next=owner:src/domain/mod.rs
+|edge O:src/lib.rs -mod-> O:src/domain/mod.rs
+|edge O:src/lib.rs -crate:crate-> O:src/domain/mod.rs
+|find AGENT-R002 x2 at=O:src/domain/mod.rs severity=info
+|find RUST-MOD-R001 x1 at=O:src/domain/mod.rs severity=warning
+|find RUST-MOD-R004 x1 at=O:src/lib.rs severity=warning
+|next owner:src/lib.rs,owner:src/domain/mod.rs

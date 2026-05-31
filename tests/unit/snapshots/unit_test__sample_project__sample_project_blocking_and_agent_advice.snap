@@ -1,5 +1,6 @@
 ---
 source: tests/unit/sample_project.rs
+assertion_line: 39
 expression: rendered
 ---
 [RUST-PROJ-R001] Warning: Root test file lacks explicit harness role
@@ -14,12 +15,6 @@ fix: move this test module to tests/unit and mount it with #[path]
 line: 2 | #[cfg(test)] mod tests { #[test] fn it_works() {} }
 Help: $TEMP/src/lib.rs contains inline #[cfg(test)] module `tests`.
 Contract: Keep test bodies out of src files; mount source-backed unit tests from tests/unit with #[path].
-
-[RUST-PROJ-R006] Warning: Cargo test target does not mount the harness gate
-@ $TEMP/tests/test_root.rs:1:1
-fix: add rust_project_harness_cargo_test_gate!(config = ...) to the library target or rust_project_harness_gate!() to this standalone test target
-Help: tests/test_root.rs does not mount the Rust project harness gate.
-Contract: Mount rust_project_harness_cargo_test_gate!(config = ...) in the library test target, or mount rust_project_harness_gate!() in standalone Cargo test targets.
 
 [RUST-PROJ-R007] Warning: Root test target contains implementation
 @ $TEMP/tests/test_root.rs:1:1

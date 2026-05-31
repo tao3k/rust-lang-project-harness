@@ -2,6 +2,7 @@
 **/*.rs.bk
 Cargo.lock
 /.devenv
+/.codex/harness-state/
 
 .vscode
 .gdb_history

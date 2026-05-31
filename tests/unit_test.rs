@@ -1,4 +1,5 @@
-#[path = "unit/cli.rs"]
+#[cfg(feature = "cli")]
+#[path = "unit/cli/mod.rs"]
 mod cli;
 
 #[path = "unit/public_api/mod.rs"]

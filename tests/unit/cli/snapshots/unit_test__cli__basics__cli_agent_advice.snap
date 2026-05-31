@@ -1,5 +1,6 @@
 ---
-source: tests/unit/cli.rs
+source: tests/unit/cli/basics.rs
+assertion_line: 150
 expression: stdout
 ---
 [AGENT-R002] Info: Public item lacks a doc comment

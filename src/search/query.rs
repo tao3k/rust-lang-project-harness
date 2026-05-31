@@ -1,0 +1,908 @@
+use std::collections::BTreeSet;
+use std::fmt::Write;
+use std::path::{Path, PathBuf};
+
+use crate::RustHarnessConfig;
+use crate::parser::{CargoDependencyFacts, ParsedRustModule};
+
+use super::RustSearchOptions;
+use super::context::{PackageSearchContext, search_contexts};
+use super::format::{append_block, compact_locations, display_project_path, package_label};
+use super::hits::{
+    SearchHit, import_hits, matching_dependencies, sort_search_hits_by_recency, symbol_calls,
+    symbol_definitions, text_hits,
+};
+use super::limits::SEARCH_HIT_LIMIT;
+use super::owner as owner_search;
+use super::owner_view;
+use super::scope::module_allowed;
+
+pub(super) fn render_search_symbol(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+    options: &RustSearchOptions,
+) -> Result<String, String> {
+    let contexts = search_contexts(project_root, config, options)?;
+    let mut rendered = String::new();
+    for context in contexts {
+        let defs = symbol_definitions(&context, query, options);
+        let calls = symbol_calls(&context, query, options);
+        let mut block = format!(
+            "[search-symbol] q={} pkg={} defs={} calls={}\n",
+            query,
+            package_label(project_root, &context.package_root),
+            defs.len(),
+            calls.len()
+        );
+        for hit in defs.into_iter().take(SEARCH_HIT_LIMIT) {
+            let _ = writeln!(block, "|def {}", hit.render(&context.package_root));
+        }
+        for hit in calls.into_iter().take(SEARCH_HIT_LIMIT) {
+            let _ = writeln!(block, "|call {}", hit.render(&context.package_root));
+        }
+        append_block(&mut rendered, &block);
+    }
+    Ok(rendered)
+}
+
+pub(super) fn render_search_callsite(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+    options: &RustSearchOptions,
+) -> Result<String, String> {
+    let contexts = search_contexts(project_root, config, options)?;
+    let mut rendered = String::new();
+    for context in contexts {
+        let calls = symbol_calls(&context, query, options);
+        let mut block = format!(
+            "[search-callsite] q={} pkg={} calls={}\n",
+            query,
+            package_label(project_root, &context.package_root),
+            calls.len()
+        );
+        for hit in calls.into_iter().take(SEARCH_HIT_LIMIT) {
+            let _ = writeln!(block, "|call {}", hit.render(&context.package_root));
+        }
+        append_block(&mut rendered, &block);
+    }
+    Ok(rendered)
+}
+
+pub(super) fn render_search_import(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+    options: &RustSearchOptions,
+) -> Result<String, String> {
+    let contexts = search_contexts(project_root, config, options)?;
+    let mut rendered = String::new();
+    for context in contexts {
+        let hits = import_hits(&context, query, options);
+        let mut block = format!(
+            "[search-import] q={} pkg={} own={}\n",
+            query,
+            package_label(project_root, &context.package_root),
+            hits.len()
+        );
+        for hit in hits.into_iter().take(SEARCH_HIT_LIMIT) {
+            let _ = writeln!(
+                block,
+                "|owner {} hit_kind=import locations={} next=owner:{}",
+                display_project_path(&context.package_root, &hit.path),
+                compact_locations(&hit.locations),
+                display_project_path(&context.package_root, &hit.path)
+            );
+        }
+        append_block(&mut rendered, &block);
+    }
+    Ok(rendered)
+}
+
+pub(super) fn render_search_text(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+    options: &RustSearchOptions,
+) -> Result<String, String> {
+    let contexts = search_contexts(project_root, config, options)?;
+    let mut rendered = String::new();
+    for context in contexts {
+        let hits = text_hits(&context, query, options);
+        let mut block = format!(
+            "[search-text] q={} pkg={} own={}\n",
+            query,
+            package_label(project_root, &context.package_root),
+            hits.len()
+        );
+        for hit in hits.into_iter().take(SEARCH_HIT_LIMIT) {
+            let _ = writeln!(
+                block,
+                "|owner {} hit_kind=text locations={} next=owner:{}",
+                display_project_path(&context.package_root, &hit.path),
+                compact_locations(&hit.locations),
+                display_project_path(&context.package_root, &hit.path)
+            );
+        }
+        append_block(&mut rendered, &block);
+    }
+    Ok(rendered)
+}
+
+pub(super) fn render_search_patterns() -> String {
+    [
+        "[search-patterns] n=8",
+        "|pat clone-in-loop lang=rust scope=src",
+        "|pat public-anyhow-result lang=rust scope=src",
+        "|pat public-error-boundary lang=rust scope=src",
+        "|pat unsafe-boundary lang=rust scope=src",
+        "|pat tokio-spawn-unawaited lang=rust scope=src",
+        "|pat public-primitive-id lang=rust scope=src",
+        "|pat public-external-type lang=rust scope=src option=dependency",
+        "|pat public-api-shape lang=rust scope=src option=owner",
+    ]
+    .join("\n")
+        + "\n"
+}
+
+pub(super) fn render_search_pattern(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+    options: &RustSearchOptions,
+) -> Result<String, String> {
+    if query == "public-anyhow-result" {
+        return render_public_error_boundary_pattern(
+            project_root,
+            config,
+            query,
+            Some("anyhow::Result"),
+            options,
+        );
+    }
+    if query == "public-error-boundary" {
+        return render_public_error_boundary_pattern(project_root, config, query, None, options);
+    }
+    if query == "public-external-type" {
+        return render_public_external_type_pattern(project_root, config, options);
+    }
+    if query == "public-api-shape" {
+        return render_public_api_shape_pattern(project_root, config, options);
+    }
+    let pattern_query = match query {
+        "clone-in-loop" => ".clone(",
+        "unsafe-boundary" => "unsafe",
+        "tokio-spawn-unawaited" => "tokio::spawn",
+        "public-primitive-id" => "String",
+        _ => {
+            return Ok(format!(
+                "[search-pattern] q={query} hits=0\n|note unknown_pattern=true\n"
+            ));
+        }
+    };
+    let rendered = render_search_text(project_root, config, pattern_query, options)?;
+    Ok(rendered.replacen(
+        "[search-text]",
+        &format!("[search-pattern] pattern={query}"),
+        1,
+    ))
+}
+
+fn render_public_error_boundary_pattern(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    recipe: &str,
+    boundary_filter: Option<&str>,
+    options: &RustSearchOptions,
+) -> Result<String, String> {
+    let contexts = search_contexts(project_root, config, options)?;
+    let mut rendered = String::new();
+    for context in contexts {
+        let hits = public_error_boundary_hits(&context, boundary_filter, options);
+        let mut block = format!(
+            "[search-pattern] pattern={} pkg={} hit={} source=native-parser\n",
+            recipe,
+            package_label(project_root, &context.package_root),
+            hits.len()
+        );
+        for hit in hits.into_iter().take(SEARCH_HIT_LIMIT) {
+            let _ = writeln!(
+                block,
+                "{}",
+                render_api_line(&context.package_root, &context.parsed_modules, &hit, false)
+            );
+        }
+        if block.lines().count() == 1 {
+            let _ = writeln!(
+                block,
+                "|note error_boundary_source=native-parser missing=true"
+            );
+        }
+        append_block(&mut rendered, &block);
+    }
+    Ok(rendered)
+}
+
+fn public_error_boundary_hits(
+    context: &PackageSearchContext,
+    boundary_filter: Option<&str>,
+    options: &RustSearchOptions,
+) -> Vec<SearchHit> {
+    let mut hits = context
+        .parsed_modules
+        .iter()
+        .filter(|module| module_allowed(context, module, options))
+        .flat_map(|module| {
+            module
+                .syntax_facts
+                .public_function_returns
+                .iter()
+                .filter(move |return_fact| {
+                    !return_fact.is_test_context
+                        && return_fact
+                            .application_error_boundary
+                            .as_deref()
+                            .is_some_and(|boundary| {
+                                boundary_filter.is_none_or(|filter| boundary == filter)
+                            })
+                })
+                .map(move |return_fact| SearchHit {
+                    path: module.report.path.clone(),
+                    line: return_fact.line,
+                    kind: if return_fact.receiver.is_some() {
+                        "method".to_string()
+                    } else {
+                        "fn".to_string()
+                    },
+                    name: return_fact.function_name.clone(),
+                })
+        })
+        .collect::<Vec<_>>();
+    sort_search_hits_by_recency(&context.package_root, &mut hits);
+    hits.dedup_by(|left, right| {
+        left.path == right.path
+            && left.line == right.line
+            && left.kind == right.kind
+            && left.name == right.name
+    });
+    hits
+}
+
+fn render_public_external_type_pattern(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    options: &RustSearchOptions,
+) -> Result<String, String> {
+    let Some(dependency) = options.dependency.as_deref() else {
+        return Ok(
+            "[search-pattern] pattern=public-external-type hits=0\n|note missing_dependency=true\n"
+                .to_string(),
+        );
+    };
+    let mut dependency_options = options.clone();
+    if !dependency_options
+        .pipes
+        .iter()
+        .any(|pipe| pipe == "public-api")
+    {
+        dependency_options.pipes.push("public-api".to_string());
+    }
+    let rendered = owner_search::render_search_dependency(
+        project_root,
+        config,
+        dependency,
+        &dependency_options,
+    )?;
+    Ok(rendered.replacen(
+        "[search-dependency]",
+        "[search-pattern] pattern=public-external-type",
+        1,
+    ))
+}
+
+fn render_public_api_shape_pattern(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    options: &RustSearchOptions,
+) -> Result<String, String> {
+    let Some(owner) = options.owner.as_deref() else {
+        return Ok(
+            "[search-pattern] pattern=public-api-shape hits=0\n|note missing_owner=true\n"
+                .to_string(),
+        );
+    };
+    let mut owner_options = options.clone();
+    if !owner_options.pipes.iter().any(|pipe| pipe == "items") {
+        owner_options.pipes.push("items".to_string());
+    }
+    let rendered = owner_view::render_search_owner(project_root, config, owner, &owner_options)?;
+    Ok(rendered.replacen(
+        "[search-owner]",
+        "[search-pattern] pattern=public-api-shape",
+        1,
+    ))
+}
+
+pub(super) fn render_search_docs(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+    options: &RustSearchOptions,
+) -> Result<String, String> {
+    let contexts = search_contexts(project_root, config, options)?;
+    let docs_query = ApiDocsQuery::parse(query);
+    let mut rendered = String::new();
+    for context in contexts {
+        let source = docs_query.source(&context);
+        let defs = if source == "native-parser" {
+            api_hits(
+                &context.package_root,
+                &context.parsed_modules,
+                &symbol_definitions(&context, &docs_query.item_name, options),
+                &docs_query.item_name,
+            )
+        } else {
+            Vec::new()
+        };
+        let mut block = docs_query.header_line(
+            "search-docs",
+            project_root,
+            &context,
+            "docs",
+            defs.len(),
+            source,
+        );
+        for hit in defs.into_iter().take(SEARCH_HIT_LIMIT) {
+            let _ = writeln!(
+                block,
+                "{}",
+                render_api_line(&context.package_root, &context.parsed_modules, &hit, true)
+            );
+        }
+        if block.lines().count() == 1 {
+            let _ = writeln!(block, "|note docsSource={source} missing=true");
+        }
+        append_block(&mut rendered, &block);
+    }
+    Ok(rendered)
+}
+
+pub(super) fn render_search_api(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+    options: &RustSearchOptions,
+) -> Result<String, String> {
+    let contexts = search_contexts(project_root, config, options)?;
+    let docs_query = ApiDocsQuery::parse(query);
+    let mut rendered = String::new();
+    for context in contexts {
+        let source = docs_query.source(&context);
+        let defs = if source == "native-parser" {
+            api_hits(
+                &context.package_root,
+                &context.parsed_modules,
+                &symbol_definitions(&context, &docs_query.item_name, options),
+                &docs_query.item_name,
+            )
+        } else {
+            Vec::new()
+        };
+        let mut block = docs_query.header_line(
+            "search-api",
+            project_root,
+            &context,
+            "api",
+            defs.len(),
+            source,
+        );
+        for hit in defs.into_iter().take(SEARCH_HIT_LIMIT) {
+            let _ = writeln!(
+                block,
+                "{}",
+                render_api_line(&context.package_root, &context.parsed_modules, &hit, false)
+            );
+        }
+        if block.lines().count() == 1 {
+            let _ = writeln!(block, "|note apiSource={source} missing=true");
+        }
+        append_block(&mut rendered, &block);
+    }
+    Ok(rendered)
+}
+
+pub(super) fn render_search_docs_use(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+    options: &RustSearchOptions,
+) -> Result<String, String> {
+    let item_name = query.rsplit("::").next().unwrap_or(query);
+    let docs = render_search_docs(project_root, config, query, options)?;
+    let calls = render_search_callsite(project_root, config, item_name, options)?;
+    Ok(format!("{}{}", docs, calls))
+}
+
+struct ApiDocsQuery {
+    raw: String,
+    item_name: String,
+    crate_name: Option<String>,
+    requested_version: Option<String>,
+}
+
+impl ApiDocsQuery {
+    fn parse(query: &str) -> Self {
+        let item_name = query.rsplit("::").next().unwrap_or(query).to_string();
+        let root = query.split("::").next().unwrap_or(query);
+        let has_crate = query.contains("::") || root.contains('/') || root.contains('@');
+        let (crate_path, requested_version) = root
+            .rsplit_once('@')
+            .map_or((root, None), |(crate_path, version)| {
+                (crate_path, Some(version.to_string()))
+            });
+        let crate_name = has_crate
+            .then(|| crate_path.split('/').next().unwrap_or_default())
+            .filter(|crate_name| !crate_name.is_empty())
+            .map(ToOwned::to_owned);
+        Self {
+            raw: query.to_string(),
+            item_name,
+            crate_name,
+            requested_version,
+        }
+    }
+
+    fn source(&self, context: &PackageSearchContext) -> &'static str {
+        if self.crate_name.as_deref().is_some_and(|crate_name| {
+            !matching_dependencies(&context.cargo_dependencies, crate_name).is_empty()
+        }) {
+            return "registry-source";
+        }
+        if let (Some(crate_name), Some(requested_version)) = (
+            self.crate_name.as_deref(),
+            self.requested_version.as_deref(),
+        ) && !current_workspace_version_matches(context, crate_name, requested_version)
+        {
+            return "registry-source";
+        }
+        "native-parser"
+    }
+
+    fn header_line(
+        &self,
+        view: &str,
+        project_root: &Path,
+        context: &PackageSearchContext,
+        count_label: &str,
+        count: usize,
+        source: &str,
+    ) -> String {
+        let mut block = format!(
+            "[{view}] q={} pkg={} {count_label}={} source={}",
+            self.raw,
+            package_label(project_root, &context.package_root),
+            count,
+            source
+        );
+        if let Some(crate_name) = self.crate_name.as_deref() {
+            let _ = write!(block, " crate={crate_name}");
+        }
+        if let Some(requested_version) = self.requested_version.as_deref() {
+            let crate_name = self.crate_name.as_deref().unwrap_or("-");
+            let version_scope =
+                if current_workspace_version_matches(context, crate_name, requested_version) {
+                    "current"
+                } else {
+                    "external"
+                };
+            let _ = write!(
+                block,
+                " requestedVersion={} versionScope={} currentWorkspaceVersion={}",
+                requested_version,
+                version_scope,
+                current_workspace_versions(context, crate_name)
+            );
+        }
+        block.push('\n');
+        block
+    }
+}
+
+fn current_workspace_version_matches(
+    context: &PackageSearchContext,
+    crate_name: &str,
+    requested_version: &str,
+) -> bool {
+    matching_dependencies(&context.cargo_dependencies, crate_name)
+        .iter()
+        .any(|dependency| dependency.version_req.as_deref() == Some(requested_version))
+}
+
+fn current_workspace_versions(context: &PackageSearchContext, crate_name: &str) -> String {
+    let versions = matching_dependencies(&context.cargo_dependencies, crate_name)
+        .into_iter()
+        .filter_map(|dependency| dependency.version_req.as_deref())
+        .collect::<BTreeSet<_>>();
+    if versions.is_empty() {
+        "-".to_string()
+    } else {
+        versions.into_iter().collect::<Vec<_>>().join(",")
+    }
+}
+
+pub(super) fn render_search_public_external_types(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    options: &RustSearchOptions,
+) -> Result<String, String> {
+    let contexts = search_contexts(project_root, config, options)?;
+    let mut rendered = String::new();
+    for context in contexts {
+        let dependencies = options.dependency.as_deref().map_or_else(
+            || context.cargo_dependencies.iter().collect::<Vec<_>>(),
+            |dependency| matching_dependencies(&context.cargo_dependencies, dependency),
+        );
+        let hits = public_external_type_hits(
+            &context.package_root,
+            &context.parsed_modules,
+            &dependencies,
+        );
+        let mut block = format!(
+            "[search-public-external-types] pkg={} dep={} hit={}\n",
+            package_label(project_root, &context.package_root),
+            dependencies.len(),
+            hits.len()
+        );
+        for hit in hits.into_iter().take(SEARCH_HIT_LIMIT) {
+            let _ = writeln!(block, "{hit}");
+        }
+        append_block(&mut rendered, &block);
+    }
+    Ok(rendered)
+}
+
+fn render_api_line(
+    package_root: &Path,
+    parsed_modules: &[ParsedRustModule],
+    hit: &SearchHit,
+    include_docs: bool,
+) -> String {
+    let docs = if include_docs {
+        " docs=local-parser"
+    } else {
+        ""
+    };
+    format!(
+        "|api {} source=native-parser{}{}",
+        hit.render(package_root),
+        docs,
+        api_fact_fields_for_hit(parsed_modules, hit)
+    )
+}
+
+fn api_fact_fields_for_hit(parsed_modules: &[ParsedRustModule], hit: &SearchHit) -> String {
+    let Some(module) = parsed_modules
+        .iter()
+        .find(|module| module.report.path == hit.path)
+    else {
+        return " signature=- async=false unsafe=false receiver=- return=- error=-".to_string();
+    };
+    let return_fact = module
+        .syntax_facts
+        .public_function_returns
+        .iter()
+        .filter(|return_fact| !return_fact.is_test_context && return_fact.function_name == hit.name)
+        .min_by_key(|return_fact| usize::from(return_fact.line != hit.line));
+    let params = module
+        .syntax_facts
+        .public_function_params
+        .iter()
+        .filter(|param| !param.is_test_context && param.function_name == hit.name)
+        .filter(|param| {
+            return_fact.is_none_or(|return_fact| param.function_line == return_fact.line)
+        })
+        .map(|param| {
+            format!(
+                "{}:{}",
+                compact_api_value(&param.param_name),
+                compact_api_value(&param.type_text)
+            )
+        })
+        .collect::<Vec<_>>();
+    let params = if params.is_empty() {
+        "-".to_string()
+    } else {
+        params.join(";")
+    };
+    let return_type = return_fact
+        .map(|return_fact| compact_api_value(&return_fact.type_text))
+        .unwrap_or_else(|| "-".to_string());
+    let signature = if matches!(hit.kind.as_str(), "fn" | "method") {
+        let signature_params = if params == "-" { "" } else { &params };
+        format!("fn({signature_params})->{return_type}")
+    } else {
+        "-".to_string()
+    };
+    let is_async = return_fact.is_some_and(|return_fact| return_fact.is_async);
+    let is_unsafe = return_fact.is_some_and(|return_fact| return_fact.is_unsafe);
+    let receiver = return_fact
+        .and_then(|return_fact| return_fact.receiver.as_deref())
+        .map(compact_api_value)
+        .unwrap_or_else(|| "-".to_string());
+    let error = return_fact
+        .and_then(|return_fact| return_fact.application_error_boundary.as_deref())
+        .map(compact_api_value)
+        .unwrap_or_else(|| "-".to_string());
+    let impl_type = return_fact
+        .and_then(|return_fact| return_fact.impl_type.as_deref())
+        .map(compact_api_value)
+        .unwrap_or_else(|| "-".to_string());
+    let trait_path = return_fact
+        .and_then(|return_fact| return_fact.trait_path.as_deref())
+        .map(compact_api_value)
+        .unwrap_or_else(|| "-".to_string());
+    format!(
+        " signature={} params={} async={} unsafe={} receiver={} return={} error={} impl={} trait={}",
+        signature, params, is_async, is_unsafe, receiver, return_type, error, impl_type, trait_path
+    )
+}
+
+fn compact_api_value(value: &str) -> String {
+    let compact = value
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect::<String>()
+        .replace(',', "+");
+    if compact.is_empty() {
+        "-".to_string()
+    } else {
+        compact
+    }
+}
+
+fn api_hits(
+    package_root: &Path,
+    parsed_modules: &[ParsedRustModule],
+    symbol_hits: &[SearchHit],
+    query: &str,
+) -> Vec<SearchHit> {
+    let mut hits = symbol_hits
+        .iter()
+        .map(|hit| {
+            parsed_modules
+                .iter()
+                .find(|module| module.report.path == hit.path)
+                .and_then(|module| {
+                    module
+                        .syntax_facts
+                        .public_function_returns
+                        .iter()
+                        .filter(|return_fact| {
+                            !return_fact.is_test_context && return_fact.function_name == hit.name
+                        })
+                        .min_by_key(|return_fact| usize::from(return_fact.line != hit.line))
+                        .map(|return_fact| {
+                            api_hit_for_return_fact(
+                                module,
+                                return_fact.line,
+                                return_fact.receiver.is_some(),
+                                &return_fact.function_name,
+                            )
+                        })
+                })
+                .unwrap_or_else(|| hit.clone())
+        })
+        .collect::<Vec<_>>();
+    for module in parsed_modules {
+        for return_fact in
+            module
+                .syntax_facts
+                .public_function_returns
+                .iter()
+                .filter(|return_fact| {
+                    !return_fact.is_test_context && return_fact.function_name == query
+                })
+        {
+            if hits
+                .iter()
+                .any(|hit| hit.path == module.report.path && hit.name == return_fact.function_name)
+            {
+                continue;
+            }
+            hits.push(api_hit_for_return_fact(
+                module,
+                return_fact.line,
+                return_fact.receiver.is_some(),
+                &return_fact.function_name,
+            ));
+        }
+    }
+    sort_search_hits_by_recency(package_root, &mut hits);
+    hits
+}
+
+fn api_hit_for_return_fact(
+    module: &ParsedRustModule,
+    line: usize,
+    has_receiver: bool,
+    function_name: &str,
+) -> SearchHit {
+    SearchHit {
+        path: module.report.path.clone(),
+        line,
+        kind: if has_receiver {
+            "method".to_string()
+        } else {
+            "fn".to_string()
+        },
+        name: function_name.to_string(),
+    }
+}
+
+#[derive(Debug)]
+struct PublicApiTypeSurface {
+    path: PathBuf,
+    line: usize,
+    item: String,
+    surface: String,
+    type_text: String,
+}
+
+fn public_external_type_hits(
+    package_root: &Path,
+    parsed_modules: &[ParsedRustModule],
+    dependencies: &[&CargoDependencyFacts],
+) -> Vec<String> {
+    let mut hits = BTreeSet::new();
+    for module in parsed_modules {
+        let surfaces = public_api_type_surfaces(module);
+        for dependency in dependencies {
+            let aliases = dependency_aliases(module, dependency);
+            for surface in &surfaces {
+                if aliases
+                    .iter()
+                    .any(|alias| type_text_mentions_alias(&surface.type_text, alias))
+                {
+                    hits.insert(format!(
+                        "|external-type {}:{} dep={} surface={} item={} type={} source=native-parser next=dependency:{},docs:{}",
+                        display_project_path(package_root, &surface.path),
+                        surface.line,
+                        dependency.dependency_key,
+                        surface.surface,
+                        surface.item,
+                        compact_api_value(&surface.type_text),
+                        dependency.dependency_key,
+                        compact_api_value(&surface.type_text)
+                    ));
+                }
+            }
+        }
+    }
+    hits.into_iter().collect()
+}
+
+fn public_api_type_surfaces(module: &ParsedRustModule) -> Vec<PublicApiTypeSurface> {
+    let mut surfaces = Vec::new();
+    surfaces.extend(
+        module
+            .syntax_facts
+            .public_function_params
+            .iter()
+            .filter(|param| !param.is_test_context)
+            .map(|param| PublicApiTypeSurface {
+                path: module.report.path.clone(),
+                line: param.line,
+                item: param.function_name.clone(),
+                surface: format!("param:{}", param.param_name),
+                type_text: param.type_text.clone(),
+            }),
+    );
+    surfaces.extend(
+        module
+            .syntax_facts
+            .public_function_returns
+            .iter()
+            .filter(|return_fact| !return_fact.is_test_context)
+            .map(|return_fact| PublicApiTypeSurface {
+                path: module.report.path.clone(),
+                line: return_fact.line,
+                item: return_fact.function_name.clone(),
+                surface: "return".to_string(),
+                type_text: return_fact.type_text.clone(),
+            }),
+    );
+    surfaces.extend(
+        module
+            .syntax_facts
+            .public_struct_fields
+            .iter()
+            .filter(|field| !field.is_test_context)
+            .map(|field| PublicApiTypeSurface {
+                path: module.report.path.clone(),
+                line: field.line,
+                item: field.struct_name.clone(),
+                surface: format!("field:{}", field.field_name),
+                type_text: field.type_text.clone(),
+            }),
+    );
+    surfaces.extend(
+        module
+            .syntax_facts
+            .public_enum_variant_fields
+            .iter()
+            .filter(|field| !field.is_test_context)
+            .map(|field| PublicApiTypeSurface {
+                path: module.report.path.clone(),
+                line: field.line,
+                item: format!("{}::{}", field.enum_name, field.variant_name),
+                surface: format!("field:{}", field.field_name),
+                type_text: field.type_text.clone(),
+            }),
+    );
+    surfaces.extend(
+        module
+            .syntax_facts
+            .public_enum_tuple_variant_fields
+            .iter()
+            .filter(|field| !field.is_test_context)
+            .map(|field| PublicApiTypeSurface {
+                path: module.report.path.clone(),
+                line: field.line,
+                item: format!("{}::{}", field.enum_name, field.variant_name),
+                surface: format!("tuple-field:{}", field.field_index),
+                type_text: field.type_text.clone(),
+            }),
+    );
+    surfaces.extend(
+        module
+            .syntax_facts
+            .public_type_aliases
+            .iter()
+            .filter(|alias| !alias.is_test_context)
+            .map(|alias| PublicApiTypeSurface {
+                path: module.report.path.clone(),
+                line: alias.line,
+                item: alias.alias_name.clone(),
+                surface: "alias".to_string(),
+                type_text: alias.target_type_text.clone(),
+            }),
+    );
+    surfaces
+}
+
+fn dependency_aliases(
+    module: &ParsedRustModule,
+    dependency: &CargoDependencyFacts,
+) -> BTreeSet<String> {
+    let mut aliases = BTreeSet::from([
+        dependency.dependency_key.replace('-', "_"),
+        dependency.import_name.clone(),
+        dependency.package_name.replace('-', "_"),
+    ]);
+    for import in module
+        .syntax_facts
+        .use_statements
+        .iter()
+        .flat_map(|use_statement| &use_statement.imports)
+    {
+        let Some(root) = import.segments.first() else {
+            continue;
+        };
+        if root == &dependency.import_name || root == &dependency.package_name.replace('-', "_") {
+            if let Some(exposed_name) = &import.exposed_name {
+                aliases.insert(exposed_name.clone());
+            }
+            if let Some(last_segment) = import.segments.last() {
+                aliases.insert(last_segment.clone());
+            }
+        }
+    }
+    aliases
+}
+
+fn type_text_mentions_alias(type_text: &str, alias: &str) -> bool {
+    type_text
+        .split(|character: char| !(character.is_ascii_alphanumeric() || character == '_'))
+        .any(|token| token == alias)
+}

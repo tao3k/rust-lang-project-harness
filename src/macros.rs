@@ -1,6 +1,6 @@
 //! Public harness mounting macros.
 
-/// Mount the default Rust project harness into a Cargo test target.
+/// Mount the default Rust project harness into a legacy Cargo test target.
 #[macro_export]
 macro_rules! rust_project_harness_gate {
     () => {
@@ -23,7 +23,13 @@ macro_rules! rust_project_harness_gate {
 
 /// Mount the default Rust project harness inside `src/lib.rs` for Cargo tests.
 ///
-/// Use this from downstream crates through a dev-dependency:
+/// Downstream crates should prefer the build-script assertion helpers so
+/// `cargo check` runs parser-native project policy before the test layer. This
+/// macro remains available for compatibility and for crates that cannot yet add
+/// a root `build.rs`.
+///
+/// Use this from downstream crates through a dev-dependency only when a
+/// build-script gate is not yet possible:
 ///
 /// ```rust,ignore
 /// #[cfg(test)]
@@ -39,14 +45,14 @@ macro_rules! rust_project_harness_gate {
 /// ```
 ///
 /// The `#[cfg(test)]` guard keeps normal `cargo build` free of the
-/// dev-dependency, while `cargo test` and `cargo test --lib` both execute the
-/// project harness.
+/// dev-dependency, while `cargo test` and `cargo test --lib` both execute this
+/// compatibility harness gate.
 ///
 /// By default, this cargo-test gate fails on non-blocking `Info` advice as an
 /// agent repair reminder. Use `advice = allow, config = { ... }` only when a
 /// legacy crate needs to keep advisory findings visible in rendered reports
 /// without failing cargo tests. That config must also call
-/// `with_agent_advice_allow_explanation(...)`, so allowing advice remains an
+/// `with_cargo_test_advice_allow_explanation(...)`, so allowing advice remains an
 /// auditable project decision instead of a silent harness escape.
 #[macro_export]
 macro_rules! rust_project_harness_cargo_test_gate {

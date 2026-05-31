@@ -86,7 +86,7 @@ jobs:
 
       - name: Run harness self-check
         if: ${{ matrix.os == 'ubuntu-latest' }}
-        run: cargo run --bin rust-project-harness -- .
+        run: cargo run --features cli --bin rs-harness -- .
 
       - name: Save sccache cache (fallback)
         if: ${{ always() && !cancelled() && env.SCCACHE_GHA_ENABLED != 'true' }}
