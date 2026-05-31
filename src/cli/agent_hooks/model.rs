@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-pub(super) const CODEX_POLICY_PATH: &str = ".agents/codex/harness-policy.json";
-pub(super) const CODEX_STATE_DIR: &str = ".agents/codex/harness-state";
+pub(super) const CODEX_POLICY_PATH: &str = ".codex/harness-policy.json";
+pub(super) const CODEX_STATE_DIR: &str = ".codex/harness-state";
 pub(super) const RUST_CHECK: &str = "rs-harness check --changed";
 pub(super) const TS_CHECK: &str = "ts-harness check --changed";
 

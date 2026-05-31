@@ -106,7 +106,7 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
     let stdout = String::from_utf8(doctor.stdout).expect("utf8 stdout");
     assert!(
         stdout.starts_with(
-            "[agent-doctor] action=checked client=none skill=false policy=false hooks=0"
+            "[agent-doctor] action=checked client=none skill=false policy=false config=false hooks=0"
         ),
         "{stdout}"
     );
@@ -131,29 +131,39 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
     let stdout = String::from_utf8(install.stdout).expect("utf8 stdout");
     assert!(
         stdout.starts_with(
-            "[agent-doctor] action=installed client=codex skill=true policy=true hooks=7"
+            "[agent-doctor] action=installed client=codex skill=true policy=true config=true hooks=7"
         ),
         "{stdout}"
     );
+    assert!(root.join(".codex/skills/rs-harness/SKILL.org").exists());
+    assert!(root.join(".codex/harness-policy.json").exists());
+    assert!(root.join(".codex/hooks.json").exists());
     assert!(
-        root.join(".agents/codex/skills/rs-harness/SKILL.org")
-            .exists()
-    );
-    assert!(root.join(".agents/codex/harness-policy.json").exists());
-    assert!(
-        root.join(".agents/codex/hooks/agent_rs_harness_codex_session_start.sh")
-            .exists()
-    );
-    assert!(
-        root.join(".agents/codex/hooks/agent_rs_harness_codex_pre_tool.sh")
+        root.join(".codex/hooks/agent_rs_harness_codex_session_start.sh")
             .exists()
     );
     assert!(
-        root.join(".agents/codex/hooks/agent_rs_harness_codex_subagent_stop.sh")
+        root.join(".codex/hooks/agent_rs_harness_codex_pre_tool.sh")
             .exists()
     );
-    let skill =
-        fs::read_to_string(root.join(".agents/codex/skills/rs-harness/SKILL.org")).expect("skill");
+    assert!(
+        root.join(".codex/hooks/agent_rs_harness_codex_subagent_stop.sh")
+            .exists()
+    );
+    let hooks_config =
+        fs::read_to_string(root.join(".codex/hooks.json")).expect("codex hooks config");
+    let hooks_value = serde_json::from_str::<Value>(&hooks_config).expect("hooks json");
+    assert_eq!(
+        hooks_value["hooks"]["PreToolUse"][0]["matcher"],
+        "Bash|apply_patch|Edit|Write"
+    );
+    assert!(
+        hooks_value["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+            .as_str()
+            .expect("pre-tool command")
+            .contains(".codex/hooks/agent_rs_harness_codex_pre_tool.sh")
+    );
+    let skill = fs::read_to_string(root.join(".codex/skills/rs-harness/SKILL.org")).expect("skill");
     assert!(skill.contains("rs-harness Skill"));
     assert!(skill.contains("Hooks boundary"));
     assert!(skill.contains("Profile selection"));

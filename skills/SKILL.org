@@ -53,12 +53,12 @@ Raw TS/JS rg must pipe to ingest: `rg -n "<query>" --glob "*.{ts,tsx,js,jsx,mts,
 Subagent must return `[search-subagent] role=... evidence=... missing=... next=... risk=...`.
 #+end_src
 
-Installed Codex hook assets live under =.agents/codex/hooks= with
-=agent_rs_harness_codex_*= names. The default state file is
-=.agents/codex/harness-state/session.json= and the default policy file is
-=.agents/codex/harness-policy.json=. Codex clients can wire their
-=SessionStart=, =UserPromptSubmit=, =PreToolUse=, =PostToolUse=,
-=SubagentStart=, =SubagentStop=, and =Stop= events to these scripts.
+Installed Codex hook assets use project-local =.codex/hooks.json= and scripts
+under =.codex/hooks= with =agent_rs_harness_codex_*= names. The default state
+file is =.codex/harness-state/session.json= and the default policy file is
+=.codex/harness-policy.json=. Codex clients can wire their =SessionStart=,
+=UserPromptSubmit=, =PreToolUse=, =PostToolUse=, =SubagentStart=,
+=SubagentStop=, and =Stop= events through the generated hooks config.
 
 * Non-negotiable rules
 

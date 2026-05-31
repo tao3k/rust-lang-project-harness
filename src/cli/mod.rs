@@ -1,5 +1,6 @@
 //! Command-line execution for the Rust project harness binary.
 
+mod agent_assets;
 mod agent_hooks;
 mod agent_registry;
 mod runner;
