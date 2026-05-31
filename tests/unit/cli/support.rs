@@ -1,8 +1,6 @@
 use std::fs;
-#[cfg(feature = "search")]
 use std::io::Write;
 use std::path::Path;
-#[cfg(feature = "search")]
 use std::process::Stdio;
 use std::process::{Command, Output};
 
@@ -15,6 +13,27 @@ where
         .args(args)
         .output()
         .expect("run cli")
+}
+
+pub(crate) fn run_cli_with_stdin<I, S>(args: I, stdin: &str) -> Output
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<std::ffi::OsStr>,
+{
+    let mut child = Command::new(env!("CARGO_BIN_EXE_rs-harness"))
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn cli");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin")
+        .write_all(stdin.as_bytes())
+        .expect("write stdin");
+    child.wait_with_output().expect("run cli")
 }
 
 #[cfg(feature = "search")]
@@ -37,20 +56,7 @@ pub(crate) fn run_search_with_stdin(root: &Path, args: &[&str], stdin: &str) -> 
     command_args.push("search".into());
     command_args.extend(args.iter().map(std::ffi::OsString::from));
     command_args.push(root.as_os_str().to_os_string());
-    let mut child = Command::new(env!("CARGO_BIN_EXE_rs-harness"))
-        .args(command_args)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("spawn cli");
-    child
-        .stdin
-        .as_mut()
-        .expect("stdin")
-        .write_all(stdin.as_bytes())
-        .expect("write stdin");
-    let output = child.wait_with_output().expect("run cli");
+    let output = run_cli_with_stdin(command_args, stdin);
     assert!(output.status.success(), "{output:?}");
     normalize_temp_root(
         &String::from_utf8(output.stdout).expect("utf8 stdout"),

@@ -69,7 +69,9 @@
             "pattern-recipe-search",
             "external-candidate-ingest",
             "stdin-shape-detection",
-            "owner-grouped-ingest"
+            "owner-grouped-ingest",
+            "agent-hook-policy",
+            "harness-search-checkpoints"
           ]
         }
       }

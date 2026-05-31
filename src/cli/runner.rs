@@ -8,12 +8,20 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 const AGENT_SKILL_CONTENT: &str = include_str!("../../skills/SKILL.org");
-const AGENT_SESSION_START_HOOK: &str =
-    "#!/usr/bin/env bash\nset -euo pipefail\n\nrs-harness search prime . || true\n";
-const AGENT_AFTER_EDIT_HOOK: &str =
-    "#!/usr/bin/env bash\nset -euo pipefail\n\nrs-harness check --changed\n";
-const AGENT_CLOSEOUT_HOOK: &str = "#!/usr/bin/env bash\nset -euo pipefail\n\nrs-harness check --full\ncargo check --all-targets\n";
+const AGENT_POLICY_CONTENT: &str = r#"{
+  "mode": "strict",
+  "prime_required_before_edit": true,
+  "raw_rg_requires_ingest": true,
+  "raw_fd_requires_ingest": true,
+  "raw_ast_grep_blocked": true,
+  "changed_check_required_after_edit": true,
+  "subagent_evidence_required": true,
+  "synthesis_required_after_edit": true,
+  "exact_file_edit_exception": true
+}
+"#;
 
+use super::agent_hooks::run_agent_hook;
 use super::agent_registry::print_agent_registry;
 #[cfg(feature = "search")]
 use super::search_output::{SearchOutputControls, apply_search_output_controls};
@@ -137,6 +145,13 @@ fn run_agent(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitC
                 print_agent_doctor(&project_root, "checked")?;
             }
         }
+        "hook" => {
+            let event = options
+                .hook_event
+                .as_deref()
+                .ok_or_else(|| "expected agent hook event".to_string())?;
+            run_agent_hook(&project_root, event)?;
+        }
         other => return Err(format!("unknown agent command: {other}")),
     }
     Ok(ExitCode::SUCCESS)
@@ -228,6 +243,7 @@ struct CheckOptions {
 #[derive(Debug)]
 struct AgentOptions {
     command: String,
+    hook_event: Option<String>,
     json: bool,
     help: bool,
     paths: Vec<PathBuf>,
@@ -237,6 +253,7 @@ impl Default for AgentOptions {
     fn default() -> Self {
         Self {
             command: "doctor".to_string(),
+            hook_event: None,
             json: false,
             help: false,
             paths: Vec::new(),
@@ -523,8 +540,11 @@ impl AgentOptions {
                 value if value.starts_with('-') => {
                     return Err(format!("unknown agent option: {value}"));
                 }
-                "install" | "doctor" if options.command == "doctor" => {
+                "install" | "doctor" | "hook" if options.command == "doctor" => {
                     options.command = value.to_string();
+                }
+                value if options.command == "hook" && options.hook_event.is_none() => {
+                    options.hook_event = Some(value.to_string());
                 }
                 _ => options.paths.push(PathBuf::from(arg)),
             }
@@ -635,7 +655,8 @@ fn print_check_help() {
 fn print_agent_help() {
     println!(
         "rs-harness agent install [--json] [PROJECT_ROOT]\n\
-         rs-harness agent doctor [--json] [PROJECT_ROOT]\n\n\
+         rs-harness agent doctor [--json] [PROJECT_ROOT]\n\
+         rs-harness agent hook <event> [PROJECT_ROOT]\n\n\
          Installs or checks generic agent SKILL.org and hook assets under .agents/.\n\
          Use --json to emit the semantic-language registry contract."
     );
@@ -644,25 +665,73 @@ fn print_agent_help() {
 fn install_agent_assets(project_root: &Path) -> Result<(), String> {
     let skill_dir = project_root.join(".agents/skills/rs-harness");
     let hook_dir = project_root.join(".agents/hooks");
+    let policy_path = project_root.join(".agents/harness-policy.json");
     fs::create_dir_all(&skill_dir)
         .map_err(|error| format!("failed to create agent skill dir: {error}"))?;
     fs::create_dir_all(&hook_dir)
         .map_err(|error| format!("failed to create agent hook dir: {error}"))?;
     fs::write(skill_dir.join("SKILL.org"), AGENT_SKILL_CONTENT)
         .map_err(|error| format!("failed to write agent skill: {error}"))?;
-    write_agent_hook(
-        &hook_dir.join("agent_rs_harness_session_start.sh"),
-        AGENT_SESSION_START_HOOK,
-    )?;
-    write_agent_hook(
-        &hook_dir.join("agent_rs_harness_after_edit.sh"),
-        AGENT_AFTER_EDIT_HOOK,
-    )?;
-    write_agent_hook(
-        &hook_dir.join("agent_rs_harness_closeout.sh"),
-        AGENT_CLOSEOUT_HOOK,
-    )?;
+    fs::write(policy_path, AGENT_POLICY_CONTENT)
+        .map_err(|error| format!("failed to write agent hook policy: {error}"))?;
+    for hook in agent_hook_assets() {
+        write_agent_hook(
+            &hook_dir.join(hook.file_name),
+            &agent_hook_script(hook.event),
+        )?;
+    }
     Ok(())
+}
+
+#[derive(Debug, Clone, Copy)]
+struct AgentHookAsset {
+    label: &'static str,
+    event: &'static str,
+    file_name: &'static str,
+}
+
+fn agent_hook_assets() -> &'static [AgentHookAsset] {
+    &[
+        AgentHookAsset {
+            label: "session-start",
+            event: "session-start",
+            file_name: "agent_rs_harness_session_start.sh",
+        },
+        AgentHookAsset {
+            label: "user-prompt",
+            event: "user-prompt",
+            file_name: "agent_rs_harness_user_prompt.sh",
+        },
+        AgentHookAsset {
+            label: "pre-tool",
+            event: "pre-tool",
+            file_name: "agent_rs_harness_pre_tool.sh",
+        },
+        AgentHookAsset {
+            label: "post-tool",
+            event: "post-tool",
+            file_name: "agent_rs_harness_post_tool.sh",
+        },
+        AgentHookAsset {
+            label: "subagent-start",
+            event: "subagent-start",
+            file_name: "agent_rs_harness_subagent_start.sh",
+        },
+        AgentHookAsset {
+            label: "subagent-stop",
+            event: "subagent-stop",
+            file_name: "agent_rs_harness_subagent_stop.sh",
+        },
+        AgentHookAsset {
+            label: "stop",
+            event: "stop",
+            file_name: "agent_rs_harness_stop.sh",
+        },
+    ]
+}
+
+fn agent_hook_script(event: &str) -> String {
+    format!("#!/usr/bin/env bash\nset -euo pipefail\n\nrs-harness agent hook {event}\n")
 }
 
 fn write_agent_hook(path: &Path, content: &str) -> Result<(), String> {
@@ -682,16 +751,21 @@ fn write_agent_hook(path: &Path, content: &str) -> Result<(), String> {
 
 fn print_agent_doctor(project_root: &Path, action: &str) -> Result<(), String> {
     let skill = project_root.join(".agents/skills/rs-harness/SKILL.org");
-    let session = project_root.join(".agents/hooks/agent_rs_harness_session_start.sh");
-    let after_edit = project_root.join(".agents/hooks/agent_rs_harness_after_edit.sh");
-    let closeout = project_root.join(".agents/hooks/agent_rs_harness_closeout.sh");
+    let policy = project_root.join(".agents/harness-policy.json");
+    let hook_paths = agent_hook_assets()
+        .iter()
+        .map(|hook| {
+            (
+                hook.label,
+                project_root.join(".agents/hooks").join(hook.file_name),
+            )
+        })
+        .collect::<Vec<_>>();
     println!(
-        "[agent-doctor] action={action} skill={} hooks={} daemon=missing protocol=cli-cold",
+        "[agent-doctor] action={action} skill={} policy={} hooks={} daemon=missing protocol=cli-cold",
         skill.exists(),
-        [session.exists(), after_edit.exists(), closeout.exists()]
-            .into_iter()
-            .filter(|exists| *exists)
-            .count()
+        policy.exists(),
+        hook_paths.iter().filter(|(_, path)| path.exists()).count()
     );
     println!(
         "|skill {} present={}",
@@ -699,20 +773,17 @@ fn print_agent_doctor(project_root: &Path, action: &str) -> Result<(), String> {
         skill.exists()
     );
     println!(
-        "|hook session-start path={} present={}",
-        display_cli_path(project_root, &session),
-        session.exists()
+        "|policy {} present={}",
+        display_cli_path(project_root, &policy),
+        policy.exists()
     );
-    println!(
-        "|hook after-edit path={} present={}",
-        display_cli_path(project_root, &after_edit),
-        after_edit.exists()
-    );
-    println!(
-        "|hook closeout path={} present={}",
-        display_cli_path(project_root, &closeout),
-        closeout.exists()
-    );
+    for (label, path) in hook_paths {
+        println!(
+            "|hook {label} path={} present={}",
+            display_cli_path(project_root, &path),
+            path.exists()
+        );
+    }
     Ok(())
 }
 
