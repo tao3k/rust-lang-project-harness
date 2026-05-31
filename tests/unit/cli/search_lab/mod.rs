@@ -1,6 +1,8 @@
 mod fixtures;
 mod flow;
 mod prime;
+mod public_fixtures;
+mod public_large_flow;
 
 const FORBIDDEN_PRIME_PATTERNS: &[&str] =
     &["--compact", "intent=", "subagent-plan", "|hit ", "Modules:"];

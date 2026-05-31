@@ -1,6 +1,6 @@
 //! Compact output controls shared by CLI search views.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) struct SearchOutputControls<'a> {
     pub(super) depth: Option<usize>,
@@ -44,6 +44,7 @@ fn render_search_seed_view(rendered: &str, seed_limit: Option<usize>) -> String 
     seeds.sort_by(|left, right| {
         seed_priority(left)
             .cmp(&seed_priority(right))
+            .then_with(|| seed_secondary_rank(left).cmp(&seed_secondary_rank(right)))
             .then_with(|| left.len().cmp(&right.len()))
             .then_with(|| left.cmp(right))
     });
@@ -54,7 +55,7 @@ fn render_search_seed_view(rendered: &str, seed_limit: Option<usize>) -> String 
         compact.push_str(&header);
         compact.push('\n');
     }
-    for seed in seeds.into_iter().take(seed_limit) {
+    for seed in bounded_seeds(seeds, seed_limit) {
         compact.push_str("|seed ");
         compact.push_str(&seed);
         compact.push('\n');
@@ -92,6 +93,63 @@ fn seed_priority(seed: &str) -> usize {
     } else {
         8
     }
+}
+
+fn seed_secondary_rank(seed: &str) -> usize {
+    let target = seed.rsplit(':').next().unwrap_or(seed);
+    if matches!(target, "default" | "full" | "all") {
+        3
+    } else if seed.starts_with("owner:")
+        && (target.ends_with("/lib.rs") || target.ends_with("/main.rs"))
+    {
+        2
+    } else if target.chars().next().is_some_and(char::is_uppercase) || target.contains('-') {
+        0
+    } else if target.contains('_') {
+        2
+    } else {
+        1
+    }
+}
+
+fn bounded_seeds(seeds: Vec<String>, seed_limit: usize) -> Vec<String> {
+    let first_pass = first_pass_seed_indices(&seeds, seed_limit);
+    let first_pass_set = first_pass.iter().copied().collect::<BTreeSet<_>>();
+    let remaining = seed_limit.saturating_sub(first_pass.len());
+    first_pass
+        .into_iter()
+        .chain(
+            (0..seeds.len())
+                .filter(|index| !first_pass_set.contains(index))
+                .take(remaining),
+        )
+        .map(|index| seeds[index].clone())
+        .collect()
+}
+
+fn first_pass_seed_indices(seeds: &[String], seed_limit: usize) -> Vec<usize> {
+    seeds
+        .iter()
+        .enumerate()
+        .scan(
+            BTreeMap::<usize, usize>::new(),
+            |priority_counts, (index, seed)| {
+                let priority = seed_priority(seed);
+                let count = priority_counts.entry(priority).or_default();
+                if *count >= first_pass_limit_for_priority(priority) {
+                    return Some(None);
+                }
+                *count += 1;
+                Some(Some(index))
+            },
+        )
+        .flatten()
+        .take(seed_limit)
+        .collect()
+}
+
+fn first_pass_limit_for_priority(priority: usize) -> usize {
+    if priority == 0 { 2 } else { 1 }
 }
 
 struct SearchSeeds {
