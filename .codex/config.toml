@@ -1,0 +1,21 @@
+# Project-local Codex hook policy for this sandbox run.
+#
+# Intent:
+# - Keep Rust exploration search-first instead of dumping src/*.rs into context.
+# - Block bulk Rust source reads, then tell the agent which rs-harness search
+#   command to run next.
+# - Keep this policy local in one TOML file by delegating to the native
+#   rs-harness hook CLI.
+
+[[hooks.PreToolUse]]
+matcher = "Read|Bash|exec_command"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+timeout = 5
+statusMessage = "Rust search guard: use rs-harness before bulk .rs reads"
+command = '''
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$repo_root"
+exec rs-harness agent hook --client codex pre-tool "$repo_root"
+'''

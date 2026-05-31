@@ -155,7 +155,7 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
     let hooks_value = serde_json::from_str::<Value>(&hooks_config).expect("hooks json");
     assert_eq!(
         hooks_value["hooks"]["PreToolUse"][0]["matcher"],
-        "Bash|exec_command|apply_patch|Edit|Write"
+        "Read|Bash|exec_command|apply_patch|Edit|Write"
     );
     assert!(
         hooks_value["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
@@ -260,17 +260,7 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
         .to_string(),
     );
     assert!(pre_tool.status.success(), "{pre_tool:?}");
-    let value = serde_json::from_slice::<Value>(&pre_tool.stdout).expect("pre-tool JSON");
-    assert_eq!(
-        value["hookSpecificOutput"]["permissionDecision"].as_str(),
-        Some("deny")
-    );
-    assert!(
-        value["hookSpecificOutput"]["permissionDecisionReason"]
-            .as_str()
-            .is_some_and(|reason| reason.contains("search ingest")),
-        "{value}"
-    );
+    assert!(pre_tool.stdout.is_empty(), "{pre_tool:?}");
 
     let exec_command_pre_tool = run_cli_with_stdin(
         [
@@ -295,8 +285,59 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
         exec_command_pre_tool.status.success(),
         "{exec_command_pre_tool:?}"
     );
-    let value =
-        serde_json::from_slice::<Value>(&exec_command_pre_tool.stdout).expect("pre-tool JSON");
+    assert!(
+        exec_command_pre_tool.stdout.is_empty(),
+        "{exec_command_pre_tool:?}"
+    );
+
+    let direct_read = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &serde_json::json!({
+            "hook_event_name": "PreToolUse",
+            "cwd": root.display().to_string(),
+            "tool_name": "Read",
+            "tool_input": {
+                "path": "src/lib.rs"
+            }
+        })
+        .to_string(),
+    );
+    assert!(direct_read.status.success(), "{direct_read:?}");
+    let value = serde_json::from_slice::<Value>(&direct_read.stdout).expect("pre-tool JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["permissionDecision"].as_str(),
+        Some("deny")
+    );
+    assert!(
+        value["hookSpecificOutput"]["permissionDecisionReason"]
+            .as_str()
+            .is_some_and(|reason| {
+                reason.contains("rs-harness search owner")
+                    && reason.contains("rs-harness search prime")
+            }),
+        "{value}"
+    );
+
+    let bulk_shell_read = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"rg --files -g '*.rs' | xargs sed -n '1,40p'\"}}",
+    );
+    assert!(bulk_shell_read.status.success(), "{bulk_shell_read:?}");
+    let value = serde_json::from_slice::<Value>(&bulk_shell_read.stdout).expect("pre-tool JSON");
     assert_eq!(
         value["hookSpecificOutput"]["permissionDecision"].as_str(),
         Some("deny")

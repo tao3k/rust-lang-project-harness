@@ -9,6 +9,21 @@ use super::model::{
 use super::policy::CodexHookPolicy;
 use super::project::ProjectProfiles;
 
+pub(super) fn bulk_rust_read_reason(
+    payload: &HookPayload,
+    command: &str,
+    policy: &CodexHookPolicy,
+    project: &ProjectProfiles,
+) -> Option<&'static str> {
+    if !project.rust.enabled || !policy.profile(Profile::Rust).raw_search_requires_ingest {
+        return None;
+    }
+    if is_read_tool(payload) && value_has_rust_source_path(&payload.tool_input) {
+        return Some(rust_read_guard_reason());
+    }
+    shell_bulk_reads_rust(command).then_some(rust_read_guard_reason())
+}
+
 pub(super) fn broad_raw_search_profiles(
     command: &str,
     policy: &CodexHookPolicy,
@@ -323,7 +338,7 @@ fn is_edit_tool(payload: &HookPayload) -> bool {
 }
 
 fn command_has_raw_search_tool(command: &str) -> bool {
-    ["rg", "fd", "grep", "find", "ast-grep"]
+    ["fd", "grep", "find", "ast-grep"]
         .into_iter()
         .any(|tool| command_has_tool(command, tool))
 }
@@ -359,4 +374,74 @@ fn known_config_file(path: &str) -> bool {
         .iter()
         .chain(ts_config_files().iter())
         .any(|file| path.ends_with(file))
+}
+
+fn rust_read_guard_reason() -> &'static str {
+    "Direct Rust source reads are blocked. Use `rs-harness search prime .` for the project map, `rs-harness search owner <path-or-owner> items .` before opening an owner/file, `rs-harness search symbol <name> .` or `rs-harness search callsite <name> .` for symbols, and `rs-harness search deps <dep[/subpath][::api]> public-api .` for dependency API questions. Focused `rg -n \"<query>\" src tests` is allowed only when you already know the query."
+}
+
+fn is_read_tool(payload: &HookPayload) -> bool {
+    payload
+        .tool_name
+        .as_deref()
+        .is_some_and(|tool| tool == "Read" || tool == "read" || tool.ends_with("__read_file"))
+}
+
+fn value_has_rust_source_path(value: &Value) -> bool {
+    match value {
+        Value::String(text) => rust_source_path_or_glob(text),
+        Value::Array(values) => values.iter().any(value_has_rust_source_path),
+        Value::Object(fields) => fields.iter().any(|(key, value)| {
+            let path_key = matches!(key.as_str(), "path" | "file" | "filename" | "file_path");
+            (path_key && value.as_str().is_some_and(rust_source_path_or_glob))
+                || value_has_rust_source_path(value)
+        }),
+        _ => false,
+    }
+}
+
+fn rust_source_path_or_glob(text: &str) -> bool {
+    let lower = text.replace('\\', "/").to_ascii_lowercase();
+    lower.ends_with(".rs") || lower.contains("*.rs") || lower.contains("**/*.rs")
+}
+
+fn shell_bulk_reads_rust(command: &str) -> bool {
+    if command.trim().is_empty() {
+        return false;
+    }
+    let lower = command.replace('\\', "/").to_ascii_lowercase();
+    let reads_content = command_has_content_reader(&lower);
+    if reads_content && has_rust_glob(&lower) {
+        return true;
+    }
+    if inventory_command(&lower)
+        && lower.contains(".rs")
+        && (pipe_to_content_reader(&lower) || lower.contains("-exec "))
+    {
+        return true;
+    }
+    reads_content && lower.matches(".rs").count() > 1
+}
+
+fn has_rust_glob(command: &str) -> bool {
+    command.contains("*.rs") || command.contains("**/*.rs")
+}
+
+fn inventory_command(command: &str) -> bool {
+    (command_has_tool(command, "rg") && command.contains("--files"))
+        || command_has_tool(command, "fd")
+        || command_has_tool(command, "find")
+        || (command_has_tool(command, "git") && command.contains("ls-files"))
+}
+
+fn pipe_to_content_reader(command: &str) -> bool {
+    command.split('|').skip(1).any(command_has_content_reader)
+}
+
+fn command_has_content_reader(command: &str) -> bool {
+    [
+        "cat", "bat", "less", "more", "head", "tail", "nl", "awk", "sed",
+    ]
+    .into_iter()
+    .any(|tool| command_has_tool(command, tool))
 }

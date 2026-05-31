@@ -10,7 +10,7 @@ const CODEX_SKILL_DIR: &str = ".codex/skills/rs-harness";
 const CODEX_HOOK_DIR: &str = ".codex/hooks";
 const CODEX_HOOKS_CONFIG: &str = ".codex/hooks.json";
 const CODEX_POLICY_PATH: &str = ".codex/harness-policy.json";
-const CODEX_TOOL_MATCHER: &str = "Bash|exec_command|apply_patch|Edit|Write";
+const CODEX_TOOL_MATCHER: &str = "Read|Bash|exec_command|apply_patch|Edit|Write";
 const AGENT_POLICY_CONTENT: &str = r#"{
   "profiles": {
     "rust": {

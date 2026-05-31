@@ -5,7 +5,7 @@ use std::path::Path;
 use serde_json::{Value, json};
 
 use super::classify::{
-    broad_raw_search_profiles, changed_check_profiles, changed_check_reason,
+    broad_raw_search_profiles, bulk_rust_read_reason, changed_check_profiles, changed_check_reason,
     command_evidence_profiles, prime_required_reason, raw_search_reason, tool_command,
     touched_file_count, touched_files_by_profile,
 };
@@ -78,6 +78,10 @@ fn pre_tool_response(
     state: &HookState,
 ) -> Option<Value> {
     let command = tool_command(payload);
+    if let Some(reason) = bulk_rust_read_reason(payload, &command, policy, project) {
+        return Some(pre_tool_deny(reason));
+    }
+
     let raw_profiles = broad_raw_search_profiles(&command, policy, project);
     if !raw_profiles.is_empty() {
         return Some(pre_tool_deny(raw_search_reason(&raw_profiles)));
@@ -189,6 +193,7 @@ fn stop_response(
 
 fn pre_tool_deny(reason: &str) -> Value {
     json!({
+        "systemMessage": reason,
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
