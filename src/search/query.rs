@@ -13,6 +13,7 @@ use super::hits::{
 };
 use super::limits::SEARCH_HIT_LIMIT;
 use super::owner as owner_search;
+use super::owner_view;
 use super::scope::module_allowed;
 
 pub(super) fn render_search_symbol(
@@ -320,7 +321,7 @@ fn render_public_api_shape_pattern(
     if !owner_options.pipes.iter().any(|pipe| pipe == "items") {
         owner_options.pipes.push("items".to_string());
     }
-    let rendered = owner_search::render_search_owner(project_root, config, owner, &owner_options)?;
+    let rendered = owner_view::render_search_owner(project_root, config, owner, &owner_options)?;
     Ok(rendered.replacen(
         "[search-owner]",
         "[search-pattern] pattern=public-api-shape",

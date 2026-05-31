@@ -4,6 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 use std::path::{Path, PathBuf};
 
+use serde_json::Value;
+
 use crate::RustHarnessConfig;
 use crate::parser::{ParsedRustModule, RustTopLevelItemSyntax};
 
@@ -28,10 +30,13 @@ pub fn render_rust_project_harness_search_ingest_with_config(
     input: &str,
     options: &RustSearchOptions,
 ) -> Result<String, String> {
-    let source = detect_ingest_source(input);
-    let candidates = ingest_candidates(input, source);
     let package_roots =
         package_roots_for_request(project_root, config, options.package.as_deref())?;
+    let source = detect_ingest_source(input, &package_roots);
+    if source == IngestSource::Unknown && has_non_empty_input(input) {
+        return Ok(render_unknown_ingest(input));
+    }
+    let candidates = ingest_candidates(input, source);
     let contexts = ingest_pipe_contexts(project_root, config, options)?;
     let owner_hits = grouped_owner_hits(candidates, &package_roots);
     Ok(render_ingest_owner_hits(
@@ -97,7 +102,7 @@ fn render_ingest_owner_hits(
     let mut rendered = format!(
         "[search-ingest] src={} in={} own={}\n",
         source.as_str(),
-        input.lines().count(),
+        source.input_count(input),
         owner_hits.len()
     );
     for (owner, locations) in owner_hits.iter().take(SEARCH_OWNER_LIMIT) {
@@ -220,7 +225,10 @@ fn has_pipe(options: &RustSearchOptions, pipe: &str) -> bool {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum IngestSource {
     RgN,
+    Vimgrep,
+    RgJson,
     PathList,
+    PathListNul,
     DiffPaths,
     Unknown,
 }
@@ -229,7 +237,10 @@ impl IngestSource {
     const fn as_str(self) -> &'static str {
         match self {
             Self::RgN => "rg-n",
+            Self::Vimgrep => "vimgrep",
+            Self::RgJson => "rg-json",
             Self::PathList => "paths",
+            Self::PathListNul => "path-list-nul",
             Self::DiffPaths => "diff-paths",
             Self::Unknown => "unknown",
         }
@@ -237,25 +248,42 @@ impl IngestSource {
 
     const fn hit_kind(self) -> &'static str {
         match self {
-            Self::RgN => "text",
-            Self::PathList | Self::DiffPaths => "path",
+            Self::RgN | Self::Vimgrep | Self::RgJson => "text",
+            Self::PathList | Self::PathListNul | Self::DiffPaths => "path",
             Self::Unknown => "unknown",
+        }
+    }
+
+    fn input_count(self, input: &str) -> usize {
+        match self {
+            Self::PathListNul => input.split('\0').filter(|path| !path.is_empty()).count(),
+            _ => input.lines().count(),
         }
     }
 }
 
-fn detect_ingest_source(input: &str) -> IngestSource {
+fn detect_ingest_source(input: &str, package_roots: &[PathBuf]) -> IngestSource {
+    if input.contains('\0') {
+        return IngestSource::PathListNul;
+    }
     let first = input
         .lines()
         .find(|line| !line.trim().is_empty())
         .unwrap_or("");
+    let first = first.trim();
     if first.starts_with("diff --git ") {
         return IngestSource::DiffPaths;
+    }
+    if first.starts_with('{') {
+        return IngestSource::RgJson;
+    }
+    if parse_vimgrep_line(first).is_some() {
+        return IngestSource::Vimgrep;
     }
     if parse_rg_line(first).is_some() {
         return IngestSource::RgN;
     }
-    if !first.is_empty() {
+    if path_exists_in_packages(first, package_roots) {
         return IngestSource::PathList;
     }
     IngestSource::Unknown
@@ -268,18 +296,31 @@ fn ingest_candidates(input: &str, source: IngestSource) -> Vec<(PathBuf, Vec<Str
             .filter_map(parse_rg_line)
             .map(|(path, line)| (path, vec![format!("{line}:1")]))
             .collect(),
+        IngestSource::Vimgrep => input
+            .lines()
+            .filter_map(parse_vimgrep_line)
+            .map(|(path, line, column)| (path, vec![format!("{line}:{column}")]))
+            .collect(),
+        IngestSource::RgJson => input.lines().filter_map(parse_rg_json_line).collect(),
         IngestSource::DiffPaths => input
             .lines()
             .filter_map(|line| line.strip_prefix("diff --git a/"))
             .filter_map(|line| line.split_once(" b/").map(|(_, right)| right))
             .map(|path| (PathBuf::from(path), Vec::new()))
             .collect(),
-        IngestSource::PathList | IngestSource::Unknown => input
+        IngestSource::PathList => input
             .lines()
             .map(str::trim)
             .filter(|line| !line.is_empty())
             .map(|line| (PathBuf::from(line), Vec::new()))
             .collect(),
+        IngestSource::PathListNul => input
+            .split('\0')
+            .map(str::trim)
+            .filter(|path| !path.is_empty())
+            .map(|path| (PathBuf::from(path), Vec::new()))
+            .collect(),
+        IngestSource::Unknown => Vec::new(),
     }
 }
 
@@ -287,5 +328,54 @@ fn parse_rg_line(line: &str) -> Option<(PathBuf, usize)> {
     let mut parts = line.splitn(3, ':');
     let path = parts.next()?;
     let line_number = parts.next()?.parse::<usize>().ok()?;
+    parts.next()?;
     Some((PathBuf::from(path), line_number))
+}
+
+fn parse_vimgrep_line(line: &str) -> Option<(PathBuf, usize, usize)> {
+    let mut parts = line.splitn(4, ':');
+    let path = parts.next()?;
+    let line_number = parts.next()?.parse::<usize>().ok()?;
+    let column = parts.next()?.parse::<usize>().ok()?;
+    parts.next()?;
+    Some((PathBuf::from(path), line_number, column))
+}
+
+fn parse_rg_json_line(line: &str) -> Option<(PathBuf, Vec<String>)> {
+    let value = serde_json::from_str::<Value>(line).ok()?;
+    if value.get("type")?.as_str()? != "match" {
+        return None;
+    }
+    let data = value.get("data")?;
+    let path = data.get("path")?.get("text")?.as_str()?;
+    let line_number = data.get("line_number")?.as_u64()? as usize;
+    let column = data
+        .get("submatches")
+        .and_then(Value::as_array)
+        .and_then(|submatches| submatches.first())
+        .and_then(|submatch| submatch.get("start"))
+        .and_then(Value::as_u64)
+        .map_or(1, |start| start as usize + 1);
+    Some((PathBuf::from(path), vec![format!("{line_number}:{column}")]))
+}
+
+fn path_exists_in_packages(path: &str, package_roots: &[PathBuf]) -> bool {
+    let path = Path::new(path);
+    if path.is_absolute() {
+        return path.exists();
+    }
+    package_roots
+        .iter()
+        .any(|package_root| package_root.join(path).exists())
+}
+
+fn has_non_empty_input(input: &str) -> bool {
+    input.lines().any(|line| !line.trim().is_empty())
+}
+
+fn render_unknown_ingest(input: &str) -> String {
+    format!(
+        "[search-ingest] error=unrecognized-input lines={}\n|fix pipe paths, rg -n, rg --json, git diff --name-only, or fd output\n",
+        input.lines().count()
+    )
 }

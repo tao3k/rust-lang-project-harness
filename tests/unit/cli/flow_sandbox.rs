@@ -223,6 +223,44 @@ fn cli_rust_flow_sandbox_drill_exercises_registry_prime_search_and_ingest() {
         ingest.contains("|owner src/lib.rs role=source hit_kind=text locations=6:1 next=owner"),
         "{ingest}"
     );
+
+    let test_owner = run_search(root, &["owner", "tests/domain.rs"]);
+    assert!(
+        test_owner.starts_with("[search-owner] q=tests/domain.rs pkg=. own=1 item=0"),
+        "{test_owner}"
+    );
+    assert!(
+        test_owner.contains(
+            "|owner tests/domain.rs role=test public=false source=parser-visible-module parserOwner=false layer=test"
+        ),
+        "{test_owner}"
+    );
+    assert!(test_owner.contains(" valid=true "), "{test_owner}");
+    assert!(test_owner.contains(" imports=1 "), "{test_owner}");
+    assert!(
+        test_owner.contains("next=owner:tests/domain.rs,text:tests/domain.rs(owner=tests/domain.rs),tests:tests/domain.rs"),
+        "{test_owner}"
+    );
+    assert!(!test_owner.contains("source=path-only"), "{test_owner}");
+
+    std::fs::write(root.join("README.md"), "# Fixture notes\n").expect("write readme");
+    let path_only = run_search(root, &["owner", "README.md"]);
+    assert!(
+        path_only.starts_with("[search-owner] q=README.md pkg=. own=1 item=0"),
+        "{path_only}"
+    );
+    assert!(
+        path_only.contains(
+            "|owner README.md role=source public=false source=path-only parserOwner=false next=ingest:README.md"
+        ),
+        "{path_only}"
+    );
+    assert!(
+        path_only.contains(
+            "|note kind=owner-not-found message=\"path exists but is not a parser-visible owner; use search ingest for line evidence\""
+        ),
+        "{path_only}"
+    );
 }
 
 #[test]
@@ -343,5 +381,54 @@ fn cli_rust_flow_sandbox_reduces_search_rounds_with_seeds_and_recipe_plan() {
     assert!(
         ingest.contains("|test tests/domain.rs functions=1 owner=src/lib.rs"),
         "{ingest}"
+    );
+
+    let vimgrep =
+        run_search_with_stdin(root, &["ingest"], "src/lib.rs:6:5:pub fn load() -> Thing\n");
+    assert!(
+        vimgrep.starts_with("[search-ingest] src=vimgrep in=1 own=1"),
+        "{vimgrep}"
+    );
+    assert!(
+        vimgrep.contains("|owner src/lib.rs role=source hit_kind=text locations=6:5 next=owner"),
+        "{vimgrep}"
+    );
+
+    let rg_json = run_search_with_stdin(
+        root,
+        &["ingest"],
+        "{\"type\":\"match\",\"data\":{\"path\":{\"text\":\"src/lib.rs\"},\"line_number\":6,\"absolute_offset\":0,\"lines\":{\"text\":\"pub fn load() -> Thing\\n\"},\"submatches\":[{\"match\":{\"text\":\"load\"},\"start\":7,\"end\":11}]}}\n",
+    );
+    assert!(
+        rg_json.starts_with("[search-ingest] src=rg-json in=1 own=1"),
+        "{rg_json}"
+    );
+    assert!(
+        rg_json.contains("|owner src/lib.rs role=source hit_kind=text locations=6:8 next=owner"),
+        "{rg_json}"
+    );
+
+    let nul_paths = run_search_with_stdin(root, &["ingest"], "src/lib.rs\0tests/domain.rs\0");
+    assert!(
+        nul_paths.starts_with("[search-ingest] src=path-list-nul in=2 own=2"),
+        "{nul_paths}"
+    );
+    assert!(
+        nul_paths.contains("|owner src/lib.rs role=source hit_kind=path locations=- next=owner"),
+        "{nul_paths}"
+    );
+    assert!(
+        nul_paths.contains("|owner tests/domain.rs role=test hit_kind=path locations=- next=owner"),
+        "{nul_paths}"
+    );
+
+    let unknown = run_search_with_stdin(root, &["ingest"], "not a real path and not rg\n");
+    assert!(
+        unknown.starts_with("[search-ingest] error=unrecognized-input lines=1"),
+        "{unknown}"
+    );
+    assert!(
+        unknown.contains("|fix pipe paths, rg -n, rg --json, git diff --name-only, or fd output"),
+        "{unknown}"
     );
 }

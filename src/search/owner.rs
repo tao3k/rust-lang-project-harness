@@ -9,75 +9,11 @@ use super::RustSearchOptions;
 use super::context::{PackageSearchContext, search_contexts};
 use super::format::{
     append_block, compact_locations, display_project_path, package_label,
-    render_cargo_dependency_line, render_item_line, render_owner_line, render_public_api_line,
+    render_cargo_dependency_line, render_item_line, render_public_api_line,
 };
 use super::hits::{OwnerHit, dependency_usage, matching_dependencies};
 use super::limits::{SEARCH_HIT_LIMIT, SEARCH_ITEM_LIMIT, SEARCH_OWNER_LIMIT, SEARCH_TEST_LIMIT};
-use super::scope::{module_is_scope, owner_branch_matches, owner_path_matches};
-
-pub(super) fn render_search_owner(
-    project_root: &Path,
-    config: &RustHarnessConfig,
-    query: &str,
-    options: &RustSearchOptions,
-) -> Result<String, String> {
-    let contexts = search_contexts(project_root, config, options)?;
-    let mut rendered = String::new();
-    for context in contexts {
-        let include_items = options.pipes.iter().any(|pipe| pipe == "items");
-        let matching_branches = context
-            .reasoning_tree
-            .owner_branches
-            .iter()
-            .filter(|branch| owner_branch_matches(&context.package_root, branch, query))
-            .collect::<Vec<_>>();
-        let matching_modules = context
-            .parsed_modules
-            .iter()
-            .filter(|module| owner_path_matches(&context.package_root, &module.report.path, query))
-            .collect::<Vec<_>>();
-        let mut block = format!(
-            "[search-owner] q={} pkg={} own={} item={}\n",
-            query,
-            package_label(project_root, &context.package_root),
-            matching_branches.len().max(matching_modules.len()),
-            if include_items {
-                matching_modules
-                    .iter()
-                    .map(|module| module.syntax_facts.top_level_items.len())
-                    .sum()
-            } else {
-                0
-            }
-        );
-        for branch in matching_branches.iter().take(SEARCH_OWNER_LIMIT) {
-            let module = context
-                .parsed_modules
-                .iter()
-                .find(|module| module.report.path == branch.path);
-            let _ = writeln!(
-                block,
-                "{}",
-                render_owner_line(&context.package_root, branch, module)
-            );
-        }
-        if include_items {
-            for module in matching_modules.iter().take(SEARCH_OWNER_LIMIT) {
-                for item in module
-                    .syntax_facts
-                    .top_level_items
-                    .iter()
-                    .filter(|item| item.name.is_some())
-                    .take(SEARCH_ITEM_LIMIT)
-                {
-                    let _ = writeln!(block, "{}", render_item_line(item));
-                }
-            }
-        }
-        append_block(&mut rendered, &block);
-    }
-    Ok(rendered)
-}
+use super::scope::{module_is_scope, owner_path_matches};
 
 pub(super) fn render_search_dependency(
     project_root: &Path,

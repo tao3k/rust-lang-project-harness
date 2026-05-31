@@ -4,7 +4,7 @@ use std::path::Path;
 
 use crate::RustHarnessConfig;
 
-use super::{cargo, format, owner, prime, query};
+use super::{cargo, format, owner, owner_view, prime, query};
 
 /// Options shared by RFC search renderers.
 #[derive(Debug, Clone, Default)]
@@ -60,7 +60,7 @@ pub fn render_rust_project_harness_search_view_with_config(
         "targets" => cargo::render_search_targets(project_root, config, options),
         "deps" => cargo::render_search_deps(project_root, config, request.query, options),
         "features" => cargo::render_search_features(project_root, config, request.query, options),
-        "owner" => owner::render_search_owner(
+        "owner" => owner_view::render_search_owner(
             project_root,
             config,
             format::required_query(request.view, request.query)?,

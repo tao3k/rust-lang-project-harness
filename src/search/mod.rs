@@ -8,6 +8,7 @@ mod hits;
 mod ingest;
 mod limits;
 mod owner;
+mod owner_view;
 mod prime;
 mod prime_support;
 mod query;
