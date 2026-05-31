@@ -16,6 +16,8 @@ const AGENT_CLOSEOUT_HOOK: &str = "#!/usr/bin/env bash\nset -euo pipefail\n\nrs-
 
 use super::agent_registry::print_agent_registry;
 #[cfg(feature = "search")]
+use super::search_trace::{SearchTraceOptions, render_search_trace};
+#[cfg(feature = "search")]
 use super::semantic_search_json::{SemanticSearchJsonOptions, render_search_json};
 #[cfg(feature = "search")]
 use crate::{
@@ -180,7 +182,8 @@ fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
         );
     } else {
         if options.trace {
-            print!("{}", render_search_trace(options));
+            let trace_options = options.search_trace_options();
+            print!("{}", render_search_trace(&trace_options, &rendered));
         }
         if options.explain {
             print!("{}", render_search_plan(options));
@@ -393,6 +396,16 @@ impl SearchOptions {
     }
 
     #[cfg(feature = "search")]
+    fn search_trace_options(&self) -> SearchTraceOptions {
+        SearchTraceOptions {
+            source: self.command_label(),
+            query: self.query.clone(),
+            pipes: self.pipes.clone(),
+            output_view: self.output_view.clone(),
+        }
+    }
+
+    #[cfg(feature = "search")]
     fn render_options(&self) -> RustSearchOptions {
         RustSearchOptions {
             package: self.package.clone(),
@@ -575,7 +588,7 @@ fn print_search_help() {
          rs-harness search targets [--package PACKAGE] [PROJECT_ROOT]\n\
          rs-harness search deps [dep[/subpath][@version][::api]] [public-api] [PROJECT_ROOT]\n\
          rs-harness search features [feature] [cfg owners tests] [PROJECT_ROOT]\n\
-         rs-harness search dependency <crate-or-import-or-package> [items public-api docs-use tests] [PROJECT_ROOT]\n\
+         rs-harness search dependency <crate-or-import-or-package> [items public-api docs tests] [PROJECT_ROOT]\n\
          rs-harness search <symbol|callsite|import|text|cfg|pattern|docs|docs-use|api> <query> [PROJECT_ROOT]\n\
          rs-harness search public-external-types [--dependency DEP] [PROJECT_ROOT]\n\
          rg -n '<query>' src tests | rs-harness search ingest [items tests] [PROJECT_ROOT]\n\n\
@@ -602,22 +615,6 @@ fn print_agent_help() {
          Installs or checks generic agent SKILL.org and hook assets under .agents/.\n\
          Use --json to emit the semantic-language registry contract."
     );
-}
-
-#[cfg(feature = "search")]
-fn render_search_trace(options: &SearchOptions) -> String {
-    format!(
-        "[search-trace] source={} query={} pipes={} view={}\n|stage {} final=true\n",
-        options.command_label(),
-        options.query.as_deref().unwrap_or("-"),
-        if options.pipes.is_empty() {
-            "-".to_string()
-        } else {
-            options.pipes.join(",")
-        },
-        options.output_view.as_deref().unwrap_or("graph"),
-        options.command_label()
-    )
 }
 
 #[cfg(feature = "search")]

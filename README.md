@@ -179,7 +179,7 @@ cargo run --features cli --bin rs-harness -- --agent-snapshot .
 cargo run --features cli --bin rs-harness -- search prime .
 cargo run --features cli --bin rs-harness -- search prime --json .
 cargo run --features cli --bin rs-harness -- search owner src/lib.rs items .
-cargo run --features cli --bin rs-harness -- search dependency serde items public-api docs-use tests .
+cargo run --features cli --bin rs-harness -- search dependency serde items public-api docs tests .
 cargo run --features cli --bin rs-harness -- search api render_rust_project_harness .
 cargo run --features cli --bin rs-harness -- search public-external-types .
 cargo run --features cli --bin rs-harness -- search deps serde .

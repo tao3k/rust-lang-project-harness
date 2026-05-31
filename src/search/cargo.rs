@@ -14,7 +14,8 @@ use super::format::{
 };
 use super::hits::{OwnerHit, dependency_usage, matching_dependencies, text_hits};
 use super::limits::SEARCH_HIT_LIMIT;
-use super::owner::public_api_lines_for_dependency;
+use super::owner::{public_api_lines_for_dependency, test_lines_for_owner_modules};
+use super::scope::module_is_scope;
 
 pub(super) fn render_search_workspace(
     project_root: &Path,
@@ -463,17 +464,17 @@ fn render_search_feature(
     query: &str,
     options: &RustSearchOptions,
 ) -> Result<String, String> {
-    let roots = package_roots_for_request(project_root, config, options.package.as_deref())?;
+    let contexts = search_contexts(project_root, config, options)?;
     let mut rendered = String::new();
-    for package_root in roots {
-        let features = manifest_features(&package_root);
+    for context in contexts {
+        let features = manifest_features(&context.package_root);
         let enables = features
             .iter()
             .find(|(name, _)| name == query)
             .map(|(_, enables)| enables.clone())
             .unwrap_or_default();
-        let dependencies = parse_cargo_dependency_facts(&package_root);
-        let feature_deps = dependencies
+        let feature_deps = context
+            .cargo_dependencies
             .iter()
             .filter(|dependency| {
                 enables.iter().any(|enabled| {
@@ -482,13 +483,60 @@ fn render_search_feature(
                 }) || dependency.features.iter().any(|feature| feature == query)
             })
             .collect::<Vec<_>>();
+        let cfgs = if has_pipe(options, "cfg") {
+            parse_cargo_cfg_facts(&context.package_root)
+                .into_iter()
+                .filter(|cfg| {
+                    cfg.cfg == query
+                        || cfg.cfg.strip_prefix("feature:") == Some(query)
+                        || cfg.expression.contains(query)
+                        || cfg.declared_in.contains(query)
+                })
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
+        let owner_hits = if has_pipe(options, "owners") {
+            let mut owner_options = options.clone();
+            owner_options.scope = Some("src".to_string());
+            text_hits(&context, query, &owner_options)
+        } else {
+            Vec::new()
+        };
+        let owner_modules = context
+            .parsed_modules
+            .iter()
+            .filter(|module| owner_hits.iter().any(|hit| hit.path == module.report.path))
+            .collect::<Vec<_>>();
+        let mut test_lines = if has_pipe(options, "tests") {
+            test_lines_for_owner_modules(&context, &owner_modules)
+        } else {
+            Vec::new()
+        };
+        if has_pipe(options, "tests") && test_lines.is_empty() {
+            test_lines = feature_test_lines(&context, query);
+        }
+        let test_count = test_lines
+            .iter()
+            .filter(|line| line.starts_with("|test "))
+            .count();
         let mut block = format!(
-            "[search-features] q={} pkg={} feat={} dep={}\n",
+            "[search-features] q={} pkg={} feat={} dep={}",
             query,
-            package_label(project_root, &package_root),
+            package_label(project_root, &context.package_root),
             usize::from(features.iter().any(|(name, _)| name == query)),
             feature_deps.len()
         );
+        if has_pipe(options, "cfg") {
+            let _ = write!(block, " cfg={}", cfgs.len());
+        }
+        if has_pipe(options, "owners") {
+            let _ = write!(block, " own={}", owner_hits.len());
+        }
+        if has_pipe(options, "tests") {
+            let _ = write!(block, " tests={test_count}");
+        }
+        block.push('\n');
         let _ = writeln!(
             block,
             "|feature {} enables={} source=manifest manager=cargo",
@@ -497,6 +545,24 @@ fn render_search_feature(
         );
         for dependency in feature_deps.into_iter().take(SEARCH_HIT_LIMIT) {
             let _ = writeln!(block, "{}", render_cargo_dependency_line(dependency));
+        }
+        for cfg in cfgs.into_iter().take(SEARCH_HIT_LIMIT) {
+            let _ = writeln!(
+                block,
+                "|cfg {} declared_in={} expr={} source=manifest manager=cargo next=text:{}(scope=src)",
+                cfg.cfg, cfg.declared_in, cfg.expression, query
+            );
+        }
+        for hit in owner_hits.into_iter().take(SEARCH_HIT_LIMIT) {
+            let owner_path = display_project_path(&context.package_root, &hit.path);
+            let _ = writeln!(
+                block,
+                "|owner {owner_path} hit_kind=feature locations={} next=owner:{owner_path}",
+                compact_locations(&hit.locations)
+            );
+        }
+        for line in test_lines.into_iter().take(SEARCH_HIT_LIMIT) {
+            let _ = writeln!(block, "{line}");
         }
         let _ = writeln!(block, "|next cfg:{query},text:{query}(scope=src),tests");
         append_block(&mut rendered, &block);
@@ -568,6 +634,26 @@ pub(super) fn render_search_cfg(
         append_block(&mut rendered, &block);
     }
     Ok(rendered)
+}
+
+fn feature_test_lines(context: &PackageSearchContext, query: &str) -> Vec<String> {
+    context
+        .parsed_modules
+        .iter()
+        .filter(|module| module_is_scope(&context.scope, module, "tests"))
+        .filter(|module| module.source.contains(query))
+        .map(|module| {
+            let path = display_project_path(&context.package_root, &module.report.path);
+            format!(
+                "|test {path} functions={} reason=feature:{query} next=owner:{path}",
+                module.syntax_facts.test_function_count
+            )
+        })
+        .collect()
+}
+
+fn has_pipe(options: &RustSearchOptions, pipe: &str) -> bool {
+    options.pipes.iter().any(|candidate| candidate == pipe)
 }
 
 pub(super) fn manifest_features(package_root: &Path) -> Vec<(String, Vec<String>)> {

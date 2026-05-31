@@ -109,6 +109,12 @@ fn cli_search_json_and_trace_follow_rfc_output_modes() {
         stdout.starts_with("[search-trace] source=dependency query=serde pipes=items view=both"),
         "{stdout}"
     );
+    assert!(
+        stdout.contains("|stage dependency cargo=1 owners=2"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("|stage items owners=2"), "{stdout}");
+    assert!(stdout.contains("|stage output final=true"), "{stdout}");
     assert!(stdout.contains("[search-dependency] q=serde"), "{stdout}");
 }
 
@@ -402,9 +408,19 @@ fn cli_search_views_render_rfc_line_protocol() {
         feature.starts_with("[search-features] q=json pkg=. feat=1 dep=1"),
         "{feature}"
     );
+    assert!(feature.contains(" cfg=1"), "{feature}");
+    assert!(feature.contains(" own=1"), "{feature}");
     assert!(
         feature
             .contains("|feature json enables=dep:serde,serde/derive source=manifest manager=cargo"),
+        "{feature}"
+    );
+    assert!(
+        feature.contains("|cfg feature:json declared_in=features expr=cfg(feature=\"json\")"),
+        "{feature}"
+    );
+    assert!(
+        feature.contains("|owner src/domain/mod.rs hit_kind=feature"),
         "{feature}"
     );
     assert!(
@@ -447,7 +463,7 @@ fn cli_search_views_render_rfc_line_protocol() {
             "serde",
             "items",
             "public-api",
-            "docs-use",
+            "docs",
             "tests",
         ],
     );
@@ -455,6 +471,9 @@ fn cli_search_views_render_rfc_line_protocol() {
         dependency.starts_with("[search-dependency] q=serde pkg=. dep=1 own=2 api=8"),
         "{dependency}"
     );
+    assert!(dependency.contains(" item="), "{dependency}");
+    assert!(dependency.contains(" docs=8"), "{dependency}");
+    assert!(dependency.contains(" tests=1"), "{dependency}");
     assert!(
         dependency.contains("|dep serde import=serde pkg=serde"),
         "{dependency}"
@@ -467,9 +486,16 @@ fn cli_search_views_render_rfc_line_protocol() {
         dependency.contains("|owner src/domain/mod.rs hit_kind=dependency"),
         "{dependency}"
     );
+    assert!(dependency.contains("|item load kind=fn"), "{dependency}");
     assert!(
         dependency.contains(
             "|api src/domain/mod.rs line=4 dep=serde kind=struct name=Thing public=true doc=false reason=dependency-owner next=docs:Thing,tests"
+        ),
+        "{dependency}"
+    );
+    assert!(
+        dependency.contains(
+            "|test tests/domain.rs functions=1 owner=src/lib.rs reason=symbol:load next=owner:tests/domain.rs"
         ),
         "{dependency}"
     );
