@@ -1,16 +1,41 @@
 use std::fs;
 use std::path::Path;
 
-use rust_lang_project_harness::assert_rust_project_harness_build_clean;
+use rust_lang_project_harness::{
+    assert_rust_project_harness_cargo_check_clean,
+    assert_rust_project_harness_cargo_check_clean_with_config, default_rust_harness_config,
+};
 use tempfile::TempDir;
 
 #[test]
-fn build_gate_assertion_does_not_promote_agent_advice() {
+fn build_gate_assertion_promotes_agent_advice_for_cargo_check_feedback() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_advice_only_project(root, "advice-build-gate");
 
-    assert_rust_project_harness_build_clean(root);
+    let panic = std::panic::catch_unwind(|| {
+        assert_rust_project_harness_cargo_check_clean(root);
+    })
+    .expect_err("agent advice should fail the cargo-check build gate");
+    let normalized = normalize_temp_root(&panic_message(panic), root);
+
+    assert!(normalized.contains("AGENT-R001"), "{normalized}");
+    assert!(
+        normalized.contains("add a module intent doc"),
+        "{normalized}"
+    );
+}
+
+#[test]
+fn build_gate_assertion_allows_agent_advice_with_explicit_explanation() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_advice_only_project(root, "advice-build-gate-allowed");
+    let config = default_rust_harness_config().with_cargo_check_advice_allow_explanation(
+        "legacy crate allows advisory findings while it migrates to cargo-check gating",
+    );
+
+    assert_rust_project_harness_cargo_check_clean_with_config(root, &config);
 }
 
 #[test]
@@ -20,7 +45,7 @@ fn build_gate_assertion_blocks_configured_findings_before_libtest_filter() {
     write_oversized_project(root, "oversized-build-gate");
 
     let panic = std::panic::catch_unwind(|| {
-        assert_rust_project_harness_build_clean(root);
+        assert_rust_project_harness_cargo_check_clean(root);
     })
     .expect_err("source bloat should fail build gate assertion");
     let normalized = normalize_temp_root(&panic_message(panic), root);

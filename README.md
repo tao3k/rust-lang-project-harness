@@ -13,7 +13,7 @@ implementation, `use super::*` hides dependencies, public APIs become primitive
 or stringly typed, and verification duties are forgotten after the first green
 test. The harness makes those structural risks explicit. It builds a
 parser-native reasoning tree, evaluates deterministic rule packs, and returns
-small repair contracts that an Agent can act on during `cargo test` or CI.
+small repair contracts that an Agent can act on during `cargo check` or CI.
 
 Humans can read the output, but they are not the primary interface. Compact text
 is designed for Agents: stable rule id, `@ path:line:column`, `fix:`, optional
@@ -36,10 +36,10 @@ a project scope.
 
 The expected loop is library-first and Agent-complete:
 
-1. a downstream Rust crate adds the harness dependency and mounts a cargo-test
-   or build-time gate;
-2. `cargo test`, `cargo test --lib`, or a build script runs the harness with the
-   crate's parser-native project facts;
+1. a downstream Rust crate adds the harness build-dependency and mounts the
+   build-time gate;
+2. `cargo check` runs the build script with the crate's parser-native project
+   facts before the test/evaluation layer;
 3. missing configuration, structural drift, or verification obligations render
    as compact findings;
 4. the next Agent edits code or `RustHarnessConfig` until the finding naturally
@@ -49,90 +49,84 @@ That loop is the point of the crate. The harness should make the correct next
 Agent action visible without requiring a human to read a long handbook, inspect
 every file, or infer project ownership from search results.
 
+The Cargo layer boundary is explicit. `cargo check` is the primary harness gate
+for parser-native policy: syntax, Cargo manifest facts, module and owner graph,
+import clarity, scope coverage, build-gate closure, and verification planning
+obligations. `cargo test` is only for test-layer semantics: legacy source gate
+compatibility, explicit advice allowance, and future policies that consume real
+runtime test or verification receipts.
+
 ## Self-Apply Policy
 
 This crate applies the default project harness to itself. `src/self_policy.rs`
-mounts the embedded cargo-test gate for the library target. That source-backed
-gate covers unfiltered `cargo test --lib` and ordinary `cargo test` runs, which
-keeps the harness rules honest before downstream projects inherit them.
+mounts the embedded cargo-test gate for the library target because the harness
+crate cannot build-depend on itself. Downstream crates should use the
+build-time gate below so `cargo check` runs parser-native policy before
+`cargo test` exists in the loop.
 
-Default assertions treat `Warning` and `Error` findings as blocking. `Info`
-findings, including all `AGENT-*` advice, stay visible in compact rendered
-diagnostics without failing the gate.
+Library runner assertions treat `Warning` and `Error` findings as blocking.
+`Info` findings, including all `AGENT-*` advice, stay visible in compact
+rendered diagnostics without failing plain library assertions. Cargo-check and
+legacy cargo-test gates additionally promote agent advice into repair feedback
+unless the config carries an explicit layer-specific explanation.
 
 ## Quick Use
 
-For downstream projects, add the harness as a dev-dependency:
-
-```toml
-[dev-dependencies]
-rust-lang-project-harness = { git = "https://github.com/tao3k/rust-lang-project-harness", branch = "main" }
-```
-
-Then mount the cargo-test gate from `src/lib.rs`:
-
-```rust
-#[cfg(test)]
-rust_lang_project_harness::rust_project_harness_cargo_test_gate!(config = {
-    rust_lang_project_harness::default_rust_harness_config()
-});
-```
-
-Because the mount lives in the library test build, unfiltered `cargo test` and
-`cargo test --lib` execute the project harness. The `#[cfg(test)]` guard keeps
-normal `cargo build` free of the dev-dependency. Cargo test-name filters can
-still skip any `#[test]` function, including this gate, so latency-sensitive
-projects should add the build-time gate below when quick targeted checks must
-not bypass project policy.
-
-For filter-proof enforcement, add the harness as a build-dependency and call the
-build gate from a thin `build.rs`:
+For downstream projects, add the harness as a build-dependency:
 
 ```toml
 [build-dependencies]
 rust-lang-project-harness = { git = "https://github.com/tao3k/rust-lang-project-harness", branch = "main" }
 ```
 
+Then call the build gate from a thin root `build.rs`:
+
 ```rust,ignore
 fn main() {
     let config = rust_lang_project_harness::default_rust_harness_config();
-    rust_lang_project_harness::assert_rust_project_harness_build_clean_from_env_with_config(
+    rust_lang_project_harness::assert_rust_project_harness_cargo_check_clean_from_env_with_config(
         &config,
     );
 }
 ```
 
-Build-script gates run before libtest applies name filters. They block
-configured `Warning` and `Error` findings and emit Cargo `rerun-if-changed`
-directives for conventional Rust project inputs, so source edits re-run the
-gate even when a developer invokes a narrow filtered test.
-When a harness-enabled package already has root `build.rs`, or already declares
-the harness as a build-dependency, `RUST-PROJ-R012` reports an incomplete build
-gate so the next Agent can finish the configuration during cargo test feedback.
-A complete build gate is allowed to replace the source cargo-test gate.
+Build-script gates run during `cargo check`, before libtest, test filters, or
+runtime evaluation. They block configured `Warning` and `Error` findings, treat
+`Info` agent advice as repair feedback by default, and emit Cargo
+`rerun-if-changed` directives for conventional Rust project inputs. A crate can
+allow advisory findings only by adding an explicit
+`with_cargo_check_advice_allow_explanation(...)` rationale to its config.
 
-Standalone Cargo test targets can also mount the direct gate when a project does
-not have a source-backed cargo-test gate:
+When a harness-enabled package lacks that build-time closure,
+`RUST-PROJ-R012` reports the incomplete `cargo check` gate so the next Agent can
+finish the configuration.
+
+Cargo-test gates are still supported as a compatibility mount, but they are no
+longer the preferred downstream entrypoint:
 
 ```rust
+#[cfg(test)]
 rust_lang_project_harness::rust_project_harness_gate!();
 ```
 
-That covers a narrow test target directly. For library crates without a
-build-time gate, prefer the source-backed cargo-test gate so one mount covers
-both `cargo test` and `cargo test --lib`.
+Use them only when a crate cannot yet add a build script. The policy reminder
+will still prefer the `build.rs` gate because current harness policy is
+parser-native and does not need the test/evaluation layer. In harness-enabled
+packages, legacy cargo-test mounts emit `RUST-PROJ-R006` or `RUST-PROJ-R009`
+warnings so the next Agent gets an explicit migration path instead of treating
+the old gate as the final design.
 
-### Why `RUST-PROJ-R009` Exists
+### Why `RUST-PROJ-R012` Exists
 
-`RUST-PROJ-R009` is the policy that protects the `cargo test --lib` path. It is
-intentionally narrower than Cargo's full resolver: the harness does not try to
-evaluate every workspace, feature, target, or cfg combination a downstream
+`RUST-PROJ-R012` is the policy that protects the primary `cargo check` path. It
+is intentionally narrower than Cargo's full resolver: the harness does not try
+to evaluate every workspace, feature, target, or cfg combination a downstream
 project may use. Instead, it looks for direct harness evidence.
 
 A library crate is treated as harness-enabled when either its parsed
 `Cargo.toml` dependency tables reference the canonical package
-`rust-lang-project-harness`, or native Rust syntax contains an existing harness
-gate macro. Comments, strings, and prose do not count.
+`rust-lang-project-harness`, or a native Rust build script already calls the
+build gate. Comments, strings, and prose do not count.
 
 The manifest parser checks ordinary dependency tables and target-specific
 dependency tables, including Cargo dependency renames:
@@ -145,11 +139,9 @@ path = "../rust-lang-project-harness"
 
 The dependency key can be local to the downstream project, but the package
 identity remains `rust-lang-project-harness`. Once that direct evidence exists,
-the package must expose either a source-tree
-`rust_project_harness_cargo_test_gate!(config = ...)` mount or a complete
-build-time harness gate so `cargo test --lib` cannot bypass project policy.
-When either gate exists, root Cargo test targets can remain thin suite
-aggregates without mounting another gate.
+the package must expose a complete build-time harness gate so `cargo check`
+cannot bypass parser-native project policy. Root Cargo test targets can remain
+thin suite aggregates without mounting another gate.
 
 The lower-level assertion API is available when a custom test shape is needed:
 
@@ -181,10 +173,51 @@ The equivalent CLI keeps compact text as the default and exits nonzero only for
 configured-blocking findings:
 
 ```shell
-cargo run --bin rust-project-harness -- .
-cargo run --bin rust-project-harness -- --json .
-cargo run --bin rust-project-harness -- --agent-snapshot .
+cargo run --features cli --bin rs-harness -- .
+cargo run --features cli --bin rs-harness -- --json .
+cargo run --features cli --bin rs-harness -- --agent-snapshot .
+cargo run --features cli --bin rs-harness -- search prime .
+cargo run --features cli --bin rs-harness -- search prime --json .
+cargo run --features cli --bin rs-harness -- search owner src/lib.rs items .
+cargo run --features cli --bin rs-harness -- search dependency serde items public-api docs-use tests .
+cargo run --features cli --bin rs-harness -- search api render_rust_project_harness .
+cargo run --features cli --bin rs-harness -- search public-external-types .
+cargo run --features cli --bin rs-harness -- search deps serde .
+cargo run --features cli --bin rs-harness -- search deps serde/de@1::DeserializeOwned .
+cargo run --features cli --bin rs-harness -- search cfg tokio_unstable .
+cargo run --features cli --bin rs-harness -- check --changed .
+cargo run --features cli --bin rs-harness -- agent doctor .
+cargo run --features cli --bin rs-harness -- agent doctor --json .
 ```
+
+The library exposes the search renderers behind the default `search` feature.
+The binary is intentionally feature-gated behind `cli`, so downstream library
+users do not build a CLI unless they opt in. Search output is compact RFC line
+protocol by default and is meant to replace broad first-pass `rg`/file
+inventory exploration with deterministic Cargo, owner, dependency public-api,
+symbol, import, text, pattern, docs, tests, and ingest views.
+`search --json` emits the shared
+`agent.semantic-protocols.semantic-search-packet` envelope with
+`languageId=rust`, `providerId=rs-harness`, `binary=rs-harness`, and
+`namespace=agent.semantic-protocols.semantic-language`,
+`method=search/<view>` for tools, while `check --changed` and `check --full`
+provide the RFC validation entrypoints.
+`agent install` and `agent doctor` manage generic `.agents/` integration assets
+without assuming a specific agent client. `agent doctor --json` emits the
+semantic-language registry with callable methods and method descriptors.
+`search docs` and `search docs-use` prefer native parser facts for local public
+API shape, including compact signature, parameter, receiver, return, async,
+unsafe, and error-boundary fields.
+`search api` returns only that parser-native API shape, while
+`search public-external-types` joins parser-native public API type facts with
+Cargo dependency facts to find dependency types exposed through public
+signatures. Versioned docs/API queries mark explicit external versions with
+`source=registry-source` and `versionScope=external` instead of attributing
+current workspace facts to that version. Public inherent impl methods and trait
+impl methods are included in the API projection, so receiver, impl type, and
+trait path are available without falling back to text search.
+The `public-anyhow-result` and `public-error-boundary` pattern recipes use the
+same native parser return facts instead of grepping for result type text.
 
 Library callers can tune policy without changing the default rule catalogs:
 

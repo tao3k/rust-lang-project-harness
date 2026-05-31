@@ -1,4 +1,4 @@
-//! Command-line entry point for the Rust project harness.
+//! Command-line entry point for `rs-harness`.
 
 use std::process::ExitCode;
 

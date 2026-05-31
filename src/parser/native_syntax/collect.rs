@@ -93,20 +93,10 @@ pub(crate) struct RustInvocationSyntax {
 }
 
 impl RustNativeSyntaxFacts {
-    pub(crate) fn contains_macro_named(&self, names: &[&str]) -> bool {
-        self.macro_invocations
-            .iter()
-            .any(|invocation| names.contains(&invocation.terminal_name.as_str()))
-    }
-
     pub(crate) fn contains_function_call_named(&self, names: &[&str]) -> bool {
         self.function_calls
             .iter()
             .any(|invocation| names.contains(&invocation.terminal_name.as_str()))
-    }
-
-    pub(crate) fn contains_invocation_named(&self, names: &[&str]) -> bool {
-        self.contains_macro_named(names) || self.contains_function_call_named(names)
     }
 }
 

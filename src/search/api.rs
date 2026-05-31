@@ -1,0 +1,136 @@
+//! Public RFC search request and dispatch surface.
+
+use std::path::Path;
+
+use crate::RustHarnessConfig;
+
+use super::{cargo, format, owner, prime, query};
+
+/// Options shared by RFC search renderers.
+#[derive(Debug, Clone, Default)]
+pub struct RustSearchOptions {
+    /// Optional package selector for workspaces.
+    pub package: Option<String>,
+    /// Optional owner/path selector for hit-level views.
+    pub owner: Option<String>,
+    /// Optional dependency selector for dependency-aware pattern recipes.
+    pub dependency: Option<String>,
+    /// Optional scope selector such as `src`, `tests`, or `all`.
+    pub scope: Option<String>,
+    /// Optional pipe stages after the source view.
+    pub pipes: Vec<String>,
+    /// Whether source lines may be emitted.
+    pub lines: bool,
+}
+
+/// Request object for rendering an RFC search view.
+#[derive(Debug, Clone, Copy)]
+pub struct RustSearchViewRequest<'a> {
+    /// Project root to inspect.
+    pub project_root: &'a Path,
+    /// Harness configuration used for discovery and parser policy.
+    pub config: &'a RustHarnessConfig,
+    /// Search source view such as `prime`, `dependency`, or `deps`.
+    pub view: &'a str,
+    /// Optional query consumed by views such as `symbol` or `deps`.
+    pub query: Option<&'a str>,
+    /// Shared search filters and pipe stages.
+    pub options: &'a RustSearchOptions,
+}
+
+/// Render an RFC search view by name.
+///
+/// # Errors
+///
+/// Returns an error when the project root or selected package cannot be
+/// resolved, or when the view requires a query that was not supplied.
+pub fn render_rust_project_harness_search_view_with_config(
+    request: &RustSearchViewRequest<'_>,
+) -> Result<String, String> {
+    let project_root = request.project_root;
+    let config = request.config;
+    let options = request.options;
+    match request.view {
+        "prime" => prime::render_rust_project_harness_search_prime_with_config(
+            project_root,
+            config,
+            options.package.as_deref(),
+        ),
+        "workspace" => cargo::render_search_workspace(project_root, config, options),
+        "targets" => cargo::render_search_targets(project_root, config, options),
+        "deps" => cargo::render_search_deps(project_root, config, request.query, options),
+        "features" => cargo::render_search_features(project_root, config, request.query, options),
+        "owner" => owner::render_search_owner(
+            project_root,
+            config,
+            format::required_query(request.view, request.query)?,
+            options,
+        ),
+        "dependency" => owner::render_search_dependency(
+            project_root,
+            config,
+            format::required_query(request.view, request.query)?,
+            options,
+        ),
+        "tests" => owner::render_search_tests(project_root, config, request.query, options),
+        "symbol" => query::render_search_symbol(
+            project_root,
+            config,
+            format::required_query(request.view, request.query)?,
+            options,
+        ),
+        "callsite" => query::render_search_callsite(
+            project_root,
+            config,
+            format::required_query(request.view, request.query)?,
+            options,
+        ),
+        "import" => query::render_search_import(
+            project_root,
+            config,
+            format::required_query(request.view, request.query)?,
+            options,
+        ),
+        "text" => query::render_search_text(
+            project_root,
+            config,
+            format::required_query(request.view, request.query)?,
+            options,
+        ),
+        "cfg" => cargo::render_search_cfg(
+            project_root,
+            config,
+            format::required_query(request.view, request.query)?,
+            options,
+        ),
+        "patterns" => Ok(query::render_search_patterns()),
+        "pattern" => query::render_search_pattern(
+            project_root,
+            config,
+            format::required_query(request.view, request.query)?,
+            options,
+        ),
+        "docs" => query::render_search_docs(
+            project_root,
+            config,
+            format::required_query(request.view, request.query)?,
+            options,
+        ),
+        "docs-use" => query::render_search_docs_use(
+            project_root,
+            config,
+            format::required_query(request.view, request.query)?,
+            options,
+        ),
+        "api" => query::render_search_api(
+            project_root,
+            config,
+            format::required_query(request.view, request.query)?,
+            options,
+        ),
+        "public-external-types" => {
+            query::render_search_public_external_types(project_root, config, options)
+        }
+        other => Err(format!("unknown search view: {other}")),
+    }
+}

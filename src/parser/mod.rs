@@ -12,6 +12,8 @@ mod source_metrics;
 mod source_path;
 mod use_tree;
 
+#[cfg(any(feature = "search", test))]
+pub(crate) use cargo_manifest::parse_cargo_cfg_facts;
 pub(crate) use cargo_manifest::{
     CargoDependencyFacts, CargoDependencyKind, CargoManifestFacts, parse_cargo_dependency_facts,
     parse_cargo_manifest,

@@ -6,7 +6,8 @@ use tempfile::TempDir;
 use crate::RustProjectHarnessScope;
 use crate::parser::{
     RustModuleChildEdgeKind, RustReasoningOwnerBranchRole, RustUseImportRootKind,
-    parse_cargo_dependency_facts, parse_rust_file, rust_reasoning_tree_facts,
+    parse_cargo_cfg_facts, parse_cargo_dependency_facts, parse_rust_file,
+    rust_reasoning_tree_facts,
 };
 
 type DependencyEdge = (
@@ -37,10 +38,11 @@ fn cargo_manifest_parser_records_dependency_facts() {
         .iter()
         .map(|dependency| {
             format!(
-                "{}|{}|{}|{:?}|{}|{}|{}",
+                "{}|{}|{}|{}|{:?}|{}|{}|{}",
                 dependency.dependency_key,
                 dependency.import_name,
                 dependency.package_name,
+                dependency.version_req.as_deref().unwrap_or("-"),
                 dependency.kind,
                 dependency.target.as_deref().unwrap_or("-"),
                 dependency.optional,
@@ -52,12 +54,53 @@ fn cargo_manifest_parser_records_dependency_facts() {
     assert_eq!(
         dependency_facts,
         [
-            "arrow-flight|arrow_flight|arrow-flight|Normal|-|false|",
-            "axum|axum|axum|Normal|-|false|",
-            "cc|cc|cc|Build|-|false|",
-            "flight|flight|arrow-flight|Normal|-|true|flight-sql+tls",
-            "tokio|tokio|tokio|Dev|-|false|rt",
-            "winapi|winapi|winapi|Normal|cfg(windows)|false|",
+            "arrow-flight|arrow_flight|arrow-flight|0.1|Normal|-|false|",
+            "axum|axum|axum|0.1|Normal|-|false|",
+            "cc|cc|cc|1|Build|-|false|",
+            "flight|flight|arrow-flight|0.1|Normal|-|true|flight-sql+tls",
+            "tokio|tokio|tokio|1|Dev|-|false|rt",
+            "winapi|winapi|winapi|0.3|Normal|cfg(windows)|false|",
+        ]
+        .into_iter()
+        .map(ToOwned::to_owned)
+        .collect::<BTreeSet<_>>()
+    );
+}
+
+#[test]
+fn cargo_manifest_parser_records_cfg_facts() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\n\
+         name = \"cargo-cfg-facts\"\n\
+         version = \"0.1.0\"\n\
+         edition = \"2024\"\n\n\
+         [features]\n\
+         json = []\n\n\
+         [lints.rust]\n\
+         unexpected_cfgs = { level = \"warn\", check-cfg = ['cfg(loom)'] }\n\n\
+         [workspace.lints.rust]\n\
+         unexpected_cfgs = { level = \"warn\", check-cfg = ['cfg(tokio_unstable)'] }\n\n\
+         [target.'cfg(all(tokio_unstable, target_os = \"linux\"))'.dependencies]\n\
+         mio = \"1\"\n",
+    )
+    .expect("write manifest");
+
+    let cfg_facts = parse_cargo_cfg_facts(root)
+        .iter()
+        .map(|cfg| format!("{}|{}|{}", cfg.cfg, cfg.declared_in, cfg.expression))
+        .collect::<BTreeSet<_>>();
+
+    assert_eq!(
+        cfg_facts,
+        [
+            "feature:json|features|cfg(feature=\"json\")",
+            "loom|lints.rust.unexpected_cfgs|cfg(loom)",
+            "target_os|target.dependencies|cfg(all(tokio_unstable,target_os=\"linux\"))",
+            "tokio_unstable|target.dependencies|cfg(all(tokio_unstable,target_os=\"linux\"))",
+            "tokio_unstable|workspace.lints.rust.unexpected_cfgs|cfg(tokio_unstable)",
         ]
         .into_iter()
         .map(ToOwned::to_owned)
@@ -87,10 +130,11 @@ fn cargo_manifest_parser_records_workspace_inherited_dependency_facts() {
         .iter()
         .map(|dependency| {
             format!(
-                "{}|{}|{}|{:?}|{}|{}|{}",
+                "{}|{}|{}|{}|{:?}|{}|{}|{}",
                 dependency.dependency_key,
                 dependency.import_name,
                 dependency.package_name,
+                dependency.version_req.as_deref().unwrap_or("-"),
                 dependency.kind,
                 dependency.target.as_deref().unwrap_or("-"),
                 dependency.optional,
@@ -101,7 +145,7 @@ fn cargo_manifest_parser_records_workspace_inherited_dependency_facts() {
 
     assert_eq!(
         dependency_facts,
-        ["flight|flight|arrow-flight|Normal|-|false|flight-sql"]
+        ["flight|flight|arrow-flight|0.1|Normal|-|false|flight-sql"]
             .into_iter()
             .map(ToOwned::to_owned)
             .collect::<BTreeSet<_>>()

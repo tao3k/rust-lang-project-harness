@@ -13,7 +13,7 @@ use super::source_tests::source_test_mount_findings;
 use super::test_bloat::test_leaf_bloat_findings;
 use super::test_layout::test_layout_findings;
 use super::test_targets::{
-    library_cargo_test_gate_findings, test_target_aggregate_findings, test_target_gate_findings,
+    legacy_test_target_gate_findings, test_target_aggregate_findings,
     test_target_module_mount_findings,
 };
 use super::verification_integration::verification_integration_findings;
@@ -34,6 +34,7 @@ pub(crate) const RUST_PROJ_R012: &str = "RUST-PROJ-R012";
 pub(crate) const RUST_PROJ_R013: &str = "RUST-PROJ-R013";
 pub(crate) const RUST_PROJ_R014: &str = "RUST-PROJ-R014";
 pub(crate) const RUST_PROJ_R015: &str = "RUST-PROJ-R015";
+pub(crate) const RUST_PROJ_R016: &str = "RUST-PROJ-R016";
 
 pub(crate) const MAX_UNIT_TEST_EFFECTIVE_LINES: usize = 260;
 pub(crate) const MIN_UNIT_TEST_FUNCTIONS: usize = 8;
@@ -69,21 +70,6 @@ pub(crate) fn evaluate(
     ));
     findings.extend(source_test_mount_findings(scope, modules, &rules));
     findings.extend(test_leaf_bloat_findings(&scope.project_root, &rules));
-    findings.extend(library_cargo_test_gate_findings(
-        &reasoning_tree,
-        scope,
-        modules,
-        &cargo_manifest,
-        &rules,
-    ));
-    findings.extend(test_target_gate_findings(
-        &reasoning_tree,
-        &scope.project_root,
-        modules,
-        &cargo_test_targets,
-        &cargo_manifest,
-        &rules,
-    ));
     findings.extend(test_target_aggregate_findings(
         &scope.project_root,
         &cargo_test_targets,
@@ -93,6 +79,12 @@ pub(crate) fn evaluate(
         &scope.project_root,
         &cargo_test_targets,
         &policy,
+        &rules,
+    ));
+    findings.extend(legacy_test_target_gate_findings(
+        &scope.project_root,
+        &cargo_manifest,
+        &cargo_test_targets,
         &rules,
     ));
     findings.extend(verification_integration_findings(

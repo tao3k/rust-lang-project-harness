@@ -89,6 +89,28 @@ fn harness_enabled_build_script_requires_build_gate_snapshot() {
 }
 
 #[test]
+fn harness_dependency_requires_cargo_check_build_gate_without_build_script() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"missing-cargo-check-gate\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dev-dependencies]\nrust-lang-project-harness = { path = \".\" }\n",
+    )
+    .expect("write manifest");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    assert!(has_rule(&report, "RUST-PROJ-R012"), "{:?}", report.findings);
+    assert!(
+        !has_rule(&report, "RUST-PROJ-R009"),
+        "{:?}",
+        report.findings
+    );
+}
+
+#[test]
 fn harness_build_dependency_requires_root_build_script() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
@@ -169,7 +191,7 @@ fn write_build_harness_manifest(root: &Path, name: &str) {
 fn write_configured_build_gate(root: &Path) {
     fs::write(
         root.join("build.rs"),
-        "fn main() {\n    let config = rust_lang_project_harness::default_rust_harness_config();\n    rust_lang_project_harness::assert_rust_project_harness_build_clean_from_env_with_config(&config);\n}\n",
+        "fn main() {\n    let config = rust_lang_project_harness::default_rust_harness_config();\n    rust_lang_project_harness::assert_rust_project_harness_cargo_check_clean_from_env_with_config(&config);\n}\n",
     )
     .expect("write build script");
 }

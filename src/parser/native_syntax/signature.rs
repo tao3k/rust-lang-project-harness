@@ -20,6 +20,11 @@ pub(crate) struct RustFunctionReturnSyntax {
     pub line: usize,
     pub function_name: String,
     pub type_text: String,
+    pub is_async: bool,
+    pub is_unsafe: bool,
+    pub receiver: Option<String>,
+    pub impl_type: Option<String>,
+    pub trait_path: Option<String>,
     pub application_error_boundary: Option<String>,
     pub is_test_context: bool,
 }
@@ -85,7 +90,7 @@ fn public_impl_function_param_syntax(item_impl: &syn::ItemImpl) -> Vec<RustFunct
             let syn::ImplItem::Fn(method) = impl_item else {
                 return None;
             };
-            is_public_visibility(&method.vis).then_some(method)
+            impl_method_is_public_api(item_impl, method).then_some(method)
         })
         .flat_map(|method| {
             signature_param_syntax(
@@ -150,7 +155,7 @@ fn public_impl_function_tuple_api_syntax(
             let syn::ImplItem::Fn(method) = impl_item else {
                 return None;
             };
-            is_public_visibility(&method.vis).then_some(method)
+            impl_method_is_public_api(item_impl, method).then_some(method)
         })
         .flat_map(|method| {
             signature_tuple_api_syntax(
@@ -217,11 +222,18 @@ fn public_item_function_return_syntax(
     signature_return_syntax(
         &item_fn.sig,
         inherited_test_context || attrs_have_cfg_test(&item_fn.attrs),
+        None,
+        None,
     )
 }
 
 fn public_impl_function_return_syntax(item_impl: &syn::ItemImpl) -> Vec<RustFunctionReturnSyntax> {
     let inherited_test_context = attrs_have_cfg_test(&item_impl.attrs);
+    let impl_type = Some(item_impl.self_ty.to_token_stream().to_string());
+    let trait_path = item_impl
+        .trait_
+        .as_ref()
+        .map(|(_, path, _)| path.to_token_stream().to_string());
     item_impl
         .items
         .iter()
@@ -229,12 +241,14 @@ fn public_impl_function_return_syntax(item_impl: &syn::ItemImpl) -> Vec<RustFunc
             let syn::ImplItem::Fn(method) = impl_item else {
                 return None;
             };
-            if !is_public_visibility(&method.vis) {
+            if !impl_method_is_public_api(item_impl, method) {
                 return None;
             }
             signature_return_syntax(
                 &method.sig,
                 inherited_test_context || attrs_have_cfg_test(&method.attrs),
+                impl_type.clone(),
+                trait_path.clone(),
             )
         })
         .collect()
@@ -243,6 +257,8 @@ fn public_impl_function_return_syntax(item_impl: &syn::ItemImpl) -> Vec<RustFunc
 fn signature_return_syntax(
     signature: &syn::Signature,
     is_test_context: bool,
+    impl_type: Option<String>,
+    trait_path: Option<String>,
 ) -> Option<RustFunctionReturnSyntax> {
     let syn::ReturnType::Type(_, return_type) = &signature.output else {
         return None;
@@ -251,8 +267,33 @@ fn signature_return_syntax(
         line: signature.ident.span().start().line.max(1),
         function_name: signature.ident.to_string(),
         type_text: return_type.to_token_stream().to_string(),
+        is_async: signature.asyncness.is_some(),
+        is_unsafe: signature.unsafety.is_some(),
+        receiver: signature_receiver(signature),
+        impl_type,
+        trait_path,
         application_error_boundary: application_error_return_type(return_type),
         is_test_context,
+    })
+}
+
+fn impl_method_is_public_api(item_impl: &syn::ItemImpl, method: &syn::ImplItemFn) -> bool {
+    item_impl.trait_.is_some() || is_public_visibility(&method.vis)
+}
+
+fn signature_receiver(signature: &syn::Signature) -> Option<String> {
+    signature.inputs.iter().find_map(|arg| {
+        let syn::FnArg::Receiver(receiver) = arg else {
+            return None;
+        };
+        Some(
+            match (receiver.reference.is_some(), receiver.mutability.is_some()) {
+                (true, true) => "&mut-self".to_string(),
+                (true, false) => "&self".to_string(),
+                (false, true) => "mut-self".to_string(),
+                (false, false) => "self".to_string(),
+            },
+        )
     })
 }
 

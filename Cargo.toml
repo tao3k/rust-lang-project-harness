@@ -7,6 +7,16 @@ authors = ["CyberXiuXian Artisan workshop"]
 license = "Apache-2.0"
 publish = false
 
+[features]
+default = ["search"]
+search = []
+cli = []
+
+[[bin]]
+name = "rs-harness"
+path = "src/bin/rs-harness.rs"
+required-features = ["cli"]
+
 [dependencies]
 cargo_toml = "0.22.3"
 proc-macro2 = { version = "1", features = ["span-locations"] }

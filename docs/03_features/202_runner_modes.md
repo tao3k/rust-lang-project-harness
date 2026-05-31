@@ -16,8 +16,8 @@ exists, so this is the crate package-level gate:
 3. `rust.modularity`
 4. `rust.agent_policy`
 
-This is the mode used by `rust_project_harness_gate!` and
-`rust_project_harness_cargo_test_gate!`.
+This is the mode used by the build-script assertion helpers and by the legacy
+cargo-test gate macros.
 
 When the requested root is a Cargo workspace or a directory that contains
 multiple nested `Cargo.toml` package manifests, the project runner evaluates
@@ -27,62 +27,82 @@ the owning crate root instead of the workspace directory. Workspace package
 facts come from the shared Cargo manifest parser, so discovery and policy use
 the same `Cargo.toml` interpretation.
 
-## Cargo Test Embedding
+## Cargo Check Embedding
 
-Downstream crates can load the harness as a dev-dependency and mount it from the
-library target:
+Downstream crates should load the harness as a build-dependency and mount it
+from a thin root `build.rs`:
+
+```toml
+[build-dependencies]
+rust-lang-project-harness = { git = "https://github.com/tao3k/rust-lang-project-harness", branch = "main" }
+```
 
 ```rust
-#[cfg(test)]
-rust_lang_project_harness::rust_project_harness_cargo_test_gate!(config = {
-    rust_lang_project_harness::default_rust_harness_config()
+fn main() {
+    let config = rust_lang_project_harness::default_rust_harness_config()
         .with_verification_profile_hint(
             rust_lang_project_harness::RustVerificationProfileHint::new(
                 "src/lib.rs",
                 [rust_lang_project_harness::RustOwnerResponsibility::PublicApi],
             ),
-        )
-});
-```
-
-Place that line in `src/lib.rs`, or in a source module that `src/lib.rs`
-declares. The `#[cfg(test)]` guard is part of the contract because
-dev-dependencies are not available to normal `cargo build`, while `cargo test`
-and `cargo test --lib` both compile the library test target.
-The `config = { ... }` block is part of the Agent contract: it prevents a source
-gate from silently accepting the default empty verification surface.
-
-Root Cargo test targets under `tests/*.rs` can stay as thin suite aggregates
-once the library target mounts a configured
-`rust_project_harness_cargo_test_gate!(config = ...)`. That source-embedded
-gate covers ordinary `cargo test` and closes the `cargo test --lib` escape path.
-
-Packages that need filter-proof enforcement can instead mount a configured
-build-time gate from root `build.rs`:
-
-```rust
-fn main() {
-    let config = rust_lang_project_harness::default_rust_harness_config();
-    rust_lang_project_harness::assert_rust_project_harness_build_clean_from_env_with_config(
+        );
+    rust_lang_project_harness::assert_rust_project_harness_cargo_check_clean_from_env_with_config(
         &config,
     );
 }
 ```
 
-The build gate requires `rust-lang-project-harness` under
-`[build-dependencies]`. Once both the build-dependency and native function call
-are present, that gate satisfies the root-test and `cargo test --lib` harness
-requirements. `RUST-PROJ-R012` reports the partial states: a harness-enabled
-package with root `build.rs` but no build gate, or a harness build-dependency
-without the root build-script call.
+Cargo-check policy is for facts that do not require running tests: native Rust
+syntax, Cargo manifest interpretation, source/test scope coverage, module and
+owner graph structure, import clarity, build-gate closure, and verification
+planning obligations. It may require the Agent to configure or persist
+verification state, but it does not claim that a benchmark, stress test, or
+security scan has already executed.
 
-The cargo-test gate treats non-blocking `rust.agent_policy` advice as test
+The build gate runs during `cargo check`, before libtest, test-name filters, or
+runtime evaluation. Once both the build-dependency and native function call are
+present, that gate satisfies the project harness contract. `RUST-PROJ-R012`
+reports partial states: a harness-enabled package without a root build gate, a
+harness build-dependency without the root build-script call, a root `build.rs`
+that omits the harness call, or a build gate call without the build-dependency.
+
+The build gate treats non-blocking `rust.agent_policy` advice as cargo-check
 feedback by default. The core project runner still keeps `Info` findings
-non-blocking, but `cargo test` normally hides passing test output, so the
-embedded gate fails when compact agent advice exists and lets the next Agent see
-the exact repair contract. The notification disappears when the agent fixes the
+non-blocking, but `cargo check` should tell the next Agent when parser-native
+structure needs repair. The notification disappears when the agent fixes the
 structure, or when the crate config explicitly suppresses or replaces the
 applicable rule surface.
+
+Use `with_cargo_check_advice_allow_explanation(...)` only for a deliberate legacy
+waiver where cargo check must pass even while rendered harness reports still
+expose advisory findings:
+
+```rust
+fn main() {
+    let config = rust_lang_project_harness::default_rust_harness_config()
+        .with_cargo_check_advice_allow_explanation(
+            "legacy crate allows advisory findings during staged migration",
+        );
+    rust_lang_project_harness::assert_rust_project_harness_cargo_check_clean_from_env_with_config(
+        &config,
+    );
+}
+```
+
+## Cargo Test Compatibility
+
+Cargo-test gates remain available for crates that cannot yet add a build
+script, and for this harness crate's self-apply path where a self build
+dependency would be cyclic. In downstream harness-enabled packages they are not
+silent compatibility: `RUST-PROJ-R006` and `RUST-PROJ-R009` emit compact
+migration warnings that tell the Agent to move parser-native policy to the
+cargo-check build gate.
+
+Cargo-test policy is for test-layer semantics only: legacy source gate
+configuration, explicit advice allowance, and future rules that consume runtime
+test or verification receipts. It should not be the primary surface for
+parser-native structure because those facts are already known during
+`cargo check`.
 
 Use `advice = allow, config = { ... }` only for a deliberate legacy waiver where
 cargo tests must pass even while rendered harness reports still expose advisory
@@ -104,10 +124,11 @@ rust_lang_project_harness::rust_project_harness_cargo_test_gate!(
 );
 ```
 
-Harness-enabled library projects are checked by `RUST-PROJ-R009`: once the
-project has the harness dependency or another harness gate, either a `src/lib.rs`
-target must expose a cargo-test gate from the source tree, or root `build.rs`
-must expose a complete build-time gate.
+Cargo-test gates do not replace the `cargo check` gate for downstream packages.
+Once a parsed `Cargo.toml` references the harness package, `RUST-PROJ-R012`
+asks for the build-dependency plus root `build.rs` closure, while
+`RUST-PROJ-R006` and `RUST-PROJ-R009` keep legacy cargo-test mounts visible
+until they are removed or replaced by local policy.
 
 ## Configuration
 
@@ -146,7 +167,7 @@ advice.
 package-level harness. `include_tests = false` is an explicit downgrade that
 removes configured test roots from recursive parsing. It does not disable
 filesystem-level project policy such as root test-layout and test-target gate
-checks. Use the explicit-path runner for syntax-only probes.
+structure checks. Use the explicit-path runner for syntax-only probes.
 
 Policy findings are configurable through `RustHarnessConfig` after rule
 evaluation and before the report is returned. `disabled_rules` removes matching
@@ -163,10 +184,10 @@ local policy.
 
 Cargo-test `advice = allow` is not a generic pass switch. If a source gate uses
 `rust_project_harness_cargo_test_gate!(advice = allow, config = { ... })`, the
-same config should call `with_agent_advice_allow_explanation(...)`. Without that
-compact explanation, `RUST-PROJ-R015` keeps the finding visible so an Agent has
-to state why advisory policy may pass instead of silently using `allow` to avoid
-repairs.
+same config should call `with_cargo_test_advice_allow_explanation(...)`.
+Without that compact explanation, `RUST-PROJ-R015` keeps the finding visible so
+an Agent has to state why advisory policy may pass in the test layer instead of
+silently using `allow` to avoid repairs.
 
 ## Explicit-Path Runner
 

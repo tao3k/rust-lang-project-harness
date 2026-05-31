@@ -1,5 +1,5 @@
 ---
-source: tests/unit/cli.rs
+source: tests/unit/cli/basics.rs
 assertion_line: 65
 expression: stdout
 ---

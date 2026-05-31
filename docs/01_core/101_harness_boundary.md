@@ -6,15 +6,16 @@
 2. parsing Rust files with native Rust syntax
 3. emitting deterministic findings from small rule packs
 4. rendering compact diagnostics for repair-oriented agents
-5. exposing assertion helpers that can be mounted in Cargo test targets
+5. exposing assertion helpers that can be mounted in Cargo build scripts
 
 The package is deliberately library-like and Agent-facing. It does not know
 about a specific workspace, crate family, or CI provider, and it does not assume
 a human will read a long audit report before code is repaired. Callers pass a
 project root or explicit paths, then decide whether to assert, render, or
-inspect the report. The usual downstream loop is: mount the harness in Cargo,
-let `cargo test` or a build script run it, and let the next coding Agent repair
-the compact finding or configure an explicit project-local rationale.
+inspect the report. The usual downstream loop is: mount the harness in root
+`build.rs`, let `cargo check` run parser-native policy, and let the next coding
+Agent repair the compact finding or configure an explicit project-local
+rationale.
 
 The harness exists to reduce Agent search and keep long-lived Rust projects
 structurally clean. It parses the project into package, module, owner, import,
@@ -46,8 +47,10 @@ dependencies. Comments and prose in the manifest do not count as dependency
 evidence.
 Root Cargo test targets follow that parser boundary too: conventional
 `tests/*.rs` targets and manifest-declared `[[test]]` paths are collected and
-parsed under `src/parser/` before `RUST-PROJ-R006`, `RUST-PROJ-R007`, and
-`RUST-PROJ-R008` render findings.
+parsed under `src/parser/` before `RUST-PROJ-R007` and `RUST-PROJ-R008` render
+findings about test-target structure. If a harness-enabled package still mounts
+a cargo-test harness macro from a root test target, `RUST-PROJ-R006` reports a
+migration warning that points the Agent to the `cargo check` build gate.
 Rust `#[path]` attributes are also resolved there, so project policy consumes
 both the native attribute text and its normalized target path as parser facts.
 Rust source path interpretation follows the same contract: namespace
@@ -103,29 +106,36 @@ module-tree facts under `src/parser/` before `RUST-MOD-R007` and
 ## Self-Apply Contract
 
 The package is also self-hosted by its own default policy. The library target
-mounts `rust_project_harness_cargo_test_gate!` from `src/self_policy.rs`. That
-source-backed gate covers unfiltered `cargo test --lib` and ordinary
-`cargo test` runs while keeping policy changes subject to the same gate
-downstream projects consume. Downstream packages that need filter-proof
-enforcement can instead mount the build-time gate from root `build.rs`; a
-complete build gate satisfies the same project-gate contract.
-Cargo-test embedding is intentionally stricter than the raw library runner:
-`rust.agent_policy` findings remain `Info`, but the default cargo-test gate
-fails on compact agent advice so the next repair agent can see and enrich the
-project structure instead of losing the message inside passing test output.
+mounts `rust_project_harness_cargo_test_gate!` from `src/self_policy.rs`
+because this crate cannot add itself as a build-dependency. Downstream packages
+should instead mount the build-time gate from root `build.rs`; that gate runs
+during `cargo check`, before libtest, test filters, or runtime evaluation.
+Build-gate embedding is intentionally stricter than the raw library runner:
+`rust.agent_policy` findings remain `Info`, but the default build gate fails on
+compact agent advice so the next repair agent can see and enrich the project
+structure instead of losing the message inside passing build output.
 Projects can clear that notification by fixing the structure, by configuring
 the relevant rule surface, or by using an explicit
-`advice = allow, config = { ... }` waiver. Advice allowance is itself audited:
-the config must include `with_agent_advice_allow_explanation(...)`, otherwise
-the harness reports `RUST-PROJ-R015`. This keeps `allow` from becoming a cheap
-Agent escape hatch for passing cargo tests while ignoring advisory policy.
+`with_cargo_check_advice_allow_explanation(...)` rationale. Cargo-test advice
+allowance is still audited by `RUST-PROJ-R015`; this keeps `allow` from
+becoming a cheap Agent escape hatch for passing gates while ignoring advisory
+policy.
+
+The layer split is deliberate:
+
+- `cargo check`: parser-native policy, including syntax, Cargo manifest facts,
+  module/owner graph, import clarity, source/test scope coverage, build-gate
+  closure, and verification planning reminders.
+- `cargo test`: test-layer compatibility policy, including legacy source gate
+  configuration, explicit advice allowance, and future checks that consume
+  runtime test or verification receipts.
 
 New source-backed test modules should stay under `tests/unit` and be mounted
-with `#[path]`. Harness-enabled library crates should mount either
-`rust_project_harness_cargo_test_gate!(config = ...)` from a `#[cfg(test)]`
-source module or a complete build-time gate from root `build.rs`; otherwise
-they will be reported by `RUST-PROJ-R009`. Root test targets alone do not run
-under `cargo test --lib`.
+with `#[path]`. Harness-enabled library crates should mount a complete
+build-time gate from root `build.rs`; otherwise they will be reported by
+`RUST-PROJ-R012`. Source cargo-test gates remain supported only as compatibility
+mounts for crates that cannot yet add a build script, and `RUST-PROJ-R009`
+keeps warning until the Agent migrates parser-native policy to the build gate.
 Root Cargo test targets are thin aggregates: they should mount external suite
 modules only, while test bodies and helpers belong in suite files under
 `tests/unit`, `tests/integration`, or a documented custom suite.

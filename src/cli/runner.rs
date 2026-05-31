@@ -1,0 +1,818 @@
+//! CLI runner, argument parsing, and agent asset installation.
+
+use std::env;
+use std::fs;
+#[cfg(feature = "search")]
+use std::io::{self, Read};
+use std::path::{Path, PathBuf};
+use std::process::ExitCode;
+
+const AGENT_SKILL_CONTENT: &str = include_str!("../../skills/SKILL.org");
+const AGENT_SESSION_START_HOOK: &str =
+    "#!/usr/bin/env bash\nset -euo pipefail\n\nrs-harness search prime . || true\n";
+const AGENT_AFTER_EDIT_HOOK: &str =
+    "#!/usr/bin/env bash\nset -euo pipefail\n\nrs-harness check --changed\n";
+const AGENT_CLOSEOUT_HOOK: &str = "#!/usr/bin/env bash\nset -euo pipefail\n\nrs-harness check --full\ncargo check --all-targets\n";
+
+use super::agent_registry::print_agent_registry;
+#[cfg(feature = "search")]
+use super::semantic_search_json::{SemanticSearchJsonOptions, render_search_json};
+#[cfg(feature = "search")]
+use crate::{
+    RustHarnessConfig, RustSearchOptions, RustSearchViewRequest,
+    render_rust_project_harness_search_ingest_with_config,
+    render_rust_project_harness_search_view_with_config,
+};
+use crate::{
+    render_rust_project_harness, render_rust_project_harness_agent_snapshot,
+    render_rust_project_harness_json, run_rust_project_harness,
+};
+
+/// Run the CLI using process environment arguments.
+#[must_use]
+pub fn run_cli_from_env() -> ExitCode {
+    match run(env::args_os().skip(1)) {
+        Ok(code) => code,
+        Err(error) => {
+            eprintln!("{error}");
+            ExitCode::from(2)
+        }
+    }
+}
+
+fn run(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitCode, String> {
+    let args = args.into_iter().collect::<Vec<_>>();
+    if is_command(&args, "search") {
+        return run_search(args.into_iter().skip(1));
+    }
+    if is_command(&args, "check") {
+        return run_check(args.into_iter().skip(1));
+    }
+    if is_command(&args, "agent") {
+        return run_agent(args.into_iter().skip(1));
+    }
+
+    let options = CliOptions::parse(args)?;
+    if options.help {
+        print_help();
+        return Ok(ExitCode::SUCCESS);
+    }
+    let project_root = options.project_root()?;
+    let report = run_rust_project_harness(&project_root)?;
+    if options.agent_snapshot {
+        print!(
+            "{}",
+            render_rust_project_harness_agent_snapshot(&project_root)?
+        );
+    } else if options.json {
+        println!(
+            "{}",
+            render_rust_project_harness_json(&report)
+                .map_err(|error| format!("failed to render JSON report: {error}"))?
+        );
+    } else {
+        print!("{}", render_rust_project_harness(&report));
+    }
+    if report.is_clean() {
+        Ok(ExitCode::SUCCESS)
+    } else {
+        Ok(ExitCode::FAILURE)
+    }
+}
+
+fn run_check(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitCode, String> {
+    let options = CheckOptions::parse(args)?;
+    if options.help {
+        print_check_help();
+        return Ok(ExitCode::SUCCESS);
+    }
+    let _mode = options
+        .mode
+        .as_deref()
+        .ok_or_else(|| "expected check mode: --changed or --full".to_string())?;
+    let project_root = options.project_root()?;
+    let report = run_rust_project_harness(&project_root)?;
+    if options.json {
+        println!(
+            "{}",
+            render_rust_project_harness_json(&report)
+                .map_err(|error| format!("failed to render JSON report: {error}"))?
+        );
+    } else {
+        print!("{}", render_rust_project_harness(&report));
+    }
+    if report.is_clean() {
+        Ok(ExitCode::SUCCESS)
+    } else {
+        Ok(ExitCode::FAILURE)
+    }
+}
+
+fn run_agent(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitCode, String> {
+    let options = AgentOptions::parse(args)?;
+    if options.help {
+        print_agent_help();
+        return Ok(ExitCode::SUCCESS);
+    }
+    let project_root = options.project_root()?;
+    match options.command.as_str() {
+        "install" => {
+            install_agent_assets(&project_root)?;
+            if options.json {
+                print_agent_registry(&project_root)?;
+            } else {
+                print_agent_doctor(&project_root, "installed")?;
+            }
+        }
+        "doctor" => {
+            if options.json {
+                print_agent_registry(&project_root)?;
+            } else {
+                print_agent_doctor(&project_root, "checked")?;
+            }
+        }
+        other => return Err(format!("unknown agent command: {other}")),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn run_search(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitCode, String> {
+    let options = SearchOptions::parse(args)?;
+    if options.help {
+        print_search_help();
+        return Ok(ExitCode::SUCCESS);
+    }
+    run_search_view(&options)
+}
+
+#[cfg(feature = "search")]
+fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
+    let project_root = options.project_root()?;
+    let render_options = options.render_options();
+    let config = RustHarnessConfig::default();
+    let rendered = if options.view == "ingest" {
+        let mut input = String::new();
+        io::stdin()
+            .read_to_string(&mut input)
+            .map_err(|error| format!("failed to read search ingest stdin: {error}"))?;
+        render_rust_project_harness_search_ingest_with_config(
+            &project_root,
+            &config,
+            &input,
+            &render_options,
+        )?
+    } else {
+        let request = RustSearchViewRequest {
+            project_root: &project_root,
+            config: &config,
+            view: &options.view,
+            query: options.query.as_deref(),
+            options: &render_options,
+        };
+        render_rust_project_harness_search_view_with_config(&request)?
+    };
+    let rendered = apply_search_output_controls(options, &rendered);
+    if options.json {
+        let json_options = options.semantic_json_options();
+        println!(
+            "{}",
+            render_search_json(&project_root, &json_options, &rendered)?
+        );
+    } else {
+        if options.trace {
+            print!("{}", render_search_trace(options));
+        }
+        if options.explain {
+            print!("{}", render_search_plan(options));
+        }
+        print!("{rendered}");
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+#[cfg(not(feature = "search"))]
+fn run_search_view(_options: &SearchOptions) -> Result<ExitCode, String> {
+    Err("search command requires the `search` feature".to_string())
+}
+
+#[derive(Debug, Default)]
+struct CliOptions {
+    json: bool,
+    agent_snapshot: bool,
+    help: bool,
+    paths: Vec<PathBuf>,
+}
+
+#[derive(Debug, Default)]
+struct CheckOptions {
+    json: bool,
+    help: bool,
+    mode: Option<String>,
+    paths: Vec<PathBuf>,
+}
+
+#[derive(Debug)]
+struct AgentOptions {
+    command: String,
+    json: bool,
+    help: bool,
+    paths: Vec<PathBuf>,
+}
+
+impl Default for AgentOptions {
+    fn default() -> Self {
+        Self {
+            command: "doctor".to_string(),
+            json: false,
+            help: false,
+            paths: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub(super) struct SearchOptions {
+    pub(super) view: String,
+    pub(super) query: Option<String>,
+    pub(super) json: bool,
+    pub(super) help: bool,
+    pub(super) trace: bool,
+    pub(super) explain: bool,
+    pub(super) output_view: Option<String>,
+    pub(super) depth: Option<usize>,
+    pub(super) dir: Option<String>,
+    pub(super) edges: Vec<String>,
+    pub(super) per_owner: Option<usize>,
+    pub(super) seeds: Option<usize>,
+    pub(super) owners: Option<usize>,
+    pub(super) hits: Option<usize>,
+    pub(super) package: Option<String>,
+    pub(super) owner: Option<String>,
+    pub(super) dependency: Option<String>,
+    pub(super) scope: Option<String>,
+    pub(super) lines: bool,
+    pub(super) pipes: Vec<String>,
+    paths: Vec<PathBuf>,
+}
+
+impl SearchOptions {
+    fn parse(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<Self, String> {
+        let mut options = Self::default();
+        let mut positional_only = false;
+        let mut pending_option: Option<String> = None;
+        let mut positionals = Vec::<std::ffi::OsString>::new();
+        for arg in args {
+            if let Some(option) = pending_option.take() {
+                let Some(value) = arg.to_str() else {
+                    return Err(format!("expected UTF-8 value after {option}"));
+                };
+                match option.as_str() {
+                    "--package" => options.package = Some(value.to_string()),
+                    "--owner" => options.owner = Some(value.to_string()),
+                    "--dependency" => options.dependency = Some(value.to_string()),
+                    "--scope" => options.scope = Some(value.to_string()),
+                    "--view" => options.output_view = Some(value.to_string()),
+                    "--depth" => options.depth = Some(parse_usize_option(&option, value)?),
+                    "--dir" => options.dir = Some(value.to_string()),
+                    "--edge" => options.edges.extend(split_csv_values(value)),
+                    "--per-owner" => {
+                        options.per_owner = Some(parse_usize_option(&option, value)?);
+                    }
+                    "--seeds" => options.seeds = Some(parse_usize_option(&option, value)?),
+                    "--owners" => options.owners = Some(parse_usize_option(&option, value)?),
+                    "--hits" => options.hits = Some(parse_usize_option(&option, value)?),
+                    _ => unreachable!("known pending search option"),
+                }
+                continue;
+            }
+            if positional_only {
+                positionals.push(arg);
+                continue;
+            }
+            let Some(value) = arg.to_str() else {
+                positionals.push(arg);
+                continue;
+            };
+            match value {
+                "--" => positional_only = true,
+                "--json" => options.json = true,
+                "--help" | "-h" => options.help = true,
+                "--lines" => options.lines = true,
+                "--trace" => options.trace = true,
+                "--explain" => options.explain = true,
+                "--item-slice" => options.pipes.push("items".to_string()),
+                "--package" | "--owner" | "--dependency" | "--scope" | "--view" | "--depth"
+                | "--dir" | "--edge" | "--per-owner" | "--seeds" | "--owners" | "--hits" => {
+                    pending_option = Some(value.to_string())
+                }
+                value if value.starts_with('-') => {
+                    return Err(format!("unknown search option: {value}"));
+                }
+                _ => positionals.push(arg),
+            }
+        }
+        if let Some(option) = pending_option {
+            return Err(format!("expected value after {option}"));
+        }
+        if options.help {
+            return Ok(options);
+        }
+        options.apply_positionals(positionals)?;
+        if options.view.is_empty() {
+            return Err("expected search view: prime".to_string());
+        }
+        if options.paths.len() > 1 {
+            return Err("expected at most one PROJECT_ROOT argument".to_string());
+        }
+        validate_search_options(&options)?;
+        Ok(options)
+    }
+
+    fn apply_positionals(&mut self, positionals: Vec<std::ffi::OsString>) -> Result<(), String> {
+        let mut values = positionals
+            .into_iter()
+            .map(|value| {
+                value
+                    .into_string()
+                    .map_err(|_| "expected UTF-8 search arguments".to_string())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if values.is_empty() {
+            return Ok(());
+        }
+        self.view = values.remove(0);
+        if search_view_requires_query(&self.view) {
+            if values.is_empty() {
+                return Err(format!("search {} requires a query", self.command_label()));
+            }
+            self.query = Some(values.remove(0));
+        } else if search_view_accepts_optional_query(&self.view)
+            && values
+                .first()
+                .is_some_and(|value| !is_search_pipe(value) && !PathBuf::from(value).exists())
+        {
+            self.query = Some(values.remove(0));
+        }
+        for value in values {
+            if is_search_pipe(&value) {
+                self.pipes.push(value);
+            } else {
+                self.paths.push(PathBuf::from(value));
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn command_label(&self) -> String {
+        self.view.clone()
+    }
+
+    #[cfg(feature = "search")]
+    fn semantic_json_options(&self) -> SemanticSearchJsonOptions {
+        SemanticSearchJsonOptions {
+            view: self.view.clone(),
+            query: self.query.clone(),
+            command_label: self.command_label(),
+            trace: self.trace,
+            explain: self.explain,
+            output_view: self.output_view.clone(),
+            depth: self.depth,
+            dir: self.dir.clone(),
+            edges: self.edges.clone(),
+            per_owner: self.per_owner,
+            seeds: self.seeds,
+            owners: self.owners,
+            hits: self.hits,
+            package: self.package.clone(),
+            owner: self.owner.clone(),
+            dependency: self.dependency.clone(),
+            scope: self.scope.clone(),
+            lines: self.lines,
+            pipes: self.pipes.clone(),
+        }
+    }
+
+    #[cfg(feature = "search")]
+    fn render_options(&self) -> RustSearchOptions {
+        RustSearchOptions {
+            package: self.package.clone(),
+            owner: self.owner.clone(),
+            dependency: self.dependency.clone(),
+            scope: self.scope.clone(),
+            pipes: self.pipes.clone(),
+            lines: self.lines,
+        }
+    }
+
+    #[cfg(feature = "search")]
+    fn project_root(&self) -> Result<PathBuf, String> {
+        match self.paths.as_slice() {
+            [path] => Ok(path.clone()),
+            [] => {
+                env::current_dir().map_err(|error| format!("failed to read current dir: {error}"))
+            }
+            _ => unreachable!("parse enforces at most one path"),
+        }
+    }
+}
+
+impl CheckOptions {
+    fn parse(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<Self, String> {
+        let mut options = Self::default();
+        let mut positional_only = false;
+        for arg in args {
+            if positional_only {
+                options.paths.push(PathBuf::from(arg));
+                continue;
+            }
+            let Some(value) = arg.to_str() else {
+                options.paths.push(PathBuf::from(arg));
+                continue;
+            };
+            match value {
+                "--" => positional_only = true,
+                "--json" => options.json = true,
+                "--help" | "-h" => options.help = true,
+                "--changed" => options.set_mode("changed")?,
+                "--full" => options.set_mode("full")?,
+                value if value.starts_with('-') => {
+                    return Err(format!("unknown check option: {value}"));
+                }
+                _ => options.paths.push(PathBuf::from(arg)),
+            }
+        }
+        if options.paths.len() > 1 {
+            return Err("expected at most one PROJECT_ROOT argument".to_string());
+        }
+        Ok(options)
+    }
+
+    fn project_root(&self) -> Result<PathBuf, String> {
+        match self.paths.as_slice() {
+            [path] => Ok(path.clone()),
+            [] => {
+                env::current_dir().map_err(|error| format!("failed to read current dir: {error}"))
+            }
+            _ => unreachable!("parse enforces at most one path"),
+        }
+    }
+
+    fn set_mode(&mut self, mode: &str) -> Result<(), String> {
+        if self.mode.is_some() {
+            return Err("expected only one check mode: --changed or --full".to_string());
+        }
+        self.mode = Some(mode.to_string());
+        Ok(())
+    }
+}
+
+impl AgentOptions {
+    fn parse(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<Self, String> {
+        let mut options = Self::default();
+        let mut positional_only = false;
+        for arg in args {
+            if positional_only {
+                options.paths.push(PathBuf::from(arg));
+                continue;
+            }
+            let Some(value) = arg.to_str() else {
+                options.paths.push(PathBuf::from(arg));
+                continue;
+            };
+            match value {
+                "--" => positional_only = true,
+                "--json" => options.json = true,
+                "--help" | "-h" => options.help = true,
+                value if value.starts_with('-') => {
+                    return Err(format!("unknown agent option: {value}"));
+                }
+                "install" | "doctor" if options.command == "doctor" => {
+                    options.command = value.to_string();
+                }
+                _ => options.paths.push(PathBuf::from(arg)),
+            }
+        }
+        if options.paths.len() > 1 {
+            return Err("expected at most one PROJECT_ROOT argument".to_string());
+        }
+        Ok(options)
+    }
+
+    fn project_root(&self) -> Result<PathBuf, String> {
+        match self.paths.as_slice() {
+            [path] => Ok(path.clone()),
+            [] => {
+                env::current_dir().map_err(|error| format!("failed to read current dir: {error}"))
+            }
+            _ => unreachable!("parse enforces at most one path"),
+        }
+    }
+}
+
+impl CliOptions {
+    fn parse(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<Self, String> {
+        let mut options = Self::default();
+        let mut positional_only = false;
+        for arg in args {
+            if positional_only {
+                options.paths.push(PathBuf::from(arg));
+                continue;
+            }
+            let Some(value) = arg.to_str() else {
+                options.paths.push(PathBuf::from(arg));
+                continue;
+            };
+            match value {
+                "--" => positional_only = true,
+                "--json" => options.json = true,
+                "--agent-snapshot" => options.agent_snapshot = true,
+                "--help" | "-h" => options.help = true,
+                value if value.starts_with('-') => {
+                    return Err(format!("unknown option: {value}"));
+                }
+                _ => options.paths.push(PathBuf::from(arg)),
+            }
+        }
+        if options.paths.len() > 1 {
+            return Err("expected at most one PROJECT_ROOT argument".to_string());
+        }
+        if options.json && options.agent_snapshot {
+            return Err("expected only one output mode: --json or --agent-snapshot".to_string());
+        }
+        Ok(options)
+    }
+
+    fn project_root(&self) -> Result<PathBuf, String> {
+        match self.paths.as_slice() {
+            [path] => Ok(path.clone()),
+            [] => {
+                env::current_dir().map_err(|error| format!("failed to read current dir: {error}"))
+            }
+            _ => unreachable!("parse enforces at most one path"),
+        }
+    }
+}
+
+fn print_help() {
+    println!(
+        "rs-harness [--json | --agent-snapshot] [PROJECT_ROOT]\n\
+         rs-harness search <view> [ARGS] [PIPE...] [--json] [--package PACKAGE] [PROJECT_ROOT]\n\
+         rs-harness check <--changed|--full> [--json] [PROJECT_ROOT]\n\
+         rs-harness agent <install|doctor> [--json] [PROJECT_ROOT]\n\n\
+         Runs the default package-level Rust harness.\n\n\
+         Compact text is the default agent-facing repair surface.\n\
+         Use --json to emit the structured RustHarnessReport audit shape.\n\
+         Use --agent-snapshot to emit a low-noise reasoning-tree summary.\n\
+         Use search for RFC line-protocol exploration views."
+    );
+}
+
+fn print_search_help() {
+    println!(
+        "rs-harness search prime [--package PACKAGE] [PROJECT_ROOT]\n\
+         rs-harness search owner <path-or-owner> [items] [--scope SCOPE] [PROJECT_ROOT]\n\
+         rs-harness search workspace [--package PACKAGE] [PROJECT_ROOT]\n\
+         rs-harness search targets [--package PACKAGE] [PROJECT_ROOT]\n\
+         rs-harness search deps [dep[/subpath][@version][::api]] [public-api] [PROJECT_ROOT]\n\
+         rs-harness search features [feature] [cfg owners tests] [PROJECT_ROOT]\n\
+         rs-harness search dependency <crate-or-import-or-package> [items public-api docs-use tests] [PROJECT_ROOT]\n\
+         rs-harness search <symbol|callsite|import|text|cfg|pattern|docs|docs-use|api> <query> [PROJECT_ROOT]\n\
+         rs-harness search public-external-types [--dependency DEP] [PROJECT_ROOT]\n\
+         rg -n '<query>' src tests | rs-harness search ingest [items tests] [PROJECT_ROOT]\n\n\
+         Emits compact RFC line protocol for deterministic agent exploration.\n\
+         Compact text is the default; --json wraps the same packet for tools.\n\
+         RFC controls accepted here: --trace, --explain, --view graph|hits|both|seeds,\n\
+         --depth N, --dir out|in|both, --edge LIST, --item-slice, --dependency DEP,\n\
+         --lines."
+    );
+}
+
+fn print_check_help() {
+    println!(
+        "rs-harness check --changed [--json] [PROJECT_ROOT]\n\
+         rs-harness check --full [--json] [PROJECT_ROOT]\n\n\
+         Runs the policy surface and renders compact findings by default."
+    );
+}
+
+fn print_agent_help() {
+    println!(
+        "rs-harness agent install [--json] [PROJECT_ROOT]\n\
+         rs-harness agent doctor [--json] [PROJECT_ROOT]\n\n\
+         Installs or checks generic agent SKILL.org and hook assets under .agents/.\n\
+         Use --json to emit the semantic-language registry contract."
+    );
+}
+
+#[cfg(feature = "search")]
+fn render_search_trace(options: &SearchOptions) -> String {
+    format!(
+        "[search-trace] source={} query={} pipes={} view={}\n|stage {} final=true\n",
+        options.command_label(),
+        options.query.as_deref().unwrap_or("-"),
+        if options.pipes.is_empty() {
+            "-".to_string()
+        } else {
+            options.pipes.join(",")
+        },
+        options.output_view.as_deref().unwrap_or("graph"),
+        options.command_label()
+    )
+}
+
+#[cfg(feature = "search")]
+fn render_search_plan(options: &SearchOptions) -> String {
+    format!(
+        "[search-plan] view={} q={} mode={} depth={} dir={} edge={}\n|step resolve-project\n|step render:{}\n",
+        options.command_label(),
+        options.query.as_deref().unwrap_or("-"),
+        options.output_view.as_deref().unwrap_or("graph"),
+        options
+            .depth
+            .map(|depth| depth.to_string())
+            .unwrap_or_else(|| "1".to_string()),
+        options.dir.as_deref().unwrap_or("-"),
+        if options.edges.is_empty() {
+            "-".to_string()
+        } else {
+            options.edges.join(",")
+        },
+        options.command_label()
+    )
+}
+
+#[cfg(feature = "search")]
+fn apply_search_output_controls(options: &SearchOptions, rendered: &str) -> String {
+    if options.depth == Some(0) {
+        let mut header_only = rendered
+            .lines()
+            .filter(|line| !line.starts_with('|'))
+            .collect::<Vec<_>>()
+            .join("\n");
+        if !header_only.is_empty() {
+            header_only.push('\n');
+        }
+        return header_only;
+    }
+    rendered.to_string()
+}
+
+fn install_agent_assets(project_root: &Path) -> Result<(), String> {
+    let skill_dir = project_root.join(".agents/skills/rs-harness");
+    let hook_dir = project_root.join(".agents/hooks");
+    fs::create_dir_all(&skill_dir)
+        .map_err(|error| format!("failed to create agent skill dir: {error}"))?;
+    fs::create_dir_all(&hook_dir)
+        .map_err(|error| format!("failed to create agent hook dir: {error}"))?;
+    fs::write(skill_dir.join("SKILL.org"), AGENT_SKILL_CONTENT)
+        .map_err(|error| format!("failed to write agent skill: {error}"))?;
+    write_agent_hook(
+        &hook_dir.join("agent_rs_harness_session_start.sh"),
+        AGENT_SESSION_START_HOOK,
+    )?;
+    write_agent_hook(
+        &hook_dir.join("agent_rs_harness_after_edit.sh"),
+        AGENT_AFTER_EDIT_HOOK,
+    )?;
+    write_agent_hook(
+        &hook_dir.join("agent_rs_harness_closeout.sh"),
+        AGENT_CLOSEOUT_HOOK,
+    )?;
+    Ok(())
+}
+
+fn write_agent_hook(path: &Path, content: &str) -> Result<(), String> {
+    fs::write(path, content).map_err(|error| format!("failed to write agent hook: {error}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = fs::metadata(path)
+            .map_err(|error| format!("failed to stat agent hook: {error}"))?
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(path, permissions)
+            .map_err(|error| format!("failed to chmod agent hook: {error}"))?;
+    }
+    Ok(())
+}
+
+fn print_agent_doctor(project_root: &Path, action: &str) -> Result<(), String> {
+    let skill = project_root.join(".agents/skills/rs-harness/SKILL.org");
+    let session = project_root.join(".agents/hooks/agent_rs_harness_session_start.sh");
+    let after_edit = project_root.join(".agents/hooks/agent_rs_harness_after_edit.sh");
+    let closeout = project_root.join(".agents/hooks/agent_rs_harness_closeout.sh");
+    println!(
+        "[agent-doctor] action={action} skill={} hooks={} daemon=missing protocol=cli-cold",
+        skill.exists(),
+        [session.exists(), after_edit.exists(), closeout.exists()]
+            .into_iter()
+            .filter(|exists| *exists)
+            .count()
+    );
+    println!(
+        "|skill {} present={}",
+        display_cli_path(project_root, &skill),
+        skill.exists()
+    );
+    println!(
+        "|hook session-start path={} present={}",
+        display_cli_path(project_root, &session),
+        session.exists()
+    );
+    println!(
+        "|hook after-edit path={} present={}",
+        display_cli_path(project_root, &after_edit),
+        after_edit.exists()
+    );
+    println!(
+        "|hook closeout path={} present={}",
+        display_cli_path(project_root, &closeout),
+        closeout.exists()
+    );
+    Ok(())
+}
+
+fn display_cli_path(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .display()
+        .to_string()
+        .replace('\\', "/")
+}
+
+fn is_command(args: &[std::ffi::OsString], command: &str) -> bool {
+    args.first()
+        .and_then(|arg| arg.to_str())
+        .is_some_and(|arg| arg == command)
+}
+
+fn search_view_requires_query(view: &str) -> bool {
+    matches!(
+        view,
+        "owner"
+            | "dependency"
+            | "tests"
+            | "symbol"
+            | "callsite"
+            | "import"
+            | "text"
+            | "cfg"
+            | "pattern"
+            | "docs"
+            | "docs-use"
+            | "api"
+    )
+}
+
+fn search_view_accepts_optional_query(view: &str) -> bool {
+    matches!(view, "deps" | "features")
+}
+
+fn is_search_pipe(value: &str) -> bool {
+    matches!(
+        value,
+        "owners"
+            | "usage"
+            | "items"
+            | "tests"
+            | "examples"
+            | "benches"
+            | "docs"
+            | "docs-use"
+            | "api"
+            | "public-external-types"
+            | "public-api"
+            | "cfg"
+            | "features"
+            | "dependents"
+    )
+}
+
+fn parse_usize_option(option: &str, value: &str) -> Result<usize, String> {
+    value
+        .parse()
+        .map_err(|_| format!("expected integer value after {option}"))
+}
+
+fn split_csv_values(value: &str) -> Vec<String> {
+    value
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
+fn validate_search_options(options: &SearchOptions) -> Result<(), String> {
+    if let Some(view) = options.output_view.as_deref()
+        && !matches!(view, "graph" | "hits" | "both" | "seeds")
+    {
+        return Err(format!("unknown search --view mode: {view}"));
+    }
+    if let Some(dir) = options.dir.as_deref()
+        && !matches!(dir, "out" | "in" | "both")
+    {
+        return Err(format!("unknown search --dir mode: {dir}"));
+    }
+    Ok(())
+}
