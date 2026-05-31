@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 pub(super) struct SearchOutputControls<'a> {
     pub(super) depth: Option<usize>,
     pub(super) output_view: Option<&'a str>,
+    pub(super) seeds: Option<usize>,
 }
 
 pub(super) fn apply_search_output_controls(
@@ -15,7 +16,7 @@ pub(super) fn apply_search_output_controls(
         return render_header_only(rendered);
     }
     if controls.output_view == Some("seeds") {
-        return render_search_seed_view(rendered);
+        return render_search_seed_view(rendered, controls.seeds);
     }
     rendered.to_string()
 }
@@ -32,29 +33,36 @@ fn render_header_only(rendered: &str) -> String {
     header_only
 }
 
-fn render_search_seed_view(rendered: &str) -> String {
-    const SEED_LIMIT: usize = 32;
+fn render_search_seed_view(rendered: &str, seed_limit: Option<usize>) -> String {
+    const DEFAULT_SEED_LIMIT: usize = 8;
 
     let SearchSeeds {
         headers,
-        seeds,
+        mut seeds,
         notes,
     } = collect_search_seeds(rendered);
+    seeds.sort_by(|left, right| {
+        seed_priority(left)
+            .cmp(&seed_priority(right))
+            .then_with(|| left.len().cmp(&right.len()))
+            .then_with(|| left.cmp(right))
+    });
     let seed_count = seeds.len();
+    let seed_limit = seed_limit.unwrap_or(DEFAULT_SEED_LIMIT);
     let mut compact = String::new();
     for header in headers {
         compact.push_str(&header);
         compact.push('\n');
     }
-    for seed in seeds.into_iter().take(SEED_LIMIT) {
+    for seed in seeds.into_iter().take(seed_limit) {
         compact.push_str("|seed ");
         compact.push_str(&seed);
         compact.push('\n');
     }
-    if seed_count > SEED_LIMIT {
+    if seed_count > seed_limit {
         compact.push_str(&format!(
-            "|note seeds_truncated={} limit={SEED_LIMIT}\n",
-            seed_count - SEED_LIMIT
+            "|note seeds_truncated={} limit={seed_limit}\n",
+            seed_count - seed_limit
         ));
     }
     for note in notes.into_iter().take(1) {
@@ -62,6 +70,28 @@ fn render_search_seed_view(rendered: &str) -> String {
         compact.push('\n');
     }
     compact
+}
+
+fn seed_priority(seed: &str) -> usize {
+    if seed.starts_with("dependency:") || seed.starts_with("deps:") || seed.starts_with("import:") {
+        0
+    } else if seed.starts_with("feature:") || seed.starts_with("features:") {
+        1
+    } else if seed.starts_with("cfg:") {
+        2
+    } else if seed.starts_with("owner:") {
+        3
+    } else if seed == "tests" || seed.starts_with("tests:") {
+        4
+    } else if seed.starts_with("docs:") || seed.starts_with("docs-use:") {
+        5
+    } else if seed.starts_with("text:") {
+        6
+    } else if seed.starts_with("symbol:") {
+        7
+    } else {
+        8
+    }
 }
 
 struct SearchSeeds {

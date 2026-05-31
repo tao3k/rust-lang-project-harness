@@ -202,6 +202,8 @@ symbol, import, text, pattern, docs, tests, and ingest views.
 `namespace=agent.semantic-protocols.semantic-language`,
 `method=search/<view>` for tools, while `check --changed` and `check --full`
 provide the RFC validation entrypoints.
+`search --view seeds` emits only prioritized `next=` follow-up axes, defaults
+to 8 seeds, and accepts `--seeds N` when a caller needs a tighter packet.
 `agent install` and `agent doctor` manage generic `.agents/` integration assets
 without assuming a specific agent client. `agent doctor --json` emits the
 semantic-language registry with callable methods and method descriptors.

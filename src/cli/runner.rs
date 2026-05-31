@@ -181,6 +181,7 @@ fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
         SearchOutputControls {
             depth: options.depth,
             output_view: options.output_view.as_deref(),
+            seeds: options.seeds,
         },
         &rendered,
     );
@@ -619,7 +620,7 @@ fn print_search_help() {
          Compact text is the default; --json wraps the same packet for tools.\n\
          RFC controls accepted here: --trace, --explain, --view graph|hits|both|seeds,\n\
          --depth N, --dir out|in|both, --edge LIST, --item-slice, --dependency DEP,\n\
-         --lines."
+         --seeds N, --lines."
     );
 }
 
