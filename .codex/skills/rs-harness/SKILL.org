@@ -53,6 +53,12 @@ Raw TS/JS rg must pipe to ingest: `rg -n "<query>" --glob "*.{ts,tsx,js,jsx,mts,
 Subagent must return `[search-subagent] role=... evidence=... missing=... next=... risk=...`.
 #+end_src
 
+When a hook blocks a direct Rust source read, follow the guide it emits instead
+of chaining file-local commands. Run one search command at a time: prime for
+orientation, batch multiple paths through =search ingest=, then use =search
+owner <path> items= or =search tests <path>= only for the selected seed. Use the
+installed =rs-harness= binary, not a local debug build path.
+
 Installed Codex hook assets use project-local =.codex/config.toml= that calls
 =rs-harness agent hook --client codex <event>= directly. The default state file
 is =.codex/harness-state/session.json= and the default policy file is
@@ -107,6 +113,14 @@ equivalent package headers join =pkg= values with commas, and same-kind seeds
 share one line such as =|seed symbol:read,write,seek=. If a detail packet is too
 large, retry the same command with =--view seeds --seeds 8= before assigning
 subagents.
+
+Workspace-prefixed path queries such as =tokio/src/io/mod.rs= or
+=ext/web-search/src/tool.rs= narrow =search owner= and =search tests= to the
+matching package automatically. Prefer those paths over broad workspace owner
+queries when prime or ingest already returned a package-qualified owner seed.
+Exact =*.rs= owner queries use a single-file parse fast path before falling
+back to full package context. =search tests <exact-source-file>= parses only
+that owner plus test roots.
 
 * Phase 1: deep prime map
 

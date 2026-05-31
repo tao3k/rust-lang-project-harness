@@ -306,12 +306,15 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
             .as_str()
             .is_some_and(|reason| {
                 reason.contains("[rs-harness-flow] blocked=read-rs")
+                    && reason.contains("flow guide=prime->batch-or-owner->tests->edit")
+                    && reason.contains("printf '%s\\n' <paths...> | rs-harness search ingest")
                     && reason.contains(
                         "rs-harness search owner src/lib.rs items --trace --view seeds --seeds 8",
                     )
-                    && reason
-                        .contains("rs-harness search owner src/lib.rs items --trace --view both")
-                    && reason.contains("rs-harness search owner src/lib.rs --explain --view seeds")
+                    && reason.contains("one-search-command-at-a-time")
+                    && reason.contains("installed-binary-only")
+                    && reason.contains("no `&&`")
+                    && !reason.contains("target/debug/rs-harness")
                     && reason.contains("rs-harness search ingest items tests")
             }),
         "{value}"
@@ -339,8 +342,10 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
             .as_str()
             .is_some_and(|reason| {
                 reason.contains("[rs-harness-flow] blocked=bulk-rs-dump")
+                    && reason.contains("flow guide=prime->rg-or-paths->ingest->owner-or-deps")
                     && reason.contains("pipe-to-ingest")
-                    && reason.contains("rs-harness search deps <dep[/subpath][::api]> public-api")
+                    && reason.contains("rs-harness search deps <dep[/path][::api]> public-api")
+                    && reason.contains("one-search-command-at-a-time")
                     && reason.contains("[search-subagent]")
             }),
         "{value}"
@@ -370,6 +375,7 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
             .is_some_and(|reason| {
                 reason.contains("[rs-harness-flow] blocked=read-rs path=src/lib.rs")
                     && reason.contains("rs-harness search owner src/lib.rs items")
+                    && reason.contains("flow guide=prime->batch-or-owner->tests->edit")
             }),
         "{value}"
     );

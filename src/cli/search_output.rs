@@ -527,7 +527,7 @@ fn qualify_package_seed(seed: &str, package: Option<&str>) -> String {
     let Some(package) = package else {
         return seed.to_string();
     };
-    for prefix in ["owner:", "tests:", "ingest:"] {
+    for prefix in ["owner:", "tests:", "ingest:", "text:"] {
         if let Some(target) = seed.strip_prefix(prefix)
             && package_seed_target_needs_prefix(target, package)
         {

@@ -22,11 +22,7 @@ pub(super) fn render_search_trace(options: &SearchTraceOptions, rendered: &str) 
         },
         options.output_view.as_deref().unwrap_or("graph")
     );
-    append_source_stage(&mut trace, &options.source, &counts);
-    for pipe in &options.pipes {
-        append_pipe_stage(&mut trace, pipe, &counts);
-    }
-    let _ = writeln!(trace, "|stage output final=true lines={}", counts.lines);
+    append_stage_summary(&mut trace, &counts);
     trace
 }
 
@@ -73,84 +69,22 @@ impl SearchTraceCounts {
     }
 }
 
-fn append_source_stage(trace: &mut String, source: &str, counts: &SearchTraceCounts) {
-    match source {
-        "workspace" => {
-            let _ = writeln!(trace, "|stage workspace packages={}", counts.packages);
-        }
-        "dependency" => {
-            let _ = writeln!(
-                trace,
-                "|stage dependency cargo={} owners={}",
-                counts.deps, counts.owners
-            );
-        }
-        "deps" => {
-            let _ = writeln!(
-                trace,
-                "|stage deps cargo={} owners={} api={}",
-                counts.deps, counts.owners, counts.api
-            );
-        }
-        "features" => {
-            let _ = writeln!(
-                trace,
-                "|stage features features={} deps={}",
-                counts.features, counts.deps
-            );
-        }
-        "cfg" => {
-            let _ = writeln!(
-                trace,
-                "|stage cfg cfg={} owners={}",
-                counts.cfg, counts.owners
-            );
-        }
-        "owner" => {
-            let _ = writeln!(
-                trace,
-                "|stage owner owners={} items={}",
-                counts.owners, counts.items
-            );
-        }
-        other => {
-            let _ = writeln!(trace, "|stage {other} lines={}", counts.lines);
-        }
-    }
+fn append_stage_summary(trace: &mut String, counts: &SearchTraceCounts) {
+    trace.push_str("|stage");
+    append_nonzero_count(trace, "packages", counts.packages);
+    append_nonzero_count(trace, "features", counts.features);
+    append_nonzero_count(trace, "cargo", counts.deps);
+    append_nonzero_count(trace, "owners", counts.owners);
+    append_nonzero_count(trace, "items", counts.items);
+    append_nonzero_count(trace, "api", counts.api);
+    append_nonzero_count(trace, "cfg", counts.cfg);
+    append_nonzero_count(trace, "tests", counts.tests);
+    append_nonzero_count(trace, "edges", counts.edges);
+    let _ = writeln!(trace, " final=true lines={}", counts.lines);
 }
 
-fn append_pipe_stage(trace: &mut String, pipe: &str, counts: &SearchTraceCounts) {
-    match pipe {
-        "owners" => {
-            let _ = writeln!(trace, "|stage owners owners={}", counts.owners);
-        }
-        "items" => {
-            let _ = writeln!(
-                trace,
-                "|stage items owners={} items={}",
-                counts.owners, counts.items
-            );
-        }
-        "docs" | "docs-use" => {
-            let _ = writeln!(trace, "|stage docs docs={}", counts.api);
-        }
-        "tests" => {
-            let _ = writeln!(trace, "|stage tests tests={}", counts.tests);
-        }
-        "public-api" => {
-            let _ = writeln!(trace, "|stage public-api api={}", counts.api);
-        }
-        "cfg" => {
-            let _ = writeln!(trace, "|stage cfg cfg={}", counts.cfg);
-        }
-        "features" => {
-            let _ = writeln!(trace, "|stage features features={}", counts.features);
-        }
-        "dependents" => {
-            let _ = writeln!(trace, "|stage dependents edges={}", counts.edges);
-        }
-        other => {
-            let _ = writeln!(trace, "|stage {other} lines={}", counts.lines);
-        }
+fn append_nonzero_count(trace: &mut String, key: &str, count: usize) {
+    if count > 0 {
+        let _ = write!(trace, " {key}={count}");
     }
 }

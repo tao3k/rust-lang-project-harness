@@ -272,8 +272,7 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
         12,
         &[
             "[search-trace] source=deps query=codex-api::SearchCommands pipes=public-api view=seeds",
-            "|stage deps cargo=1 owners=1 api=1",
-            "|stage public-api api=1",
+            "|stage cargo=1 owners=1 api=1 final=true lines=",
             "[search-deps] q=codex-api::SearchCommands pkg=ext/web-search dep=1 own=1 api=1 apiQuery=SearchCommands",
             "|seed dependency:codex-api",
             "|seed docs:codex-api::SearchCommands",
@@ -333,11 +332,11 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
     assert_lab_packet(
         "public_codex_web_search_workspace_prefixed_owner_seed_flow",
         &workspace_prefixed_owner_seeds,
-        8,
+        7,
         &[
-            "[search-owner] q=ext/web-search/src/tool.rs pkg=crates/codex-api,crates/codex-protocol own=0 item=0",
             "[search-owner] q=ext/web-search/src/tool.rs pkg=ext/web-search own=1 item=",
             "|seed owner:ext/web-search/src/tool.rs",
+            "|seed text:ext/web-search/src/tool.rs(owner=src/tool.rs)",
             "|seed symbol:WebSearchTool",
         ],
         FORBIDDEN_FLOW_PATTERNS,
@@ -356,9 +355,8 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
     assert_lab_packet(
         "public_codex_web_search_workspace_prefixed_owner_detail_flow",
         &workspace_prefixed_owner_detail,
-        16,
+        10,
         &[
-            "[search-owner] q=ext/web-search/src/tool.rs pkg=crates/codex-api,crates/codex-protocol own=0 item=0",
             "[search-owner] q=ext/web-search/src/tool.rs pkg=ext/web-search own=1 item=",
             "|owner src/tool.rs role=source public=false source=parser-visible-module",
             "|item command_action kind=fn",
@@ -369,8 +367,8 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
         workspace_prefixed_owner_detail
             .matches("kind=not-found")
             .count(),
-        1,
-        "detail view should merge repeated not-found package blocks:\n{workspace_prefixed_owner_detail}"
+        0,
+        "detail view should skip unrelated packages for workspace-prefixed paths:\n{workspace_prefixed_owner_detail}"
     );
 
     let workspace_prefixed_ingest = run_search_with_stdin(

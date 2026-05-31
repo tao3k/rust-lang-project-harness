@@ -136,27 +136,13 @@ fn cli_rust_flow_drill_exercises_registry_prime_search_and_ingest() {
         "{dependency_trace}"
     );
     assert!(
-        dependency_trace.contains("|stage dependency cargo=1 owners=2"),
+        dependency_trace.contains("|stage cargo=1 owners=2 items="),
         "{dependency_trace}"
     );
+    assert!(dependency_trace.contains(" api=8"), "{dependency_trace}");
+    assert!(dependency_trace.contains(" tests=1"), "{dependency_trace}");
     assert!(
-        dependency_trace.contains("|stage items owners=2 items="),
-        "{dependency_trace}"
-    );
-    assert!(
-        dependency_trace.contains("|stage public-api api=8"),
-        "{dependency_trace}"
-    );
-    assert!(
-        dependency_trace.contains("|stage docs docs=8"),
-        "{dependency_trace}"
-    );
-    assert!(
-        dependency_trace.contains("|stage tests tests=1"),
-        "{dependency_trace}"
-    );
-    assert!(
-        dependency_trace.contains("|stage output final=true"),
+        dependency_trace.contains(" final=true lines="),
         "{dependency_trace}"
     );
     assert!(

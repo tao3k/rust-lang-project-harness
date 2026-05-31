@@ -3,13 +3,19 @@ use std::fmt::Write;
 use std::path::{Path, PathBuf};
 
 use crate::RustHarnessConfig;
-use crate::parser::ParsedRustModule;
+use crate::RustProjectHarnessScope;
+use crate::discovery::{discover_rust_files, rust_project_harness_scope};
+use crate::parser::{ParsedRustModule, parse_rust_file};
 
 use super::RustSearchOptions;
-use super::context::{PackageSearchContext, search_contexts};
+use super::context::{
+    PackageSearchContext, exact_owner_path_matches, exact_rust_file_query, search_contexts,
+    search_contexts_for_path_query,
+};
 use super::format::{
     append_block, compact_locations, display_project_path, package_label,
-    render_cargo_dependency_line, render_item_line, render_public_api_line,
+    package_roots_for_request, render_cargo_dependency_line, render_item_line,
+    render_public_api_line,
 };
 use super::hits::{OwnerHit, dependency_usage, matching_dependencies};
 use super::limits::{SEARCH_HIT_LIMIT, SEARCH_ITEM_LIMIT, SEARCH_OWNER_LIMIT, SEARCH_TEST_LIMIT};
@@ -224,7 +230,15 @@ pub(super) fn render_search_tests(
     query: Option<&str>,
     options: &RustSearchOptions,
 ) -> Result<String, String> {
-    let contexts = search_contexts(project_root, config, options)?;
+    if let Some(query) = query
+        && let Some(rendered) = render_exact_path_tests(project_root, config, query, options)?
+    {
+        return Ok(rendered);
+    }
+    let contexts = query.map_or_else(
+        || search_contexts(project_root, config, options),
+        |query| search_contexts_for_path_query(project_root, config, options, query),
+    )?;
     let mut rendered = String::new();
     for context in contexts {
         let owner_modules = query
@@ -245,26 +259,97 @@ pub(super) fn render_search_tests(
                 )
             })
             .collect::<Vec<_>>();
-        let mut block = format!(
-            "[search-tests] q={} pkg={} tests={} own={}\n",
+        let block = render_search_tests_block(
+            project_root,
+            &context.package_root,
             query.unwrap_or("-"),
-            package_label(project_root, &context.package_root),
-            tests.len(),
-            owner_modules.len()
+            &owner_modules,
+            tests,
         );
-        for module in owner_modules.iter().take(SEARCH_OWNER_LIMIT) {
-            let owner_path = display_project_path(&context.package_root, &module.report.path);
-            let _ = writeln!(
-                block,
-                "|node O:{owner_path} kind=owner path={owner_path} next=owner:{owner_path}"
-            );
-        }
-        for test in tests.into_iter().take(SEARCH_TEST_LIMIT) {
-            append_test_lines(&mut block, &test);
-        }
         append_block(&mut rendered, &block);
     }
     Ok(rendered)
+}
+
+fn render_exact_path_tests(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+    options: &RustSearchOptions,
+) -> Result<Option<String>, String> {
+    if !exact_rust_file_query(query) {
+        return Ok(None);
+    }
+    let package_roots =
+        package_roots_for_request(project_root, config, options.package.as_deref())?;
+    let matches = exact_owner_path_matches(project_root, &package_roots, query);
+    if matches.is_empty() {
+        return Ok(None);
+    }
+
+    let mut rendered = String::new();
+    for (package_root, path) in matches {
+        let scope = rust_project_harness_scope(
+            &package_root,
+            config.include_tests,
+            &config.source_dir_names,
+            &config.test_dir_names,
+        );
+        let owner_module = parse_rust_file(&path);
+        if module_is_scope(&scope, &owner_module, "tests") {
+            return Ok(None);
+        }
+        let test_modules = parse_test_scope(&scope, config);
+        let owner_modules = [&owner_module];
+        let owner_tokens = test_subject_tokens(&owner_modules);
+        let tests = test_modules
+            .iter()
+            .filter_map(|module| {
+                test_match(&package_root, module, Some(query), true, &owner_tokens)
+            })
+            .collect::<Vec<_>>();
+        let block =
+            render_search_tests_block(project_root, &package_root, query, &owner_modules, tests);
+        append_block(&mut rendered, &block);
+    }
+    Ok(Some(rendered))
+}
+
+fn parse_test_scope(
+    scope: &RustProjectHarnessScope,
+    config: &RustHarnessConfig,
+) -> Vec<ParsedRustModule> {
+    discover_rust_files(&scope.test_paths, &config.ignored_dir_names)
+        .into_iter()
+        .map(|path| parse_rust_file(&path))
+        .collect()
+}
+
+fn render_search_tests_block(
+    project_root: &Path,
+    package_root: &Path,
+    query: &str,
+    owner_modules: &[&ParsedRustModule],
+    tests: Vec<TestSearchMatch>,
+) -> String {
+    let mut block = format!(
+        "[search-tests] q={} pkg={} tests={} own={}\n",
+        query,
+        package_label(project_root, package_root),
+        tests.len(),
+        owner_modules.len()
+    );
+    for module in owner_modules.iter().take(SEARCH_OWNER_LIMIT) {
+        let owner_path = display_project_path(package_root, &module.report.path);
+        let _ = writeln!(
+            block,
+            "|node O:{owner_path} kind=owner path={owner_path} next=owner:{owner_path}"
+        );
+    }
+    for test in tests.into_iter().take(SEARCH_TEST_LIMIT) {
+        append_test_lines(&mut block, &test);
+    }
+    block
 }
 
 struct TestSearchMatch {

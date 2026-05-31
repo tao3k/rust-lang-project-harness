@@ -2,12 +2,16 @@ use std::fmt::Write;
 use std::path::{Path, PathBuf};
 
 use crate::RustHarnessConfig;
-use crate::parser::{ParsedRustModule, RustReasoningOwnerBranchFacts};
+use crate::parser::{ParsedRustModule, RustReasoningOwnerBranchFacts, parse_rust_file};
 
 use super::RustSearchOptions;
-use super::context::{PackageSearchContext, search_contexts};
+use super::context::{
+    PackageSearchContext, exact_owner_path_matches, exact_rust_file_query,
+    search_contexts_for_path_query,
+};
 use super::format::{
-    display_project_path, owner_role_for_path, package_label, render_item_line, render_owner_line,
+    display_project_path, owner_role_for_path, package_label, package_roots_for_request,
+    render_item_line, render_owner_line,
 };
 use super::limits::{SEARCH_ITEM_LIMIT, SEARCH_OWNER_LIMIT};
 use super::scope::{owner_branch_matches, owner_path_matches};
@@ -18,11 +22,59 @@ pub(super) fn render_search_owner(
     query: &str,
     options: &RustSearchOptions,
 ) -> Result<String, String> {
-    let contexts = search_contexts(project_root, config, options)?;
+    if let Some(rendered) = render_exact_path_owner(project_root, config, query, options)? {
+        return Ok(rendered);
+    }
+    let contexts = search_contexts_for_path_query(project_root, config, options, query)?;
     Ok(contexts
         .iter()
         .map(|context| render_search_owner_block(project_root, context, query, options))
         .collect())
+}
+
+fn render_exact_path_owner(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+    options: &RustSearchOptions,
+) -> Result<Option<String>, String> {
+    if !exact_rust_file_query(query) {
+        return Ok(None);
+    }
+    let package_roots =
+        package_roots_for_request(project_root, config, options.package.as_deref())?;
+    let matches = exact_owner_path_matches(project_root, &package_roots, query);
+    if matches.is_empty() {
+        return Ok(None);
+    }
+
+    let include_items = options.pipes.iter().any(|pipe| pipe == "items");
+    let mut rendered = String::new();
+    for (package_root, path) in matches {
+        let module = parse_rust_file(&path);
+        rendered.push_str(&render_exact_path_owner_block(
+            project_root,
+            &package_root,
+            query,
+            &module,
+            include_items,
+        ));
+    }
+    Ok(Some(rendered))
+}
+
+fn render_exact_path_owner_block(
+    project_root: &Path,
+    package_root: &Path,
+    query: &str,
+    module: &ParsedRustModule,
+    include_items: bool,
+) -> String {
+    let mut block =
+        render_exact_path_owner_header(project_root, package_root, query, module, include_items);
+    append_parser_visible_owner_line(&mut block, package_root, module);
+    append_owner_item_lines(&mut block, &[module], include_items);
+    block
 }
 
 fn render_search_owner_block(
@@ -153,6 +205,25 @@ fn render_search_owner_header(
     )
 }
 
+fn render_exact_path_owner_header(
+    project_root: &Path,
+    package_root: &Path,
+    query: &str,
+    module: &ParsedRustModule,
+    include_items: bool,
+) -> String {
+    format!(
+        "[search-owner] q={} pkg={} own=1 item={}\n",
+        query,
+        package_label(project_root, package_root),
+        if include_items {
+            module.syntax_facts.top_level_items.len()
+        } else {
+            0
+        }
+    )
+}
+
 fn search_owner_count(
     context: &PackageSearchContext,
     query: &str,
@@ -186,17 +257,25 @@ fn append_parser_visible_owner_lines(
     matching_modules: &[&ParsedRustModule],
 ) {
     for module in matching_modules.iter().take(SEARCH_OWNER_LIMIT) {
-        let path = display_project_path(&context.package_root, &module.report.path);
-        let role = owner_role_for_path(&context.package_root, &module.report.path);
-        let _ = writeln!(
-            block,
-            "|owner {path} role={role} public=false source=parser-visible-module parserOwner=false layer={role} lines={} valid={} syntaxDiagnostics={} semanticDiagnostics=0 imports={} next=owner:{path},text:{path}(owner={path}),tests:{path}",
-            module.source.lines().count(),
-            module.report.is_valid,
-            usize::from(module.report.parse_error.is_some()),
-            module_import_count(module)
-        );
+        append_parser_visible_owner_line(block, &context.package_root, module);
     }
+}
+
+fn append_parser_visible_owner_line(
+    block: &mut String,
+    package_root: &Path,
+    module: &ParsedRustModule,
+) {
+    let path = display_project_path(package_root, &module.report.path);
+    let role = owner_role_for_path(package_root, &module.report.path);
+    let _ = writeln!(
+        block,
+        "|owner {path} role={role} public=false source=parser-visible-module parserOwner=false layer={role} lines={} valid={} syntaxDiagnostics={} semanticDiagnostics=0 imports={} next=owner:{path},text:{path}(owner={path}),tests:{path}",
+        module.source.lines().count(),
+        module.report.is_valid,
+        usize::from(module.report.parse_error.is_some()),
+        module_import_count(module)
+    );
 }
 
 fn append_path_only_owner_line(block: &mut String, context: &PackageSearchContext, path: &Path) {

@@ -4,6 +4,7 @@
 # - Rust source reads are routed through rs-harness search packets.
 # - Subagents should receive bounded search commands, not raw file inventories.
 # - Pipe broad external candidates into `rs-harness search ingest items tests`.
+# - Run one search command at a time; do not chain denied-read recovery commands.
 
 [[hooks.SessionStart]]
 matcher = "startup|resume|clear|compact"

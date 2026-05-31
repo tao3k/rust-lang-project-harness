@@ -328,7 +328,7 @@ fn empty_dash(values: &[String]) -> String {
 
 fn extract_cfg_label(line: &str) -> Option<String> {
     if let Some((_, tail)) = line.split_once("feature") {
-        let quoted = tail.split('"').nth(1)?;
+        let quoted = tail.split('"').nth(1)?.trim_matches('\\');
         return Some(format!("feature:{quoted}"));
     }
     let cfg = line
@@ -341,7 +341,7 @@ fn extract_cfg_label(line: &str) -> Option<String> {
         .split(|character: char| character == ')' || character == ',' || character.is_whitespace())
         .next()
         .unwrap_or("")
-        .trim_matches('"');
+        .trim_matches(|character| character == '"' || character == '\\');
     (!label.is_empty()).then(|| label.to_string())
 }
 

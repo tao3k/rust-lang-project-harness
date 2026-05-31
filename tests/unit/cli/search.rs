@@ -110,11 +110,10 @@ fn cli_search_json_and_trace_follow_rfc_output_modes() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("|stage dependency cargo=1 owners=2"),
+        stdout.contains("|stage cargo=1 owners=2 items="),
         "{stdout}"
     );
-    assert!(stdout.contains("|stage items owners=2"), "{stdout}");
-    assert!(stdout.contains("|stage output final=true"), "{stdout}");
+    assert!(stdout.contains(" final=true lines="), "{stdout}");
     assert!(stdout.contains("[search-dependency] q=serde"), "{stdout}");
 }
 

@@ -206,6 +206,11 @@ provide the RFC validation entrypoints.
 to 8 seeds, and accepts `--seeds N` when a caller needs a tighter packet. Seed
 and detail views merge equivalent package headers and same-kind seed rows so
 large workspace packets stay subagent-friendly.
+Workspace-prefixed owner/test path queries, such as
+`search owner crates/api/src/lib.rs`, automatically parse only the matching
+package when no explicit `--package` is supplied. Exact `.rs` owner queries use
+a single-file parse fast path before falling back to full package context, and
+`search tests <exact-source-file>` parses only that owner plus test roots.
 `agent install` and `agent doctor` manage client-specific integration assets
 without assuming a specific agent client. Codex installs project-local
 `.codex/config.toml`, `.codex/harness-policy.json`, and

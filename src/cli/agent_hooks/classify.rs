@@ -456,23 +456,24 @@ fn command_has_content_reader(command: &str) -> bool {
 fn rust_direct_read_flow(path: &str) -> String {
     format!(
         "[rs-harness-flow] blocked=read-rs path={path} policy=search-first\n\
-         |prefer run=`rs-harness search owner {path} items --trace --view seeds --seeds 8 .`\n\
-         |detail run=`rs-harness search owner {path} items --trace --view both .`\n\
+         |flow guide=prime->batch-or-owner->tests->edit token=bounded\n\
+         |prime run=`rs-harness search prime --view seeds --seeds 8 .`\n\
+         |batch run=`printf '%s\\n' <paths...> | rs-harness search ingest items tests --view seeds --seeds 8 .`\n\
+         |owner run=`rs-harness search owner {path} items --trace --view seeds --seeds 8 .`\n\
          |tests run=`rs-harness search tests {path} --view seeds --seeds 4 .`\n\
-         |orient run=`rs-harness search prime --view seeds --seeds 8 .`\n\
-         |plan run=`rs-harness search owner {path} --explain --view seeds --seeds 6 .`\n\
-         |pipe run=`rg -n \"<query>\" --glob '*.rs' src tests | rs-harness search ingest items tests .`\n\
-         |rule follow `|seed` and `next=` lines; do not Read Rust source files directly"
+         |rule one-search-command-at-a-time; installed-binary-only; no `&&`; follow `|seed` and `next=`; do not Read Rust source files directly\n\
+         |subagent assign one bounded packet; require `[search-subagent] role=... evidence=... missing=... next=... risk=...`"
     )
 }
 
 fn rust_bulk_pipe_flow() -> String {
     "[rs-harness-flow] blocked=bulk-rs-dump policy=pipe-to-ingest\n\
-     |prefer run=`rg -n \"<query>\" --glob '*.rs' src tests | rs-harness search ingest items tests .`\n\
-     |paths run=`fd -e rs . src tests | rs-harness search ingest items tests .`\n\
-     |after run=`rs-harness search owner <top-owner> items --trace --view both .`\n\
-     |deps run=`rs-harness search deps <dep[/subpath][::api]> public-api --trace --view seeds --seeds 6 .`\n\
-     |plan run=`rs-harness search text <query> --explain --view seeds --seeds 6 .`\n\
-     |subagent assign only one bounded search packet and require `[search-subagent] role=... evidence=... missing=... next=... risk=...`"
+     |flow guide=prime->rg-or-paths->ingest->owner-or-deps token=bounded\n\
+     |prime run=`rs-harness search prime --view seeds --seeds 8 .`\n\
+     |grep run=`rg -n \"<query>\" --glob '*.rs' src tests | rs-harness search ingest items tests --view seeds --seeds 8 .`\n\
+     |paths run=`fd -e rs . src tests | rs-harness search ingest items tests --view seeds --seeds 8 .`\n\
+     |next owner=`rs-harness search owner <seed-owner> items --trace --view seeds --seeds 8 .` deps=`rs-harness search deps <dep[/path][::api]> public-api --trace --view seeds --seeds 6 .`\n\
+     |rule one-search-command-at-a-time; no `&&`; no raw Rust dumps; follow `|seed` and `next=`\n\
+     |subagent assign one bounded packet; require `[search-subagent] role=... evidence=... missing=... next=... risk=...`"
         .to_string()
 }
