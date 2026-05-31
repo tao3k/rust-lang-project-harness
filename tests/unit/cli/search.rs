@@ -706,6 +706,26 @@ fn cli_search_views_render_rfc_line_protocol() {
         "{docs_use}"
     );
 
+    let dependency_docs = run_search(root, &["docs", "serde::Serialize"]);
+    assert!(
+        dependency_docs.starts_with(
+            "[search-docs] q=serde::Serialize pkg=. docs=0 source=registry-source crate=serde"
+        ),
+        "{dependency_docs}"
+    );
+    assert!(
+        dependency_docs.contains("|note docsSource=registry-source missing=true"),
+        "{dependency_docs}"
+    );
+
+    let current_version_api = run_search(root, &["api", "serde@1::Serialize"]);
+    assert!(
+        current_version_api.starts_with(
+            "[search-api] q=serde@1::Serialize pkg=. api=0 source=registry-source crate=serde requestedVersion=1 versionScope=current currentWorkspaceVersion=1"
+        ),
+        "{current_version_api}"
+    );
+
     let external_docs = run_search(root, &["docs", "serde@2::Serialize"]);
     assert!(
         external_docs.starts_with(

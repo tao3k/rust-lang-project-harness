@@ -213,9 +213,11 @@ unsafe, and error-boundary fields.
 Cargo dependency facts to find dependency types exposed through public
 signatures. Versioned docs/API queries mark explicit external versions with
 `source=registry-source` and `versionScope=external` instead of attributing
-current workspace facts to that version. Public inherent impl methods and trait
-impl methods are included in the API projection, so receiver, impl type, and
-trait path are available without falling back to text search.
+current workspace facts to that version. Dependency-prefixed docs/API queries
+also report `source=registry-source` unless local parser facts exist for a
+workspace/path dependency source. Public inherent impl methods and trait impl
+methods are included in the API projection, so receiver, impl type, and trait
+path are available without falling back to text search.
 The `public-anyhow-result` and `public-error-boundary` pattern recipes use the
 same native parser return facts instead of grepping for result type text.
 

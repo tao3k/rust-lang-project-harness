@@ -456,6 +456,11 @@ impl ApiDocsQuery {
     }
 
     fn source(&self, context: &PackageSearchContext) -> &'static str {
+        if self.crate_name.as_deref().is_some_and(|crate_name| {
+            !matching_dependencies(&context.cargo_dependencies, crate_name).is_empty()
+        }) {
+            return "registry-source";
+        }
         if let (Some(crate_name), Some(requested_version)) = (
             self.crate_name.as_deref(),
             self.requested_version.as_deref(),
@@ -486,17 +491,19 @@ impl ApiDocsQuery {
             let _ = write!(block, " crate={crate_name}");
         }
         if let Some(requested_version) = self.requested_version.as_deref() {
-            let version_scope = if source == "native-parser" {
-                "current"
-            } else {
-                "external"
-            };
+            let crate_name = self.crate_name.as_deref().unwrap_or("-");
+            let version_scope =
+                if current_workspace_version_matches(context, crate_name, requested_version) {
+                    "current"
+                } else {
+                    "external"
+                };
             let _ = write!(
                 block,
                 " requestedVersion={} versionScope={} currentWorkspaceVersion={}",
                 requested_version,
                 version_scope,
-                current_workspace_versions(context, self.crate_name.as_deref().unwrap_or("-"))
+                current_workspace_versions(context, crate_name)
             );
         }
         block.push('\n');
