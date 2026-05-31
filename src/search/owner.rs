@@ -127,7 +127,7 @@ fn dependency_public_api_lines(
     enabled: bool,
 ) -> Vec<String> {
     if enabled {
-        public_api_lines_for_dependency(context, query, usage)
+        public_api_lines_for_dependency(context, query, usage, None)
     } else {
         Vec::new()
     }
@@ -483,21 +483,33 @@ pub(super) fn public_api_lines_for_dependency(
     context: &super::context::PackageSearchContext,
     query: &str,
     usage: &[OwnerHit],
+    api_filter: Option<&str>,
 ) -> Vec<String> {
+    let api_filter = api_filter.map(ToOwned::to_owned);
     usage
         .iter()
         .flat_map(|hit| {
+            let api_filter = api_filter.clone();
             context
                 .parsed_modules
                 .iter()
                 .filter(move |module| module.report.path == hit.path)
                 .flat_map(move |module| {
+                    let api_filter = api_filter.clone();
                     module
                         .syntax_facts
                         .top_level_items
                         .iter()
-                        .filter(|item| item.is_public)
                         .filter_map(move |item| {
+                            if !item.is_public
+                                || !public_item_matches_api_filter(
+                                    module,
+                                    item,
+                                    api_filter.as_deref(),
+                                )
+                            {
+                                return None;
+                            }
                             render_public_api_line(
                                 &context.package_root,
                                 &module.report.path,
@@ -508,4 +520,26 @@ pub(super) fn public_api_lines_for_dependency(
                 })
         })
         .collect()
+}
+
+fn public_item_matches_api_filter(
+    module: &ParsedRustModule,
+    item: &crate::parser::RustTopLevelItemSyntax,
+    api_filter: Option<&str>,
+) -> bool {
+    let Some(api_filter) = api_filter else {
+        return true;
+    };
+    item.name.as_deref() == Some(api_filter)
+        || item.function_name.as_deref() == Some(api_filter)
+        || item_context_mentions_api(&module.source, item.line, api_filter)
+}
+
+fn item_context_mentions_api(source: &str, line: usize, api_filter: &str) -> bool {
+    let line_index = line.saturating_sub(1);
+    source
+        .lines()
+        .skip(line_index.saturating_sub(2))
+        .take(3)
+        .any(|line| line.contains(api_filter))
 }

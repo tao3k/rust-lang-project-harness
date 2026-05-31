@@ -4,7 +4,7 @@ use super::public_fixtures::{
     write_public_codex_web_search_workspace, write_public_tokio_bytes_fixture,
 };
 use super::{FORBIDDEN_FLOW_PATTERNS, assert_lab_packet};
-use crate::cli::support::run_search;
+use crate::cli::support::{run_search, run_search_with_stdin};
 
 #[test]
 fn public_large_tokio_bytes_flow_connects_prime_to_dependency_api_and_docs_axes() {
@@ -191,6 +191,89 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
             "|api src/tool.rs line=6 dep=codex-api kind=fn name=command_action",
             "|test tests/web_search.rs functions=1 owner=src/tool.rs",
             "|next deps:codex-api,import:codex-api,tests",
+        ],
+        FORBIDDEN_FLOW_PATTERNS,
+    );
+
+    let api_specific_flow = run_search(
+        root,
+        &[
+            "deps",
+            "codex-api::SearchCommands",
+            "public-api",
+            "--package",
+            "ext/web-search",
+        ],
+    );
+    assert_lab_packet(
+        "public_codex_web_search_api_specific_dependency_flow",
+        &api_specific_flow,
+        8,
+        &[
+            "[search-deps] q=codex-api::SearchCommands pkg=ext/web-search dep=1 own=1 api=1 apiQuery=SearchCommands",
+            "|owner src/tool.rs hit_kind=dependency-api apiQuery=SearchCommands",
+            "|api src/tool.rs line=6 dep=codex-api kind=fn name=command_action",
+            "|next dependency:codex-api,docs:codex-api::SearchCommands,text:SearchCommands,tests:SearchCommands",
+        ],
+        FORBIDDEN_FLOW_PATTERNS,
+    );
+    assert!(
+        !api_specific_flow.contains("name=WebSearchTool"),
+        "api-specific flow should not re-emit unrelated owner API:\n{api_specific_flow}"
+    );
+    assert!(
+        !api_specific_flow.contains("name=run_command"),
+        "api-specific flow should not re-emit unrelated owner API:\n{api_specific_flow}"
+    );
+
+    let api_specific_trace_seeds = run_search(
+        root,
+        &[
+            "deps",
+            "codex-api::SearchCommands",
+            "public-api",
+            "--trace",
+            "--view",
+            "seeds",
+            "--seeds",
+            "5",
+            "--package",
+            "ext/web-search",
+        ],
+    );
+    assert_lab_packet(
+        "public_codex_web_search_api_specific_trace_seed_flow",
+        &api_specific_trace_seeds,
+        12,
+        &[
+            "[search-trace] source=deps query=codex-api::SearchCommands pipes=public-api view=seeds",
+            "|stage deps cargo=1 owners=1 api=1",
+            "|stage public-api api=1",
+            "[search-deps] q=codex-api::SearchCommands pkg=ext/web-search dep=1 own=1 api=1 apiQuery=SearchCommands",
+            "|seed dependency:codex-api",
+            "|seed docs:codex-api::SearchCommands",
+            "|seed tests:SearchCommands",
+        ],
+        FORBIDDEN_FLOW_PATTERNS,
+    );
+
+    let rg_json_ingest = run_search_with_stdin(
+        root,
+        &["ingest", "items", "tests", "--package", "ext/web-search"],
+        "{\"type\":\"match\",\"data\":{\"path\":{\"text\":\"src/tool.rs\"},\"line_number\":6,\"absolute_offset\":0,\"lines\":{\"text\":\"pub fn command_action(command: SearchCommands) -> WebSearchAction {\\n\"},\"submatches\":[{\"match\":{\"text\":\"SearchCommands\"},\"start\":31,\"end\":45}]}}\n\
+         {\"type\":\"match\",\"data\":{\"path\":{\"text\":\"src/tool.rs\"},\"line_number\":13,\"absolute_offset\":0,\"lines\":{\"text\":\"pub fn run_command(tool: WebSearchTool) -> Vec<TurnItem> {\\n\"},\"submatches\":[{\"match\":{\"text\":\"WebSearchTool\"},\"start\":25,\"end\":38}]}}\n",
+    );
+    assert_lab_packet(
+        "public_codex_web_search_rg_json_ingest_flow",
+        &rg_json_ingest,
+        10,
+        &[
+            "[search-ingest] src=rg-json in=2 own=1",
+            "|owner src/tool.rs role=source hit_kind=text locations=6:",
+            "13:",
+            "|item command_action kind=fn line=6 public=true doc=false next=symbol:command_action",
+            "|item run_command kind=fn line=13 public=true doc=false next=symbol:run_command",
+            "|test tests/web_search.rs functions=1 owner=src/tool.rs",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );

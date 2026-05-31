@@ -10,7 +10,7 @@ use super::RustSearchOptions;
 use super::context::{PackageSearchContext, search_contexts};
 use super::format::{
     append_block, compact_locations, display_project_path, empty_dash, package_label,
-    package_roots_for_request, render_cargo_dependency_line,
+    package_roots_for_request, render_cargo_dependency_line, sort_locations,
 };
 use super::hits::{
     OwnerHit, dependency_usage, matching_dependencies, sort_owner_hits_by_recency, text_hits,
@@ -160,7 +160,12 @@ fn render_search_dep(
         let public_api = if version_scope == DependencyVersionScope::Current
             && options.pipes.iter().any(|pipe| pipe == "public-api")
         {
-            public_api_lines_for_dependency(&context, &parsed_query.dependency, &usage)
+            public_api_lines_for_dependency(
+                &context,
+                &parsed_query.dependency,
+                &usage,
+                parsed_query.api.as_deref(),
+            )
         } else {
             Vec::new()
         };
@@ -371,7 +376,7 @@ fn dependency_api_usage(
     let mut hits = grouped
         .into_iter()
         .map(|(path, mut locations)| {
-            locations.sort();
+            sort_locations(&mut locations);
             locations.dedup();
             OwnerHit { path, locations }
         })
@@ -408,7 +413,7 @@ fn dependency_subpath_usage(
     let mut hits = grouped
         .into_iter()
         .map(|(path, mut locations)| {
-            locations.sort();
+            sort_locations(&mut locations);
             locations.dedup();
             OwnerHit { path, locations }
         })

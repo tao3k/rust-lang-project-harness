@@ -149,6 +149,27 @@ pub(super) fn compact_locations(locations: &[String]) -> String {
     selected.join(",")
 }
 
+pub(super) fn sort_locations(locations: &mut [String]) {
+    locations.sort_by(|left, right| {
+        location_sort_key(left)
+            .cmp(&location_sort_key(right))
+            .then_with(|| left.cmp(right))
+    });
+}
+
+fn location_sort_key(location: &str) -> (usize, usize) {
+    let mut parts = location.split(':');
+    let line = parts
+        .next()
+        .and_then(|part| part.parse::<usize>().ok())
+        .unwrap_or(usize::MAX);
+    let column = parts
+        .next()
+        .and_then(|part| part.parse::<usize>().ok())
+        .unwrap_or(usize::MAX);
+    (line, column)
+}
+
 pub(super) fn append_block(rendered: &mut String, block: &str) {
     if !rendered.is_empty() && !rendered.ends_with('\n') && !block.is_empty() {
         rendered.push('\n');

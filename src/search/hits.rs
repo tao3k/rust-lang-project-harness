@@ -5,7 +5,7 @@ use crate::parser::CargoDependencyFacts;
 
 use super::RustSearchOptions;
 use super::context::PackageSearchContext;
-use super::format::display_project_path;
+use super::format::{display_project_path, sort_locations};
 use super::recency::compare_paths_by_recency;
 use super::scope::module_allowed;
 
@@ -217,7 +217,7 @@ fn grouped_owner_hits(
     let mut owner_hits = grouped
         .into_iter()
         .map(|(path, mut locations)| {
-            locations.sort();
+            sort_locations(&mut locations);
             locations.dedup();
             OwnerHit { path, locations }
         })

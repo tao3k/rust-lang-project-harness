@@ -156,7 +156,7 @@ fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
     let project_root = options.project_root()?;
     let render_options = options.render_options();
     let config = RustHarnessConfig::default();
-    let rendered = if options.view == "ingest" {
+    let raw_rendered = if options.view == "ingest" {
         let mut input = String::new();
         io::stdin()
             .read_to_string(&mut input)
@@ -183,7 +183,7 @@ fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
             output_view: options.output_view.as_deref(),
             seeds: options.seeds,
         },
-        &rendered,
+        &raw_rendered,
     );
     if options.json {
         let json_options = options.semantic_json_options();
@@ -194,7 +194,7 @@ fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
     } else {
         if options.trace {
             let trace_options = options.search_trace_options();
-            print!("{}", render_search_trace(&trace_options, &rendered));
+            print!("{}", render_search_trace(&trace_options, &raw_rendered));
         }
         if options.explain {
             print!("{}", render_search_plan(options.search_plan_options()));

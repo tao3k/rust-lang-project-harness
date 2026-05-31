@@ -13,7 +13,7 @@ use super::RustSearchOptions;
 use super::context::{PackageSearchContext, search_contexts};
 use super::format::{
     compact_locations, display_project_path, owner_role_for_path, package_roots_for_request,
-    render_item_line,
+    render_item_line, sort_locations,
 };
 use super::limits::{SEARCH_OWNER_LIMIT, SEARCH_TEST_LIMIT};
 use super::owner::test_lines_for_owner_modules;
@@ -89,7 +89,7 @@ fn grouped_owner_hits(
     }
     let mut sorted_hits = owner_hits.into_iter().collect::<Vec<_>>();
     for (_, locations) in &mut sorted_hits {
-        locations.sort();
+        sort_locations(locations);
         locations.dedup();
     }
     sorted_hits
