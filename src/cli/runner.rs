@@ -6,8 +6,10 @@ use std::io::{self, Read};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use super::agent_assets::{install_agent_assets, print_agent_doctor};
-use super::agent_hooks::run_agent_hook;
+use super::agent_assets::{
+    AgentConfigScope, default_codex_profile_name, install_agent_assets, print_agent_doctor,
+};
+use super::agent_hooks::{print_agent_guide, run_agent_guard, run_agent_hook};
 use super::agent_registry::print_agent_registry;
 #[cfg(feature = "search")]
 use super::search_output::{SearchOutputControls, apply_search_output_controls};
@@ -118,18 +120,23 @@ fn run_agent(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitC
     match options.command.as_str() {
         "install" => {
             let client = require_agent_client(&options)?;
-            install_agent_assets(&project_root, client)?;
+            install_agent_assets(&project_root, client, &options.scope)?;
             if options.json {
                 print_agent_registry(&project_root)?;
             } else {
-                print_agent_doctor(&project_root, "installed", Some(client))?;
+                print_agent_doctor(&project_root, "installed", Some(client), &options.scope)?;
             }
         }
         "doctor" => {
             if options.json {
                 print_agent_registry(&project_root)?;
             } else {
-                print_agent_doctor(&project_root, "checked", options.client.as_deref())?;
+                print_agent_doctor(
+                    &project_root,
+                    "checked",
+                    options.client.as_deref(),
+                    &options.scope,
+                )?;
             }
         }
         "hook" => {
@@ -139,6 +146,20 @@ fn run_agent(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitC
                 .as_deref()
                 .ok_or_else(|| "expected agent hook event".to_string())?;
             run_agent_hook(&project_root, client, event)?;
+        }
+        "guard" => {
+            let client = require_agent_client(&options)?;
+            let allowed =
+                run_agent_guard(&project_root, client, &options.guard_args, options.json)?;
+            return Ok(if allowed {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            });
+        }
+        "guide" => {
+            let client = require_agent_client(&options)?;
+            print_agent_guide(&project_root, client)?;
         }
         other => return Err(format!("unknown agent command: {other}")),
     }
@@ -233,6 +254,8 @@ struct AgentOptions {
     command: String,
     hook_event: Option<String>,
     client: Option<String>,
+    scope: AgentConfigScope,
+    guard_args: Vec<std::ffi::OsString>,
     json: bool,
     help: bool,
     paths: Vec<PathBuf>,
@@ -244,6 +267,8 @@ impl Default for AgentOptions {
             command: "doctor".to_string(),
             hook_event: None,
             client: None,
+            scope: AgentConfigScope::Project,
+            guard_args: Vec::new(),
             json: false,
             help: false,
             paths: Vec::new(),
@@ -445,6 +470,8 @@ impl SearchOptions {
             scope: self.scope.clone(),
             pipes: self.pipes.clone(),
             lines: self.lines,
+            output_view: self.output_view.clone(),
+            seeds: self.seeds,
         }
     }
 
@@ -522,12 +549,18 @@ impl AgentOptions {
                 };
                 match option.as_str() {
                     "--client" => options.set_client(value)?,
+                    "--scope" => options.set_scope(value)?,
+                    "--profile" => options.set_profile(value)?,
                     _ => unreachable!("unknown pending option"),
                 }
                 continue;
             }
             if positional_only {
-                options.paths.push(PathBuf::from(arg));
+                if options.command == "guard" {
+                    options.guard_args.push(arg);
+                } else {
+                    options.paths.push(PathBuf::from(arg));
+                }
                 continue;
             }
             let Some(value) = arg.to_str() else {
@@ -538,12 +571,15 @@ impl AgentOptions {
                 "--" => positional_only = true,
                 "--json" => options.json = true,
                 "--client" => pending_option = Some(value.to_string()),
+                "--scope" | "--profile" => pending_option = Some(value.to_string()),
                 "--codex" => options.set_client("codex")?,
                 "--help" | "-h" => options.help = true,
                 value if value.starts_with('-') => {
                     return Err(format!("unknown agent option: {value}"));
                 }
-                "install" | "doctor" | "hook" if options.command == "doctor" => {
+                "install" | "doctor" | "hook" | "guide" | "guard"
+                    if options.command == "doctor" =>
+                {
                     options.command = value.to_string();
                 }
                 value if options.command == "hook" && options.hook_event.is_none() => {
@@ -583,6 +619,22 @@ impl AgentOptions {
             return Err("expected only one agent client".to_string());
         }
         self.client = Some(client.to_string());
+        Ok(())
+    }
+
+    fn set_scope(&mut self, scope: &str) -> Result<(), String> {
+        self.scope = match scope {
+            "project" => AgentConfigScope::Project,
+            "profile" => {
+                AgentConfigScope::codex_profile(self.scope.profile_name().map(str::to_owned))?
+            }
+            _ => return Err(format!("unknown agent scope: {scope}")),
+        };
+        Ok(())
+    }
+
+    fn set_profile(&mut self, profile: &str) -> Result<(), String> {
+        self.scope = AgentConfigScope::codex_profile(Some(profile.to_string()))?;
         Ok(())
     }
 }
@@ -675,12 +727,18 @@ fn print_check_help() {
 
 fn print_agent_help() {
     println!(
-        "rs-harness agent install --client codex [--json] [PROJECT_ROOT]\n\
-         rs-harness agent doctor [--client codex] [--json] [PROJECT_ROOT]\n\
+        "rs-harness agent install --client codex [--scope project|profile] [--profile NAME] [--json] [PROJECT_ROOT]\n\
+         rs-harness agent doctor [--client codex] [--scope project|profile] [--profile NAME] [--json] [PROJECT_ROOT]\n\
+         rs-harness agent guide --client codex [PROJECT_ROOT]\n\
          rs-harness agent hook --client codex <event> [PROJECT_ROOT]\n\n\
+         rs-harness agent guard --client codex [--json] [PROJECT_ROOT] -- <command...>\n\n\
          Installs or checks client-specific agent SKILL.org and hook assets.\n\
-         Codex assets use the project-local .codex/config.toml hook config.\n\
-         Use --json to emit the semantic-language registry contract."
+         agent guide prints the command-line search flow guide used by hooks.\n\
+         agent guard runs the Codex pre-tool policy against a command without executing it.\n\
+         Project scope writes .codex/config.toml for Desktop/project hooks.\n\
+         Profile scope writes $CODEX_HOME/<name>.config.toml for `codex --profile {}` exec hooks.\n\
+         Use --json to emit the semantic-language registry contract.",
+        default_codex_profile_name()
     );
 }
 

@@ -224,7 +224,9 @@ fn seed_priority(seed: &str) -> usize {
 
 fn seed_secondary_rank(seed: &str) -> usize {
     let target = seed.rsplit(':').next().unwrap_or(seed);
-    if matches!(target, "default" | "full" | "all") {
+    if seed.starts_with("cfg:feature:") {
+        0
+    } else if seed == "cfg:test" || matches!(target, "default" | "full" | "all") {
         3
     } else if seed.starts_with("owner:")
         && (target.ends_with("/lib.rs") || target.ends_with("/main.rs"))
@@ -468,6 +470,10 @@ impl SearchSeedAccumulator {
         if line.starts_with("|note ") {
             self.notes.push(line.to_string());
         }
+        if let Some(seed) = line.strip_prefix("|seed ") {
+            record_seed(seed, &mut self.seen, &mut self.seeds);
+            return;
+        }
         collect_next_seeds(
             line,
             self.current_package.as_deref(),
@@ -482,6 +488,16 @@ impl SearchSeedAccumulator {
             seeds: self.seeds,
             notes: self.notes,
         }
+    }
+}
+
+fn record_seed(seed: &str, seen: &mut BTreeSet<String>, seeds: &mut Vec<String>) {
+    let seed = seed.trim();
+    if seed.is_empty() {
+        return;
+    }
+    if seen.insert(seed.to_string()) {
+        seeds.push(seed.to_string());
     }
 }
 
@@ -500,15 +516,62 @@ fn collect_next_seeds(
         rest
     };
     let next = rest.split_whitespace().next().unwrap_or(rest);
-    for seed in next
-        .split(',')
-        .map(str::trim)
-        .filter(|seed| !seed.is_empty())
+    for seed in split_next_actions(next)
+        .into_iter()
+        .map(|seed| qualify_package_seed(&seed, package))
     {
-        let seed = qualify_package_seed(seed, package);
         if seen.insert(seed.clone()) {
             seeds.push(seed);
         }
+    }
+}
+
+fn split_next_actions(next: &str) -> Vec<String> {
+    next.chars()
+        .fold(NextActionSplit::default(), NextActionSplit::push)
+        .finish()
+}
+
+#[derive(Default)]
+struct NextActionSplit {
+    actions: Vec<String>,
+    current: String,
+    brace_depth: usize,
+}
+
+impl NextActionSplit {
+    fn push(mut self, character: char) -> Self {
+        match character {
+            ',' if self.brace_depth == 0 => self.flush_current(),
+            '{' => {
+                self.brace_depth += 1;
+                self.current.push(character);
+                self
+            }
+            '}' => {
+                self.brace_depth = self.brace_depth.saturating_sub(1);
+                self.current.push(character);
+                self
+            }
+            _ => {
+                self.current.push(character);
+                self
+            }
+        }
+    }
+
+    fn finish(mut self) -> Vec<String> {
+        self = self.flush_current();
+        self.actions
+    }
+
+    fn flush_current(mut self) -> Self {
+        let action = self.current.trim();
+        if !action.is_empty() {
+            self.actions.push(action.to_string());
+        }
+        self.current.clear();
+        self
     }
 }
 

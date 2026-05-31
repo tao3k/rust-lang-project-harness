@@ -844,4 +844,29 @@ fn cli_search_views_render_rfc_line_protocol() {
         ingest.contains("|owner src/lib.rs role=source hit_kind=text locations=4:1 next=owner"),
         "{ingest}"
     );
+
+    let ingest_seeds = run_search_with_stdin(
+        root,
+        &[
+            "ingest", "items", "tests", "--view", "seeds", "--seeds", "8",
+        ],
+        "src/lib.rs:6:pub fn load() -> Thing\n",
+    );
+    assert!(
+        ingest_seeds.starts_with("[search-ingest] src=rg-n in=1 own=1"),
+        "{ingest_seeds}"
+    );
+    assert!(
+        ingest_seeds.contains("|seed owner:src/lib.rs"),
+        "{ingest_seeds}"
+    );
+    assert!(
+        ingest_seeds.contains("|seed tests:src/lib.rs"),
+        "{ingest_seeds}"
+    );
+    assert!(ingest_seeds.contains("|seed symbol:load"), "{ingest_seeds}");
+    assert!(
+        !ingest_seeds.contains("|owner src/lib.rs"),
+        "{ingest_seeds}"
+    );
 }

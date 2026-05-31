@@ -1,13 +1,17 @@
 use std::collections::BTreeSet;
 use std::fmt::Write;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::RustHarnessConfig;
+use crate::discovery::{discover_rust_files, rust_project_harness_scope};
 use crate::parser::{CargoDependencyFacts, ParsedRustModule};
 
 use super::RustSearchOptions;
 use super::context::{PackageSearchContext, search_contexts};
-use super::format::{append_block, compact_locations, display_project_path, package_label};
+use super::format::{
+    append_block, compact_locations, display_project_path, package_label, package_roots_for_request,
+};
 use super::hits::{
     SearchHit, import_hits, matching_dependencies, sort_search_hits_by_recency, symbol_calls,
     symbol_definitions, text_hits,
@@ -15,6 +19,7 @@ use super::hits::{
 use super::limits::SEARCH_HIT_LIMIT;
 use super::owner as owner_search;
 use super::owner_view;
+use super::recency::compare_paths_by_recency;
 use super::scope::module_allowed;
 
 pub(super) fn render_search_symbol(
@@ -106,6 +111,9 @@ pub(super) fn render_search_text(
     query: &str,
     options: &RustSearchOptions,
 ) -> Result<String, String> {
+    if options.output_view.as_deref() == Some("seeds") {
+        return render_search_text_seed_hits(project_root, config, query, options);
+    }
     let contexts = search_contexts(project_root, config, options)?;
     let mut rendered = String::new();
     for context in contexts {
@@ -128,6 +136,78 @@ pub(super) fn render_search_text(
         append_block(&mut rendered, &block);
     }
     Ok(rendered)
+}
+
+fn render_search_text_seed_hits(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+    options: &RustSearchOptions,
+) -> Result<String, String> {
+    let package_roots =
+        package_roots_for_request(project_root, config, options.package.as_deref())?;
+    let mut rendered = String::new();
+    for package_root in package_roots {
+        let mut hits = text_seed_hits(&package_root, config, query);
+        hits.sort_by(|(left, _), (right, _)| compare_paths_by_recency(&package_root, left, right));
+        let seed_limit = options.seeds.unwrap_or(8);
+        let owner_limit = seed_limit.min(hits.len());
+        let mut block = format!(
+            "[search-text] q={} pkg={} own={}\n",
+            query,
+            package_label(project_root, &package_root),
+            hits.len()
+        );
+        let owners = hits
+            .iter()
+            .take(owner_limit)
+            .map(|(path, _)| display_project_path(&package_root, path))
+            .collect::<Vec<_>>();
+        if !owners.is_empty() {
+            let _ = writeln!(block, "|seed owner:{}", owners.join(","));
+        }
+        if hits.len() > owner_limit {
+            let _ = writeln!(
+                block,
+                "|note seeds_truncated={} limit={}",
+                hits.len() - owner_limit,
+                seed_limit
+            );
+        }
+        append_block(&mut rendered, &block);
+    }
+    Ok(rendered)
+}
+
+fn text_seed_hits(
+    package_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+) -> Vec<(PathBuf, Vec<String>)> {
+    let scope = rust_project_harness_scope(
+        package_root,
+        config.include_tests,
+        &config.source_dir_names,
+        &config.test_dir_names,
+    );
+    discover_rust_files(&scope.monitored_paths(), &config.ignored_dir_names)
+        .into_iter()
+        .filter_map(|path| {
+            let locations = text_seed_locations(&path, query);
+            (!locations.is_empty()).then_some((path, locations))
+        })
+        .collect()
+}
+
+fn text_seed_locations(path: &Path, query: &str) -> Vec<String> {
+    let Ok(text) = fs::read_to_string(path) else {
+        return Vec::new();
+    };
+    text.lines()
+        .enumerate()
+        .filter(|(_, line)| line.contains(query))
+        .map(|(index, _)| format!("{}:1", index + 1))
+        .collect()
 }
 
 pub(super) fn render_search_patterns() -> String {

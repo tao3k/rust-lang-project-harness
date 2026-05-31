@@ -40,6 +40,7 @@ fn cli_rust_flow_drill_exercises_registry_prime_search_and_ingest() {
     let methods = language["methods"].as_array().expect("methods");
     for method in [
         "agent/doctor",
+        "agent/guide",
         "search/workspace",
         "search/prime",
         "search/dependency",

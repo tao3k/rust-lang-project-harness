@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 use crate::RustDiagnosticSeverity;
 use crate::parser::{
     CargoDependencyFacts, CargoManifestFacts, ParsedRustModule, RustModuleChildEdge,
-    RustReasoningOwnerDependencyFacts, RustReasoningTreeFacts, RustUseImportRootKind,
-    parse_cargo_cfg_facts,
+    RustReasoningOwnerDependencyFacts, RustReasoningTreeFacts, RustTopLevelItemSyntax,
+    RustUseImportRootKind, parse_cargo_cfg_facts,
 };
 use crate::{RustHarnessFinding, RustProjectHarnessScope};
 
@@ -205,18 +205,12 @@ pub(super) fn feature_lines(features: &[(String, Vec<String>)]) -> Vec<String> {
 }
 
 pub(super) fn cfg_lines(package_root: &Path, parsed_modules: &[ParsedRustModule]) -> Vec<String> {
-    let mut cfgs = parsed_modules
+    let mut seen_source_cfgs = BTreeSet::new();
+    let cfgs = parsed_modules
         .iter()
-        .flat_map(|module| {
-            module
-                .source
-                .lines()
-                .filter(|line| line.contains("cfg(") || line.contains("cfg_attr("))
-                .filter_map(extract_cfg_label)
-        })
+        .flat_map(source_cfg_labels)
+        .filter(|cfg| seen_source_cfgs.insert(cfg.clone()))
         .collect::<Vec<_>>();
-    cfgs.sort();
-    cfgs.dedup();
     let mut lines = cfgs
         .into_iter()
         .take(PRIME_CFG_LIMIT)
@@ -237,6 +231,43 @@ pub(super) fn cfg_lines(package_root: &Path, parsed_modules: &[ParsedRustModule]
             }),
     );
     lines
+}
+
+fn source_cfg_labels(module: &ParsedRustModule) -> Vec<String> {
+    let lines = module.source.lines().collect::<Vec<_>>();
+    module
+        .syntax_facts
+        .top_level_items
+        .iter()
+        .flat_map(|item| cfg_labels_for_item(&lines, item))
+        .collect()
+}
+
+fn cfg_labels_for_item(lines: &[&str], item: &RustTopLevelItemSyntax) -> Vec<String> {
+    if !item_has_cfg_attr(item) {
+        return Vec::new();
+    }
+    let item_line_index = item.line.saturating_sub(1);
+    let start = item_line_index.saturating_sub(4);
+    let end = item_line_index.saturating_add(1).min(lines.len());
+    lines
+        .get(start..end)
+        .unwrap_or_default()
+        .iter()
+        .rev()
+        .map(|line| line.trim())
+        .take_while(|line| line.starts_with("#[") || line.is_empty())
+        .filter(|line| line.starts_with("#[cfg") || line.starts_with("#![cfg"))
+        .filter_map(extract_cfg_label)
+        .collect()
+}
+
+fn item_has_cfg_attr(item: &RustTopLevelItemSyntax) -> bool {
+    item.has_cfg_attr
+        || item
+            .module
+            .as_ref()
+            .is_some_and(|module| module.is_cfg_test)
 }
 
 fn cfgs_for_lines(lines: &[String]) -> BTreeSet<String> {

@@ -10,6 +10,7 @@ use crate::RustHarnessConfig;
 use crate::parser::{ParsedRustModule, RustTopLevelItemSyntax};
 
 use super::RustSearchOptions;
+use super::compact::compact_search_packet;
 use super::context::{PackageSearchContext, search_contexts};
 use super::format::{
     compact_locations, display_project_path, owner_role_for_path, package_roots_for_request,
@@ -40,7 +41,7 @@ pub fn render_rust_project_harness_search_ingest_with_config(
     let candidates = ingest_candidates(input, source);
     let contexts = ingest_pipe_contexts(project_root, config, options)?;
     let owner_hits = grouped_owner_hits(project_root, candidates, &package_roots);
-    Ok(render_ingest_owner_hits(
+    let rendered = render_ingest_owner_hits(
         project_root,
         input,
         source,
@@ -48,7 +49,12 @@ pub fn render_rust_project_harness_search_ingest_with_config(
         &contexts,
         &owner_hits,
         options,
-    ))
+    );
+    if options.output_view.as_deref() == Some("seeds") {
+        Ok(rendered)
+    } else {
+        Ok(compact_search_packet(&rendered))
+    }
 }
 
 fn ingest_pipe_contexts(
@@ -56,6 +62,9 @@ fn ingest_pipe_contexts(
     config: &RustHarnessConfig,
     options: &RustSearchOptions,
 ) -> Result<Vec<PackageSearchContext>, String> {
+    if options.output_view.as_deref() == Some("seeds") {
+        return Ok(Vec::new());
+    }
     let include_items = has_pipe(options, "items");
     let include_tests = has_pipe(options, "tests");
     if include_items || include_tests {
@@ -97,6 +106,19 @@ fn render_ingest_owner_hits(
 ) -> String {
     let include_items = has_pipe(options, "items");
     let include_tests = has_pipe(options, "tests");
+    if options.output_view.as_deref() == Some("seeds") {
+        return render_ingest_seed_hits(IngestSeedSource {
+            project_root,
+            input,
+            source,
+            package_roots,
+            contexts,
+            owner_hits,
+            include_items,
+            include_tests,
+            seed_limit: options.seeds.unwrap_or(8),
+        });
+    }
     let mut rendered = format!(
         "[search-ingest] src={} in={} own={}\n",
         source.as_str(),
@@ -129,6 +151,137 @@ fn render_ingest_owner_hits(
     rendered
 }
 
+struct IngestSeedSource<'a> {
+    project_root: &'a Path,
+    input: &'a str,
+    source: IngestSource,
+    package_roots: &'a [PathBuf],
+    contexts: &'a [PackageSearchContext],
+    owner_hits: &'a [(PathBuf, Vec<String>)],
+    include_items: bool,
+    include_tests: bool,
+    seed_limit: usize,
+}
+
+fn render_ingest_seed_hits(source: IngestSeedSource<'_>) -> String {
+    let mut rendered = format!(
+        "[search-ingest] src={} in={} own={}\n",
+        source.source.as_str(),
+        source.source.input_count(source.input),
+        source.owner_hits.len()
+    );
+    let owner_seed_limit = source.seed_limit.min(source.owner_hits.len());
+    let owner_paths = source
+        .owner_hits
+        .iter()
+        .take(owner_seed_limit)
+        .map(|(owner, _)| display_owner_seed_path(source.project_root, source.package_roots, owner))
+        .collect::<Vec<_>>();
+    if !owner_paths.is_empty() {
+        let _ = writeln!(rendered, "|seed owner:{}", owner_paths.join(","));
+    }
+    if source.include_tests && !owner_paths.is_empty() {
+        let _ = writeln!(rendered, "|seed tests:{}", owner_paths.join(","));
+    }
+    if source.include_items {
+        let symbol_names = if source.contexts.is_empty() {
+            ingest_symbol_seed_names_from_input(source.input, source.seed_limit)
+        } else {
+            ingest_symbol_seed_names(source.contexts, source.owner_hits, source.seed_limit)
+        };
+        if !symbol_names.is_empty() {
+            let _ = writeln!(rendered, "|seed symbol:{}", symbol_names.join(","));
+        }
+    }
+    if source.owner_hits.len() > owner_seed_limit {
+        let _ = writeln!(
+            rendered,
+            "|note seeds_truncated={} limit={}",
+            source.owner_hits.len() - owner_seed_limit,
+            source.seed_limit
+        );
+    }
+    rendered
+}
+
+fn display_owner_seed_path(project_root: &Path, package_roots: &[PathBuf], owner: &Path) -> String {
+    let package_root = package_roots
+        .iter()
+        .find(|package_root| owner.starts_with(package_root))
+        .map_or(project_root, PathBuf::as_path);
+    display_project_path(package_root, owner)
+}
+
+fn ingest_symbol_seed_names(
+    contexts: &[PackageSearchContext],
+    owner_hits: &[(PathBuf, Vec<String>)],
+    seed_limit: usize,
+) -> Vec<String> {
+    if seed_limit == 0 {
+        return Vec::new();
+    }
+    let mut seen = BTreeSet::new();
+    ingest_symbol_seed_candidates(contexts, owner_hits)
+        .filter(|name| seen.insert(name.clone()))
+        .take(seed_limit)
+        .collect()
+}
+
+fn ingest_symbol_seed_candidates<'a>(
+    contexts: &'a [PackageSearchContext],
+    owner_hits: &'a [(PathBuf, Vec<String>)],
+) -> impl Iterator<Item = String> + 'a {
+    owner_hits
+        .iter()
+        .filter_map(move |(owner, locations)| {
+            context_module_for_owner(contexts, owner).map(|(_, module)| (module, locations))
+        })
+        .flat_map(|(module, locations)| {
+            ingest_items(module, locations)
+                .into_iter()
+                .filter_map(item_seed_name)
+        })
+}
+
+fn ingest_symbol_seed_names_from_input(input: &str, seed_limit: usize) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    input
+        .lines()
+        .filter_map(ingest_symbol_seed_name_from_line)
+        .filter(|name| seen.insert(name.clone()))
+        .take(seed_limit)
+        .collect()
+}
+
+fn ingest_symbol_seed_name_from_line(line: &str) -> Option<String> {
+    let text = parse_rg_line_text(line)?;
+    let mut tokens = text
+        .split(|character: char| !character.is_ascii_alphanumeric() && character != '_')
+        .filter(|token| !token.is_empty());
+    while let Some(token) = tokens.next() {
+        if matches!(
+            token,
+            "fn" | "struct" | "enum" | "trait" | "type" | "const" | "static" | "mod"
+        ) {
+            return tokens.next().map(ToOwned::to_owned);
+        }
+    }
+    None
+}
+
+fn parse_rg_line_text(line: &str) -> Option<&str> {
+    let (_, rest) = line.split_once(':')?;
+    let (_, text) = rest.split_once(':')?;
+    Some(text)
+}
+
+fn item_seed_name(item: &RustTopLevelItemSyntax) -> Option<String> {
+    item.name
+        .as_deref()
+        .or(item.function_name.as_deref())
+        .map(ToOwned::to_owned)
+}
+
 fn append_ingest_pipe_lines(
     rendered: &mut String,
     contexts: &[PackageSearchContext],
@@ -144,7 +297,10 @@ fn append_ingest_pipe_lines(
         return;
     };
     if include_items {
-        for line in ingest_item_lines(module, locations) {
+        for line in ingest_items(module, locations)
+            .into_iter()
+            .map(render_item_line)
+        {
             let _ = writeln!(rendered, "{line}");
         }
     }
@@ -171,7 +327,10 @@ fn context_module_for_owner<'a>(
     })
 }
 
-fn ingest_item_lines(module: &ParsedRustModule, locations: &[String]) -> Vec<String> {
+fn ingest_items<'a>(
+    module: &'a ParsedRustModule,
+    locations: &[String],
+) -> Vec<&'a RustTopLevelItemSyntax> {
     let mut seen = BTreeSet::new();
     locations
         .iter()
@@ -187,7 +346,6 @@ fn ingest_item_lines(module: &ParsedRustModule, locations: &[String]) -> Vec<Str
                     .to_string(),
             ))
         })
-        .map(render_item_line)
         .collect()
 }
 

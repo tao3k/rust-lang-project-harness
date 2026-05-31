@@ -4,7 +4,7 @@ use std::path::Path;
 
 use crate::RustHarnessConfig;
 
-use super::{cargo, format, owner, owner_view, prime, query};
+use super::{cargo, compact, format, owner, owner_view, prime, query};
 
 /// Options shared by RFC search renderers.
 #[derive(Debug, Clone, Default)]
@@ -21,6 +21,10 @@ pub struct RustSearchOptions {
     pub pipes: Vec<String>,
     /// Whether source lines may be emitted.
     pub lines: bool,
+    /// Optional compact output view requested by the CLI.
+    pub output_view: Option<String>,
+    /// Optional seed limit requested by the CLI.
+    pub seeds: Option<usize>,
 }
 
 /// Request object for rendering an RFC search view.
@@ -50,11 +54,12 @@ pub fn render_rust_project_harness_search_view_with_config(
     let project_root = request.project_root;
     let config = request.config;
     let options = request.options;
-    match request.view {
-        "prime" => prime::render_rust_project_harness_search_prime_with_config(
+    let rendered = match request.view {
+        "prime" => prime::render_search_prime(
             project_root,
             config,
             options.package.as_deref(),
+            prime_seed_limit(options),
         ),
         "workspace" => cargo::render_search_workspace(project_root, config, options),
         "targets" => cargo::render_search_targets(project_root, config, options),
@@ -132,5 +137,14 @@ pub fn render_rust_project_harness_search_view_with_config(
             query::render_search_public_external_types(project_root, config, options)
         }
         other => Err(format!("unknown search view: {other}")),
+    }?;
+    if options.output_view.as_deref() == Some("seeds") {
+        Ok(rendered)
+    } else {
+        Ok(compact::compact_search_packet(&rendered))
     }
+}
+
+fn prime_seed_limit(options: &RustSearchOptions) -> Option<usize> {
+    (options.output_view.as_deref() == Some("seeds")).then_some(options.seeds.unwrap_or(8))
 }

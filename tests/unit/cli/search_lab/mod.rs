@@ -1,3 +1,4 @@
+mod compact;
 mod fixtures;
 mod flow;
 mod prime;

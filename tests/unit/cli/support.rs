@@ -15,6 +15,23 @@ where
         .expect("run cli")
 }
 
+pub(crate) fn run_cli_with_env<I, S, K, V>(
+    args: I,
+    envs: impl IntoIterator<Item = (K, V)>,
+) -> Output
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<std::ffi::OsStr>,
+    K: AsRef<std::ffi::OsStr>,
+    V: AsRef<std::ffi::OsStr>,
+{
+    Command::new(env!("CARGO_BIN_EXE_rs-harness"))
+        .args(args)
+        .envs(envs)
+        .output()
+        .expect("run cli")
+}
+
 pub(crate) fn run_cli_with_stdin<I, S>(args: I, stdin: &str) -> Output
 where
     I: IntoIterator<Item = S>,

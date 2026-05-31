@@ -45,6 +45,7 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "check/full".to_string(),
             "agent/install".to_string(),
             "agent/doctor".to_string(),
+            "agent/guide".to_string(),
             "agent/hook".to_string(),
         ])
         .collect::<Vec<_>>();
@@ -83,6 +84,18 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "outputSchemaIds": ["agent.semantic-protocols.semantic-language-registry"],
             "supportsJson": true,
             "supportsCompact": true
+        }),
+        json!({
+            "method": "agent/guide",
+            "command": "agent",
+            "clients": ["codex"],
+            "requiredOptions": ["--client codex"],
+            "supportsJson": false,
+            "supportsCompact": true,
+            "capabilities": [
+                semantic_capability("agent-hook-policy"),
+                rust_capability("harness-search-checkpoints")
+            ]
         }),
         json!({
             "method": "agent/hook",

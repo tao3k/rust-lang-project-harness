@@ -4,7 +4,8 @@ use serde_json::Value;
 use tempfile::TempDir;
 
 use super::support::{
-    normalize_temp_root, run_cli, run_cli_with_stdin, write_clean_source, write_manifest,
+    normalize_temp_root, run_cli, run_cli_with_env, run_cli_with_stdin, write_clean_source,
+    write_manifest,
 };
 
 #[test]
@@ -120,6 +121,28 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
             .contains("--client codex")
     );
 
+    fs::create_dir_all(root.join(".codex")).expect("create codex dir");
+    fs::write(
+        root.join(".codex/config.toml"),
+        r#"# User-owned Codex config.
+custom_flag = "keep"
+
+# BEGIN ts-harness agent hooks
+[[hooks.PreToolUse]]
+matcher = ".*(Read|exec_command).*"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+timeout = 5
+statusMessage = "Checking ts-harness search flow"
+command = '''
+exec ts-harness agent hook --client codex pre-tool "$PWD"
+'''
+# END ts-harness agent hooks
+"#,
+    )
+    .expect("seed codex config");
+
     let install = run_cli([
         "agent".as_ref(),
         "install".as_ref(),
@@ -141,20 +164,163 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
     assert!(!root.join(".codex/hooks.json").exists());
     let hooks_config =
         fs::read_to_string(root.join(".codex/config.toml")).expect("codex config.toml");
+    assert!(hooks_config.contains("# User-owned Codex config."));
+    assert!(hooks_config.contains("custom_flag = \"keep\""));
+    assert!(hooks_config.contains("# BEGIN ts-harness agent hooks"));
+    assert!(hooks_config.contains("ts-harness agent hook --client codex pre-tool"));
+    assert!(hooks_config.contains("# END ts-harness agent hooks"));
+    assert!(hooks_config.contains("# BEGIN rs-harness agent hooks"));
+    assert!(hooks_config.contains("# END rs-harness agent hooks"));
+    assert_eq!(
+        hooks_config
+            .matches("# BEGIN rs-harness agent hooks")
+            .count(),
+        1
+    );
+    assert_eq!(
+        hooks_config
+            .matches("# BEGIN ts-harness agent hooks")
+            .count(),
+        1
+    );
     assert!(hooks_config.contains("[[hooks.SessionStart]]"));
     assert!(hooks_config.contains("[[hooks.UserPromptSubmit]]"));
     assert!(hooks_config.contains("[[hooks.PermissionRequest]]"));
     assert!(hooks_config.contains("[[hooks.SubagentStart]]"));
     assert!(hooks_config.contains("[[hooks.Stop]]"));
-    assert!(hooks_config.contains("Read|read_file|mcp__.*__read.*|Bash|exec_command"));
+    assert!(hooks_config.contains("unified_exec = true"));
+    assert!(hooks_config.contains(".*(Read|readFile|readDirectory|read_file"));
+    assert!(hooks_config.contains("readFile"));
+    assert!(hooks_config.contains("readDirectory"));
+    assert!(hooks_config.contains("FsReadFile"));
+    assert!(hooks_config.contains("FsReadDirectory"));
+    assert!(hooks_config.contains("fs/readFile"));
+    assert!(hooks_config.contains("fs/readDirectory"));
+    assert!(hooks_config.contains("fs\\\\.read"));
+    assert!(hooks_config.contains("fs\\\\.readbin"));
+    assert!(hooks_config.contains("command_execution"));
+    assert!(hooks_config.contains("Bash|exec_command|command_execution"));
     assert!(hooks_config.contains("rs-harness agent hook --client codex pre-tool"));
     assert!(hooks_config.contains("rs-harness agent hook --client codex permission-request"));
+
+    let reinstall = run_cli([
+        "agent".as_ref(),
+        "install".as_ref(),
+        "--client".as_ref(),
+        "codex".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(reinstall.status.success(), "{reinstall:?}");
+    let reinstalled_config =
+        fs::read_to_string(root.join(".codex/config.toml")).expect("reinstalled codex config");
+    assert_eq!(
+        reinstalled_config
+            .matches("# BEGIN rs-harness agent hooks")
+            .count(),
+        1
+    );
+    assert_eq!(
+        reinstalled_config
+            .matches("# BEGIN ts-harness agent hooks")
+            .count(),
+        1
+    );
+    assert!(reinstalled_config.contains("ts-harness agent hook --client codex pre-tool"));
+    assert!(reinstalled_config.contains("custom_flag = \"keep\""));
+
+    let codex_home = temp.path().join("codex-home");
+    let profile_install = run_cli_with_env(
+        [
+            "agent".as_ref(),
+            "install".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "--scope".as_ref(),
+            "profile".as_ref(),
+            "--profile".as_ref(),
+            "rs-harness-ci".as_ref(),
+            root.as_os_str(),
+        ],
+        [("CODEX_HOME", codex_home.as_os_str())],
+    );
+    assert!(profile_install.status.success(), "{profile_install:?}");
+    let stdout = String::from_utf8(profile_install.stdout).expect("profile install stdout");
+    assert!(
+        stdout.starts_with(
+            "[agent-doctor] action=installed client=codex scope=profile profile=rs-harness-ci skill=true policy=true config=true hooks=8"
+        ),
+        "{stdout}"
+    );
+    let profile_config_path = codex_home.join("rs-harness-ci.config.toml");
+    assert!(profile_config_path.exists());
+    let profile_config = fs::read_to_string(&profile_config_path).expect("profile config");
+    assert!(profile_config.contains("unified_exec = true"));
+    assert!(profile_config.contains("# BEGIN rs-harness agent hooks"));
+    assert!(profile_config.contains("command_execution"));
+    assert!(profile_config.contains("rs-harness agent hook --client codex pre-tool"));
+    assert!(!profile_config.contains("ts-harness agent hook --client codex pre-tool"));
+
+    let profile_doctor = run_cli_with_env(
+        [
+            "agent".as_ref(),
+            "doctor".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "--scope".as_ref(),
+            "profile".as_ref(),
+            "--profile".as_ref(),
+            "rs-harness-ci".as_ref(),
+            root.as_os_str(),
+        ],
+        [("CODEX_HOME", codex_home.as_os_str())],
+    );
+    assert!(profile_doctor.status.success(), "{profile_doctor:?}");
+    let stdout = String::from_utf8(profile_doctor.stdout).expect("profile doctor stdout");
+    assert!(stdout.contains("|profile name=rs-harness-ci"));
+    assert!(stdout.contains("codex --profile rs-harness-ci exec -C <repo>"));
+    assert!(stdout.contains("|compat unified_exec present=true required=true"));
+    assert!(stdout.contains("|compat matcher namespaced=true required=true"));
+
     let skill = fs::read_to_string(root.join(".codex/skills/rs-harness/SKILL.org")).expect("skill");
     assert!(skill.contains("rs-harness Skill"));
     assert!(skill.contains("Hooks boundary"));
     assert!(skill.contains("Profile selection"));
     assert!(skill.contains("versionScope=external"));
     assert!(skill.contains("source=registry-source"));
+
+    let stale_config = hooks_config.replace("unified_exec = true\n\n", "");
+    fs::write(root.join(".codex/config.toml"), stale_config).expect("write stale codex config");
+    let stale_doctor = run_cli([
+        "agent".as_ref(),
+        "doctor".as_ref(),
+        "--client".as_ref(),
+        "codex".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(stale_doctor.status.success(), "{stale_doctor:?}");
+    let stdout = String::from_utf8(stale_doctor.stdout).expect("stale doctor stdout");
+    assert!(stdout.contains("|compat unified_exec present=false required=true"));
+    assert!(stdout.contains("|warn kind=codex-unified-exec"));
+    fs::write(root.join(".codex/config.toml"), &hooks_config).expect("restore codex config");
+
+    let disabled_pretool_config = hooks_config.replace(
+        "matcher = \".*(Read|readFile|readDirectory|read_file|FsReadFile|FsReadDirectory|fs\\\\.read|fs\\\\.readDirectory|fs/readFile|fs/readDirectory|fs\\\\.readbin|writeFile|FsWriteFile|fs\\\\.write|fs/write|fs\\\\.writeFile|fs/writeFile|FsRemove|fs\\\\.remove|fs/remove|FsCopy|fs\\\\.copy|fs/copy|fs\\\\.rename|fs/rename|mcp__.*__read.*|Bash|exec_command|command_execution|apply_patch|Edit|Write).*\"",
+        "matcher = \"__rs_harness_pretool_disabled_during_hook_upgrade__\"",
+    );
+    fs::write(root.join(".codex/config.toml"), disabled_pretool_config)
+        .expect("write disabled pretool config");
+    let matcher_doctor = run_cli([
+        "agent".as_ref(),
+        "doctor".as_ref(),
+        "--client".as_ref(),
+        "codex".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(matcher_doctor.status.success(), "{matcher_doctor:?}");
+    let stdout = String::from_utf8(matcher_doctor.stdout).expect("matcher doctor stdout");
+    assert!(stdout.contains("|compat matcher namespaced=false required=true"));
+    assert!(stdout.contains("|warn kind=codex-tool-matcher"));
+    fs::write(root.join(".codex/config.toml"), &hooks_config).expect("restore codex config");
 
     let registry = run_cli([
         "agent".as_ref(),
@@ -185,6 +351,12 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
         methods
             .iter()
             .any(|method| method.as_str() == Some("agent/doctor")),
+        "{value}"
+    );
+    assert!(
+        methods
+            .iter()
+            .any(|method| method.as_str() == Some("agent/guide")),
         "{value}"
     );
     assert!(
@@ -225,6 +397,38 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
         }),
         "{value}"
     );
+    assert!(
+        descriptors.iter().any(|descriptor| {
+            descriptor["method"] == "agent/guide"
+                && descriptor["command"] == "agent"
+                && descriptor["supportsJson"] == false
+        }),
+        "{value}"
+    );
+
+    let guide = run_cli([
+        "agent".as_ref(),
+        "guide".as_ref(),
+        "--client".as_ref(),
+        "codex".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(guide.status.success(), "{guide:?}");
+    let guide_stdout = String::from_utf8(guide.stdout).expect("guide stdout");
+    assert!(
+        guide_stdout.starts_with("|flow guide=prime->batch-or-owner->tests->edit"),
+        "{guide_stdout}"
+    );
+    assert!(guide_stdout.contains("|prime run=`rs-harness search prime --view seeds --seeds 8"));
+    assert!(
+        guide_stdout.contains("|batch run=`printf '%s\\n' <paths...> | rs-harness search ingest")
+    );
+    assert!(guide_stdout.contains("|owner run=`rs-harness search owner <owner-path> items"));
+    assert!(guide_stdout.contains("installed-binary-only"));
+    assert!(guide_stdout.contains("[search-subagent] role="));
+    assert!(!guide_stdout.contains("README"), "{guide_stdout}");
+    assert!(!guide_stdout.contains("SKILL"), "{guide_stdout}");
+    assert!(!guide_stdout.contains("docs/"), "{guide_stdout}");
 
     let pre_tool = run_cli_with_stdin(
         [
@@ -240,7 +444,7 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
             "cwd": root.display().to_string(),
             "tool_name": "Bash",
             "tool_input": {
-                "command": "rg -n \"timeout\" src tests"
+                "command": "rg -n \"timeout\" --glob '*.rs' src tests | rs-harness search ingest items tests --view seeds --seeds 8 ."
             }
         })
         .to_string(),
@@ -262,7 +466,7 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
             "cwd": root.display().to_string(),
             "tool_name": "exec_command",
             "tool_input": {
-                "cmd": "rg -n \"timeout\" src tests"
+                "cmd": "rg -n \"timeout\" README.md docs --glob '*.md'"
             }
         })
         .to_string(),
@@ -275,6 +479,227 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
         exec_command_pre_tool.stdout.is_empty(),
         "{exec_command_pre_tool:?}"
     );
+
+    let raw_rust_rg = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &serde_json::json!({
+            "hook_event_name": "PreToolUse",
+            "cwd": root.display().to_string(),
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": "rg -n \"timeout\" src tests"
+            }
+        })
+        .to_string(),
+    );
+    assert!(raw_rust_rg.status.success(), "{raw_rust_rg:?}");
+    let value = serde_json::from_slice::<Value>(&raw_rust_rg.stdout).expect("raw rg JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["permissionDecision"].as_str(),
+        Some("deny")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["reasonKind"].as_str(),
+        Some("raw-broad-search")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["routes"][0]["kind"].as_str(),
+        Some("ingest")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["routes"][0]["stdinMode"].as_str(),
+        Some("pipe-candidates")
+    );
+    assert!(
+        value["hookSpecificOutput"]["permissionDecisionReason"]
+            .as_str()
+            .is_some_and(|reason| {
+                reason.contains("[rs-harness-flow] blocked=bulk-rs-dump")
+                    && reason.contains(
+                        "rg -n \"<query>\" --glob '*.rs' src tests | rs-harness search ingest",
+                    )
+                    && reason.contains("pipe-to-ingest")
+            }),
+        "{value}"
+    );
+
+    let raw_workspace_search = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &serde_json::json!({
+            "hook_event_name": "PreToolUse",
+            "cwd": root.display().to_string(),
+            "tool_name": "functions.exec_command",
+            "tool_input": {
+                "cmd": "rg -n \"timeout\" ."
+            }
+        })
+        .to_string(),
+    );
+    assert!(
+        raw_workspace_search.status.success(),
+        "{raw_workspace_search:?}"
+    );
+    let value = serde_json::from_slice::<Value>(&raw_workspace_search.stdout)
+        .expect("raw workspace search JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["permissionDecision"].as_str(),
+        Some("deny")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["reasonKind"].as_str(),
+        Some("raw-broad-search")
+    );
+    assert!(
+        value["hookSpecificOutput"]["permissionDecisionReason"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("Raw broad Rust search")),
+        "{value}"
+    );
+
+    let rtk_grep = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &serde_json::json!({
+            "hook_event_name": "PreToolUse",
+            "cwd": root.display().to_string(),
+            "tool_name": "functions.exec_command",
+            "tool_input": {
+                "cmd": "rtk grep -n timeout src tests"
+            }
+        })
+        .to_string(),
+    );
+    assert!(rtk_grep.status.success(), "{rtk_grep:?}");
+    let value = serde_json::from_slice::<Value>(&rtk_grep.stdout).expect("rtk grep JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["permissionDecision"].as_str(),
+        Some("deny")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["reasonKind"].as_str(),
+        Some("raw-broad-search")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["routes"][0]["kind"].as_str(),
+        Some("ingest")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["routes"][0]["stdinMode"].as_str(),
+        Some("pipe-candidates")
+    );
+
+    let context_rust_rg = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &serde_json::json!({
+            "hook_event_name": "PreToolUse",
+            "cwd": root.display().to_string(),
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": "rg -n \"fn load\" src/lib.rs -A 28 -B 4"
+            }
+        })
+        .to_string(),
+    );
+    assert!(context_rust_rg.status.success(), "{context_rust_rg:?}");
+    let value = serde_json::from_slice::<Value>(&context_rust_rg.stdout).expect("context rg JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["permissionDecision"].as_str(),
+        Some("deny")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["reasonKind"].as_str(),
+        Some("raw-broad-search")
+    );
+    assert!(
+        value["hookSpecificOutput"]["permissionDecisionReason"]
+            .as_str()
+            .is_some_and(|reason| {
+                reason.contains("[rs-harness-flow] blocked=bulk-rs-dump")
+                    && reason.contains("flow guide=prime->rg-or-paths->ingest->owner-or-deps")
+                    && reason.contains("rs-harness search ingest items tests")
+            }),
+        "{value}"
+    );
+
+    let command_patch_pre_tool = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &serde_json::json!({
+            "hook_event_name": "PreToolUse",
+            "tool_name": "apply_patch",
+            "tool_input": {
+                "command": "*** Begin Patch\n*** Update File: src/lib.rs\n@@\n+pub fn patched() {}\n*** End Patch\n"
+            }
+        })
+        .to_string(),
+    );
+    assert!(
+        command_patch_pre_tool.status.success(),
+        "{command_patch_pre_tool:?}"
+    );
+    let stdout = String::from_utf8(command_patch_pre_tool.stdout).expect("patch pre-tool stdout");
+    assert!(!stdout.contains("blocked=bulk-rs-dump"), "{stdout}");
+    assert!(!stdout.contains("blocked=read-rs"), "{stdout}");
+    assert!(stdout.contains("Exact-file code edit allowed"), "{stdout}");
+
+    let filesystem_write_file = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &serde_json::json!({
+            "hook_event_name": "PreToolUse",
+            "tool_name": "fs/writeFile",
+            "tool_input": {
+                "path": "src/lib.rs"
+            }
+        })
+        .to_string(),
+    );
+    assert!(
+        filesystem_write_file.status.success(),
+        "{filesystem_write_file:?}"
+    );
+    let stdout = String::from_utf8(filesystem_write_file.stdout).expect("filesystem write stdout");
+    assert!(!stdout.contains("blocked=read-rs"), "{stdout}");
+    assert!(stdout.contains("Exact-file code edit allowed"), "{stdout}");
 
     let direct_read = run_cli_with_stdin(
         [
@@ -306,18 +731,255 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
             .as_str()
             .is_some_and(|reason| {
                 reason.contains("[rs-harness-flow] blocked=read-rs")
-                    && reason.contains("flow guide=prime->batch-or-owner->tests->edit")
-                    && reason.contains("printf '%s\\n' <paths...> | rs-harness search ingest")
+                    && reason.contains("route=owner")
                     && reason.contains(
                         "rs-harness search owner src/lib.rs items --trace --view seeds --seeds 8",
                     )
                     && reason.contains("one-search-command-at-a-time")
-                    && reason.contains("installed-binary-only")
-                    && reason.contains("no `&&`")
                     && !reason.contains("target/debug/rs-harness")
-                    && reason.contains("rs-harness search ingest items tests")
+                    && reason.contains("agentHookDecision.routes")
             }),
         "{value}"
+    );
+
+    let filesystem_read = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &serde_json::json!({
+            "hook_event_name": "PreToolUse",
+            "cwd": root.display().to_string(),
+            "tool_name": "fs.read",
+            "tool_input": {
+                "filePath": "src/lib.rs"
+            }
+        })
+        .to_string(),
+    );
+    assert!(filesystem_read.status.success(), "{filesystem_read:?}");
+    let value = serde_json::from_slice::<Value>(&filesystem_read.stdout).expect("fs read JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["permissionDecision"].as_str(),
+        Some("deny")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["reasonKind"].as_str(),
+        Some("direct-source-read")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["subject"]["paths"][0].as_str(),
+        Some("src/lib.rs")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["routes"][0]["kind"].as_str(),
+        Some("owner")
+    );
+    assert!(
+        value["hookSpecificOutput"]["permissionDecisionReason"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("blocked=read-rs path=src/lib.rs")),
+        "{value}"
+    );
+
+    let filesystem_read_file = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &serde_json::json!({
+            "hook_event_name": "PreToolUse",
+            "cwd": root.display().to_string(),
+            "tool_name": "fs.readFile",
+            "tool_input": {
+                "filePath": "src/lib.rs"
+            }
+        })
+        .to_string(),
+    );
+    assert!(
+        filesystem_read_file.status.success(),
+        "{filesystem_read_file:?}"
+    );
+    let value =
+        serde_json::from_slice::<Value>(&filesystem_read_file.stdout).expect("fs readFile JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["permissionDecision"].as_str(),
+        Some("deny")
+    );
+    assert!(
+        value["hookSpecificOutput"]["permissionDecisionReason"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("blocked=read-rs path=src/lib.rs")),
+        "{value}"
+    );
+
+    let exec_server_read_file = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &serde_json::json!({
+            "hook_event_name": "PreToolUse",
+            "cwd": root.display().to_string(),
+            "tool_name": "fs/readFile",
+            "tool_input": {
+                "path": "src/lib.rs"
+            }
+        })
+        .to_string(),
+    );
+    assert!(
+        exec_server_read_file.status.success(),
+        "{exec_server_read_file:?}"
+    );
+    let value = serde_json::from_slice::<Value>(&exec_server_read_file.stdout)
+        .expect("exec-server readFile JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["permissionDecision"].as_str(),
+        Some("deny")
+    );
+
+    let filesystem_read_directory = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &serde_json::json!({
+            "hook_event_name": "PreToolUse",
+            "cwd": root.display().to_string(),
+            "tool_name": "FsReadDirectory",
+            "tool_input": {
+                "path": "src"
+            }
+        })
+        .to_string(),
+    );
+    assert!(
+        filesystem_read_directory.status.success(),
+        "{filesystem_read_directory:?}"
+    );
+    assert!(
+        filesystem_read_directory.stdout.is_empty(),
+        "{filesystem_read_directory:?}"
+    );
+
+    let read_without_path_key = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &serde_json::json!({
+            "hook_event_name": "PreToolUse",
+            "cwd": root.display().to_string(),
+            "tool_name": "Read",
+            "tool_input": {
+                "note": "src/lib.rs"
+            }
+        })
+        .to_string(),
+    );
+    assert!(
+        read_without_path_key.status.success(),
+        "{read_without_path_key:?}"
+    );
+    assert!(
+        read_without_path_key.stdout.is_empty(),
+        "{read_without_path_key:?}"
+    );
+
+    let rtk_read = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &serde_json::json!({
+            "hook_event_name": "PreToolUse",
+            "cwd": root.display().to_string(),
+            "tool_name": "functions.exec_command",
+            "tool_input": {
+                "cmd": "rtk read src/lib.rs"
+            }
+        })
+        .to_string(),
+    );
+    assert!(rtk_read.status.success(), "{rtk_read:?}");
+    let value = serde_json::from_slice::<Value>(&rtk_read.stdout).expect("rtk read JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["permissionDecision"].as_str(),
+        Some("deny")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["reasonKind"].as_str(),
+        Some("direct-source-read")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["subject"]["paths"][0].as_str(),
+        Some("src/lib.rs")
+    );
+
+    let nested_rtk_read = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &serde_json::json!({
+            "hook_event_name": "PreToolUse",
+            "cwd": root.display().to_string(),
+            "tool_name": "multi_tool_use.parallel",
+            "tool_input": {
+                "tool_uses": [{
+                    "recipient_name": "functions.exec_command",
+                    "parameters": {
+                        "cmd": "rtk read src/lib.rs"
+                    }
+                }]
+            }
+        })
+        .to_string(),
+    );
+    assert!(nested_rtk_read.status.success(), "{nested_rtk_read:?}");
+    let value =
+        serde_json::from_slice::<Value>(&nested_rtk_read.stdout).expect("nested rtk read JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["permissionDecision"].as_str(),
+        Some("deny")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["reasonKind"].as_str(),
+        Some("direct-source-read")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["subject"]["paths"][0].as_str(),
+        Some("src/lib.rs")
     );
 
     let bulk_shell_read = run_cli_with_stdin(
@@ -375,9 +1037,96 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
             .is_some_and(|reason| {
                 reason.contains("[rs-harness-flow] blocked=read-rs path=src/lib.rs")
                     && reason.contains("rs-harness search owner src/lib.rs items")
-                    && reason.contains("flow guide=prime->batch-or-owner->tests->edit")
+                    && reason.contains("route=owner")
             }),
         "{value}"
+    );
+
+    let command_execution_command =
+        ["/bin/zsh -lc \"", "s", "ed -n '1,8p' src/lib.rs", "\""].concat();
+    let command_execution_payload = serde_json::json!({
+        "hook_event_name": "PreToolUse",
+        "tool_name": "command_execution",
+        "tool_input": { "command": command_execution_command }
+    })
+    .to_string();
+    let command_execution_read = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &command_execution_payload,
+    );
+    assert!(
+        command_execution_read.status.success(),
+        "{command_execution_read:?}"
+    );
+    let value = serde_json::from_slice::<Value>(&command_execution_read.stdout)
+        .expect("command execution JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["permissionDecision"].as_str(),
+        Some("deny")
+    );
+
+    let namespaced_python_read = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &serde_json::json!({
+            "hook_event_name": "PreToolUse",
+            "cwd": root.display().to_string(),
+            "tool_name": "functions.exec_command",
+            "tool_input": {
+                "cmd": "python -c \"print(open('src/lib.rs').readline())\""
+            }
+        })
+        .to_string(),
+    );
+    assert!(
+        namespaced_python_read.status.success(),
+        "{namespaced_python_read:?}"
+    );
+    let value =
+        serde_json::from_slice::<Value>(&namespaced_python_read.stdout).expect("python read JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["permissionDecision"].as_str(),
+        Some("deny")
+    );
+    assert!(
+        value["hookSpecificOutput"]["permissionDecisionReason"]
+            .as_str()
+            .is_some_and(|reason| {
+                reason.contains("[rs-harness-flow] blocked=read-rs path=src/lib.rs")
+                    && reason.contains("rs-harness search owner src/lib.rs items")
+            }),
+        "{value}"
+    );
+
+    let node_read = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"functions.exec_command\",\"tool_input\":{\"cmd\":\"node -e \\\"require('fs').readFileSync('src/lib.rs','utf8')\\\"\"}}",
+    );
+    assert!(node_read.status.success(), "{node_read:?}");
+    let value = serde_json::from_slice::<Value>(&node_read.stdout).expect("node read JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["permissionDecision"].as_str(),
+        Some("deny")
     );
 
     let permission_request = run_cli_with_stdin(
@@ -422,6 +1171,55 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
     assert!(docs_search.status.success(), "{docs_search:?}");
     assert!(docs_search.stdout.is_empty(), "{docs_search:?}");
 
+    let non_rust_source_search = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &serde_json::json!({
+            "hook_event_name": "PreToolUse",
+            "cwd": root.display().to_string(),
+            "tool_name": "functions.exec_command",
+            "tool_input": {
+                "cmd": "rg -n \"timeout\" src --glob '!*.rs'"
+            }
+        })
+        .to_string(),
+    );
+    assert!(
+        non_rust_source_search.status.success(),
+        "{non_rust_source_search:?}"
+    );
+    assert!(
+        non_rust_source_search.stdout.is_empty(),
+        "{non_rust_source_search:?}"
+    );
+
+    let config_command = ["g", "rep -n \"unified_exec\" .codex/config.toml"].concat();
+    let config_payload = serde_json::json!({
+        "hook_event_name": "PreToolUse",
+        "tool_name": "functions.exec_command",
+        "tool_input": { "cmd": config_command }
+    })
+    .to_string();
+    let config_search = run_cli_with_stdin(
+        [
+            "agent".as_ref(),
+            "hook".as_ref(),
+            "--client".as_ref(),
+            "codex".as_ref(),
+            "pre-tool".as_ref(),
+            root.as_os_str(),
+        ],
+        &config_payload,
+    );
+    assert!(config_search.status.success(), "{config_search:?}");
+    assert!(config_search.stdout.is_empty(), "{config_search:?}");
+
     let exact_file_search = run_cli_with_stdin(
         [
             "agent".as_ref(),
@@ -435,6 +1233,50 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
     );
     assert!(exact_file_search.status.success(), "{exact_file_search:?}");
     assert!(exact_file_search.stdout.is_empty(), "{exact_file_search:?}");
+
+    let guard_rtk_read = run_cli([
+        "agent".as_ref(),
+        "guard".as_ref(),
+        "--client".as_ref(),
+        "codex".as_ref(),
+        "--json".as_ref(),
+        root.as_os_str(),
+        "--".as_ref(),
+        "rtk".as_ref(),
+        "read".as_ref(),
+        "src/lib.rs".as_ref(),
+    ]);
+    assert!(!guard_rtk_read.status.success(), "{guard_rtk_read:?}");
+    let value = serde_json::from_slice::<Value>(&guard_rtk_read.stdout).expect("guard JSON");
+    assert_eq!(
+        value["hookSpecificOutput"]["permissionDecision"].as_str(),
+        Some("deny")
+    );
+    assert_eq!(
+        value["agentHookDecision"]["reasonKind"].as_str(),
+        Some("direct-source-read")
+    );
+
+    let guard_exact_file_search = run_cli([
+        "agent".as_ref(),
+        "guard".as_ref(),
+        "--client".as_ref(),
+        "codex".as_ref(),
+        root.as_os_str(),
+        "--".as_ref(),
+        "rg".as_ref(),
+        "-n".as_ref(),
+        "timeout".as_ref(),
+        "src/lib.rs".as_ref(),
+    ]);
+    assert!(
+        guard_exact_file_search.status.success(),
+        "{guard_exact_file_search:?}"
+    );
+    assert!(
+        guard_exact_file_search.stdout.is_empty(),
+        "{guard_exact_file_search:?}"
+    );
 
     let post_edit = run_cli_with_stdin(
         [

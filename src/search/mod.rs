@@ -2,6 +2,7 @@
 
 mod api;
 mod cargo;
+pub(crate) mod compact;
 mod context;
 mod format;
 mod hits;
