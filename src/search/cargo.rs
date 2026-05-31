@@ -12,7 +12,9 @@ use super::format::{
     append_block, compact_locations, display_project_path, empty_dash, package_label,
     package_roots_for_request, render_cargo_dependency_line,
 };
-use super::hits::{OwnerHit, dependency_usage, matching_dependencies, text_hits};
+use super::hits::{
+    OwnerHit, dependency_usage, matching_dependencies, sort_owner_hits_by_recency, text_hits,
+};
 use super::limits::SEARCH_HIT_LIMIT;
 use super::owner::{public_api_lines_for_dependency, test_lines_for_owner_modules};
 use super::scope::module_is_scope;
@@ -366,14 +368,16 @@ fn dependency_api_usage(
             }
         }
     }
-    grouped
+    let mut hits = grouped
         .into_iter()
         .map(|(path, mut locations)| {
             locations.sort();
             locations.dedup();
             OwnerHit { path, locations }
         })
-        .collect()
+        .collect::<Vec<_>>();
+    sort_owner_hits_by_recency(&context.package_root, &mut hits);
+    hits
 }
 
 fn dependency_subpath_usage(
@@ -401,14 +405,16 @@ fn dependency_subpath_usage(
             }
         }
     }
-    grouped
+    let mut hits = grouped
         .into_iter()
         .map(|(path, mut locations)| {
             locations.sort();
             locations.dedup();
             OwnerHit { path, locations }
         })
-        .collect()
+        .collect::<Vec<_>>();
+    sort_owner_hits_by_recency(&context.package_root, &mut hits);
+    hits
 }
 
 pub(super) fn render_search_features(

@@ -27,6 +27,7 @@ use super::prime_support::{
     feature_lines, grouped_finding_lines, owner_dependency_lines, surface_line, target_labels,
     test_surface_line,
 };
+use super::recency::compare_paths_by_recency;
 
 /// Render the RFC search-prime packet for a project root.
 ///
@@ -139,7 +140,7 @@ fn render_package_prime(
         .iter()
         .filter(|dependency| !dependency.is_test_context)
         .collect::<Vec<_>>();
-    let owner_branches = ranked_owner_branches(&reasoning_tree, &findings);
+    let owner_branches = ranked_owner_branches(package_root, &reasoning_tree, &findings);
     let module_by_path = parsed_modules
         .iter()
         .map(|module| (module.report.path.clone(), module))
@@ -214,6 +215,7 @@ fn render_package_prime(
 }
 
 fn ranked_owner_branches<'a>(
+    package_root: &Path,
     reasoning_tree: &'a RustReasoningTreeFacts,
     findings: &[RustHarnessFinding],
 ) -> Vec<&'a RustReasoningOwnerBranchFacts> {
@@ -225,7 +227,7 @@ fn ranked_owner_branches<'a>(
     branches.sort_by(|left, right| {
         owner_rank(right, &finding_paths)
             .cmp(&owner_rank(left, &finding_paths))
-            .then_with(|| left.path.cmp(&right.path))
+            .then_with(|| compare_paths_by_recency(package_root, &left.path, &right.path))
     });
     branches
 }

@@ -7,7 +7,7 @@ use super::support::{
 };
 
 #[test]
-fn cli_rust_flow_sandbox_drill_exercises_registry_prime_search_and_ingest() {
+fn cli_rust_flow_drill_exercises_registry_prime_search_and_ingest() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_search_fixture(root);
@@ -266,7 +266,56 @@ fn cli_rust_flow_sandbox_drill_exercises_registry_prime_search_and_ingest() {
 }
 
 #[test]
-fn cli_rust_flow_sandbox_reduces_search_rounds_with_seeds_and_recipe_plan() {
+fn cli_search_ranks_equal_hits_by_project_path_mtime() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_search_fixture(root);
+    set_mtime(root.join("src/domain/mod.rs"), 1_700_000_000);
+    set_mtime(root.join("src/lib.rs"), 1_800_000_000);
+
+    let text = run_search(root, &["text", "Serialize"]);
+    let owner_lines = text
+        .lines()
+        .filter(|line| line.starts_with("|owner "))
+        .collect::<Vec<_>>();
+    assert!(
+        owner_lines
+            .first()
+            .is_some_and(|line| line.starts_with("|owner src/lib.rs ")),
+        "{text}"
+    );
+
+    let ingest = run_search_with_stdin(
+        root,
+        &["ingest"],
+        "src/domain/mod.rs:2:use serde::Serialize\nsrc/lib.rs:3:use serde::Serialize\n",
+    );
+    let ingest_owner_lines = ingest
+        .lines()
+        .filter(|line| line.starts_with("|owner "))
+        .collect::<Vec<_>>();
+    assert!(
+        ingest_owner_lines
+            .first()
+            .is_some_and(|line| line.starts_with("|owner src/lib.rs ")),
+        "{ingest}"
+    );
+
+    let deps = run_search(root, &["deps", "serde::Serialize"]);
+    let deps_owner_lines = deps
+        .lines()
+        .filter(|line| line.starts_with("|owner "))
+        .collect::<Vec<_>>();
+    assert!(
+        deps_owner_lines
+            .first()
+            .is_some_and(|line| line.starts_with("|owner src/lib.rs ")),
+        "{deps}"
+    );
+}
+
+#[test]
+fn cli_rust_flow_drill_reduces_search_rounds_with_seeds_and_recipe_plan() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_search_fixture(root);
@@ -435,11 +484,35 @@ fn cli_rust_flow_sandbox_reduces_search_rounds_with_seeds_and_recipe_plan() {
     );
 }
 
+fn set_mtime(path: impl AsRef<std::path::Path>, seconds: i64) {
+    let time = std::time::UNIX_EPOCH + std::time::Duration::from_secs(seconds as u64);
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(path)
+        .and_then(|file| file.set_modified(time))
+        .expect("set fixture mtime");
+}
+
+fn assert_line_order(rendered: &str, first: &str, second: &str) {
+    let first_index = rendered
+        .find(first)
+        .unwrap_or_else(|| panic!("missing first line fragment {first:?} in:\n{rendered}"));
+    let second_index = rendered
+        .find(second)
+        .unwrap_or_else(|| panic!("missing second line fragment {second:?} in:\n{rendered}"));
+    assert!(
+        first_index < second_index,
+        "expected {first:?} before {second:?} in:\n{rendered}"
+    );
+}
+
 #[test]
-fn cli_rust_flow_sandbox_regresses_tokio_ignore_bytes_style_flow() {
+fn cli_rust_flow_drill_regresses_tokio_ignore_bytes_style_flow() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_complex_dependency_fixture(root);
+    set_mtime(root.join("src/http/client.rs"), 1_700_000_000);
+    set_mtime(root.join("src/io/walk.rs"), 1_800_000_000);
 
     let prime = run_search(root, &["prime"]);
     assert!(
@@ -523,6 +596,11 @@ fn cli_rust_flow_sandbox_regresses_tokio_ignore_bytes_style_flow() {
         bytes_dependency.contains("|owner src/io/walk.rs hit_kind=dependency"),
         "{bytes_dependency}"
     );
+    assert_line_order(
+        &bytes_dependency,
+        "|owner src/io/walk.rs hit_kind=dependency",
+        "|owner src/http/client.rs hit_kind=dependency",
+    );
     assert!(
         bytes_dependency
             .contains("|api src/http/client.rs line=4 dep=bytes kind=struct name=RuntimeClient"),
@@ -598,6 +676,11 @@ fn cli_rust_flow_sandbox_regresses_tokio_ignore_bytes_style_flow() {
     assert!(
         ingest.starts_with("[search-ingest] src=rg-n in=2 own=2"),
         "{ingest}"
+    );
+    assert_line_order(
+        &ingest,
+        "|owner src/io/walk.rs role=source hit_kind=text",
+        "|owner src/http/client.rs role=source hit_kind=text",
     );
     assert!(
         ingest.contains(

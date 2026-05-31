@@ -12,6 +12,7 @@ mod owner_view;
 mod prime;
 mod prime_support;
 mod query;
+mod recency;
 mod scope;
 
 pub use api::{

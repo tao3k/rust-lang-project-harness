@@ -9,7 +9,8 @@ use super::RustSearchOptions;
 use super::context::{PackageSearchContext, search_contexts};
 use super::format::{append_block, compact_locations, display_project_path, package_label};
 use super::hits::{
-    SearchHit, import_hits, matching_dependencies, symbol_calls, symbol_definitions, text_hits,
+    SearchHit, import_hits, matching_dependencies, sort_search_hits_by_recency, symbol_calls,
+    symbol_definitions, text_hits,
 };
 use super::limits::SEARCH_HIT_LIMIT;
 use super::owner as owner_search;
@@ -258,13 +259,7 @@ fn public_error_boundary_hits(
                 })
         })
         .collect::<Vec<_>>();
-    hits.sort_by(|left, right| {
-        left.path
-            .cmp(&right.path)
-            .then_with(|| left.line.cmp(&right.line))
-            .then_with(|| left.kind.cmp(&right.kind))
-            .then_with(|| left.name.cmp(&right.name))
-    });
+    sort_search_hits_by_recency(&context.package_root, &mut hits);
     hits.dedup_by(|left, right| {
         left.path == right.path
             && left.line == right.line
@@ -342,6 +337,7 @@ pub(super) fn render_search_docs(
         let source = docs_query.source(&context);
         let defs = if source == "native-parser" {
             api_hits(
+                &context.package_root,
                 &context.parsed_modules,
                 &symbol_definitions(&context, &docs_query.item_name, options),
                 &docs_query.item_name,
@@ -385,6 +381,7 @@ pub(super) fn render_search_api(
         let source = docs_query.source(&context);
         let defs = if source == "native-parser" {
             api_hits(
+                &context.package_root,
                 &context.parsed_modules,
                 &symbol_definitions(&context, &docs_query.item_name, options),
                 &docs_query.item_name,
@@ -665,6 +662,7 @@ fn compact_api_value(value: &str) -> String {
 }
 
 fn api_hits(
+    package_root: &Path,
     parsed_modules: &[ParsedRustModule],
     symbol_hits: &[SearchHit],
     query: &str,
@@ -720,13 +718,7 @@ fn api_hits(
             ));
         }
     }
-    hits.sort_by(|left, right| {
-        left.path
-            .cmp(&right.path)
-            .then_with(|| left.line.cmp(&right.line))
-            .then_with(|| left.kind.cmp(&right.kind))
-            .then_with(|| left.name.cmp(&right.name))
-    });
+    sort_search_hits_by_recency(package_root, &mut hits);
     hits
 }
 

@@ -17,6 +17,7 @@ use super::format::{
 };
 use super::limits::{SEARCH_OWNER_LIMIT, SEARCH_TEST_LIMIT};
 use super::owner::test_lines_for_owner_modules;
+use super::recency::compare_paths_by_recency;
 
 /// Render grouped search candidates from external tool output.
 ///
@@ -38,7 +39,7 @@ pub fn render_rust_project_harness_search_ingest_with_config(
     }
     let candidates = ingest_candidates(input, source);
     let contexts = ingest_pipe_contexts(project_root, config, options)?;
-    let owner_hits = grouped_owner_hits(candidates, &package_roots);
+    let owner_hits = grouped_owner_hits(project_root, candidates, &package_roots);
     Ok(render_ingest_owner_hits(
         project_root,
         input,
@@ -65,9 +66,10 @@ fn ingest_pipe_contexts(
 }
 
 fn grouped_owner_hits(
+    project_root: &Path,
     candidates: Vec<(PathBuf, Vec<String>)>,
     package_roots: &[PathBuf],
-) -> BTreeMap<PathBuf, Vec<String>> {
+) -> Vec<(PathBuf, Vec<String>)> {
     let mut owner_hits = BTreeMap::<PathBuf, Vec<String>>::new();
     for (path, location) in candidates {
         for package_root in package_roots {
@@ -85,7 +87,14 @@ fn grouped_owner_hits(
             }
         }
     }
-    owner_hits
+    let mut sorted_hits = owner_hits.into_iter().collect::<Vec<_>>();
+    for (_, locations) in &mut sorted_hits {
+        locations.sort();
+        locations.dedup();
+    }
+    sorted_hits
+        .sort_by(|(left, _), (right, _)| compare_paths_by_recency(project_root, left, right));
+    sorted_hits
 }
 
 fn render_ingest_owner_hits(
@@ -94,7 +103,7 @@ fn render_ingest_owner_hits(
     source: IngestSource,
     package_roots: &[PathBuf],
     contexts: &[PackageSearchContext],
-    owner_hits: &BTreeMap<PathBuf, Vec<String>>,
+    owner_hits: &[(PathBuf, Vec<String>)],
     options: &RustSearchOptions,
 ) -> String {
     let include_items = has_pipe(options, "items");

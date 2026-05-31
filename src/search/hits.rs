@@ -6,6 +6,7 @@ use crate::parser::CargoDependencyFacts;
 use super::RustSearchOptions;
 use super::context::PackageSearchContext;
 use super::format::display_project_path;
+use super::recency::compare_paths_by_recency;
 use super::scope::module_allowed;
 
 #[derive(Debug, Clone)]
@@ -40,7 +41,7 @@ pub(super) fn symbol_definitions(
     query: &str,
     options: &RustSearchOptions,
 ) -> Vec<SearchHit> {
-    context
+    let mut hits = context
         .parsed_modules
         .iter()
         .filter(|module| module_allowed(context, module, options))
@@ -64,7 +65,9 @@ pub(super) fn symbol_definitions(
                         .unwrap_or_else(|| query.to_string()),
                 })
         })
-        .collect()
+        .collect::<Vec<_>>();
+    sort_search_hits_by_recency(&context.package_root, &mut hits);
+    hits
 }
 
 pub(super) fn symbol_calls(
@@ -106,8 +109,7 @@ pub(super) fn symbol_calls(
         );
     }
     hits.sort_by(|left, right| {
-        left.path
-            .cmp(&right.path)
+        compare_paths_by_recency(&context.package_root, &left.path, &right.path)
             .then_with(|| left.line.cmp(&right.line))
             .then_with(|| left.kind.cmp(&right.kind))
     });
@@ -205,21 +207,36 @@ pub(super) fn dependency_usage(context: &PackageSearchContext, query: &str) -> V
 }
 
 fn grouped_owner_hits(
-    _context: &PackageSearchContext,
+    context: &PackageSearchContext,
     hits: impl IntoIterator<Item = (PathBuf, String)>,
 ) -> Vec<OwnerHit> {
     let mut grouped = BTreeMap::<PathBuf, Vec<String>>::new();
     for (path, location) in hits {
         grouped.entry(path).or_default().push(location);
     }
-    grouped
+    let mut owner_hits = grouped
         .into_iter()
         .map(|(path, mut locations)| {
             locations.sort();
             locations.dedup();
             OwnerHit { path, locations }
         })
-        .collect()
+        .collect::<Vec<_>>();
+    sort_owner_hits_by_recency(&context.package_root, &mut owner_hits);
+    owner_hits
+}
+
+pub(super) fn sort_owner_hits_by_recency(package_root: &Path, hits: &mut [OwnerHit]) {
+    hits.sort_by(|left, right| compare_paths_by_recency(package_root, &left.path, &right.path));
+}
+
+pub(super) fn sort_search_hits_by_recency(package_root: &Path, hits: &mut [SearchHit]) {
+    hits.sort_by(|left, right| {
+        compare_paths_by_recency(package_root, &left.path, &right.path)
+            .then_with(|| left.line.cmp(&right.line))
+            .then_with(|| left.kind.cmp(&right.kind))
+            .then_with(|| left.name.cmp(&right.name))
+    });
 }
 
 pub(super) fn matching_dependencies<'a>(
