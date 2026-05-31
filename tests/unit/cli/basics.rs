@@ -213,10 +213,15 @@ fn cli_agent_install_and_doctor_are_agent_generic() {
             "pre-tool".as_ref(),
             root.as_os_str(),
         ],
-        &format!(
-            "{{\"hook_event_name\":\"PreToolUse\",\"cwd\":\"{}\",\"tool_name\":\"Bash\",\"tool_input\":{{\"command\":\"rg -n \\\"timeout\\\" src tests\"}}}}",
-            root.display()
-        ),
+        &serde_json::json!({
+            "hook_event_name": "PreToolUse",
+            "cwd": root.display().to_string(),
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": "rg -n \"timeout\" src tests"
+            }
+        })
+        .to_string(),
     );
     assert!(pre_tool.status.success(), "{pre_tool:?}");
     let value = serde_json::from_slice::<Value>(&pre_tool.stdout).expect("pre-tool JSON");
