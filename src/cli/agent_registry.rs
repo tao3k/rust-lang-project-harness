@@ -43,10 +43,7 @@ fn agent_registry_json(project_root: &Path) -> Value {
         .chain([
             "check/changed".to_string(),
             "check/full".to_string(),
-            "agent/install".to_string(),
             "agent/doctor".to_string(),
-            "agent/guide".to_string(),
-            "agent/hook".to_string(),
         ])
         .collect::<Vec<_>>();
     methods.sort();
@@ -69,46 +66,12 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "supportsCompact": true
         }),
         json!({
-            "method": "agent/install",
-            "command": "agent",
-            "clients": ["codex"],
-            "requiredOptions": ["--client codex"],
-            "outputSchemaIds": ["agent.semantic-protocols.semantic-language-registry"],
-            "supportsJson": true,
-            "supportsCompact": true
-        }),
-        json!({
             "method": "agent/doctor",
             "command": "agent",
             "clients": ["codex"],
             "outputSchemaIds": ["agent.semantic-protocols.semantic-language-registry"],
             "supportsJson": true,
             "supportsCompact": true
-        }),
-        json!({
-            "method": "agent/guide",
-            "command": "agent",
-            "clients": ["codex"],
-            "requiredOptions": ["--client codex"],
-            "supportsJson": false,
-            "supportsCompact": true,
-            "capabilities": [
-                semantic_capability("agent-hook-policy"),
-                rust_capability("harness-search-checkpoints")
-            ]
-        }),
-        json!({
-            "method": "agent/hook",
-            "command": "agent",
-            "clients": ["codex"],
-            "requiredOptions": ["--client codex"],
-            "input": "hook event JSON on stdin",
-            "supportsJson": true,
-            "supportsCompact": false,
-            "capabilities": [
-                semantic_capability("agent-hook-policy"),
-                rust_capability("harness-search-checkpoints")
-            ]
         }),
     ]);
 

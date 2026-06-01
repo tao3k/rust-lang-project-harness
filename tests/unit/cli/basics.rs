@@ -3,10 +3,7 @@ use std::fs;
 use serde_json::Value;
 use tempfile::TempDir;
 
-use super::support::{
-    install_semantic_agent_hook_shim, normalize_temp_root, run_cli, run_cli_with_env,
-    write_clean_source, write_manifest,
-};
+use super::support::{normalize_temp_root, run_cli, write_clean_source, write_manifest};
 
 #[test]
 fn cli_renders_compact_text_by_default() {
@@ -95,7 +92,7 @@ fn cli_check_command_renders_policy_surface() {
 }
 
 #[test]
-fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
+fn cli_agent_provider_surface_delegates_hook_runtime_to_root_tool() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_manifest(root, "codex-hooks");
@@ -106,118 +103,77 @@ fn cli_agent_install_and_doctor_are_client_specific_for_codex_hooks() {
     assert!(doctor.status.success(), "{doctor:?}");
     let stdout = String::from_utf8(doctor.stdout).expect("utf8 stdout");
     assert!(stdout.contains("runtime=semantic-agent-hook"), "{stdout}");
-    assert!(stdout.contains("--client codex"), "{stdout}");
 
-    let missing_client = run_cli(["agent".as_ref(), "install".as_ref(), root.as_os_str()]);
-    assert!(!missing_client.status.success(), "{missing_client:?}");
+    let guide = run_cli(["agent".as_ref(), "guide".as_ref(), root.as_os_str()]);
+    assert!(guide.status.success(), "{guide:?}");
+    let stdout = String::from_utf8(guide.stdout).expect("guide stdout");
     assert!(
-        String::from_utf8(missing_client.stderr)
-            .expect("stderr")
-            .contains("--client codex")
-    );
-
-    fs::create_dir_all(root.join(".codex")).expect("create codex dir");
-    fs::write(
-        root.join(".codex/config.toml"),
-        r#"# User-owned Codex config.
-custom_flag = "keep"
-"#,
-    )
-    .expect("seed codex config");
-    let (log_path, path) = install_semantic_agent_hook_shim(root);
-
-    let install = run_cli_with_env(
-        [
-            "agent".as_ref(),
-            "install".as_ref(),
-            "--client".as_ref(),
-            "codex".as_ref(),
-            root.as_os_str(),
-        ],
-        [
-            ("PATH", path.as_str()),
-            (
-                "SEMANTIC_AGENT_HOOK_LOG",
-                log_path.to_str().expect("log path"),
-            ),
-        ],
-    );
-    assert!(install.status.success(), "{install:?}");
-    let stdout = String::from_utf8(install.stdout).expect("utf8 stdout");
-    assert!(
-        stdout.starts_with("[agent-install] client=codex"),
+        stdout.starts_with("[agent-guide] runtime=semantic-agent-hook language=rust"),
         "{stdout}"
     );
     assert!(
-        root.join(".codex/semantic-agent-hook/profiles.rs-harness.json")
-            .exists()
+        stdout.contains("rs-harness search prime --view seeds ."),
+        "{stdout}"
     );
-    assert!(
-        root.join(".codex/semantic-agent-hook/profiles.json")
-            .exists()
-    );
-    let profile = serde_json::from_str::<Value>(
-        &fs::read_to_string(root.join(".codex/semantic-agent-hook/profiles.rs-harness.json"))
-            .expect("profile registry"),
-    )
-    .expect("profile JSON");
-    assert_eq!(
-        profile["protocolId"].as_str(),
-        Some("agent.semantic-protocols.agent-hooks")
-    );
-    assert_eq!(profile["profiles"][0]["languageId"].as_str(), Some("rust"));
-    assert_eq!(
-        profile["profiles"][0]["providerId"].as_str(),
-        Some("rs-harness")
-    );
-    assert_eq!(
-        profile["profiles"][0]["commands"]["text"]["argv"].as_array(),
-        Some(&vec![
-            Value::String("rs-harness".to_string()),
-            Value::String("search".to_string()),
-            Value::String("text".to_string()),
-            Value::String("{query}".to_string()),
-            Value::String("tests".to_string()),
-            Value::String("--view".to_string()),
-            Value::String("seeds".to_string()),
-            Value::String(".".to_string()),
-        ])
-    );
-    let hooks_config =
-        fs::read_to_string(root.join(".codex/config.toml")).expect("codex config.toml");
-    assert!(hooks_config.contains("# BEGIN semantic-agent-hook agent hooks"));
-    assert!(!hooks_config.contains("# BEGIN rs-harness agent hooks"));
 
-    let doctor = run_cli_with_env(
-        [
-            "agent".as_ref(),
-            "doctor".as_ref(),
-            "--client".as_ref(),
-            "codex".as_ref(),
-            root.as_os_str(),
-        ],
-        [
-            ("PATH", path.as_str()),
-            (
-                "SEMANTIC_AGENT_HOOK_LOG",
-                log_path.to_str().expect("log path"),
-            ),
-        ],
+    let install = run_cli([
+        "agent".as_ref(),
+        "install".as_ref(),
+        "--client".as_ref(),
+        "codex".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(!install.status.success(), "{install:?}");
+    assert!(
+        String::from_utf8(install.stderr)
+            .expect("stderr")
+            .contains("rs-harness agent install moved to semantic-agent-hook")
     );
+    let hook = run_cli([
+        "agent".as_ref(),
+        "hook".as_ref(),
+        "--client".as_ref(),
+        "codex".as_ref(),
+        "pre-tool".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(!hook.status.success(), "{hook:?}");
+    assert!(
+        String::from_utf8(hook.stderr)
+            .expect("stderr")
+            .contains("rs-harness agent hook moved to semantic-agent-hook")
+    );
+    let guard = run_cli([
+        "agent".as_ref(),
+        "guard".as_ref(),
+        "--client".as_ref(),
+        "codex".as_ref(),
+        root.as_os_str(),
+        "--".as_ref(),
+        "rtk".as_ref(),
+        "read".as_ref(),
+        "src/lib.rs".as_ref(),
+    ]);
+    assert!(!guard.status.success(), "{guard:?}");
+    assert!(
+        String::from_utf8(guard.stderr)
+            .expect("stderr")
+            .contains("rs-harness agent guard moved to semantic-agent-hook")
+    );
+
+    let doctor = run_cli([
+        "agent".as_ref(),
+        "doctor".as_ref(),
+        "--client".as_ref(),
+        "codex".as_ref(),
+        root.as_os_str(),
+    ]);
     assert!(doctor.status.success(), "{doctor:?}");
     let stdout = String::from_utf8(doctor.stdout).expect("doctor stdout");
     assert!(
-        stdout.starts_with("[agent-doctor] status=ok client=codex"),
+        stdout.starts_with("[agent-doctor] status=ok provider=rs-harness"),
         "{stdout}"
     );
-
-    let invocations = serde_json::from_str::<Value>(
-        &fs::read_to_string(&log_path).expect("semantic-agent-hook invocation log"),
-    )
-    .expect("invocation log JSON");
-    assert_eq!(invocations[0]["argv"][0].as_str(), Some("install"));
-    assert_eq!(invocations[0]["argv"][3].as_str(), Some("--profiles"));
-    assert_eq!(invocations[1]["argv"][0].as_str(), Some("doctor"));
 }
 
 #[test]

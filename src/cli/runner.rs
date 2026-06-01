@@ -1,4 +1,4 @@
-//! CLI runner, argument parsing, and agent asset installation.
+//! CLI runner, argument parsing, and semantic protocol dispatch.
 
 use std::env;
 #[cfg(feature = "search")]
@@ -6,8 +6,6 @@ use std::io::{self, Read};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use super::agent_assets::{AgentConfigScope, install_agent_assets, print_agent_doctor};
-use super::agent_hooks::{print_agent_guide, run_agent_guard, run_agent_hook};
 use super::agent_registry::print_agent_registry;
 #[cfg(feature = "search")]
 use super::search_output::{SearchOutputControls, apply_search_output_controls};
@@ -117,47 +115,26 @@ fn run_agent(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitC
     let project_root = options.project_root()?;
     match options.command.as_str() {
         "install" => {
-            let client = require_agent_client(&options)?;
-            let output = install_agent_assets(&project_root, client, &options.scope)?;
-            if options.json {
-                print_agent_registry(&project_root)?;
-            } else {
-                print!("{output}");
-            }
+            return Err(moved_agent_action("install"));
         }
         "doctor" => {
             if options.json {
                 print_agent_registry(&project_root)?;
             } else {
-                print_agent_doctor(
-                    &project_root,
-                    "checked",
-                    options.client.as_deref(),
-                    &options.scope,
-                )?;
+                print_agent_doctor(&project_root, options.client.as_deref());
             }
         }
         "hook" => {
-            let client = require_agent_client(&options)?;
-            let event = options
-                .hook_event
-                .as_deref()
-                .ok_or_else(|| "expected agent hook event".to_string())?;
-            run_agent_hook(&project_root, client, event)?;
+            let _ = options.hook_event.as_deref();
+            return Err(moved_agent_action("hook"));
         }
         "guard" => {
-            let client = require_agent_client(&options)?;
-            let allowed =
-                run_agent_guard(&project_root, client, &options.guard_args, options.json)?;
-            return Ok(if allowed {
-                ExitCode::SUCCESS
-            } else {
-                ExitCode::FAILURE
-            });
+            let _ = options.guard_args.len();
+            return Err(moved_agent_action("guard"));
         }
         "guide" => {
-            let client = require_agent_client(&options)?;
-            print_agent_guide(&project_root, client)?;
+            let _ = options.client.as_deref();
+            print_agent_guide(&project_root);
         }
         other => return Err(format!("unknown agent command: {other}")),
     }
@@ -252,7 +229,6 @@ struct AgentOptions {
     command: String,
     hook_event: Option<String>,
     client: Option<String>,
-    scope: AgentConfigScope,
     guard_args: Vec<std::ffi::OsString>,
     json: bool,
     help: bool,
@@ -265,7 +241,6 @@ impl Default for AgentOptions {
             command: "doctor".to_string(),
             hook_event: None,
             client: None,
-            scope: AgentConfigScope::Project,
             guard_args: Vec::new(),
             json: false,
             help: false,
@@ -568,8 +543,11 @@ impl AgentOptions {
                 };
                 match option.as_str() {
                     "--client" => options.set_client(value)?,
-                    "--scope" => options.set_scope(value)?,
-                    "--profile" => options.set_profile(value)?,
+                    "--scope" | "--profile" => {
+                        return Err(
+                            "rs-harness no longer writes Codex hook configs; use semantic-agent-hook install --client codex".to_string(),
+                        );
+                    }
                     _ => unreachable!("unknown pending option"),
                 }
                 continue;
@@ -627,9 +605,6 @@ impl AgentOptions {
     }
 
     fn set_client(&mut self, client: &str) -> Result<(), String> {
-        if !matches!(client, "codex") {
-            return Err(format!("unsupported agent client: {client}"));
-        }
         if self
             .client
             .as_deref()
@@ -638,22 +613,6 @@ impl AgentOptions {
             return Err("expected only one agent client".to_string());
         }
         self.client = Some(client.to_string());
-        Ok(())
-    }
-
-    fn set_scope(&mut self, scope: &str) -> Result<(), String> {
-        self.scope = match scope {
-            "project" => AgentConfigScope::Project,
-            "profile" => {
-                AgentConfigScope::codex_profile(self.scope.profile_name().map(str::to_owned))?
-            }
-            _ => return Err(format!("unknown agent scope: {scope}")),
-        };
-        Ok(())
-    }
-
-    fn set_profile(&mut self, profile: &str) -> Result<(), String> {
-        self.scope = AgentConfigScope::codex_profile(Some(profile.to_string()))?;
         Ok(())
     }
 }
@@ -707,7 +666,8 @@ fn print_help() {
         "rs-harness [--json | --agent-snapshot] [PROJECT_ROOT]\n\
          rs-harness search <view> [ARGS] [PIPE...] [--json] [--package PACKAGE] [PROJECT_ROOT]\n\
          rs-harness check <--changed|--full> [--json] [PROJECT_ROOT]\n\
-         rs-harness agent <install|doctor> [--json] [PROJECT_ROOT]\n\n\
+         rs-harness agent doctor [--json] [PROJECT_ROOT]\n\
+         rs-harness agent guide [PROJECT_ROOT]\n\n\
          Runs the default package-level Rust harness.\n\n\
          Compact text is the default agent-facing repair surface.\n\
          Use --json to emit the structured RustHarnessReport audit shape.\n\
@@ -747,23 +707,39 @@ fn print_check_help() {
 
 fn print_agent_help() {
     println!(
-        "rs-harness agent install --client codex [--json] [PROJECT_ROOT]\n\
-         rs-harness agent doctor [--client codex] [--json] [PROJECT_ROOT]\n\
-         rs-harness agent guide --client codex [PROJECT_ROOT]\n\
-         rs-harness agent hook --client codex <event> [PROJECT_ROOT]\n\n\
-         rs-harness agent guard --client codex [--json] [PROJECT_ROOT] -- <command...>\n\n\
-         Publishes the rs-harness profile and delegates hook runtime to semantic-agent-hook.\n\
+        "rs-harness agent doctor [--json] [PROJECT_ROOT]\n\
+         rs-harness agent guide [PROJECT_ROOT]\n\n\
+         Hook install/runtime is owned by semantic-agent-hook in the root toolchain.\n\
          agent guide prints the command-line search flow guide used by hooks.\n\
-         agent guard delegates Codex pre-tool policy to semantic-agent-hook without executing the command.\n\
          Use --json to emit the semantic-language registry contract."
     );
 }
 
-fn require_agent_client(options: &AgentOptions) -> Result<&str, String> {
-    options
-        .client
-        .as_deref()
-        .ok_or_else(|| "expected agent client: --client codex".to_string())
+fn moved_agent_action(action: &str) -> String {
+    if action == "guard" {
+        return "rs-harness agent guard moved to semantic-agent-hook; use semantic-agent-hook hook --client codex pre-tool --emit decision".to_string();
+    }
+    format!(
+        "rs-harness agent {action} moved to semantic-agent-hook; use semantic-agent-hook {action} --client codex"
+    )
+}
+
+fn print_agent_doctor(project_root: &std::path::Path, _client: Option<&str>) {
+    println!(
+        "[agent-doctor] status=ok provider=rs-harness runtime=semantic-agent-hook project={}",
+        project_root.display()
+    );
+}
+
+fn print_agent_guide(_project_root: &std::path::Path) {
+    println!(
+        "[agent-guide] runtime=semantic-agent-hook language=rust provider=rs-harness\n\
+         |flow prime->owner|deps|symbol|tests pipe=text:tests ingest=stdin\n\
+         |cmd prime=rs-harness search prime --view seeds .\n\
+         |cmd owner=rs-harness search owner <path> items --view seeds .\n\
+         |cmd ingest=rg -n '<query>' src tests | rs-harness search ingest items tests --view seeds .\n\
+         |rule hook install/runtime is owned by semantic-agent-hook"
+    );
 }
 
 fn is_command(args: &[std::ffi::OsString], command: &str) -> bool {
