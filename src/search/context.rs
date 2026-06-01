@@ -47,11 +47,20 @@ pub(super) fn search_contexts_for_path_query(
     options: &RustSearchOptions,
     query: &str,
 ) -> Result<Vec<PackageSearchContext>, String> {
+    search_contexts_for_path_queries(project_root, config, options, &[query])
+}
+
+pub(super) fn search_contexts_for_path_queries(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    options: &RustSearchOptions,
+    queries: &[&str],
+) -> Result<Vec<PackageSearchContext>, String> {
     package_roots_for_request(project_root, config, options.package.as_deref()).map(|roots| {
         let roots = if options.package.is_some() {
             roots
         } else {
-            path_query_package_roots(project_root, roots, query)
+            path_query_package_roots(project_root, roots, queries)
         };
         roots
             .into_iter()
@@ -60,13 +69,24 @@ pub(super) fn search_contexts_for_path_query(
     })
 }
 
-fn path_query_package_roots(project_root: &Path, roots: Vec<PathBuf>, query: &str) -> Vec<PathBuf> {
-    if !path_query_can_select_package(query) {
+fn path_query_package_roots(
+    project_root: &Path,
+    roots: Vec<PathBuf>,
+    queries: &[&str],
+) -> Vec<PathBuf> {
+    if !queries
+        .iter()
+        .any(|query| path_query_can_select_package(query))
+    {
         return roots;
     }
     let matching = roots
         .iter()
-        .filter(|package_root| package_root_matches_path_query(project_root, package_root, query))
+        .filter(|package_root| {
+            queries
+                .iter()
+                .any(|query| package_root_matches_path_query(project_root, package_root, query))
+        })
         .cloned()
         .collect::<Vec<_>>();
     if matching.is_empty() { roots } else { matching }

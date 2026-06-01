@@ -12,5 +12,7 @@ mod search_plan;
 mod search_trace;
 #[cfg(feature = "search")]
 mod semantic_search_json;
+#[cfg(feature = "search")]
+mod semantic_search_json_fields;
 
 pub use runner::run_cli_from_env;

@@ -503,6 +503,60 @@ fn cli_search_views_render_rfc_line_protocol() {
         "{dependency}"
     );
 
+    let dependency_set = run_search(root, &["dependency", "serde,anyhow", "items", "tests"]);
+    assert!(
+        dependency_set.starts_with(
+            "[search-dependency] q=serde,anyhow querySet=2 selector=exact-set pkg=. dep=2 own=2 api=0"
+        ),
+        "{dependency_set}"
+    );
+    assert!(dependency_set.contains(" item="), "{dependency_set}");
+    assert!(dependency_set.contains(" tests=1"), "{dependency_set}");
+    assert!(
+        dependency_set.contains("|dep serde import=serde pkg=serde"),
+        "{dependency_set}"
+    );
+    assert!(
+        dependency_set.contains("|dep anyhow import=anyhow pkg=anyhow"),
+        "{dependency_set}"
+    );
+    assert!(
+        dependency_set.contains("|owner src/lib.rs hit_kind=dependency"),
+        "{dependency_set}"
+    );
+    assert!(
+        dependency_set.contains("|next deps:serde,import:serde,tests"),
+        "{dependency_set}"
+    );
+    assert!(
+        dependency_set.contains("|next deps:anyhow,import:anyhow,tests"),
+        "{dependency_set}"
+    );
+
+    let dependency_set_json = run_cli([
+        "search".as_ref(),
+        "dependency".as_ref(),
+        "serde,anyhow".as_ref(),
+        "--json".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(
+        dependency_set_json.status.success(),
+        "{dependency_set_json:?}"
+    );
+    let value =
+        serde_json::from_slice::<Value>(&dependency_set_json.stdout).expect("dependency set json");
+    assert_eq!(value["query"], "serde,anyhow");
+    assert_eq!(value["header"]["fields"]["querySet"], 2);
+    assert_eq!(value["header"]["fields"]["selector"], "exact-set");
+    assert_eq!(value["querySet"][0]["value"], "serde");
+    assert_eq!(value["querySet"][0]["kind"], "dependency");
+    assert_eq!(value["querySet"][0]["selector"], "exact");
+    assert_eq!(value["querySet"][1]["value"], "anyhow");
+    assert_eq!(value["queryComposition"]["mode"], "query-set");
+    assert_eq!(value["queryComposition"]["view"], "dependency");
+    assert_eq!(value["queryComposition"]["selector"], "exact-set");
+
     let owner = run_search(root, &["owner", "src/lib.rs", "items"]);
     assert!(
         owner.starts_with("[search-owner] q=src/lib.rs pkg=."),
@@ -510,6 +564,24 @@ fn cli_search_views_render_rfc_line_protocol() {
     );
     assert!(owner.contains("|owner src/lib.rs"), "{owner}");
     assert!(owner.contains("|item load kind=fn"), "{owner}");
+
+    let owner_set = run_search(root, &["owner", "src/lib.rs,src/domain/mod.rs", "items"]);
+    assert!(
+        owner_set.starts_with(
+            "[search-owner] q=src/lib.rs,src/domain/mod.rs querySet=2 selector=exact-set pkg=. own=2"
+        ),
+        "{owner_set}"
+    );
+    assert!(owner_set.contains("|owner src/lib.rs"), "{owner_set}");
+    assert!(
+        owner_set.contains("|owner src/domain/mod.rs"),
+        "{owner_set}"
+    );
+    assert!(owner_set.contains("|item load kind=fn"), "{owner_set}");
+    assert!(
+        owner_set.contains("|item make_thing kind=fn"),
+        "{owner_set}"
+    );
 
     let symbol = run_search(root, &["symbol", "load"]);
     assert!(
@@ -550,6 +622,48 @@ fn cli_search_views_render_rfc_line_protocol() {
         text.contains("|owner src/domain/mod.rs hit_kind=text"),
         "{text}"
     );
+
+    let text_set = run_cli([
+        "search".as_ref(),
+        "text".as_ref(),
+        "--query-set".as_ref(),
+        "Thing".as_ref(),
+        "--query-set".as_ref(),
+        "make_thing".as_ref(),
+        "--scope".as_ref(),
+        "src".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(text_set.status.success(), "{text_set:?}");
+    let text_set_stdout = String::from_utf8(text_set.stdout).expect("utf8 stdout");
+    assert!(
+        text_set_stdout.starts_with(
+            "[search-text] q=Thing,make_thing querySet=2 selector=exact-set pkg=. own=2"
+        ),
+        "{text_set_stdout}"
+    );
+    assert!(
+        text_set_stdout.contains("|owner src/lib.rs hit_kind=text querySet=2"),
+        "{text_set_stdout}"
+    );
+
+    let text_set_json = run_cli([
+        "search".as_ref(),
+        "text".as_ref(),
+        "--query-set".as_ref(),
+        "Thing".as_ref(),
+        "--query-set".as_ref(),
+        "make_thing".as_ref(),
+        "--json".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(text_set_json.status.success(), "{text_set_json:?}");
+    let value = serde_json::from_slice::<Value>(&text_set_json.stdout).expect("text set json");
+    assert_eq!(value["query"], "Thing,make_thing");
+    assert_eq!(value["querySet"][0]["value"], "Thing");
+    assert_eq!(value["querySet"][0]["kind"], "text");
+    assert_eq!(value["querySet"][1]["value"], "make_thing");
+    assert_eq!(value["queryComposition"]["mode"], "query-set");
 
     let cfg = run_search(root, &["cfg", "json"]);
     assert!(
@@ -825,6 +939,30 @@ fn cli_search_views_render_rfc_line_protocol() {
             "|test tests/domain.rs functions=1 owner=src/lib.rs reason=symbol:load next=owner:tests/domain.rs"
         ),
         "{owner_tests}"
+    );
+
+    let tests_set = run_cli([
+        "search".as_ref(),
+        "tests".as_ref(),
+        "--query-set".as_ref(),
+        "src/lib.rs".as_ref(),
+        "--query-set".as_ref(),
+        "src/domain/mod.rs".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(tests_set.status.success(), "{tests_set:?}");
+    let tests_set_stdout = String::from_utf8(tests_set.stdout).expect("utf8 stdout");
+    assert!(
+        tests_set_stdout.starts_with("[search-tests] q=src/lib.rs,src/domain/mod.rs querySet=2"),
+        "{tests_set_stdout}"
+    );
+    assert!(
+        tests_set_stdout.contains("|node O:src/lib.rs kind=owner path=src/lib.rs"),
+        "{tests_set_stdout}"
+    );
+    assert!(
+        tests_set_stdout.contains("|node O:src/domain/mod.rs kind=owner path=src/domain/mod.rs"),
+        "{tests_set_stdout}"
     );
     assert!(
         owner_tests.contains("|edge O:src/lib.rs -test-> T:tests/domain.rs"),

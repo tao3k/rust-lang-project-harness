@@ -4,7 +4,7 @@ use std::path::Path;
 
 use crate::RustHarnessConfig;
 
-use super::{cargo, compact, format, owner, owner_view, prime, query};
+use super::{cargo, compact, dependency, format, owner, owner_view, prime, query};
 
 /// Options shared by RFC search renderers.
 #[derive(Debug, Clone, Default)]
@@ -25,6 +25,8 @@ pub struct RustSearchOptions {
     pub output_view: Option<String>,
     /// Optional seed limit requested by the CLI.
     pub seeds: Option<usize>,
+    /// Optional exact-set query terms for providers that can merge same-view probes.
+    pub query_set: Vec<String>,
 }
 
 /// Request object for rendering an RFC search view.
@@ -71,7 +73,7 @@ pub fn render_rust_project_harness_search_view_with_config(
             format::required_query(request.view, request.query)?,
             options,
         ),
-        "dependency" => owner::render_search_dependency(
+        "dependency" => dependency::render_search_dependency(
             project_root,
             config,
             format::required_query(request.view, request.query)?,

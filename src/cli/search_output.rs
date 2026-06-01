@@ -228,6 +228,10 @@ fn seed_secondary_rank(seed: &str) -> usize {
         0
     } else if seed == "cfg:test" || matches!(target, "default" | "full" | "all") {
         3
+    } else if seed.starts_with("owner:tests/task_") {
+        0
+    } else if seed.starts_with("owner:tests/") {
+        1
     } else if seed.starts_with("owner:")
         && (target.ends_with("/lib.rs") || target.ends_with("/main.rs"))
     {

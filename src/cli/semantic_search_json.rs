@@ -4,6 +4,12 @@ use std::path::Path;
 
 use serde_json::{Map, Value, json};
 
+use super::semantic_search_json_fields::{
+    bool_field, display_path, header_package, input_detection_from_header, insert_if_some,
+    insert_if_usize, location, location_from_node, next_field, parse_edge_kind, parse_fields,
+    parse_next_actions, string_field,
+};
+
 const SCHEMA_ID: &str = "agent.semantic-protocols.semantic-search-packet";
 const SCHEMA_VERSION: &str = "1";
 
@@ -27,6 +33,7 @@ pub(super) struct SemanticSearchJsonOptions {
     pub(super) scope: Option<String>,
     pub(super) lines: bool,
     pub(super) pipes: Vec<String>,
+    pub(super) query_set: Vec<String>,
 }
 
 pub(super) fn render_search_json(
@@ -183,6 +190,40 @@ fn base_packet(
     if let Some(query) = options.query.as_deref() {
         packet["query"] = json!(query);
     }
+    if !options.query_set.is_empty() {
+        packet["querySet"] = json!(
+            options
+                .query_set
+                .iter()
+                .map(|term| {
+                    json!({
+                        "value": term,
+                        "kind": query_set_kind(options),
+                        "selector": "exact"
+                    })
+                })
+                .collect::<Vec<_>>()
+        );
+        packet["queryComposition"] = json!({
+            "mode": "query-set",
+            "view": schema_view(options),
+            "selector": "exact-set",
+            "merge": [
+                "packages",
+                "nodes",
+                "edges",
+                "owners",
+                "items",
+                "hits",
+                "findings",
+                "nextActions",
+                "notes"
+            ],
+            "fields": {
+                "count": options.query_set.len()
+            }
+        });
+    }
     let package_name = options
         .package
         .clone()
@@ -191,6 +232,19 @@ fn base_packet(
         packet["packageName"] = json!(package_name);
     }
     packet
+}
+
+fn query_set_kind(options: &SemanticSearchJsonOptions) -> &'static str {
+    match options.view.as_str() {
+        "dependency" | "deps" => "dependency",
+        "owner" | "tests" => "owner",
+        "features" => "feature",
+        "cfg" => "cfg",
+        "api" | "docs" | "docs-use" | "public-external-types" => "api",
+        "symbol" | "callsite" | "import" => "symbol",
+        "text" => "text",
+        _ => "custom",
+    }
 }
 
 fn packet_with_input_detection(
@@ -463,120 +517,6 @@ fn push_next_actions(fragment: String, owner_path: Option<&str>, next_actions: &
     next_actions.extend(parse_next_actions(fragment, owner_path));
 }
 
-fn parse_fields<'a>(tokens: impl IntoIterator<Item = &'a str>) -> Map<String, Value> {
-    let mut fields = Map::new();
-    for token in tokens {
-        let Some((key, value)) = token.split_once('=') else {
-            continue;
-        };
-        let key = json_field_key(key);
-        fields.insert(key.clone(), parse_field_value_for_key(&key, value));
-    }
-    fields
-}
-
-fn json_field_key(key: &str) -> String {
-    let mut words = key.split('_');
-    let Some(first) = words.next() else {
-        return key.to_string();
-    };
-    let mut normalized = first.to_string();
-    for word in words {
-        let mut chars = word.chars();
-        let Some(first_char) = chars.next() else {
-            continue;
-        };
-        normalized.extend(first_char.to_uppercase());
-        normalized.push_str(chars.as_str());
-    }
-    normalized
-}
-
-fn parse_field_value_for_key(key: &str, value: &str) -> Value {
-    if matches!(
-        key,
-        "requestedVersion" | "currentWorkspaceVersion" | "workspaceResolvedVersion"
-    ) {
-        return Value::String(value.to_string());
-    }
-    parse_field_value(value)
-}
-
-fn parse_field_value(value: &str) -> Value {
-    if value.contains(',') {
-        return Value::Array(value.split(',').map(parse_field_value).collect());
-    }
-    match value {
-        "true" => Value::Bool(true),
-        "false" => Value::Bool(false),
-        _ => value
-            .parse::<i64>()
-            .map(|number| json!(number))
-            .or_else(|_| value.parse::<f64>().map(|number| json!(number)))
-            .unwrap_or_else(|_| Value::String(value.to_string())),
-    }
-}
-
-fn next_field(fields: &Map<String, Value>) -> Option<String> {
-    fields.get("next").map(|value| match value {
-        Value::Array(values) => values
-            .iter()
-            .filter_map(Value::as_str)
-            .collect::<Vec<_>>()
-            .join(","),
-        Value::String(value) => value.clone(),
-        other => other.to_string(),
-    })
-}
-
-fn parse_next_actions(fragment: String, owner_path: Option<&str>) -> Vec<Value> {
-    fragment
-        .split(',')
-        .map(str::trim)
-        .filter(|fragment| !fragment.is_empty() && *fragment != "-")
-        .map(|fragment| parse_next_action(fragment, owner_path))
-        .collect()
-}
-
-fn parse_next_action(fragment: &str, owner_path: Option<&str>) -> Value {
-    let (body, scope) = fragment
-        .split_once("(scope=")
-        .map(|(body, scope)| (body, Some(scope.trim_end_matches(')'))))
-        .unwrap_or((fragment, None));
-    let (kind, target) = body.split_once(':').unwrap_or((body, "."));
-    let mut action = json!({
-        "kind": kind,
-        "target": target,
-    });
-    if let Some(scope) = scope {
-        action["scope"] = json!(scope);
-    }
-    if let Some(owner_path) = owner_path {
-        action["ownerPath"] = json!(owner_path);
-    }
-    action
-}
-
-fn parse_edge_kind(token: &str) -> (String, Option<String>) {
-    let edge = token.trim_start_matches('-').trim_end_matches("->");
-    edge.split_once(':')
-        .map(|(kind, label)| (kind.to_string(), Some(label.to_string())))
-        .unwrap_or_else(|| (edge.to_string(), None))
-}
-
-fn input_detection_from_header(fields: &Map<String, Value>) -> Option<Value> {
-    let source = string_field(fields, "src")?;
-    let source = match source.as_str() {
-        "paths" => "path-list",
-        other => other,
-    };
-    Some(json!({
-        "source": source,
-        "lineCount": usize_field(fields, "in").unwrap_or(0),
-        "byteCount": 0,
-    }))
-}
-
 fn schema_view(options: &SemanticSearchJsonOptions) -> &str {
     options.view.as_str()
 }
@@ -598,57 +538,4 @@ fn render_mode(options: &SemanticSearchJsonOptions) -> &str {
         | "cfg" => "hits",
         _ => "graph",
     }
-}
-
-fn header_package(packet: &Value) -> Option<&str> {
-    packet["header"]["fields"]["package"].as_str()
-}
-
-fn string_field(fields: &Map<String, Value>, key: &str) -> Option<String> {
-    fields.get(key).and_then(|value| match value {
-        Value::String(value) => Some(value.clone()),
-        Value::Array(values) => Some(
-            values
-                .iter()
-                .filter_map(Value::as_str)
-                .collect::<Vec<_>>()
-                .join(","),
-        ),
-        _ => None,
-    })
-}
-
-fn bool_field(fields: &Map<String, Value>, key: &str) -> Option<bool> {
-    fields.get(key).and_then(Value::as_bool)
-}
-
-fn usize_field(fields: &Map<String, Value>, key: &str) -> Option<usize> {
-    fields
-        .get(key)
-        .and_then(Value::as_u64)
-        .and_then(|value| usize::try_from(value).ok())
-}
-
-fn insert_if_some(fields: &mut Map<String, Value>, key: &str, value: Option<&str>) {
-    if let Some(value) = value {
-        fields.insert(key.to_string(), Value::String(value.to_string()));
-    }
-}
-
-fn insert_if_usize(fields: &mut Map<String, Value>, key: &str, value: Option<usize>) {
-    if let Some(value) = value {
-        fields.insert(key.to_string(), json!(value));
-    }
-}
-
-fn location_from_node(node: &str) -> Value {
-    location(node.strip_prefix("O:").unwrap_or(node))
-}
-
-fn location(path: &str) -> Value {
-    json!({ "path": path })
-}
-
-fn display_path(path: &Path) -> String {
-    path.display().to_string().replace('\\', "/")
 }

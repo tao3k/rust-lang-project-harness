@@ -207,17 +207,34 @@
             "required": ["method"]
           },
           "then": {
-            "required": ["outputSchemaIds"],
             "properties": {
               "command": {
                 "const": "agent"
-              },
-              "outputSchemaIds": {
-                "minItems": 1
               }
             },
             "not": {
               "required": ["view"]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "method": {
+                "pattern": "^agent/"
+              },
+              "supportsJson": {
+                "const": true
+              }
+            },
+            "required": ["method", "supportsJson"]
+          },
+          "then": {
+            "required": ["outputSchemaIds"],
+            "properties": {
+              "outputSchemaIds": {
+                "minItems": 1
+              }
             }
           }
         }
@@ -249,6 +266,23 @@
         "supportsPackageScope": {
           "type": "boolean"
         },
+        "supportsQuerySet": {
+          "type": "boolean"
+        },
+        "acceptedQuerySetSelectors": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": ["exact-set", "prefix-set", "stdin-path-set"]
+          }
+        },
+        "querySetScopes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": ["project", "package", "owner"]
+          }
+        },
         "acceptedPipes": {
           "type": "array",
           "uniqueItems": true,
@@ -270,6 +304,25 @@
           "items": {
             "$ref": "#/$defs/capabilityDescriptor"
           }
+        },
+        "clients": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "requiredOptions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "input": {
+          "type": "string",
+          "minLength": 1
         },
         "supportsJson": {
           "type": "boolean"

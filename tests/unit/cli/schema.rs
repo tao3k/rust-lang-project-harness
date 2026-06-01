@@ -124,12 +124,35 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
         }),
         "{deps}"
     );
+    let dependency = method_descriptor(methods, "search/dependency");
+    assert_eq!(dependency["supportsQuerySet"], true);
+    assert_eq!(
+        dependency["acceptedQuerySetSelectors"],
+        serde_json::json!(["exact-set"])
+    );
+    let owner = method_descriptor(methods, "search/owner");
+    assert_eq!(owner["supportsQuerySet"], true);
+    assert_eq!(
+        owner["acceptedQuerySetSelectors"],
+        serde_json::json!(["exact-set"])
+    );
+    let text = method_descriptor(methods, "search/text");
+    assert_eq!(text["supportsQuerySet"], true);
+    assert_eq!(
+        text["acceptedQuerySetSelectors"],
+        serde_json::json!(["exact-set"])
+    );
+    let tests = method_descriptor(methods, "search/tests");
+    assert_eq!(tests["supportsQuerySet"], true);
+    assert_eq!(
+        tests["acceptedQuerySetSelectors"],
+        serde_json::json!(["exact-set"])
+    );
     let ingest = method_descriptor(methods, "search/ingest");
     assert_eq!(
         ingest["acceptedPipes"],
         serde_json::json!(["items", "tests"])
     );
-    let text = method_descriptor(methods, "search/text");
     assert!(
         text["ingestRequiredFor"]
             .as_array()

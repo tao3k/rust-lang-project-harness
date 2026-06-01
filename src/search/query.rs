@@ -1,26 +1,27 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::RustHarnessConfig;
 use crate::discovery::{discover_rust_files, rust_project_harness_scope};
-use crate::parser::{CargoDependencyFacts, ParsedRustModule};
+use crate::parser::{CargoDependencyFacts, ParsedRustModule, parse_rust_file};
 
 use super::RustSearchOptions;
 use super::context::{PackageSearchContext, search_contexts};
+use super::dependency as dependency_search;
 use super::format::{
-    append_block, compact_locations, display_project_path, package_label, package_roots_for_request,
+    append_block, compact_locations, display_project_path, package_label,
+    package_roots_for_request, query_set_terms, sort_locations,
 };
 use super::hits::{
     SearchHit, import_hits, matching_dependencies, sort_search_hits_by_recency, symbol_calls,
     symbol_definitions, text_hits,
 };
 use super::limits::SEARCH_HIT_LIMIT;
-use super::owner as owner_search;
 use super::owner_view;
 use super::recency::compare_paths_by_recency;
-use super::scope::module_allowed;
+use super::scope::{module_allowed, module_is_scope};
 
 pub(super) fn render_search_symbol(
     project_root: &Path,
@@ -28,6 +29,9 @@ pub(super) fn render_search_symbol(
     query: &str,
     options: &RustSearchOptions,
 ) -> Result<String, String> {
+    if options.output_view.as_deref() == Some("seeds") {
+        return render_search_symbol_seed_hits(project_root, config, query, options);
+    }
     let contexts = search_contexts(project_root, config, options)?;
     let mut rendered = String::new();
     for context in contexts {
@@ -45,6 +49,98 @@ pub(super) fn render_search_symbol(
         }
         for hit in calls.into_iter().take(SEARCH_HIT_LIMIT) {
             let _ = writeln!(block, "|call {}", hit.render(&context.package_root));
+        }
+        append_block(&mut rendered, &block);
+    }
+    Ok(rendered)
+}
+
+fn render_search_symbol_seed_hits(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+    options: &RustSearchOptions,
+) -> Result<String, String> {
+    let package_roots =
+        package_roots_for_request(project_root, config, options.package.as_deref())?;
+    let mut rendered = String::new();
+    for package_root in package_roots {
+        let scope = rust_project_harness_scope(
+            &package_root,
+            config.include_tests,
+            &config.source_dir_names,
+            &config.test_dir_names,
+        );
+        let mut defs = 0;
+        let mut calls = 0;
+        let mut owners = Vec::<PathBuf>::new();
+        for path in discover_rust_files(&scope.monitored_paths(), &config.ignored_dir_names) {
+            let Ok(source) = fs::read_to_string(&path) else {
+                continue;
+            };
+            if !source.contains(query) {
+                continue;
+            }
+            let module = parse_rust_file(&path);
+            if options.scope.as_deref().is_some_and(|scope_name| {
+                scope_name != "all" && !module_is_scope(&scope, &module, scope_name)
+            }) {
+                continue;
+            }
+            let module_defs = module
+                .syntax_facts
+                .top_level_items
+                .iter()
+                .filter(|item| {
+                    item.name.as_deref() == Some(query)
+                        || item.function_name.as_deref() == Some(query)
+                })
+                .count();
+            let module_calls = module
+                .syntax_facts
+                .function_calls
+                .iter()
+                .filter(|call| call.terminal_name == query)
+                .count()
+                + module
+                    .syntax_facts
+                    .path_references
+                    .iter()
+                    .filter(|reference| reference.terminal_name == query)
+                    .count();
+            if module_defs == 0 && module_calls == 0 {
+                continue;
+            }
+            defs += module_defs;
+            calls += module_calls;
+            owners.push(module.report.path);
+        }
+        owners.sort_by(|left, right| compare_paths_by_recency(&package_root, left, right));
+        owners.dedup();
+        let mut block = format!(
+            "[search-symbol] q={} pkg={} defs={} calls={}\n",
+            query,
+            package_label(project_root, &package_root),
+            defs,
+            calls
+        );
+        let seed_limit = options.seeds.unwrap_or(8);
+        let owner_limit = seed_limit.min(owners.len());
+        let owner_paths = owners
+            .iter()
+            .take(owner_limit)
+            .map(|path| format!("owner:{}", display_project_path(&package_root, path)))
+            .collect::<Vec<_>>();
+        if !owner_paths.is_empty() {
+            let _ = writeln!(block, "|seed {}", owner_paths.join(","));
+        }
+        if owners.len() > owner_limit {
+            let _ = writeln!(
+                block,
+                "|note seeds_truncated={} limit={}",
+                owners.len() - owner_limit,
+                seed_limit
+            );
         }
         append_block(&mut rendered, &block);
     }
@@ -111,6 +207,10 @@ pub(super) fn render_search_text(
     query: &str,
     options: &RustSearchOptions,
 ) -> Result<String, String> {
+    let query_terms = query_set_terms(query);
+    if query_terms.len() > 1 {
+        return render_search_text_query_set(project_root, config, query, &query_terms, options);
+    }
     if options.output_view.as_deref() == Some("seeds") {
         return render_search_text_seed_hits(project_root, config, query, options);
     }
@@ -131,6 +231,68 @@ pub(super) fn render_search_text(
                 display_project_path(&context.package_root, &hit.path),
                 compact_locations(&hit.locations),
                 display_project_path(&context.package_root, &hit.path)
+            );
+        }
+        append_block(&mut rendered, &block);
+    }
+    Ok(rendered)
+}
+
+fn render_search_text_query_set(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+    query_terms: &[&str],
+    options: &RustSearchOptions,
+) -> Result<String, String> {
+    if options.output_view.as_deref() == Some("seeds") {
+        return render_search_text_query_set_seed_hits(
+            project_root,
+            config,
+            query,
+            query_terms,
+            options,
+        );
+    }
+    let contexts = search_contexts(project_root, config, options)?;
+    let mut rendered = String::new();
+    for context in contexts {
+        let mut grouped = BTreeMap::<PathBuf, (BTreeSet<String>, Vec<String>)>::new();
+        for term in query_terms {
+            for hit in text_hits(&context, term, options) {
+                let entry = grouped
+                    .entry(hit.path)
+                    .or_insert_with(|| (BTreeSet::new(), Vec::new()));
+                entry.0.insert((*term).to_string());
+                entry.1.extend(hit.locations);
+            }
+        }
+        let mut hits = grouped
+            .into_iter()
+            .map(|(path, (terms, mut locations))| {
+                sort_locations(&mut locations);
+                locations.dedup();
+                (path, terms, locations)
+            })
+            .collect::<Vec<_>>();
+        hits.sort_by(|(left, _, _), (right, _, _)| {
+            compare_paths_by_recency(&context.package_root, left, right)
+        });
+        let mut block = format!(
+            "[search-text] q={} querySet={} selector=exact-set pkg={} own={}\n",
+            query,
+            query_terms.len(),
+            package_label(project_root, &context.package_root),
+            hits.len()
+        );
+        for (path, terms, locations) in hits.into_iter().take(SEARCH_HIT_LIMIT) {
+            let owner_path = display_project_path(&context.package_root, &path);
+            let _ = writeln!(
+                block,
+                "|owner {owner_path} hit_kind=text querySet={} terms={} locations={} next=owner:{owner_path}",
+                terms.len(),
+                terms.into_iter().collect::<Vec<_>>().join(","),
+                compact_locations(&locations),
             );
         }
         append_block(&mut rendered, &block);
@@ -177,6 +339,80 @@ fn render_search_text_seed_hits(
         append_block(&mut rendered, &block);
     }
     Ok(rendered)
+}
+
+fn render_search_text_query_set_seed_hits(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+    query_terms: &[&str],
+    options: &RustSearchOptions,
+) -> Result<String, String> {
+    let package_roots =
+        package_roots_for_request(project_root, config, options.package.as_deref())?;
+    let mut rendered = String::new();
+    for package_root in package_roots {
+        let mut hits = text_query_set_seed_hits(&package_root, config, query_terms);
+        hits.sort_by(|(left, _), (right, _)| compare_paths_by_recency(&package_root, left, right));
+        let seed_limit = options.seeds.unwrap_or(8);
+        let owner_limit = seed_limit.min(hits.len());
+        let mut block = format!(
+            "[search-text] q={} querySet={} selector=exact-set pkg={} own={}\n",
+            query,
+            query_terms.len(),
+            package_label(project_root, &package_root),
+            hits.len()
+        );
+        let owners = hits
+            .iter()
+            .take(owner_limit)
+            .map(|(path, _)| format!("owner:{}", display_project_path(&package_root, path)))
+            .collect::<Vec<_>>();
+        if !owners.is_empty() {
+            let _ = writeln!(block, "|seed {}", owners.join(","));
+        }
+        if hits.len() > owner_limit {
+            let _ = writeln!(
+                block,
+                "|note seeds_truncated={} limit={}",
+                hits.len() - owner_limit,
+                seed_limit
+            );
+        }
+        append_block(&mut rendered, &block);
+    }
+    Ok(rendered)
+}
+
+fn text_query_set_seed_hits(
+    package_root: &Path,
+    config: &RustHarnessConfig,
+    query_terms: &[&str],
+) -> Vec<(PathBuf, BTreeSet<String>)> {
+    let scope = rust_project_harness_scope(
+        package_root,
+        config.include_tests,
+        &config.source_dir_names,
+        &config.test_dir_names,
+    );
+    discover_rust_files(&scope.monitored_paths(), &config.ignored_dir_names)
+        .into_iter()
+        .filter_map(|path| {
+            let terms = text_seed_query_set_terms(&path, query_terms);
+            (!terms.is_empty()).then_some((path, terms))
+        })
+        .collect()
+}
+
+fn text_seed_query_set_terms(path: &Path, query_terms: &[&str]) -> BTreeSet<String> {
+    let Ok(text) = fs::read_to_string(path) else {
+        return BTreeSet::new();
+    };
+    query_terms
+        .iter()
+        .filter(|term| text.contains(**term))
+        .map(|term| (*term).to_string())
+        .collect()
 }
 
 fn text_seed_hits(
@@ -368,7 +604,7 @@ fn render_public_external_type_pattern(
     {
         dependency_options.pipes.push("public-api".to_string());
     }
-    let rendered = owner_search::render_search_dependency(
+    let rendered = dependency_search::render_search_dependency(
         project_root,
         config,
         dependency,

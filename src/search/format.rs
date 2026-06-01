@@ -184,6 +184,14 @@ pub(super) fn required_query<'a>(view: &str, query: Option<&'a str>) -> Result<&
         .ok_or_else(|| format!("search {view} requires a query"))
 }
 
+pub(super) fn query_set_terms(query: &str) -> Vec<&str> {
+    query
+        .split(',')
+        .map(str::trim)
+        .filter(|term| !term.is_empty())
+        .collect()
+}
+
 pub(super) fn owner_role_for_path(package_root: &Path, path: &Path) -> &'static str {
     let display = display_project_path(package_root, path);
     if display.starts_with("tests/") {

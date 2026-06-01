@@ -168,6 +168,13 @@ fn search_method_descriptor(view: &str) -> Value {
     if !accepted_pipes.is_empty() {
         fields.insert("acceptedPipes".to_string(), json!(accepted_pipes));
     }
+    if search_view_supports_query_set(view) {
+        fields.insert("supportsQuerySet".to_string(), json!(true));
+        fields.insert(
+            "acceptedQuerySetSelectors".to_string(),
+            json!(["exact-set"]),
+        );
+    }
     let capabilities = search_capabilities(view);
     if !capabilities.is_empty() {
         fields.insert("capabilities".to_string(), json!(capabilities));
@@ -195,6 +202,10 @@ fn search_view_requires_query(view: &str) -> bool {
             | "docs-use"
             | "api"
     )
+}
+
+fn search_view_supports_query_set(view: &str) -> bool {
+    matches!(view, "owner" | "dependency" | "text" | "tests")
 }
 
 fn accepted_search_pipes(view: &str) -> Vec<&'static str> {
