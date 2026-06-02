@@ -26,12 +26,12 @@ pub(super) fn module_items_for_query<'a>(
     module: &'a ParsedRustModule,
     item_query: Option<&str>,
 ) -> Vec<&'a RustTopLevelItemSyntax> {
-    let named_items = named_module_items(module);
     let Some(query) = item_query.map(str::trim).filter(|query| !query.is_empty()) else {
-        return named_items;
+        return named_module_items(module);
     };
+    let searchable_items = searchable_module_items(module);
     let terms = item_query_terms(query);
-    let exact = named_items
+    let exact = searchable_items
         .iter()
         .copied()
         .filter(|item| {
@@ -43,7 +43,7 @@ pub(super) fn module_items_for_query<'a>(
     if !exact.is_empty() {
         return exact;
     }
-    named_items
+    searchable_items
         .into_iter()
         .filter(|item| {
             terms
@@ -242,11 +242,11 @@ fn item_query_match_summary(
     let terms = item_query_terms(query);
     let named_items = matching_modules
         .iter()
-        .flat_map(|module| named_module_items(module))
+        .flat_map(|module| searchable_module_items(module))
         .collect::<Vec<_>>();
     let exact_count = matching_modules
         .iter()
-        .flat_map(|module| named_module_items(module))
+        .flat_map(|module| searchable_module_items(module))
         .filter(|item| {
             terms
                 .iter()
@@ -326,6 +326,7 @@ fn item_query_miss_candidates(items: &[&RustTopLevelItemSyntax], terms: &[&str])
 fn item_query_candidate_name(item: &RustTopLevelItemSyntax) -> Option<&str> {
     item.name
         .as_deref()
+        .or(item.impl_target_name.as_deref())
         .or(item.function_name.as_deref())
         .or(item.macro_name.as_deref())
         .or(item.include_target.as_deref())
@@ -404,6 +405,15 @@ fn named_module_items(module: &ParsedRustModule) -> Vec<&RustTopLevelItemSyntax>
         .collect()
 }
 
+fn searchable_module_items(module: &ParsedRustModule) -> Vec<&RustTopLevelItemSyntax> {
+    module
+        .syntax_facts
+        .top_level_items
+        .iter()
+        .filter(|item| item.name.is_some() || item.impl_target_name.is_some())
+        .collect()
+}
+
 fn item_query_term_revisions(
     items: &[&RustTopLevelItemSyntax],
     selected_items: &[&RustTopLevelItemSyntax],
@@ -479,9 +489,10 @@ fn item_matches_query_fuzzy(item: &RustTopLevelItemSyntax, query: &str) -> bool 
         .any(|candidate| candidate.contains(query))
 }
 
-fn item_query_candidates(item: &RustTopLevelItemSyntax) -> [Option<&str>; 5] {
+fn item_query_candidates(item: &RustTopLevelItemSyntax) -> [Option<&str>; 6] {
     [
         item.name.as_deref(),
+        item.impl_target_name.as_deref(),
         item.function_name.as_deref(),
         item.macro_name.as_deref(),
         item.include_target.as_deref(),

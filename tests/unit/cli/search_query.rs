@@ -26,7 +26,8 @@ fn cli_search_query_routes_code_shaped_use_through_native_syntax_facts() {
         query.contains("|fact rust:src/lib.rs:4:reexport:Thing kind=reexport source=native-parser owner=src/lib.rs line=4 visibility=public name=Thing qualifiedName=domain::Thing languageKind=use exported=true query=Thing"),
         "{query}"
     );
-    assert!(query.contains("|seed owner:src/lib.rs"), "{query}");
+    assert!(query.contains("[search-graph] mode=query"), "{query}");
+    assert!(query.contains("frontier=O1.owner"), "{query}");
 }
 
 #[test]

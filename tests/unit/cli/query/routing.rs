@@ -59,5 +59,6 @@ fn cli_query_broad_glob_selector_routes_to_prime_seeds() {
         stdout.starts_with("[search-prime] mode=package package=."),
         "{stdout}"
     );
-    assert!(stdout.contains("|seed owner:src/lib.rs"), "{stdout}");
+    assert!(stdout.contains("[search-graph] mode=prime"), "{stdout}");
+    assert!(stdout.contains("frontier=O1.owner"), "{stdout}");
 }

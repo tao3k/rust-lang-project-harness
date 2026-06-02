@@ -52,6 +52,7 @@ pub(crate) struct RustTopLevelItemSyntax {
     pub end_line: usize,
     pub kind: &'static str,
     pub name: Option<String>,
+    pub impl_target_name: Option<String>,
     pub has_doc: bool,
     pub is_public: bool,
     pub is_public_use: bool,
@@ -284,6 +285,7 @@ fn top_level_item_syntax(item: &syn::Item, source_file: &Path) -> RustTopLevelIt
         end_line,
         kind: item_kind(item),
         name: item_name(item),
+        impl_target_name: impl_target_name_syntax(item),
         has_doc: item_attrs(item)
             .iter()
             .any(|attr| attr.path().is_ident("doc")),
@@ -318,6 +320,27 @@ fn item_name(item: &syn::Item) -> Option<String> {
         syn::Item::TraitAlias(item) => Some(item.ident.to_string()),
         syn::Item::Type(item) => Some(item.ident.to_string()),
         syn::Item::Union(item) => Some(item.ident.to_string()),
+        _ => None,
+    }
+}
+
+fn impl_target_name_syntax(item: &syn::Item) -> Option<String> {
+    let syn::Item::Impl(item_impl) = item else {
+        return None;
+    };
+    type_terminal_name(&item_impl.self_ty)
+}
+
+fn type_terminal_name(ty: &syn::Type) -> Option<String> {
+    match ty {
+        syn::Type::Path(path) => path
+            .path
+            .segments
+            .last()
+            .map(|segment| segment.ident.to_string()),
+        syn::Type::Reference(reference) => type_terminal_name(&reference.elem),
+        syn::Type::Paren(paren) => type_terminal_name(&paren.elem),
+        syn::Type::Group(group) => type_terminal_name(&group.elem),
         _ => None,
     }
 }

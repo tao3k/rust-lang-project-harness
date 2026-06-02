@@ -63,7 +63,7 @@ fn render_search_seed_view(rendered: &str, seed_limit: Option<usize>) -> String 
         .iter()
         .any(|header| header_has_positive_count(header));
     let mut compact = String::new();
-    for header in compact_package_headers(headers) {
+    for header in compact_package_headers(headers.clone()) {
         compact.push_str(&header);
         compact.push('\n');
     }
@@ -71,12 +71,7 @@ fn render_search_seed_view(rendered: &str, seed_limit: Option<usize>) -> String 
         compact.push_str(&fact);
         compact.push('\n');
     }
-    for seed in compact_seed_lines(bounded_seeds(seeds, seed_limit)) {
-        compact.push_str("|seed ");
-        compact.push_str(&seed);
-        compact.push('\n');
-    }
-    for line in synthesis {
+    for line in compact_graph_lines(&headers, bounded_seeds(seeds, seed_limit), &synthesis) {
         compact.push_str(&line);
         compact.push('\n');
     }
@@ -420,6 +415,214 @@ fn compact_seed_lines(seeds: Vec<String>) -> Vec<String> {
             SeedLine::Group { kind, targets } => format!("{kind}:{}", targets.join(",")),
         })
         .collect()
+}
+
+struct GraphSeed {
+    id: String,
+    kind: String,
+    target: String,
+    action: String,
+}
+
+fn compact_graph_lines(
+    headers: &[String],
+    seeds: Vec<String>,
+    synthesis: &[String],
+) -> Vec<String> {
+    let compacted_seeds = compact_seed_lines(seeds);
+    let mut graph_seeds = Vec::<GraphSeed>::new();
+    let mut seen = BTreeSet::<String>::new();
+
+    for seed in compacted_seeds {
+        for (kind, target, action) in graph_seed_parts(&seed) {
+            let key = format!("{kind}:{target}:{action}");
+            if !seen.insert(key) {
+                continue;
+            }
+            let id = graph_seed_id(&kind, graph_seeds.len() + 1);
+            graph_seeds.push(GraphSeed {
+                id,
+                kind,
+                target,
+                action,
+            });
+        }
+    }
+
+    if graph_seeds.is_empty() && synthesis.is_empty() {
+        return Vec::new();
+    }
+
+    let mode = search_graph_mode(headers, synthesis);
+    let root = search_graph_root(headers, &mode);
+    let algorithm = search_graph_algorithm(synthesis, &mode);
+    let mut lines = vec![format!(
+        "[search-graph] mode={mode} root={root} alg={algorithm}"
+    )];
+
+    for seed in &graph_seeds {
+        lines.push(format!(
+            "{}={}:{}!{}",
+            seed.id, seed.kind, seed.target, seed.action
+        ));
+    }
+
+    if !graph_seeds.is_empty() {
+        lines.push(format!(
+            "rank={}",
+            graph_seeds
+                .iter()
+                .map(|seed| seed.id.as_str())
+                .collect::<Vec<_>>()
+                .join(",")
+        ));
+        lines.push(format!(
+            "frontier={}",
+            graph_seeds
+                .iter()
+                .map(|seed| format!("{}.{}", seed.id, seed.action))
+                .collect::<Vec<_>>()
+                .join(",")
+        ));
+    }
+
+    lines
+}
+
+fn graph_seed_parts(seed: &str) -> Vec<(String, String, String)> {
+    let (kind, targets) = seed
+        .split_once(':')
+        .map_or((seed.trim(), "all"), |(kind, targets)| {
+            (kind.trim(), targets.trim())
+        });
+    if kind.is_empty() || targets.is_empty() {
+        return Vec::new();
+    }
+    let node_kind = graph_seed_kind(kind);
+    let action = graph_seed_action(kind);
+    targets
+        .split(',')
+        .map(str::trim)
+        .filter(|target| !target.is_empty())
+        .map(|target| {
+            (
+                node_kind.to_string(),
+                graph_seed_target(kind, target).to_string(),
+                action.to_string(),
+            )
+        })
+        .collect()
+}
+
+fn graph_seed_target<'a>(kind: &str, target: &'a str) -> &'a str {
+    match kind {
+        "owner" => target.strip_prefix("owner:").unwrap_or(target),
+        "test" | "tests" => target
+            .strip_prefix("tests:")
+            .or_else(|| target.strip_prefix("test:"))
+            .unwrap_or(target),
+        _ => target,
+    }
+}
+
+fn graph_seed_kind(kind: &str) -> &'static str {
+    match kind {
+        "owner" => "owner",
+        "test" | "tests" => "test",
+        "feature" | "features" => "feature",
+        "cfg" => "cfg",
+        "doc" | "docs" => "doc",
+        "text" => "text",
+        "dep" | "dependency" => "dependency",
+        "package" => "package",
+        _ => "seed",
+    }
+}
+
+fn graph_seed_action(kind: &str) -> &'static str {
+    match kind {
+        "owner" => "owner",
+        "test" | "tests" => "tests",
+        "package" => "package",
+        "dep" | "dependency" | "feature" | "features" | "cfg" | "doc" | "docs" | "text" => "query",
+        _ => "query",
+    }
+}
+
+fn graph_seed_id(kind: &str, index: usize) -> String {
+    let prefix = match kind {
+        "owner" => "O",
+        "test" => "T",
+        "feature" => "F",
+        "cfg" => "C",
+        "doc" => "D",
+        "text" => "Q",
+        "dependency" => "E",
+        "package" => "P",
+        _ => "N",
+    };
+    format!("{prefix}{index}")
+}
+
+fn search_graph_mode(headers: &[String], synthesis: &[String]) -> String {
+    if let Some(scope) = synthesis
+        .iter()
+        .find_map(|line| line_protocol_field(line, "scope"))
+    {
+        return match scope.as_str() {
+            "prime" | "owner" | "dependency" | "query-set" | "ingest" | "tests" | "policy"
+            | "query" => scope,
+            _ => "query".to_string(),
+        };
+    }
+
+    let Some(header) = headers.first() else {
+        return "query".to_string();
+    };
+    if header.contains(" querySet=") {
+        return "query-set".to_string();
+    }
+    header
+        .strip_prefix("[search-")
+        .and_then(|rest| rest.split_once(']').map(|(kind, _)| kind))
+        .map(|kind| match kind {
+            "prime" | "owner" | "ingest" | "tests" | "policy" => kind.to_string(),
+            "deps" | "dependency" => "dependency".to_string(),
+            _ => "query".to_string(),
+        })
+        .unwrap_or_else(|| "query".to_string())
+}
+
+fn search_graph_root(headers: &[String], mode: &str) -> String {
+    let Some(header) = headers.first() else {
+        return ".".to_string();
+    };
+    if matches!(mode, "owner" | "query") {
+        if let Some(query) = line_protocol_field(header, "q") {
+            if seed_target_looks_like_path(&query) {
+                return query;
+            }
+        }
+    }
+    ".".to_string()
+}
+
+fn search_graph_algorithm(synthesis: &[String], mode: &str) -> String {
+    synthesis
+        .iter()
+        .find_map(|line| line_protocol_field(line, "algorithm"))
+        .unwrap_or_else(|| match mode {
+            "prime" => "owner-rank-frontier".to_string(),
+            "owner" => "bounded-reachability-depth1".to_string(),
+            "query-set" => "change-frontier-query-set".to_string(),
+            _ => "search-frontier".to_string(),
+        })
+}
+
+fn line_protocol_field(line: &str, field: &str) -> Option<String> {
+    let prefix = format!("{field}=");
+    line.split_whitespace()
+        .find_map(|part| part.strip_prefix(&prefix).map(str::to_string))
 }
 
 fn groupable_seed_parts(seed: &str) -> Option<(&str, &str)> {

@@ -4,86 +4,9 @@ use std::path::Path;
 use tempfile::TempDir;
 
 use crate::cli::support::{normalize_temp_root, run_cli, write_search_fixture};
-
-#[test]
-fn cli_query_hook_selector_strips_owner_prefix_and_line_suffix() {
-    let temp = TempDir::new().expect("temp dir");
-    let root = temp.path();
-    write_search_fixture(root);
-    let output = run_cli([
-        "query".as_ref(),
-        "--from-hook".as_ref(),
-        "direct-source-read".as_ref(),
-        "--selector".as_ref(),
-        "owner:src/lib.rs:4:8".as_ref(),
-        "--query".as_ref(),
-        "load".as_ref(),
-        root.as_os_str(),
-    ]);
-    assert!(output.status.success(), "{output:?}");
-    let stdout = normalize_temp_root(
-        &String::from_utf8(output.stdout).expect("utf8 stdout"),
-        root,
-    );
-    assert!(
-        stdout.starts_with("[search-owner] q=src/lib.rs pkg=. own=1 item=1 itemQuery=load"),
-        "{stdout}"
-    );
-    assert!(
-        stdout.contains(
-            "|query itemQuery=load status=hit match=exact item=1 reason=parser-item-exact next=code"
-        ),
-        "{stdout}"
-    );
-    assert!(stdout.contains("|code path=src/lib.rs"), "{stdout}");
-}
-
-#[test]
-fn cli_query_hook_line_range_code_outputs_local_window() {
-    let output = run_cli([
-        "query",
-        "--from-hook",
-        "direct-source-read",
-        "--selector",
-        "tests/unit/cli/search_query.rs:20-28",
-        "--code",
-        ".",
-    ]);
-
-    assert!(output.status.success(), "{output:?}");
-    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert!(!stdout.contains("[search-owner]"), "{stdout}");
-    assert!(
-        stdout.contains("|fact rust:src/lib.rs:4:reexport:Thing"),
-        "{stdout}"
-    );
-    assert!(!stdout.contains("    "), "{stdout}");
-}
-
-#[test]
-fn cli_query_hook_wide_line_range_code_returns_read_plan_without_source() {
-    let temp = TempDir::new().expect("temp dir");
-    let root = temp.path();
-    write_search_fixture(root);
-    let output = run_cli([
-        "query".as_ref(),
-        "--from-hook".as_ref(),
-        "direct-source-read".as_ref(),
-        "--selector".as_ref(),
-        "src/lib.rs:1:80".as_ref(),
-        "--code".as_ref(),
-        root.as_os_str(),
-    ]);
-    assert!(output.status.success(), "{output:?}");
-    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert!(stdout.starts_with("[read-plan] "), "{stdout}");
-    assert!(stdout.contains("mode=range-outline"), "{stdout}");
-    assert!(stdout.contains("code=false"), "{stdout}");
-    assert!(stdout.contains("reason=wide-selector"), "{stdout}");
-    assert!(stdout.contains("requested=1:80"), "{stdout}");
-    assert!(!stdout.contains("pub fn load()"), "{stdout}");
-    assert!(!stdout.contains("[search-owner]"), "{stdout}");
-}
+mod code;
+mod range;
+mod selector;
 
 #[test]
 fn cli_query_hook_line_range_code_outputs_source_slice() {
@@ -130,29 +53,6 @@ fn second() {
         "{stdout}"
     );
     assert!(!stdout.contains("|fact"), "{stdout}");
-}
-
-#[test]
-fn cli_query_code_output_is_source_slice() {
-    let temp = TempDir::new().expect("temp dir");
-    let root = temp.path();
-    write_search_fixture(root);
-    let output = run_cli([
-        "query".as_ref(),
-        "src/lib.rs".as_ref(),
-        "--query".as_ref(),
-        "load".as_ref(),
-        "--code".as_ref(),
-        root.as_os_str(),
-    ]);
-    assert!(output.status.success(), "{output:?}");
-    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    let lines = stdout.lines().collect::<Vec<_>>();
-    assert_eq!(lines.len(), 2, "{stdout}");
-    assert!(!stdout.contains("|code"), "{stdout}");
-    assert!(!stdout.contains("text="), "{stdout}");
-    assert!(stdout.contains("pub fn load() -> Thing"), "{stdout}");
-    assert!(stdout.contains("call domain::make_thing"), "{stdout}");
 }
 
 #[test]

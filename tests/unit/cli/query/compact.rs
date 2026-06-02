@@ -117,6 +117,93 @@ fn cli_query_parser_projection_nodes_feed_json_packet() {
     assert_eq!(projection["expandActions"][0]["read"], "src/lib.rs:4:7");
 }
 
+#[test]
+fn cli_query_parser_type_shape_includes_fields_and_impl_snapshot() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_parser_data_shape_fixture(root);
+
+    let output = run_cli([
+        "search".as_ref(),
+        "owner".as_ref(),
+        "src/lib.rs".as_ref(),
+        "items".as_ref(),
+        "--query".as_ref(),
+        "UserSummary".as_ref(),
+        "--code".as_ref(),
+        root.as_os_str(),
+    ]);
+
+    assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
+    insta::assert_snapshot!(
+        stdout.trim_end(),
+        @r###"
+pub struct UserSummary
+field pub user_id: u64
+field pub name: String
+field pub active: bool
+impl UserSummary
+pub fn label(&self) -> String
+if self.active
+call format!("{}#{}", self.name, self.user_id)
+else
+call to_string
+"###
+    );
+}
+
+#[test]
+fn cli_query_parser_type_shape_json_links_struct_and_impl_projection() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_parser_data_shape_fixture(root);
+
+    let output = run_cli([
+        "query".as_ref(),
+        "src/lib.rs".as_ref(),
+        "--query".as_ref(),
+        "UserSummary".as_ref(),
+        "--json".as_ref(),
+        root.as_os_str(),
+    ]);
+
+    assert!(output.status.success(), "{output:?}");
+    let value: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("query packet json");
+    let matches = value["matches"].as_array().expect("matches");
+    assert_eq!(matches.len(), 2, "{value}");
+    assert_eq!(matches[0]["kind"], "struct");
+    assert_eq!(matches[1]["kind"], "impl");
+    assert!(
+        matches[0]["code"]
+            .as_str()
+            .is_some_and(|code| code.contains("field pub user_id: u64")),
+        "{value}"
+    );
+    assert_eq!(matches[0]["projection"]["sourceAuthority"], "native-parser");
+    assert_eq!(matches[0]["projection"]["losslessStructure"], true);
+    assert!(
+        matches[1]["projection"]["nodes"]
+            .as_array()
+            .expect("impl nodes")
+            .iter()
+            .any(|node| node["kind"] == "fn"
+                && node["label"]
+                    .as_str()
+                    .is_some_and(|label| label.starts_with("pub fn label"))),
+        "{value}"
+    );
+    assert!(
+        matches[1]["projection"]["expandActions"]
+            .as_array()
+            .expect("expand actions")
+            .iter()
+            .any(|action| action["reason"] == "parser-projection-control-flow"),
+        "{value}"
+    );
+}
+
 fn write_parser_compact_fixture(root: &Path) {
     fs::write(
         root.join("Cargo.toml"),
@@ -146,6 +233,35 @@ pub fn match_and_loop(values: &[String]) -> usize {
         }
     }
     count
+}
+"#,
+    )
+    .expect("write source");
+}
+
+fn write_parser_data_shape_fixture(root: &Path) {
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"data-shape-fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write manifest");
+    fs::create_dir_all(root.join("src")).expect("create src");
+    fs::write(
+        root.join("src/lib.rs"),
+        r#"pub struct UserSummary {
+    pub user_id: u64,
+    pub name: String,
+    pub active: bool,
+}
+
+impl UserSummary {
+    pub fn label(&self) -> String {
+        if self.active {
+            format!("{}#{}", self.name, self.user_id)
+        } else {
+            "inactive".to_string()
+        }
+    }
 }
 "#,
     )

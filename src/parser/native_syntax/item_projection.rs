@@ -22,8 +22,13 @@ pub(super) fn item_projection_nodes(item: &syn::Item) -> Vec<RustItemProjectionN
         label: item_projection_header(item),
         depth: 0,
     }];
-    if let Some(block) = item_projection_block(item) {
-        append_block_projection_nodes(&mut nodes, block, 1);
+    match item {
+        syn::Item::Fn(item_fn) => append_block_projection_nodes(&mut nodes, &item_fn.block, 1),
+        syn::Item::Impl(item_impl) => append_impl_projection_nodes(&mut nodes, item_impl, 1),
+        syn::Item::Struct(item_struct) => {
+            append_struct_field_projection_nodes(&mut nodes, &item_struct.fields, 1);
+        }
+        _ => {}
     }
     nodes
         .into_iter()
@@ -50,6 +55,7 @@ fn item_projection_header(item: &syn::Item) -> String {
         syn::Item::Struct(item) => {
             format!("{}struct {}", visibility_prefix(&item.vis), item.ident)
         }
+        syn::Item::Impl(item) => impl_projection_header(item),
         syn::Item::Trait(item) => format!("{}trait {}", visibility_prefix(&item.vis), item.ident),
         syn::Item::TraitAlias(item) => {
             format!("{}trait {}", visibility_prefix(&item.vis), item.ident)
@@ -60,10 +66,106 @@ fn item_projection_header(item: &syn::Item) -> String {
     }
 }
 
-fn item_projection_block(item: &syn::Item) -> Option<&syn::Block> {
-    match item {
-        syn::Item::Fn(item_fn) => Some(&item_fn.block),
-        _ => None,
+fn impl_projection_header(item: &syn::ItemImpl) -> String {
+    if let Some((_, trait_path, _)) = &item.trait_ {
+        format!(
+            "impl {} for {}",
+            compact_tokens(trait_path),
+            compact_tokens(&item.self_ty)
+        )
+    } else {
+        format!("impl {}", compact_tokens(&item.self_ty))
+    }
+}
+
+fn struct_field_projection_label(field: &syn::Field, index: usize) -> String {
+    let name = field
+        .ident
+        .as_ref()
+        .map(ToString::to_string)
+        .unwrap_or_else(|| format!("#{index}"));
+    format!(
+        "field {}{}: {}",
+        visibility_prefix(&field.vis),
+        name,
+        compact_tokens(&field.ty)
+    )
+}
+
+fn append_struct_field_projection_nodes(
+    nodes: &mut Vec<RustItemProjectionNodeSyntax>,
+    fields: &syn::Fields,
+    depth: usize,
+) {
+    match fields {
+        syn::Fields::Named(fields) => {
+            for (index, field) in fields.named.iter().enumerate() {
+                push_projection_node(
+                    nodes,
+                    field,
+                    "field",
+                    "field",
+                    struct_field_projection_label(field, index),
+                    depth,
+                );
+            }
+        }
+        syn::Fields::Unnamed(fields) => {
+            for (index, field) in fields.unnamed.iter().enumerate() {
+                push_projection_node(
+                    nodes,
+                    field,
+                    "field",
+                    "field",
+                    struct_field_projection_label(field, index),
+                    depth,
+                );
+            }
+        }
+        syn::Fields::Unit => {}
+    }
+}
+
+fn append_impl_projection_nodes(
+    nodes: &mut Vec<RustItemProjectionNodeSyntax>,
+    item_impl: &syn::ItemImpl,
+    depth: usize,
+) {
+    for impl_item in &item_impl.items {
+        match impl_item {
+            syn::ImplItem::Fn(method) => {
+                push_projection_node(
+                    nodes,
+                    method,
+                    "fn",
+                    "declaration",
+                    format!(
+                        "{}{}",
+                        visibility_prefix(&method.vis),
+                        compact_tokens(&method.sig)
+                    ),
+                    depth,
+                );
+                append_block_projection_nodes(nodes, &method.block, depth + 1);
+            }
+            syn::ImplItem::Const(item_const) => push_projection_node(
+                nodes,
+                item_const,
+                "const",
+                "declaration",
+                format!("const {}", item_const.ident),
+                depth,
+            ),
+            syn::ImplItem::Type(item_type) => push_projection_node(
+                nodes,
+                item_type,
+                "type",
+                "declaration",
+                format!("type {}", item_type.ident),
+                depth,
+            ),
+            _ => {}
+        }
     }
 }
 

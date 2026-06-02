@@ -104,7 +104,7 @@ fn dependency_kind_label(kind: CargoDependencyKind) -> &'static str {
 }
 
 pub(super) fn render_item_line(item: &RustTopLevelItemSyntax) -> String {
-    let name = item.name.as_deref().unwrap_or("-");
+    let name = item_display_name(item);
     let mut fields = vec![format!("|item {name}"), format!("kind={}", item.kind)];
     if item.is_public {
         fields.push("public=true".to_string());
@@ -114,6 +114,13 @@ pub(super) fn render_item_line(item: &RustTopLevelItemSyntax) -> String {
     }
     fields.push(format!("next=symbol:{name}"));
     fields.join(" ")
+}
+
+fn item_display_name(item: &RustTopLevelItemSyntax) -> &str {
+    item.name
+        .as_deref()
+        .or(item.impl_target_name.as_deref())
+        .unwrap_or("-")
 }
 
 pub(super) fn render_item_line_with_read(

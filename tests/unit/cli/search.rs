@@ -369,7 +369,7 @@ fn cli_search_fzf_renders_fuzzy_frontier() {
     );
     assert!(fzf.contains("|owner src/lib.rs hit_kind=fzf"), "{fzf}");
     let path_fzf = run_search(root, &["fzf", "src/lib.rs", "--view", "seeds"]);
-    assert!(path_fzf.contains("|seed owner:src/lib.rs"), "{path_fzf}");
+    assert!(path_fzf.contains("owner:src/lib.rs"), "{path_fzf}");
     let scoped_fzf = run_search(
         root,
         &[
@@ -381,10 +381,13 @@ fn cli_search_fzf_renders_fuzzy_frontier() {
             "seeds",
         ],
     );
+    assert!(scoped_fzf.contains("[search-graph]"), "{scoped_fzf}");
     assert!(
-        scoped_fzf.contains("|seed owner:tests/unit/snapshot.rs"),
+        scoped_fzf.contains("owner:tests/unit/snapshot.rs!owner"),
         "{scoped_fzf}"
     );
+    assert!(scoped_fzf.contains("frontier="), "{scoped_fzf}");
+    assert!(!scoped_fzf.contains("|seed "), "{scoped_fzf}");
     assert!(!scoped_fzf.contains("src/lib.rs"), "{scoped_fzf}");
 
     let multi_scoped_fzf = run_search(
@@ -457,13 +460,21 @@ fn cli_search_fzf_renders_fuzzy_frontier() {
         ),
         "{query_set}"
     );
-    assert!(query_set.contains("|seed owner:src/lib.rs"), "{query_set}");
+    assert!(
+        query_set.contains("[search-graph] mode=query-set"),
+        "{query_set}"
+    );
+    assert!(query_set.contains("owner:src/lib.rs!owner"), "{query_set}");
+    assert!(query_set.contains("frontier="), "{query_set}");
+    assert!(!query_set.contains("|seed "), "{query_set}");
 
     let fuzzy_acronym = run_search(root, &["fzf", "rCAH", "--view", "seeds"]);
     assert!(
-        fuzzy_acronym.contains("|seed owner:src/lib.rs"),
+        fuzzy_acronym.contains("owner:src/lib.rs!owner"),
         "{fuzzy_acronym}"
     );
+    assert!(fuzzy_acronym.contains("frontier="), "{fuzzy_acronym}");
+    assert!(!fuzzy_acronym.contains("|seed "), "{fuzzy_acronym}");
     let exact_acronym = run_search(
         root,
         &["fzf", "rCAH", "--view", "seeds", "--fzf-arg", "--exact"],
@@ -475,9 +486,10 @@ fn cli_search_fzf_renders_fuzzy_frontier() {
         "{exact_acronym}"
     );
     assert!(
-        !exact_acronym.contains("|seed owner:src/lib.rs"),
+        !exact_acronym.contains("owner:src/lib.rs!owner"),
         "{exact_acronym}"
     );
+    assert!(!exact_acronym.contains("|seed "), "{exact_acronym}");
     let boundary_exact = run_cli([
         "search".as_ref(),
         "fzf".as_ref(),
