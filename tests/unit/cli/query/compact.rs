@@ -176,9 +176,11 @@ fn cli_query_parser_type_shape_json_links_struct_and_impl_projection() {
     assert_eq!(matches[0]["kind"], "struct");
     assert_eq!(matches[1]["kind"], "impl");
     assert!(
-        matches[0]["code"]
-            .as_str()
-            .is_some_and(|code| code.contains("field pub user_id: u64")),
+        matches[0]["projection"]["nodes"]
+            .as_array()
+            .expect("struct nodes")
+            .iter()
+            .any(|node| node["kind"] == "field" && node["label"] == "field pub user_id: u64"),
         "{value}"
     );
     assert_eq!(matches[0]["projection"]["sourceAuthority"], "native-parser");

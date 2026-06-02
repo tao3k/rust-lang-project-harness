@@ -111,7 +111,6 @@ fn build_packet(project_root: &Path, options: &SemanticSearchJsonOptions, render
             _ => push_raw_note(tag, &remaining, &mut notes),
         }
     }
-
     let input_detection = if options.view == "ingest" {
         input_detection_from_header(&header_fields)
     } else {

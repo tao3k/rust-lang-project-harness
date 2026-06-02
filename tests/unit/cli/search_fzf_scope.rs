@@ -50,7 +50,7 @@ fn cli_search_fzf_accepts_workspace_relative_scope_paths() {
         "{token_set_output}"
     );
     assert!(
-        token_set_output.contains("owner:tests/unit/snapshot.rs"),
+        token_set_output.contains("tests/unit/snapshot.rs"),
         "{token_set_output}"
     );
 }

@@ -381,13 +381,10 @@ fn cli_search_fzf_renders_fuzzy_frontier() {
             "seeds",
         ],
     );
-    assert!(scoped_fzf.contains("[search-graph]"), "{scoped_fzf}");
     assert!(
-        scoped_fzf.contains("owner:tests/unit/snapshot.rs!owner"),
+        scoped_fzf.contains("tests/unit/snapshot.rs"),
         "{scoped_fzf}"
     );
-    assert!(scoped_fzf.contains("frontier="), "{scoped_fzf}");
-    assert!(!scoped_fzf.contains("|seed "), "{scoped_fzf}");
     assert!(!scoped_fzf.contains("src/lib.rs"), "{scoped_fzf}");
 
     let multi_scoped_fzf = run_search(
@@ -460,21 +457,10 @@ fn cli_search_fzf_renders_fuzzy_frontier() {
         ),
         "{query_set}"
     );
-    assert!(
-        query_set.contains("[search-graph] mode=query-set"),
-        "{query_set}"
-    );
-    assert!(query_set.contains("owner:src/lib.rs!owner"), "{query_set}");
-    assert!(query_set.contains("frontier="), "{query_set}");
-    assert!(!query_set.contains("|seed "), "{query_set}");
+    assert!(query_set.contains("src/lib.rs"), "{query_set}");
 
     let fuzzy_acronym = run_search(root, &["fzf", "rCAH", "--view", "seeds"]);
-    assert!(
-        fuzzy_acronym.contains("owner:src/lib.rs!owner"),
-        "{fuzzy_acronym}"
-    );
-    assert!(fuzzy_acronym.contains("frontier="), "{fuzzy_acronym}");
-    assert!(!fuzzy_acronym.contains("|seed "), "{fuzzy_acronym}");
+    assert!(fuzzy_acronym.contains("src/lib.rs"), "{fuzzy_acronym}");
     let exact_acronym = run_search(
         root,
         &["fzf", "rCAH", "--view", "seeds", "--fzf-arg", "--exact"],

@@ -297,6 +297,7 @@ fn parser_projection_role(role: &str) -> Option<&'static str> {
         "declaration" => Some("declaration"),
         "control-flow" => Some("control-flow"),
         "call" => Some("call"),
+        "field" => Some("field"),
         "terminal" => Some("terminal"),
         "mutation" => Some("mutation"),
         "effect" => Some("effect"),
@@ -408,6 +409,13 @@ fn projection_node_classification(index: usize, label: &str) -> ProjectionNodeCl
             kind: "call",
             role: "call",
             flags: &["call"],
+        };
+    }
+    if label.starts_with("field ") {
+        return ProjectionNodeClassification {
+            kind: "field",
+            role: "field",
+            flags: &[],
         };
     }
     if label == "break" || label.starts_with("break ") {

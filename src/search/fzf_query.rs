@@ -254,22 +254,12 @@ fn render_search_fzf_query_set_seed_hits(
             hits.len(),
             fzf_header_suffix(options)
         );
-        let owners = hits
+        let selected = hits
             .iter()
             .take(owner_limit)
-            .map(|(path, _, _, _)| format!("owner:{}", display_project_path(&package_root, path)))
+            .map(|(path, _, _, _)| display_project_path(&package_root, path))
             .collect::<Vec<_>>();
-        if !owners.is_empty() {
-            let _ = writeln!(block, "|seed {}", owners.join(","));
-        }
-        append_change_frontier_synthesis_line(
-            &mut block,
-            &package_root,
-            hits.iter()
-                .take(owner_limit)
-                .map(|(path, _, _, _)| path.as_path()),
-            seed_limit,
-        );
+        render_query_set_graph(&mut block, selected);
         if hits.len() > owner_limit {
             let _ = writeln!(
                 block,
@@ -281,6 +271,47 @@ fn render_search_fzf_query_set_seed_hits(
         append_block(&mut rendered, &block);
     }
     Ok(rendered)
+}
+
+fn render_query_set_graph(block: &mut String, selected: Vec<String>) {
+    let nodes = selected
+        .into_iter()
+        .enumerate()
+        .map(|(index, path)| {
+            let is_test = path.starts_with("tests/") || path.contains("/tests/");
+            let (prefix, kind, action) = if is_test {
+                ("T", "test", "tests")
+            } else {
+                ("O", "owner", "owner")
+            };
+            (format!("{prefix}{}", index + 1), kind, action, path)
+        })
+        .collect::<Vec<_>>();
+    if nodes.is_empty() {
+        return;
+    }
+    let _ = writeln!(
+        block,
+        "[search-graph] mode=query-set root=. alg=change-frontier-query-set"
+    );
+    let node_lines = nodes
+        .iter()
+        .map(|(id, kind, action, path)| format!("{id}={kind}:{path}!{action}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let rank = nodes
+        .iter()
+        .map(|(id, _, _, _)| id.as_str())
+        .collect::<Vec<_>>()
+        .join(",");
+    let frontier = nodes
+        .iter()
+        .map(|(id, _, action, _)| format!("{id}.{action}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let _ = writeln!(block, "{node_lines}");
+    let _ = writeln!(block, "rank={rank}");
+    let _ = writeln!(block, "frontier={frontier}");
 }
 
 fn append_change_frontier_synthesis_line<'a>(

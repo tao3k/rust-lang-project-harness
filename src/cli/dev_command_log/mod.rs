@@ -5,6 +5,7 @@ mod constants;
 mod context;
 mod core;
 mod json;
+mod record;
 mod time;
 
 pub(crate) use core::DevCommandLog;

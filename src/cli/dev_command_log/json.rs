@@ -1,5 +1,4 @@
 use super::command::NormalizedCommand;
-use super::core::ActiveCommandLog;
 
 pub(super) fn push_command_field(
     output: &mut String,
@@ -52,7 +51,7 @@ pub(super) fn push_result_field(
     output.push('}');
 }
 
-pub(super) fn push_fields_field(output: &mut String, first: &mut bool, active: &ActiveCommandLog) {
+pub(super) fn push_fields_field(output: &mut String, first: &mut bool, context_source: &str) {
     push_key(output, first, "fields");
     let mut nested_first = true;
     output.push('{');
@@ -64,12 +63,7 @@ pub(super) fn push_fields_field(output: &mut String, first: &mut bool, active: &
         "utc-second-session-ordinal-event",
     );
     push_string_field(output, &mut nested_first, "sequenceScope", "session");
-    push_string_field(
-        output,
-        &mut nested_first,
-        "contextSource",
-        &active.context_source,
-    );
+    push_string_field(output, &mut nested_first, "contextSource", context_source);
     output.push('}');
 }
 
