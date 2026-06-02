@@ -136,11 +136,9 @@ fn item_match_from_line(line: &str, owner_path: Option<&str>) -> Option<Value> {
     let fields = parse_fields(tokens);
     let read = string_field(&fields, "read");
     let (path, line, end_line) = read.as_deref().and_then(parse_read_locator).or_else(|| {
-        Some((
-            owner_path?.to_string(),
-            usize_field(&fields, "line")?,
-            usize_field(&fields, "endLine").or_else(|| usize_field(&fields, "line"))?,
-        ))
+        let (line, end_line) = line_range_field(&fields)
+            .or_else(|| usize_field(&fields, "line").map(|line| (line, line)))?;
+        Some((owner_path?.to_string(), line, end_line))
     })?;
     let visibility = if bool_field(&fields, "public").unwrap_or(false) {
         "public"
@@ -154,8 +152,7 @@ fn item_match_from_line(line: &str, owner_path: Option<&str>) -> Option<Value> {
         "doc": bool_field(&fields, "doc").unwrap_or(false),
         "location": {
             "path": path,
-            "line": line,
-            "endLine": end_line,
+            "lineRange": format!("{line}:{end_line}"),
         },
         "truncated": false,
     });
@@ -182,12 +179,18 @@ fn attach_code_to_last_match(line: &str, matches: &mut [Value]) {
             "losslessStructure": true,
             "exactRead": exact_read,
         });
-        let nodes = text
-            .as_deref()
-            .map(|text| projection_nodes_from_compact_code(&exact_read, text))
+        let nodes = projection_nodes_from_parser_fields(&fields, &exact_read, text.as_deref())
+            .or_else(|| {
+                text.as_deref()
+                    .map(|text| projection_nodes_from_compact_code(&exact_read, text))
+            })
             .unwrap_or_default();
         if !nodes.is_empty() {
+            let expand_actions = projection_expand_actions(&nodes);
             projection["nodes"] = json!(nodes);
+            if !expand_actions.is_empty() {
+                projection["expandActions"] = json!(expand_actions);
+            }
         }
         item["projection"] = projection;
     }
@@ -215,6 +218,140 @@ fn projection_nodes_from_compact_code(exact_read: &str, text: &str) -> Vec<Value
                 node["flags"] = json!(classification.flags);
             }
             node
+        })
+        .collect()
+}
+
+fn projection_nodes_from_parser_fields(
+    fields: &Map<String, Value>,
+    exact_read: &str,
+    compact_text: Option<&str>,
+) -> Option<Vec<Value>> {
+    let (path, _, _) = parse_read_locator(exact_read)?;
+    let mut parent_stack = Vec::<String>::new();
+    let compact_labels = compact_text
+        .map(compact_projection_labels)
+        .unwrap_or_default();
+    let nodes = string_list_field(fields, "nodes")
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, token)| {
+            projection_node_from_parser_token(
+                &token,
+                &path,
+                compact_labels.get(index).map(String::as_str),
+                &mut parent_stack,
+            )
+        })
+        .collect::<Vec<_>>();
+    (!nodes.is_empty()).then_some(nodes)
+}
+
+fn projection_node_from_parser_token(
+    token: &str,
+    path: &str,
+    compact_label: Option<&str>,
+    parent_stack: &mut Vec<String>,
+) -> Option<Value> {
+    let mut parts = token.split(':');
+    let id = parts.next()?.to_string();
+    let kind = parts.next()?.to_string();
+    let role = parser_projection_role(parts.next()?)?.to_string();
+    let depth = parts.next()?.parse::<usize>().ok()?;
+    let line = parts.next()?.parse::<usize>().ok()?;
+    let end_line = parts.next()?.parse::<usize>().ok()?;
+    if parts.next().is_some() || line == 0 || end_line < line {
+        return None;
+    }
+    parent_stack.truncate(depth + 1);
+    while parent_stack.len() <= depth {
+        parent_stack.push(String::new());
+    }
+    let parent_id = depth
+        .checked_sub(1)
+        .and_then(|parent_depth| parent_stack.get(parent_depth))
+        .filter(|parent_id| !parent_id.is_empty())
+        .cloned();
+    parent_stack[depth] = id.clone();
+
+    let mut node = json!({
+        "id": id,
+        "kind": kind,
+        "role": role,
+        "label": parser_projection_label(&kind, &role, compact_label),
+        "depth": depth,
+        "read": format!("{path}:{line}:{end_line}"),
+    });
+    if let Some(parent_id) = parent_id {
+        node["parentId"] = json!(parent_id);
+    }
+    let flags = parser_projection_flags(&kind, &role);
+    if !flags.is_empty() {
+        node["flags"] = json!(flags);
+    }
+    Some(node)
+}
+
+fn parser_projection_role(role: &str) -> Option<&'static str> {
+    match role {
+        "declaration" => Some("declaration"),
+        "control-flow" => Some("control-flow"),
+        "call" => Some("call"),
+        "terminal" => Some("terminal"),
+        "mutation" => Some("mutation"),
+        "effect" => Some("effect"),
+        _ => None,
+    }
+}
+
+fn parser_projection_label(kind: &str, role: &str, compact_label: Option<&str>) -> String {
+    if let Some(compact_label) = compact_label.filter(|label| !label.is_empty()) {
+        compact_label.to_string()
+    } else if role == "declaration" {
+        format!("{kind} declaration")
+    } else {
+        kind.to_string()
+    }
+}
+
+fn compact_projection_labels(text: &str) -> Vec<String> {
+    text.lines()
+        .map(str::trim)
+        .filter(|label| !label.is_empty())
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
+fn parser_projection_flags(kind: &str, role: &str) -> Vec<&'static str> {
+    match role {
+        "control-flow" if kind == "if" => vec!["branch", "guard"],
+        "control-flow" if matches!(kind, "match" | "case" | "else") => vec!["branch"],
+        "control-flow" if matches!(kind, "for" | "while" | "loop") => vec!["loop"],
+        "call" => vec!["call"],
+        "terminal" if kind == "return" => vec!["return"],
+        "mutation" => vec!["mutation"],
+        "effect" if kind == "await" => vec!["await", "effect"],
+        "effect" => vec!["effect"],
+        _ => Vec::new(),
+    }
+}
+
+fn projection_expand_actions(nodes: &[Value]) -> Vec<Value> {
+    nodes
+        .iter()
+        .filter_map(|node| {
+            let role = node["role"].as_str()?;
+            if matches!(role, "declaration" | "call") {
+                return None;
+            }
+            let target = node["id"].as_str()?;
+            let read = node["read"].as_str()?;
+            Some(json!({
+                "kind": "hot-block",
+                "target": target,
+                "read": read,
+                "reason": format!("parser-projection-{role}"),
+            }))
         })
         .collect()
 }
@@ -355,9 +492,16 @@ fn declaration_projection_kind(label: &str) -> &'static str {
 
 fn projection_exact_read(fields: &Map<String, Value>) -> Option<String> {
     let path = string_field(fields, "path")?;
-    let start_line = usize_field(fields, "startLine")?;
-    let end_line = usize_field(fields, "endLine")?;
-    Some(format!("{path}:{start_line}-{end_line}"))
+    let line_range = string_field(fields, "lineRange")?;
+    Some(format!("{path}:{line_range}"))
+}
+
+fn line_range_field(fields: &Map<String, Value>) -> Option<(usize, usize)> {
+    let line_range = string_field(fields, "lineRange")?;
+    let (start, end) = line_range.split_once(':')?;
+    let start = start.parse::<usize>().ok()?;
+    let end = end.parse::<usize>().ok()?;
+    (start != 0 && end >= start).then_some((start, end))
 }
 
 fn split_code_text(line: &str) -> (&str, Option<String>) {
@@ -368,10 +512,8 @@ fn split_code_text(line: &str) -> (&str, Option<String>) {
 }
 
 fn parse_read_locator(value: &str) -> Option<(String, usize, usize)> {
-    let (path, range) = value.rsplit_once(':')?;
-    let (line, end_line) = range
-        .split_once('-')
-        .map_or((range, range), |(line, end_line)| (line, end_line));
+    let (path_and_start, end_line) = value.rsplit_once(':')?;
+    let (path, line) = path_and_start.rsplit_once(':')?;
     Some((path.to_string(), line.parse().ok()?, end_line.parse().ok()?))
 }
 

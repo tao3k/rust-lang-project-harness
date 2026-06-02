@@ -1,19 +1,22 @@
 ---
 source: tests/unit/cli/search.rs
-assertion_line: 52
+assertion_line: 53
 expression: stdout
 ---
-[search-prime] mode=package package=. src=2 own=2 edge=2 find=4 dep=0
+[search-prime] mode=package package=. src=3 own=2 edge=2 find=7 dep=0
 |package . t=lib dep=-
-|surface public_api=Thing,load public_external=-
+|surface public_api=Thing,execute,load public_external=-
 |api-candidate Thing reason=public-item owner=src/domain/mod.rs next=docs:Thing
+|api-candidate execute reason=public-item owner=src/hook_runtime.rs next=docs:execute
 |api-candidate load reason=public-item owner=src/lib.rs next=docs:load
 |owner src/lib.rs role=root,facade owner=src imports=crate:1 next=owner:src/lib.rs
 |owner src/domain/mod.rs role=interface owner=src/domain next=owner:src/domain/mod.rs
 |edge O:src/lib.rs -mod-> O:src/domain/mod.rs
 |edge O:src/lib.rs -crate:crate-> O:src/domain/mod.rs
-|find AGENT-R002 x2 at=O:src/domain/mod.rs severity=info
+|find AGENT-R001 x1 at=O:src/hook_runtime.rs severity=info
+|find AGENT-R002 x3 at=O:src/domain/mod.rs severity=info
 |find RUST-MOD-R001 x1 at=O:src/domain/mod.rs severity=warning
 |find RUST-MOD-R004 x1 at=O:src/lib.rs severity=warning
-|synthesis algorithm=owner-rank-frontier scope=prime summary=owner-graph-frontier selected_owners=2 selected_edges=2 high_impact_owners=src/lib.rs,src/domain/mod.rs finding_owners=src/domain/mod.rs,src/lib.rs
+|find RUST-MOD-R009 x1 at=O:src/hook_runtime.rs severity=warning
+|synthesis algorithm=owner-rank-frontier scope=prime summary=owner-graph-frontier selected_owners=2 selected_edges=2 high_impact_owners=src/lib.rs,src/domain/mod.rs finding_owners=src/hook_runtime.rs,src/domain/mod.rs,src/lib.rs
 |next owner:src/lib.rs,owner:src/domain/mod.rs

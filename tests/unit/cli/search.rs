@@ -1,4 +1,5 @@
 use std::fs;
+use std::process::Command;
 
 use serde_json::Value;
 use tempfile::TempDir;
@@ -351,7 +352,7 @@ fn cli_search_fzf_renders_fuzzy_frontier() {
     fs::create_dir(root.join("src")).expect("create src");
     fs::write(
         root.join("src/lib.rs"),
-        "pub mod hook_runtime;\npub struct AgentHookEvent;\npub fn run_codex_agent_hook(_event: AgentHookEvent) {}\n",
+        "pub mod hook_runtime;\npub struct AgentHookEvent;\npub fn run_codex_agent_hook(_event: AgentHookEvent) {}\npub fn source_snapshot() { assert_snapshot!(\"src\"); }\n",
     )
     .expect("write lib");
     fs::create_dir_all(root.join("tests/unit")).expect("create tests unit");
@@ -386,6 +387,58 @@ fn cli_search_fzf_renders_fuzzy_frontier() {
     );
     assert!(!scoped_fzf.contains("src/lib.rs"), "{scoped_fzf}");
 
+    let multi_scoped_fzf = run_search(
+        root,
+        &[
+            "fzf",
+            "assert_snapshot!",
+            "owner",
+            "src",
+            "tests/unit",
+            "--view",
+            "seeds",
+        ],
+    );
+    assert!(
+        multi_scoped_fzf.contains("src/lib.rs"),
+        "{multi_scoped_fzf}"
+    );
+    assert!(
+        multi_scoped_fzf.contains("owner:tests/unit/snapshot.rs"),
+        "{multi_scoped_fzf}"
+    );
+
+    let cwd_discovered_output = Command::new(env!("CARGO_BIN_EXE_rs-harness"))
+        .current_dir(root)
+        .args([
+            "search",
+            "fzf",
+            "assert_snapshot!",
+            "owner",
+            "src",
+            "tests/unit",
+            "--view",
+            "seeds",
+        ])
+        .output()
+        .expect("run cli");
+    assert!(
+        cwd_discovered_output.status.success(),
+        "{cwd_discovered_output:?}"
+    );
+    let cwd_discovered_fzf = normalize_temp_root(
+        &String::from_utf8(cwd_discovered_output.stdout).expect("utf8 stdout"),
+        root,
+    );
+    assert!(
+        cwd_discovered_fzf.contains("src/lib.rs"),
+        "{cwd_discovered_fzf}"
+    );
+    assert!(
+        cwd_discovered_fzf.contains("owner:tests/unit/snapshot.rs"),
+        "{cwd_discovered_fzf}"
+    );
+
     let query_set = run_search(
         root,
         &[
@@ -405,6 +458,76 @@ fn cli_search_fzf_renders_fuzzy_frontier() {
         "{query_set}"
     );
     assert!(query_set.contains("|seed owner:src/lib.rs"), "{query_set}");
+
+    let fuzzy_acronym = run_search(root, &["fzf", "rCAH", "--view", "seeds"]);
+    assert!(
+        fuzzy_acronym.contains("|seed owner:src/lib.rs"),
+        "{fuzzy_acronym}"
+    );
+    let exact_acronym = run_search(
+        root,
+        &["fzf", "rCAH", "--view", "seeds", "--fzf-arg", "--exact"],
+    );
+    assert!(
+        exact_acronym.starts_with(
+            "[search-fzf] q=rCAH mode=exact backend=provider pkg=. own=0 finder=fzf fzfArgs=--exact"
+        ),
+        "{exact_acronym}"
+    );
+    assert!(
+        !exact_acronym.contains("|seed owner:src/lib.rs"),
+        "{exact_acronym}"
+    );
+    let boundary_exact = run_cli([
+        "search".as_ref(),
+        "fzf".as_ref(),
+        "rCAH".as_ref(),
+        "--view".as_ref(),
+        "seeds".as_ref(),
+        root.as_os_str(),
+        "--fzf".as_ref(),
+        "--exact".as_ref(),
+    ]);
+    assert!(boundary_exact.status.success(), "{boundary_exact:?}");
+    let boundary_stdout_raw = String::from_utf8(boundary_exact.stdout).expect("utf8 stdout");
+    let boundary_stdout = normalize_temp_root(&boundary_stdout_raw, root);
+    assert!(
+        boundary_stdout.starts_with(
+            "[search-fzf] q=rCAH mode=exact backend=provider pkg=. own=0 finder=fzf fzfArgs=--exact"
+        ),
+        "{boundary_stdout}"
+    );
+
+    let exact_json = run_cli([
+        "search".as_ref(),
+        "fzf".as_ref(),
+        "runCodexAgentHook".as_ref(),
+        "--json".as_ref(),
+        "--fzf-arg".as_ref(),
+        "--exact".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(exact_json.status.success(), "{exact_json:?}");
+    let value = serde_json::from_slice::<Value>(&exact_json.stdout).expect("fzf exact json");
+    assert_eq!(value["finder"]["engine"], "fzf");
+    assert_eq!(value["finder"]["surface"], "search-fzf");
+    assert_eq!(value["finder"]["options"]["matchMode"], "exact");
+    assert_eq!(value["finder"]["options"]["nativeArgs"][0], "--exact");
+
+    let rejected_fzf = run_cli([
+        "search".as_ref(),
+        "fzf".as_ref(),
+        "runCodexAgentHook".as_ref(),
+        "--fzf-arg".as_ref(),
+        "--preview".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(!rejected_fzf.status.success(), "{rejected_fzf:?}");
+    let stderr = String::from_utf8(rejected_fzf.stderr).expect("utf8 stderr");
+    assert!(
+        stderr.contains("unsupported fzf option for agent search: --preview"),
+        "{stderr}"
+    );
 
     let text = run_cli([
         "search".as_ref(),
@@ -654,10 +777,10 @@ fn cli_search_views_render_rfc_line_protocol() {
     assert!(owner.contains("|owner src/lib.rs"), "{owner}");
     assert!(owner.contains("|item load kind=fn"), "{owner}");
     assert!(
-        owner.contains("|synthesis algorithm=bounded-reachability-depth1 scope=owner"),
+        owner.contains("|item WireApi kind=trait public=true"),
         "{owner}"
     );
-    assert!(owner.contains("owner_path=src/lib.rs"), "{owner}");
+    assert!(!owner.contains("|synthesis"), "{owner}");
 
     let owner_json = run_cli([
         "search".as_ref(),
@@ -683,12 +806,12 @@ fn cli_search_views_render_rfc_line_protocol() {
     );
     assert!(
         owner_item_query
-            .contains("|item load kind=fn public=true next=symbol:load read=src/lib.rs:6-6"),
+            .contains("|item load kind=fn public=true next=symbol:load read=src/lib.rs:6:6"),
         "{owner_item_query}"
     );
     assert!(
         owner_item_query.contains(
-            "|code path=src/lib.rs startLine=6 endLine=6 reason=item-query truncated=false text=\"pub fn load() -> Thing\\ncall domain::make_thing\""
+            "|code path=src/lib.rs lineRange=6:6 reason=item-query truncated=false nodes=n0:fn:declaration:0:6:6,n1:call:call:1:6:6 text=\"pub fn load() -> Thing\\ncall domain::make_thing\""
         ),
         "{owner_item_query}"
     );

@@ -7,7 +7,9 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use super::agent_registry::print_agent_registry;
-use super::query::{QueryCommand, QuerySearchOptions, parse_query, print_query_help};
+use super::query::{
+    QueryCommand, QuerySearchOptions, parse_query, print_query_help, render_query_local_window,
+};
 #[cfg(feature = "search")]
 use super::search_output::{SearchOutputControls, apply_search_output_controls};
 #[cfg(feature = "search")]
@@ -32,13 +34,17 @@ use crate::{
 /// Run the CLI using process environment arguments.
 #[must_use]
 pub fn run_cli_from_env() -> ExitCode {
-    match run(env::args_os().skip(1)) {
+    let argv = env::args_os().collect::<Vec<_>>();
+    let log = super::dev_command_log::DevCommandLog::start(&argv);
+    let result = match run(argv.iter().skip(1).cloned()) {
         Ok(code) => code,
         Err(error) => {
             eprintln!("{error}");
             ExitCode::from(2)
         }
-    }
+    };
+    log.finish(if result == ExitCode::SUCCESS { 0 } else { 2 });
+    result
 }
 
 fn run(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitCode, String> {
@@ -244,6 +250,19 @@ fn run_search_view(_options: &SearchOptions) -> Result<ExitCode, String> {
 
 #[cfg(feature = "search")]
 fn run_query_view(options: &SearchOptions) -> Result<ExitCode, String> {
+    if options.item_code
+        && let Some(selector) = options
+            .read_selector
+            .as_deref()
+            .or(options.query.as_deref())
+    {
+        let project_root = options.project_root()?;
+        if let Some(rendered) = render_query_local_window(&project_root, selector)? {
+            print!("{rendered}");
+            return Ok(ExitCode::SUCCESS);
+        }
+    }
+
     let project_root = options.project_root()?;
     let render_options = options.render_options();
     let config = RustHarnessConfig::default();
@@ -266,8 +285,9 @@ fn run_query_view(options: &SearchOptions) -> Result<ExitCode, String> {
     if options.json && options.output_view.as_deref() == Some("read-packet") {
         let read_options = super::semantic_read_json::SemanticReadJsonOptions {
             selector: options
-                .owner
+                .read_selector
                 .clone()
+                .or_else(|| options.owner.clone())
                 .or_else(|| options.query.clone())
                 .unwrap_or_else(|| ".".to_string()),
             query: options.item_query.clone(),
@@ -363,7 +383,9 @@ pub(super) struct SearchOptions {
     pub(super) lines: bool,
     pub(super) pipes: Vec<String>,
     pub(super) query_set: Vec<String>,
+    pub(super) fzf_args: Vec<String>,
     pub(super) item_query: Option<String>,
+    pub(super) read_selector: Option<String>,
     pub(super) item_names_only: bool,
     pub(super) item_code: bool,
     paths: Vec<PathBuf>,
@@ -381,6 +403,7 @@ impl SearchOptions {
             pipes: options.pipes,
             query_set: options.query_set,
             item_query: options.item_query,
+            read_selector: options.read_selector,
             item_names_only: options.item_names_only,
             item_code: options.item_code,
             paths: options.paths,
@@ -389,11 +412,12 @@ impl SearchOptions {
     }
 
     fn parse(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<Self, String> {
+        let mut args = args.into_iter();
         let mut options = Self::default();
         let mut positional_only = false;
         let mut pending_option: Option<String> = None;
         let mut positionals = Vec::<std::ffi::OsString>::new();
-        for arg in args {
+        while let Some(arg) = args.next() {
             if let Some(option) = pending_option.take() {
                 let Some(value) = arg.to_str() else {
                     return Err(format!("expected UTF-8 value after {option}"));
@@ -414,6 +438,7 @@ impl SearchOptions {
                     "--owners" => options.owners = Some(parse_usize_option(&option, value)?),
                     "--hits" => options.hits = Some(parse_usize_option(&option, value)?),
                     "--query-set" => options.query_set.extend(split_csv_values(value)),
+                    "--fzf-arg" => options.fzf_args.push(value.to_string()),
                     "--query" => options.item_query = Some(value.to_string()),
                     _ => unreachable!("known pending search option"),
                 }
@@ -439,7 +464,15 @@ impl SearchOptions {
                 "--item-slice" => options.pipes.push("items".to_string()),
                 "--package" | "--owner" | "--dependency" | "--scope" | "--view" | "--depth"
                 | "--dir" | "--edge" | "--per-owner" | "--seeds" | "--owners" | "--hits"
-                | "--query-set" | "--query" => pending_option = Some(value.to_string()),
+                | "--query-set" | "--query" | "--fzf-arg" => {
+                    pending_option = Some(value.to_string())
+                }
+                "--fzf" => {
+                    options
+                        .fzf_args
+                        .extend(args.by_ref().map(|arg| arg.to_string_lossy().to_string()));
+                    break;
+                }
                 value if value.starts_with('-') => {
                     return Err(format!("unknown search option: {value}"));
                 }
@@ -503,13 +536,20 @@ impl SearchOptions {
                 self.pipes.push(value);
             } else if is_explicit_rust_project_root(&value) {
                 self.paths.push(PathBuf::from(value));
-            } else if self.scope.is_none() {
-                self.scope = Some(value);
             } else {
-                self.paths.push(PathBuf::from(value));
+                self.push_scope(value);
             }
         }
         Ok(())
+    }
+
+    fn push_scope(&mut self, value: String) {
+        if let Some(scope) = &mut self.scope {
+            scope.push(',');
+            scope.push_str(&value);
+        } else {
+            self.scope = Some(value);
+        }
     }
 
     pub(super) fn command_label(&self) -> String {
@@ -552,6 +592,7 @@ impl SearchOptions {
             lines: self.lines,
             pipes: self.pipes.clone(),
             query_set: self.query_set(),
+            fzf_args: self.fzf_args.clone(),
         }
     }
 
@@ -588,6 +629,7 @@ impl SearchOptions {
             output_view: self.output_view.clone(),
             seeds: self.seeds,
             query_set: self.query_set(),
+            fzf_args: self.fzf_args.clone(),
             item_query: self.item_query.clone(),
             item_names_only: self.item_names_only,
             item_code: self.item_code,
@@ -842,7 +884,7 @@ rs-harness search <owner|dependency|fzf|tests> --query-set TERM [--query-set TER
          Compact text is the default; --json wraps the same packet for tools.\n\
          RFC controls accepted here: --trace, --explain, --view graph|hits|both|seeds,\n\
          --depth N, --dir out|in|both, --edge LIST, --item-slice, --dependency DEP,\n\
-         --seeds N, --query-set TERM, --query SYMBOL, --names-only, --code, --lines."
+         --seeds N, --query-set TERM, --query SYMBOL, --fzf-arg ARG, --fzf ..., --names-only, --code, --lines."
     );
 }
 
@@ -889,9 +931,9 @@ fn print_agent_guide(_project_root: &std::path::Path) {
 |cmd policy=rs-harness search policy <rule-id-or-alias> owner tests --view seeds .\n\
 |cmd fzf=rs-harness search fzf <query> owner tests --view seeds .\n\
 |cmd query=rs-harness query <path> --query <symbol-or-a|b|c> .\n\
-             |cmd code=rs-harness query <path> --query <symbol-or-a|b|c> --code .\n\
-             |cmd hook-query=rs-harness query --from-hook direct-source-read --selector <path> .\n\
-             |cmd ingest=rg -n '<query>' src tests | rs-harness search ingest items tests --view seeds .\n\
+|cmd code=rs-harness query <path> --query <symbol-or-a|b|c> --code .\n\
+        |cmd hook-query=rs-harness query --from-hook direct-source-read --selector <path[:line-range]> [--code] .\n\
+|cmd ingest=rg -n '<query>' src tests | rs-harness search ingest items tests --view seeds .\n\
              |cmd evidence=rs-harness evidence graph --review-packet-json <path> --json .\n\
              |cmd assurance=rs-harness evidence assurance --evidence-graph-json <path> --json .\n\
              |rule hook install/runtime is owned by semantic-agent-hook"
@@ -1044,5 +1086,32 @@ fn validate_search_options(options: &SearchOptions) -> Result<(), String> {
             options.command_label()
         ));
     }
+    if !options.fzf_args.is_empty() {
+        if options.view != "fzf" {
+            return Err("search fzf options are only supported by search fzf".to_string());
+        }
+        for arg in &options.fzf_args {
+            validate_fzf_arg(arg)?;
+        }
+    }
     Ok(())
+}
+
+fn validate_fzf_arg(value: &str) -> Result<(), String> {
+    if value.trim().is_empty() {
+        return Err("empty fzf option is not supported for agent search".to_string());
+    }
+    if value.chars().any(char::is_whitespace) {
+        return Err(format!("unsupported fzf option for agent search: {value}"));
+    }
+    if matches!(value, "--exact" | "-e" | "-i" | "+i") {
+        return Ok(());
+    }
+    if value.starts_with("--scheme=") {
+        let scheme = value.trim_start_matches("--scheme=");
+        if matches!(scheme, "default" | "path" | "history") {
+            return Ok(());
+        }
+    }
+    Err(format!("unsupported fzf option for agent search: {value}"))
 }

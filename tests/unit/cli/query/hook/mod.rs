@@ -15,7 +15,7 @@ fn cli_query_hook_selector_strips_owner_prefix_and_line_suffix() {
         "--from-hook".as_ref(),
         "direct-source-read".as_ref(),
         "--selector".as_ref(),
-        "owner:src/lib.rs:4-8".as_ref(),
+        "owner:src/lib.rs:4:8".as_ref(),
         "--query".as_ref(),
         "load".as_ref(),
         root.as_os_str(),
@@ -39,6 +39,100 @@ fn cli_query_hook_selector_strips_owner_prefix_and_line_suffix() {
 }
 
 #[test]
+fn cli_query_hook_line_range_code_outputs_local_window() {
+    let output = run_cli([
+        "query",
+        "--from-hook",
+        "direct-source-read",
+        "--selector",
+        "tests/unit/cli/search_query.rs:20-28",
+        "--code",
+        ".",
+    ]);
+
+    assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
+    assert!(!stdout.contains("[search-owner]"), "{stdout}");
+    assert!(
+        stdout.contains("|fact rust:src/lib.rs:4:reexport:Thing"),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("    "), "{stdout}");
+}
+
+#[test]
+fn cli_query_hook_wide_line_range_code_returns_read_plan_without_source() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_search_fixture(root);
+    let output = run_cli([
+        "query".as_ref(),
+        "--from-hook".as_ref(),
+        "direct-source-read".as_ref(),
+        "--selector".as_ref(),
+        "src/lib.rs:1:80".as_ref(),
+        "--code".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
+    assert!(stdout.starts_with("[read-plan] "), "{stdout}");
+    assert!(stdout.contains("mode=range-outline"), "{stdout}");
+    assert!(stdout.contains("code=false"), "{stdout}");
+    assert!(stdout.contains("reason=wide-selector"), "{stdout}");
+    assert!(stdout.contains("requested=1:80"), "{stdout}");
+    assert!(!stdout.contains("pub fn load()"), "{stdout}");
+    assert!(!stdout.contains("[search-owner]"), "{stdout}");
+}
+
+#[test]
+fn cli_query_hook_line_range_code_outputs_source_slice() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::create_dir_all(root.join("src")).expect("create src");
+    fs::write(
+        root.join("src/lib.rs"),
+        r#"fn first() {
+    assert_eq!(
+        decision.routes[0].argv,
+        [
+            "py-harness",
+            "query",
+            "--selector",
+            "src/tools/report.py",
+            ".",
+        ],
+    );
+}
+
+fn second() {
+    let decision = classify_hook();
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = run_cli([
+        "query".as_ref(),
+        "--from-hook".as_ref(),
+        "direct-source-read".as_ref(),
+        "--selector".as_ref(),
+        "src/lib.rs:7-14".as_ref(),
+        "--code".as_ref(),
+        root.as_os_str(),
+    ]);
+
+    assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
+    assert!(stdout.contains("fn second()"), "{stdout}");
+    assert!(
+        stdout.lines().any(|line| line == "\"--selector\","),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("|fact"), "{stdout}");
+}
+
+#[test]
 fn cli_query_code_output_is_source_slice() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
@@ -54,14 +148,11 @@ fn cli_query_code_output_is_source_slice() {
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
     let lines = stdout.lines().collect::<Vec<_>>();
-    assert_eq!(lines.len(), 1, "{stdout}");
+    assert_eq!(lines.len(), 2, "{stdout}");
     assert!(!stdout.contains("|code"), "{stdout}");
     assert!(!stdout.contains("text="), "{stdout}");
-    assert!(
-        stdout.contains("pub fn load() -> Thing { domain::make_thing() }"),
-        "{stdout}"
-    );
-    assert!(!stdout.contains("call domain::make_thing"), "{stdout}");
+    assert!(stdout.contains("pub fn load() -> Thing"), "{stdout}");
+    assert!(stdout.contains("call domain::make_thing"), "{stdout}");
 }
 
 #[test]
@@ -135,20 +226,14 @@ fn cli_query_code_output_strips_workspace_prefixed_selector_for_package_root() {
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
     assert!(
-        stdout.contains("pub(crate) fn run_search(root: &Path, args: &[&str]) -> String {"),
+        stdout.contains("fn run_search(root: &Path, args: &[&str]) -> String"),
         "{stdout}"
     );
-    assert!(
-        stdout.contains("command_args.push(\"search\".into());"),
-        "{stdout}"
-    );
-    assert!(
-        stdout.contains("command_args.extend(args.iter().map(std::ffi::OsString::from));"),
-        "{stdout}"
-    );
-    assert!(stdout.contains("normalize_temp_root("), "{stdout}");
-    assert!(!stdout.contains("call push"), "{stdout}");
-    assert!(!stdout.contains("call extend"), "{stdout}");
+    assert!(stdout.contains("call push"), "{stdout}");
+    assert!(stdout.contains("call extend"), "{stdout}");
+    assert!(stdout.contains("call normalize_temp_root"), "{stdout}");
+    assert!(!stdout.contains("command_args.push"), "{stdout}");
+    assert!(!stdout.contains("command_args.extend"), "{stdout}");
 
     let relative_root_output = run_cli([
         "query",
@@ -167,11 +252,15 @@ fn cli_query_code_output_strips_workspace_prefixed_selector_for_package_root() {
     );
     let relative_stdout = String::from_utf8(relative_root_output.stdout).expect("utf8 stdout");
     assert!(
-        relative_stdout
-            .contains("pub(crate) fn run_search(root: &Path, args: &[&str]) -> String {"),
+        relative_stdout.contains("fn run_search(root: &Path, args: &[&str]) -> String"),
         "{relative_stdout}"
     );
-    assert!(!relative_stdout.contains("call push"), "{relative_stdout}");
+    assert!(relative_stdout.contains("call push"), "{relative_stdout}");
+    assert!(relative_stdout.contains("call extend"), "{relative_stdout}");
+    assert!(
+        !relative_stdout.contains("command_args.push"),
+        "{relative_stdout}"
+    );
 }
 
 #[test]
@@ -185,7 +274,7 @@ fn cli_query_hook_selector_json_can_emit_provider_read_packet() {
         "--from-hook".as_ref(),
         "direct-source-read".as_ref(),
         "--selector".as_ref(),
-        "owner:src/lib.rs:4-8".as_ref(),
+        "owner:src/lib.rs:4:8".as_ref(),
         "--view".as_ref(),
         "read-packet".as_ref(),
         "--json".as_ref(),
@@ -203,7 +292,7 @@ fn cli_query_hook_selector_json_can_emit_provider_read_packet() {
         "agent.semantic-protocols.semantic-language"
     );
     assert_eq!(value["method"], "query/direct-source-read");
-    assert_eq!(value["selector"], "src/lib.rs");
+    assert_eq!(value["selector"], "src/lib.rs:4:8");
     assert_eq!(value["outputMode"], "read-packet");
     let windows = value["sourceWindows"].as_array().expect("source windows");
     let load_window = windows

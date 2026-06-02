@@ -27,6 +27,7 @@ pub struct RustSearchOptions {
     pub seeds: Option<usize>,
     /// Optional exact-set query terms for providers that can merge same-view probes.
     pub query_set: Vec<String>,
+    pub fzf_args: Vec<String>,
     /// Optional parser-native item query inside an owner/module result.
     pub item_query: Option<String>,
     /// Suppress compact code for item queries and render only parser item names.

@@ -357,6 +357,13 @@ fn semantic_schema_files() -> &'static [SemanticSchemaFile] {
             syncs_with_protocol_repository: true,
         },
         SemanticSchemaFile {
+            schema_id: "agent.semantic-protocols.dev-command-log",
+            file_name: "semantic-dev-command-log.v1.schema.json",
+            registry_path: "schemas/semantic-dev-command-log.v1.schema.json",
+            identity_pointer: &["properties", "schemaId", "const"],
+            syncs_with_protocol_repository: true,
+        },
+        SemanticSchemaFile {
             schema_id: "agent.semantic-protocols.semantic-review-packet",
             file_name: "semantic-review-packet.v1.schema.json",
             registry_path: "schemas/semantic-review-packet.v1.schema.json",

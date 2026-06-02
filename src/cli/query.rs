@@ -1,7 +1,9 @@
 //! Hook-oriented query command mapped onto provider-owned search views.
 
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+const MAX_EXACT_DIRECT_READ_LINES: usize = 40;
 
 pub(super) enum QueryCommand {
     Help,
@@ -19,6 +21,7 @@ pub(super) struct QuerySearchOptions {
     pub(super) pipes: Vec<String>,
     pub(super) query_set: Vec<String>,
     pub(super) item_query: Option<String>,
+    pub(super) read_selector: Option<String>,
     pub(super) item_names_only: bool,
     pub(super) item_code: bool,
     pub(super) paths: Vec<PathBuf>,
@@ -60,14 +63,15 @@ fn is_exact_direct_source_selector(selector: &str) -> bool {
 
 pub(super) fn print_query_help() {
     println!(
-        "rs-harness query <owner-path[:line[-end]]> [items tests] [--query SYMBOL] [--names-only | --code] [PROJECT_ROOT]\n\
+        "rs-harness query <owner-path[:start:end]> [items tests] [--query SYMBOL] [--names-only | --code] [PROJECT_ROOT]\n\
+rs-harness query --from-hook direct-source-read --selector <path[:line-range]> --code [PROJECT_ROOT]\n\
 rs-harness query --from-hook KIND --selector SELECTOR [--query SYMBOL | --term TERM] [--names-only | --code] [PROJECT_ROOT]\n\
 rs-harness query --term TERM [--term TERM...] [--surface PIPE] [--view seeds] [PROJECT_ROOT]\n\n\
 Maps hook-denied raw reads and broad searches into parser-owned search output.\n\
 Concrete Rust owner selectors route to search owner items/tests; multi-term queries route to search fzf query-set.\n\
 Glob or broad selectors without terms route to search prime --view seeds.\n\
 Owner item queries emit |query status=hit|miss match=exact|fallback-contains|none.\n\
-Use --code after selecting an owner and symbol to emit a parser-owned source slice."
+Use --code after selecting an owner/symbol or hook path/range to emit compact parser-owned code."
     );
 }
 
@@ -265,6 +269,9 @@ impl QueryOptions {
                 .output_view
                 .get_or_insert_with(|| "seeds".to_string());
         }
+        if self.from_hook.as_deref() == Some("direct-source-read") {
+            options.read_selector = self.normalized_selector_preserving_range();
+        }
         Ok(options)
     }
 
@@ -304,6 +311,15 @@ impl QueryOptions {
             .as_deref()
             .map(strip_selector_prefix)
             .map(strip_rust_line_suffix)
+            .map(str::trim)
+            .filter(|selector| !selector.is_empty())
+            .map(ToOwned::to_owned)
+    }
+
+    fn normalized_selector_preserving_range(&self) -> Option<String> {
+        self.selector
+            .as_deref()
+            .map(strip_selector_prefix)
             .map(str::trim)
             .filter(|selector| !selector.is_empty())
             .map(ToOwned::to_owned)
@@ -357,18 +373,150 @@ fn strip_selector_prefix(value: &str) -> &str {
 }
 
 fn strip_rust_line_suffix(value: &str) -> &str {
-    let Some((path, range)) = value.rsplit_once(':') else {
+    let Some((path_and_start, end_line)) = value.rsplit_once(':') else {
+        return value;
+    };
+    let Some((path, start_line)) = path_and_start.rsplit_once(':') else {
         return value;
     };
     if !path.ends_with(".rs") {
         return value;
     }
-    let line = range.split_once('-').map_or(range, |(line, _)| line);
-    if line.parse::<usize>().is_ok() {
+    if start_line.parse::<usize>().is_ok() && end_line.parse::<usize>().is_ok() {
         path
     } else {
         value
     }
+}
+
+pub(super) fn render_query_local_window(
+    project_root: &Path,
+    selector: &str,
+) -> Result<Option<String>, String> {
+    let Some((path, start_line, end_line)) = parse_query_local_window_selector(selector) else {
+        return Ok(None);
+    };
+    if query_local_window_line_count(start_line, end_line) > MAX_EXACT_DIRECT_READ_LINES {
+        return Ok(Some(render_query_local_window_read_plan(
+            path,
+            start_line,
+            end_line,
+            start_line,
+            end_line,
+            "wide-selector",
+            "unknown",
+        )));
+    }
+    let source_path = query_local_window_source_path(project_root, path);
+    let source = std::fs::read_to_string(&source_path)
+        .map_err(|error| format!("failed to read query local window {path}: {error}"))?;
+    if let Some(rendered) =
+        render_query_local_window_items(&source_path, &source, start_line, end_line)
+    {
+        return Ok(Some(rendered));
+    }
+    let line_count = end_line.saturating_sub(start_line).saturating_add(1);
+    let mut rendered = source
+        .lines()
+        .skip(start_line.saturating_sub(1))
+        .take(line_count)
+        .map(compact_query_local_window_line)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+    if !rendered.is_empty() && is_low_signal_query_local_window(&rendered) {
+        return Ok(Some(render_query_local_window_read_plan(
+            path,
+            start_line,
+            end_line,
+            start_line,
+            end_line,
+            "low-signal-window",
+            "low",
+        )));
+    }
+    if !rendered.is_empty() {
+        rendered.push('\n');
+    }
+    Ok(Some(rendered))
+}
+
+fn render_query_local_window_items(
+    source_path: &Path,
+    source: &str,
+    start_line: usize,
+    end_line: usize,
+) -> Option<String> {
+    let _ = (source_path, source, start_line, end_line);
+    None
+}
+
+fn parse_query_local_window_selector(selector: &str) -> Option<(&str, usize, usize)> {
+    let selector = strip_query_local_window_selector_prefix(selector.trim());
+    let (prefix, end) = selector.rsplit_once(':')?;
+    if let Some((start, end)) = end.split_once('-') {
+        return parse_query_local_window_range(prefix, start, end);
+    }
+    let (path, start) = prefix.rsplit_once(':')?;
+    parse_query_local_window_range(path, start, end)
+}
+
+fn strip_query_local_window_selector_prefix(value: &str) -> &str {
+    ["owner:", "read:", "path:"]
+        .into_iter()
+        .find_map(|prefix| value.strip_prefix(prefix))
+        .unwrap_or(value)
+}
+
+fn parse_query_local_window_range<'a>(
+    path: &'a str,
+    start: &str,
+    end: &str,
+) -> Option<(&'a str, usize, usize)> {
+    let start_line = start.parse::<usize>().ok()?;
+    let end_line = end.parse::<usize>().ok()?;
+    (start_line != 0 && end_line >= start_line).then_some((path, start_line, end_line))
+}
+
+fn query_local_window_source_path(project_root: &Path, path: &str) -> PathBuf {
+    let path = Path::new(path);
+    if path.is_absolute() {
+        return path.to_path_buf();
+    }
+    let rooted = project_root.join(path);
+    if rooted.is_file() {
+        rooted
+    } else {
+        path.to_path_buf()
+    }
+}
+
+fn compact_query_local_window_line(line: &str) -> String {
+    line.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn query_local_window_line_count(start_line: usize, end_line: usize) -> usize {
+    end_line.saturating_sub(start_line).saturating_add(1)
+}
+
+fn is_low_signal_query_local_window(text: &str) -> bool {
+    !text.chars().any(|ch| ch.is_alphanumeric() || ch == '_')
+}
+
+fn render_query_local_window_read_plan(
+    path: &str,
+    requested_start: usize,
+    requested_end: usize,
+    selected_start: usize,
+    selected_end: usize,
+    reason: &str,
+    density: &str,
+) -> String {
+    let line_range = format!("{selected_start}:{selected_end}");
+    let read = format!("{path}:{line_range}");
+    format!(
+        "[read-plan] q={path} selector={path}:{requested_start}:{requested_end} mode=range-outline code=false reason={reason} window=1\n|range path={path} requested={requested_start}:{requested_end} selected={line_range} matched={line_range} coverage=full density={density}\n|symbol item=local-window kind=range lineRange={line_range} read={read}\n"
+    )
 }
 
 fn is_search_pipe(value: &str) -> bool {

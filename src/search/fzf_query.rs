@@ -16,7 +16,7 @@ use super::format::{
 };
 use super::limits::SEARCH_HIT_LIMIT;
 use super::recency::compare_paths_by_recency;
-use super::scope::module_allowed;
+use super::scope::{module_allowed, path_allowed_by_scope};
 
 pub(super) fn render_search_fzf(
     project_root: &Path,
@@ -34,6 +34,10 @@ pub(super) fn render_search_fzf(
     if query_terms.len() > 1 {
         return render_search_fzf_query_set(project_root, config, query, &query_terms, options);
     }
+    let token_terms: Vec<&str> = query.split_whitespace().collect();
+    if token_terms.len() > 1 && !fzf_exact(&options.fzf_args) {
+        return render_search_fzf_query_set(project_root, config, query, &token_terms, options);
+    }
     if options.output_view.as_deref() == Some("seeds") {
         return render_search_fzf_seed_hits(project_root, config, query, options);
     }
@@ -42,10 +46,12 @@ pub(super) fn render_search_fzf(
     for context in contexts {
         let hits = fzf_hits(&context, query, options);
         let mut block = format!(
-            "[search-fzf] q={} mode=fuzzy backend=provider pkg={} own={}\n",
+            "[search-fzf] q={} mode={} backend=provider pkg={} own={}{}\n",
             query,
+            fzf_match_mode(options),
             package_label(project_root, &context.package_root),
-            hits.len()
+            hits.len(),
+            fzf_header_suffix(options)
         );
         for (path, score, locations) in hits.iter().take(SEARCH_HIT_LIMIT) {
             let owner_path = display_project_path(&context.package_root, path);
@@ -90,11 +96,13 @@ fn render_search_fzf_query_set(
     for context in contexts {
         let hits = fzf_query_set_hits(&context, query_terms, options);
         let mut block = format!(
-            "[search-fzf] q={} querySet={} selector=fuzzy-set mode=fuzzy backend=provider pkg={} own={}\n",
+            "[search-fzf] q={} querySet={} selector=fuzzy-set mode={} backend=provider pkg={} own={}{}\n",
             query,
             query_terms.len(),
+            fzf_match_mode(options),
             package_label(project_root, &context.package_root),
-            hits.len()
+            hits.len(),
+            fzf_header_suffix(options)
         );
         for (path, terms, score, locations) in hits.iter().take(SEARCH_HIT_LIMIT) {
             let owner_path = display_project_path(&context.package_root, path);
@@ -133,7 +141,7 @@ fn fzf_query_set_hits(
     {
         let owner_path = display_project_path(&context.package_root, &module.report.path);
         for term in query_terms {
-            let Some(score) = fuzzy_score(&owner_path, term) else {
+            let Some(score) = fuzzy_score_with_options(&owner_path, term, options) else {
                 continue;
             };
             let entry = grouped
@@ -145,7 +153,7 @@ fn fzf_query_set_hits(
         }
         for (index, line) in module.source.lines().enumerate() {
             for term in query_terms {
-                let Some(score) = fuzzy_score(line, term) else {
+                let Some(score) = fuzzy_score_with_options(line, term, options) else {
                     continue;
                 };
                 let entry = grouped
@@ -183,14 +191,16 @@ fn render_search_fzf_seed_hits(
         package_roots_for_request(project_root, config, options.package.as_deref())?;
     let mut rendered = String::new();
     for package_root in package_roots {
-        let hits = fzf_seed_hits(&package_root, config, query);
+        let hits = fzf_seed_hits(&package_root, config, query, options);
         let seed_limit = options.seeds.unwrap_or(8);
         let owner_limit = seed_limit.min(hits.len());
         let mut block = format!(
-            "[search-fzf] q={} mode=fuzzy backend=provider pkg={} own={}\n",
+            "[search-fzf] q={} mode={} backend=provider pkg={} own={}{}\n",
             query,
+            fzf_match_mode(options),
             package_label(project_root, &package_root),
-            hits.len()
+            hits.len(),
+            fzf_header_suffix(options)
         );
         let owners = hits
             .iter()
@@ -232,15 +242,17 @@ fn render_search_fzf_query_set_seed_hits(
         package_roots_for_request(project_root, config, options.package.as_deref())?;
     let mut rendered = String::new();
     for package_root in package_roots {
-        let hits = fzf_query_set_seed_hits(&package_root, config, query_terms);
+        let hits = fzf_query_set_seed_hits(&package_root, config, query_terms, options);
         let seed_limit = options.seeds.unwrap_or(8);
         let owner_limit = seed_limit.min(hits.len());
         let mut block = format!(
-            "[search-fzf] q={} querySet={} selector=fuzzy-set mode=fuzzy backend=provider pkg={} own={}\n",
+            "[search-fzf] q={} querySet={} selector=fuzzy-set mode={} backend=provider pkg={} own={}{}\n",
             query,
             query_terms.len(),
+            fzf_match_mode(options),
             package_label(project_root, &package_root),
-            hits.len()
+            hits.len(),
+            fzf_header_suffix(options)
         );
         let owners = hits
             .iter()
@@ -327,6 +339,7 @@ fn fzf_query_set_seed_hits(
     package_root: &Path,
     config: &RustHarnessConfig,
     query_terms: &[&str],
+    options: &RustSearchOptions,
 ) -> Vec<(PathBuf, BTreeSet<String>, usize, Vec<String>)> {
     let scope = rust_project_harness_scope(
         package_root,
@@ -336,6 +349,7 @@ fn fzf_query_set_seed_hits(
     );
     let mut hits = discover_rust_files(&scope.monitored_paths(), &config.ignored_dir_names)
         .into_iter()
+        .filter(|path| path_allowed_by_scope(&scope, package_root, path, options))
         .filter_map(|path| {
             let Ok(text) = fs::read_to_string(&path) else {
                 return None;
@@ -357,6 +371,7 @@ fn fzf_seed_hits(
     package_root: &Path,
     config: &RustHarnessConfig,
     query: &str,
+    options: &RustSearchOptions,
 ) -> Vec<(PathBuf, usize, Vec<String>)> {
     let scope = rust_project_harness_scope(
         package_root,
@@ -366,11 +381,13 @@ fn fzf_seed_hits(
     );
     let mut hits = discover_rust_files(&scope.monitored_paths(), &config.ignored_dir_names)
         .into_iter()
+        .filter(|path| path_allowed_by_scope(&scope, package_root, path, options))
         .filter_map(|path| {
             let Ok(text) = fs::read_to_string(&path) else {
                 return None;
             };
-            let (score, locations) = fuzzy_locations_with_path(package_root, &path, &text, query);
+            let (score, locations) =
+                fuzzy_locations_with_path(package_root, &path, &text, query, options);
             (score > 0).then_some((path, score, locations))
         })
         .collect::<Vec<_>>();
@@ -397,6 +414,7 @@ fn fzf_hits(
                 &module.report.path,
                 &module.source,
                 query,
+                options,
             );
             (score > 0).then_some((module.report.path.clone(), score, locations))
         })
@@ -409,11 +427,38 @@ fn fzf_hits(
     hits
 }
 
-fn fuzzy_locations(text: &str, query: &str) -> (usize, Vec<String>) {
+fn fzf_header_suffix(options: &RustSearchOptions) -> String {
+    if options.fzf_args.is_empty() {
+        return String::new();
+    }
+    format!(" finder=fzf fzfArgs={}", options.fzf_args.join(","))
+}
+
+fn fzf_match_mode(options: &RustSearchOptions) -> &'static str {
+    if fzf_exact(&options.fzf_args) {
+        "exact"
+    } else {
+        "fuzzy"
+    }
+}
+
+fn fzf_exact(args: &[String]) -> bool {
+    args.iter()
+        .any(|arg| matches!(arg.as_str(), "--exact" | "-e"))
+}
+
+fn fzf_case_sensitive(args: &[String], _query: &str) -> bool {
+    if args.iter().any(|arg| arg == "+i") {
+        return true;
+    }
+    false
+}
+
+fn fuzzy_locations(text: &str, query: &str, options: &RustSearchOptions) -> (usize, Vec<String>) {
     let mut score = 0usize;
     let mut locations = Vec::new();
     for (index, line) in text.lines().enumerate() {
-        let Some(line_score) = fuzzy_score(line, query) else {
+        let Some(line_score) = fuzzy_score_with_options(line, query, options) else {
             continue;
         };
         score = score.saturating_add(line_score);
@@ -429,10 +474,11 @@ fn fuzzy_locations_with_path(
     path: &Path,
     text: &str,
     query: &str,
+    options: &RustSearchOptions,
 ) -> (usize, Vec<String>) {
-    let (mut score, mut locations) = fuzzy_locations(text, query);
+    let (mut score, mut locations) = fuzzy_locations(text, query, options);
     let owner_path = display_project_path(package_root, path);
-    if let Some(path_score) = fuzzy_score(&owner_path, query) {
+    if let Some(path_score) = fuzzy_score_with_options(&owner_path, query, options) {
         score = score.saturating_add(path_score);
         locations.push("path:1".to_string());
     }
@@ -484,18 +530,43 @@ fn fuzzy_query_set_locations_with_path(
 }
 
 fn fuzzy_score(candidate: &str, query: &str) -> Option<usize> {
+    fuzzy_score_with_args(candidate, query, &[])
+}
+
+fn fuzzy_score_with_options(
+    candidate: &str,
+    query: &str,
+    options: &RustSearchOptions,
+) -> Option<usize> {
+    fuzzy_score_with_args(candidate, query, &options.fzf_args)
+}
+
+fn fuzzy_score_with_args(candidate: &str, query: &str, fzf_args: &[String]) -> Option<usize> {
     let query = query.trim();
     if query.is_empty() {
         return None;
     }
-    let candidate = candidate.to_ascii_lowercase();
-    let query = query.to_ascii_lowercase();
+    let exact = fzf_exact(fzf_args);
+    let case_sensitive = fzf_case_sensitive(fzf_args, query);
+    let candidate = if case_sensitive {
+        candidate.to_string()
+    } else {
+        candidate.to_ascii_lowercase()
+    };
+    let query = if case_sensitive {
+        query.to_string()
+    } else {
+        query.to_ascii_lowercase()
+    };
     if let Some(index) = candidate.find(&query) {
         return Some(
             10_000usize
                 .saturating_add(query.len().saturating_mul(100))
                 .saturating_sub(index.min(1_000)),
         );
+    }
+    if exact {
+        return None;
     }
     let positions = fuzzy_match_positions(&candidate, &query)?;
     if positions.is_empty() {

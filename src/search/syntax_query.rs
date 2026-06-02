@@ -82,7 +82,7 @@ pub(super) fn render_search_query(
                 compact_field(fact_name),
                 compact_field(&hit.source_path),
                 hit.visibility == "public",
-                compact_field(syntax_query.term())
+                compact_field(syntax_query.term()),
             );
         }
         if options.output_view.as_deref() != Some("seeds") {

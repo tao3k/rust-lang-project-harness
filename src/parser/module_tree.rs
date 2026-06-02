@@ -181,7 +181,12 @@ pub(in crate::parser) fn external_child_module_edges(
 
 fn child_module_base_dir(module_path: &Path) -> PathBuf {
     let parent = module_path.parent().unwrap_or_else(|| Path::new(""));
-    if is_special_rust_entrypoint_path(module_path) {
+    if is_special_rust_entrypoint_path(module_path)
+        || module_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name == "mod.rs")
+    {
         return parent.to_path_buf();
     }
     let Some(stem) = module_path.file_stem() else {

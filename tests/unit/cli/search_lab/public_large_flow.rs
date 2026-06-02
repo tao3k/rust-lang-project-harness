@@ -335,9 +335,7 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
         7,
         &[
             "[search-owner] q=ext/web-search/src/tool.rs pkg=ext/web-search own=1 item=",
-            "|seed owner:ext/web-search/src/tool.rs",
-            "|seed tests:ext/web-search/src/tool.rs",
-            "|seed symbol:WebSearchTool",
+            "|seed symbol:WebSearchTool,run_command,command_action",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );

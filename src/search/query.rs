@@ -20,7 +20,7 @@ use super::hits::{
 use super::limits::SEARCH_HIT_LIMIT;
 use super::owner_view;
 use super::recency::compare_paths_by_recency;
-use super::scope::{module_allowed, module_is_scope};
+use super::scope::{module_allowed, path_allowed_by_scope};
 
 pub(super) fn render_search_symbol(
     project_root: &Path,
@@ -81,9 +81,7 @@ fn render_search_symbol_seed_hits(
                 continue;
             }
             let module = parse_rust_file(&path);
-            if options.scope.as_deref().is_some_and(|scope_name| {
-                scope_name != "all" && !module_is_scope(&scope, &module, scope_name)
-            }) {
+            if !path_allowed_by_scope(&scope, &package_root, &module.report.path, options) {
                 continue;
             }
             let module_defs = module

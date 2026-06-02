@@ -218,6 +218,11 @@ fn agent_registry_json(project_root: &Path) -> Value {
                         "path": "schemas/semantic-determinism-readiness.v1.schema.json"
                     },
                     {
+                        "schemaId": "agent.semantic-protocols.dev-command-log",
+                        "schemaVersion": "1",
+                        "path": "schemas/semantic-dev-command-log.v1.schema.json"
+                    },
+                    {
                         "schemaId": "agent.semantic-protocols.semantic-formal-proof-pilot",
                         "schemaVersion": "1",
                         "path": "schemas/semantic-formal-proof-pilot.v1.schema.json"

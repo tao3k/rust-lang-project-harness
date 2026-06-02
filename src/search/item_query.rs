@@ -1,8 +1,8 @@
 //! Parser-owned item query matching and compact code lines.
 
-use std::fs;
 use std::path::Path;
 
+use crate::parser::native_syntax::RustItemProjectionNodeSyntax;
 use crate::parser::{ParsedRustModule, RustTopLevelItemSyntax};
 
 use super::format::{display_project_path, render_item_line_with_read};
@@ -75,13 +75,11 @@ pub(super) fn render_owner_item_code_lines(
         .iter()
         .take(SEARCH_OWNER_LIMIT)
         .flat_map(|module| {
-            let Ok(source) = fs::read_to_string(&module.report.path) else {
-                return Vec::new();
-            };
             module_items_for_query(module, item_query)
                 .into_iter()
                 .take(SEARCH_ITEM_LIMIT)
-                .filter_map(|item| render_item_source_text(&source, item))
+                .map(item_projection_text)
+                .filter(|text| !text.is_empty())
                 .collect::<Vec<_>>()
         })
         .collect()
@@ -102,8 +100,16 @@ pub(super) fn render_item_query_line(
     } else {
         format!(" candidates={}", summary.candidates.join(","))
     };
+    let revision_field = if summary.revisions.is_empty() {
+        String::new()
+    } else {
+        format!(" revise={}", summary.revisions.join(","))
+    };
+    let candidate_field = format!("{candidate_field}{revision_field}");
     let next = if summary.mode == ItemQueryMatchMode::Miss {
         summary.next.as_deref().unwrap_or("revise-query")
+    } else if names_only && summary.item_count > 1 {
+        "select-item"
     } else {
         "code"
     };
@@ -167,23 +173,26 @@ fn render_item_code_line(
         return None;
     }
     let truncated = item.projection_nodes.len() > 48;
+    let parser_nodes = projection_node_tokens(&item.projection_nodes);
     let encoded_text = serde_json::to_string(&text).ok()?;
     Some(format!(
-        "|code path={} startLine={} endLine={} reason=item-query truncated={} text={}",
-        path, start_line, end_line, truncated, encoded_text
+        "|code path={} lineRange={}:{} reason=item-query truncated={} nodes={} text={}",
+        path, start_line, end_line, truncated, parser_nodes, encoded_text
     ))
 }
 
-fn render_item_source_text(source: &str, item: &RustTopLevelItemSyntax) -> Option<String> {
-    let start_line = item.line.max(1);
-    let end_line = item.end_line.max(start_line);
-    let text = source
-        .lines()
-        .skip(start_line.saturating_sub(1))
-        .take(end_line.saturating_sub(start_line).saturating_add(1))
+fn projection_node_tokens(nodes: &[RustItemProjectionNodeSyntax]) -> String {
+    nodes
+        .iter()
+        .enumerate()
+        .map(|(index, node)| {
+            format!(
+                "n{}:{}:{}:{}:{}:{}",
+                index, node.kind, node.role, node.depth, node.line, node.end_line
+            )
+        })
         .collect::<Vec<_>>()
-        .join("\n");
-    (!text.trim().is_empty()).then_some(text)
+        .join(",")
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -197,6 +206,7 @@ struct ItemQuerySummary {
     mode: ItemQueryMatchMode,
     item_count: usize,
     candidates: Vec<String>,
+    revisions: Vec<String>,
     next: Option<String>,
 }
 
@@ -248,22 +258,27 @@ fn item_query_match_summary(
             mode: ItemQueryMatchMode::Exact,
             item_count: exact_count,
             candidates: Vec::new(),
+            revisions: Vec::new(),
             next: None,
         };
     }
-    let fuzzy_count = named_items
+    let fuzzy_items = named_items
         .iter()
         .filter(|item| {
             terms
                 .iter()
                 .any(|term| item_matches_query_fuzzy(item, term))
         })
-        .count();
+        .copied()
+        .collect::<Vec<_>>();
+    let fuzzy_count = fuzzy_items.len();
     if fuzzy_count > 0 {
+        let revisions = item_query_term_revisions(&named_items, &fuzzy_items, &terms);
         ItemQuerySummary {
             mode: ItemQueryMatchMode::FallbackContains,
             item_count: fuzzy_count,
             candidates: Vec::new(),
+            revisions,
             next: None,
         }
     } else {
@@ -275,6 +290,7 @@ fn item_query_match_summary(
             mode: ItemQueryMatchMode::Miss,
             item_count: 0,
             candidates,
+            revisions: Vec::new(),
             next,
         }
     }
@@ -386,6 +402,59 @@ fn named_module_items(module: &ParsedRustModule) -> Vec<&RustTopLevelItemSyntax>
         .iter()
         .filter(|item| item.name.is_some())
         .collect()
+}
+
+fn item_query_term_revisions(
+    items: &[&RustTopLevelItemSyntax],
+    selected_items: &[&RustTopLevelItemSyntax],
+    terms: &[&str],
+) -> Vec<String> {
+    terms
+        .iter()
+        .filter_map(|term| {
+            if selected_items.iter().any(|item| {
+                item_matches_query_exact(item, term) || item_matches_query_fuzzy(item, term)
+            }) {
+                return None;
+            }
+            let single_term = [*term];
+            let mut candidates = item_query_miss_candidates(items, &single_term);
+            if candidates.is_empty() {
+                if let Some(alias) = snake_case_query_alias(term) {
+                    let alias_terms = [alias.as_str()];
+                    candidates = item_query_miss_candidates(items, &alias_terms);
+                }
+            }
+            candidates
+                .into_iter()
+                .next()
+                .map(|candidate| format!("{term}->{candidate}"))
+        })
+        .collect()
+}
+
+fn snake_case_query_alias(term: &str) -> Option<String> {
+    let mut alias = String::new();
+    let mut changed = false;
+    let mut previous_word = false;
+    for character in term.chars() {
+        if character.is_ascii_uppercase() {
+            if previous_word && !alias.ends_with('_') {
+                alias.push('_');
+            }
+            alias.push(character.to_ascii_lowercase());
+            changed = true;
+            previous_word = true;
+        } else {
+            alias.push(character);
+            previous_word = character.is_ascii_lowercase() || character.is_ascii_digit();
+        }
+    }
+    if changed && alias != term {
+        Some(alias)
+    } else {
+        None
+    }
 }
 
 fn item_query_terms(query: &str) -> Vec<&str> {

@@ -12,3 +12,5 @@ pub(crate) use data_shape::{
     RustPublicEnumTupleVariantFieldSyntax, RustPublicEnumVariantFieldSyntax,
     RustPublicStructFieldSyntax, RustPublicTypeAliasSyntax,
 };
+#[cfg(feature = "cli")]
+pub(crate) use item_projection::RustItemProjectionNodeSyntax;

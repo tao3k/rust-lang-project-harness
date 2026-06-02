@@ -34,6 +34,7 @@ pub(super) struct SemanticSearchJsonOptions {
     pub(super) lines: bool,
     pub(super) pipes: Vec<String>,
     pub(super) query_set: Vec<String>,
+    pub(super) fzf_args: Vec<String>,
 }
 
 pub(super) fn render_search_json(
@@ -217,6 +218,9 @@ fn base_packet(
         "nextActions": collections.next_actions,
         "notes": collections.notes,
     });
+    if options.view == "fzf" {
+        packet["finder"] = super::semantic_search_finder_json::fzf_finder(options);
+    }
     if let Some(search_synthesis) = collections.search_synthesis {
         packet["searchSynthesis"] = search_synthesis;
     }

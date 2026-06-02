@@ -33,7 +33,7 @@ fn cli_help_advertises_code_flag() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("Use --code after selecting an owner and symbol"),
+        stdout.contains("Use --code after selecting an owner/symbol or hook path/range"),
         "{stdout}"
     );
 }
@@ -82,7 +82,7 @@ fn cli_query_owner_selector_extracts_parser_item_code() {
         root,
     );
     assert!(stdout.contains("fn load"), "{stdout}");
-    assert!(!stdout.contains("call domain::make_thing"), "{stdout}");
+    assert!(stdout.contains("call domain::make_thing"), "{stdout}");
     assert!(!stdout.contains("[search-owner]"), "{stdout}");
     assert!(!stdout.contains("|code path=src/lib.rs"), "{stdout}");
     let search_code = run_cli([
@@ -101,7 +101,7 @@ fn cli_query_owner_selector_extracts_parser_item_code() {
         root,
     );
     assert!(stdout.contains("fn load"), "{stdout}");
-    assert!(!stdout.contains("call domain::make_thing"), "{stdout}");
+    assert!(stdout.contains("call domain::make_thing"), "{stdout}");
     assert!(!stdout.contains("[search-owner]"), "{stdout}");
     assert!(!stdout.contains("|code path=src/lib.rs"), "{stdout}");
     let names_only = run_cli([

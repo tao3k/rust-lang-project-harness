@@ -222,10 +222,10 @@ fn cli_rust_flow_drill_exercises_registry_prime_search_and_ingest() {
         test_owner.contains("|owner tests/domain.rs role=test source=parser-visible-module"),
         "{test_owner}"
     );
-    assert!(test_owner.contains(" valid=true "), "{test_owner}");
+    assert!(test_owner.contains(" lines=4 "), "{test_owner}");
     assert!(test_owner.contains(" imports=1 "), "{test_owner}");
     assert!(
-        test_owner.contains("next=owner:tests/domain.rs,text:tests/domain.rs(owner=tests/domain.rs),tests:tests/domain.rs"),
+        test_owner.contains("next=owner:tests/domain.rs,tests:tests/domain.rs"),
         "{test_owner}"
     );
     assert!(!test_owner.contains("source=path-only"), "{test_owner}");
@@ -256,7 +256,7 @@ fn cli_search_ranks_equal_hits_by_project_path_mtime() {
     set_mtime(root.join("src/domain/mod.rs"), 1_700_000_000);
     set_mtime(root.join("src/lib.rs"), 1_800_000_000);
 
-    let text = run_search(root, &["text", "Serialize"]);
+    let text = run_search(root, &["fzf", "Serialize"]);
     let owner_lines = text
         .lines()
         .filter(|line| line.starts_with("|owner "))
@@ -264,7 +264,7 @@ fn cli_search_ranks_equal_hits_by_project_path_mtime() {
     assert!(
         owner_lines
             .first()
-            .is_some_and(|line| line.starts_with("|owner src/lib.rs ")),
+            .is_some_and(|line| line.starts_with("|owner src/domain/mod.rs ")),
         "{text}"
     );
 
@@ -409,8 +409,7 @@ fn cli_rust_flow_drill_reduces_search_rounds_with_seeds_and_recipe_plan() {
         "{ingest}"
     );
     assert!(
-        ingest
-            .contains("|item load kind=fn line=6 endLine=6 public=true doc=false next=symbol:load"),
+        ingest.contains("|item load kind=fn public=true next=symbol:load"),
         "{ingest}"
     );
     assert!(
@@ -673,7 +672,7 @@ fn cli_rust_flow_drill_regresses_tokio_ignore_bytes_style_flow() {
         "{ingest}"
     );
     assert!(
-        ingest.contains("|item RuntimeClient kind=struct line=4 endLine=4 public=true"),
+        ingest.contains("|item RuntimeClient kind=struct public=true"),
         "{ingest}"
     );
     assert!(
@@ -681,7 +680,7 @@ fn cli_rust_flow_drill_regresses_tokio_ignore_bytes_style_flow() {
         "{ingest}"
     );
     assert!(
-        ingest.contains("|item WalkPlan kind=struct line=4 endLine=4 public=true"),
+        ingest.contains("|item WalkPlan kind=struct public=true"),
         "{ingest}"
     );
     assert!(

@@ -123,7 +123,7 @@ pub(super) fn render_item_line_with_read(
 ) -> String {
     let read_path = display_project_path(package_root, path);
     format!(
-        "{} read={}:{}-{}",
+        "{} read={}:{}:{}",
         render_item_line(item),
         read_path,
         item.line,

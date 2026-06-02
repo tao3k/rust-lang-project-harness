@@ -2,6 +2,8 @@ use std::collections::BTreeSet;
 use std::fmt::Write;
 use std::path::{Path, PathBuf};
 
+const BROAD_ITEM_QUERY_CODE_LIMIT: usize = 3;
+
 use crate::RustHarnessConfig;
 use crate::parser::{ParsedRustModule, RustReasoningOwnerBranchFacts, parse_rust_file};
 
@@ -161,6 +163,7 @@ fn render_exact_path_owner(
             query,
             &module,
             include_items,
+            !include_items || options.pipes.iter().any(|pipe| pipe == "tests"),
             options.item_query.as_deref(),
             options.item_names_only,
             options.item_code,
@@ -177,6 +180,7 @@ fn render_exact_path_owner_block(
     query: &str,
     module: &ParsedRustModule,
     include_items: bool,
+    include_tests: bool,
     item_query: Option<&str>,
     item_names_only: bool,
     item_code: bool,
@@ -199,7 +203,11 @@ fn render_exact_path_owner_block(
         include_items,
         item_query,
     );
-    append_parser_visible_owner_line(&mut block, package_root, module);
+    if include_items {
+        append_parser_visible_owner_line_without_next(&mut block, package_root, module);
+    } else {
+        append_parser_visible_owner_line(&mut block, package_root, module);
+    }
     append_item_query_line(&mut block, &[module], item_query, item_names_only);
     append_owner_item_lines(
         &mut block,
@@ -209,8 +217,12 @@ fn render_exact_path_owner_block(
         item_query,
         item_names_only,
     );
-    append_unique_lines(&mut block, test_lines);
-    append_unique_lines(&mut block, synthesis_lines);
+    if include_tests {
+        append_unique_lines(&mut block, test_lines);
+    }
+    if !include_items {
+        append_unique_lines(&mut block, synthesis_lines);
+    }
     block
 }
 
@@ -582,6 +594,8 @@ fn append_owner_item_lines(
     item_query: Option<&str>,
     item_names_only: bool,
 ) {
+    let item_names_only =
+        item_names_only || broad_item_query_should_use_names_only(matching_modules, item_query);
     if !include_items {
         return;
     }
@@ -591,12 +605,25 @@ fn append_owner_item_lines(
     }
 }
 
+fn broad_item_query_should_use_names_only(
+    matching_modules: &[&ParsedRustModule],
+    item_query: Option<&str>,
+) -> bool {
+    let Some(query) = item_query else {
+        return false;
+    };
+    query.contains('|')
+        && owner_item_count(matching_modules, true, Some(query)) > BROAD_ITEM_QUERY_CODE_LIMIT
+}
+
 fn append_item_query_line(
     block: &mut String,
     matching_modules: &[&ParsedRustModule],
     item_query: Option<&str>,
     item_names_only: bool,
 ) {
+    let item_names_only =
+        item_names_only || broad_item_query_should_use_names_only(matching_modules, item_query);
     if let Some(line) = render_item_query_line(matching_modules, item_query, item_names_only) {
         let _ = writeln!(block, "{line}");
     }
@@ -711,6 +738,20 @@ fn append_parser_visible_owner_line(
     }
     fields.push(format!("next=owner:{path},tests:{path}"));
     let _ = writeln!(block, "{}", fields.join(" "));
+}
+
+fn append_parser_visible_owner_line_without_next(
+    block: &mut String,
+    package_root: &Path,
+    module: &ParsedRustModule,
+) {
+    let mut owner_line = String::new();
+    append_parser_visible_owner_line(&mut owner_line, package_root, module);
+    if let Some(next_index) = owner_line.find(" next=") {
+        let line_end = owner_line.trim_end().len();
+        owner_line.replace_range(next_index..line_end, "");
+    }
+    block.push_str(&owner_line);
 }
 
 fn append_path_only_owner_line(block: &mut String, context: &PackageSearchContext, path: &Path) {
