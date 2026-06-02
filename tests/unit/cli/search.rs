@@ -19,6 +19,7 @@ fn cli_search_prime_renders_line_protocol() {
         "//! Test crate.\nmod domain;\nuse crate::domain::Thing;\npub fn load() -> Thing { Thing }\n",
     )
     .expect("write lib");
+    fs::write(root.join("src/hook_runtime.rs"), "pub fn execute() {}\n").expect("write path owner");
     fs::write(
         root.join("src/domain/mod.rs"),
         "//! Domain branch.\npub struct Thing;\n",
@@ -91,6 +92,16 @@ fn cli_search_json_and_trace_follow_rfc_output_modes() {
     assert!(value["packages"].as_array().expect("packages").len() == 1);
     assert!(value["owners"].as_array().expect("owners").len() > 1);
     assert!(!value["edges"].as_array().expect("edges").is_empty());
+    assert_eq!(value["searchSynthesis"]["algorithm"], "owner-rank-frontier");
+    assert_eq!(value["searchSynthesis"]["scope"], "prime");
+    assert!(
+        value["searchSynthesis"]["highImpactOwners"]
+            .as_array()
+            .expect("high impact owners")
+            .iter()
+            .any(|path| path.as_str() == Some("src/lib.rs")),
+        "{value}"
+    );
     assert!(value.get("compact").is_none(), "{value}");
 
     let trace = run_cli([
@@ -329,6 +340,84 @@ fn cli_search_deps_distinguishes_external_version_queries() {
 }
 
 #[test]
+fn cli_search_fzf_renders_fuzzy_frontier() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"cli-search-fzf\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write manifest");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub mod hook_runtime;\npub struct AgentHookEvent;\npub fn run_codex_agent_hook(_event: AgentHookEvent) {}\n",
+    )
+    .expect("write lib");
+    fs::create_dir_all(root.join("tests/unit")).expect("create tests unit");
+    fs::write(
+        root.join("tests/unit/snapshot.rs"),
+        "fn snapshot_case() { assert_snapshot!(\"ok\"); }\n",
+    )
+    .expect("write scoped test");
+
+    let fzf = run_search(root, &["fzf", "runCodexAgentHook"]);
+    assert!(
+        fzf.starts_with("[search-fzf] q=runCodexAgentHook mode=fuzzy backend=provider pkg=. own=1"),
+        "{fzf}"
+    );
+    assert!(fzf.contains("|owner src/lib.rs hit_kind=fzf"), "{fzf}");
+    let path_fzf = run_search(root, &["fzf", "src/lib.rs", "--view", "seeds"]);
+    assert!(path_fzf.contains("|seed owner:src/lib.rs"), "{path_fzf}");
+    let scoped_fzf = run_search(
+        root,
+        &[
+            "fzf",
+            "assert_snapshot!",
+            "owner",
+            "tests/unit",
+            "--view",
+            "seeds",
+        ],
+    );
+    assert!(
+        scoped_fzf.contains("|seed owner:tests/unit/snapshot.rs"),
+        "{scoped_fzf}"
+    );
+    assert!(!scoped_fzf.contains("src/lib.rs"), "{scoped_fzf}");
+
+    let query_set = run_search(
+        root,
+        &[
+            "fzf",
+            "--query-set",
+            "AgentHookEvent",
+            "--query-set",
+            "runCodexAgentHook",
+            "--view",
+            "seeds",
+        ],
+    );
+    assert!(
+        query_set.starts_with(
+            "[search-fzf] q=AgentHookEvent,runCodexAgentHook querySet=2 selector=fuzzy-set mode=fuzzy backend=provider pkg=. own=1"
+        ),
+        "{query_set}"
+    );
+    assert!(query_set.contains("|seed owner:src/lib.rs"), "{query_set}");
+
+    let text = run_cli([
+        "search".as_ref(),
+        "text".as_ref(),
+        "runCodexAgentHook".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(!text.status.success(), "{text:?}");
+    let stderr = String::from_utf8(text.stderr).expect("utf8 stderr");
+    assert!(stderr.contains("unknown search view: text"), "{stderr}");
+}
+
+#[test]
 fn cli_search_views_render_rfc_line_protocol() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
@@ -564,7 +653,103 @@ fn cli_search_views_render_rfc_line_protocol() {
     );
     assert!(owner.contains("|owner src/lib.rs"), "{owner}");
     assert!(owner.contains("|item load kind=fn"), "{owner}");
+    assert!(
+        owner.contains("|synthesis algorithm=bounded-reachability-depth1 scope=owner"),
+        "{owner}"
+    );
+    assert!(owner.contains("owner_path=src/lib.rs"), "{owner}");
 
+    let owner_json = run_cli([
+        "search".as_ref(),
+        "owner".as_ref(),
+        "src/lib.rs".as_ref(),
+        "--json".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(owner_json.status.success(), "{owner_json:?}");
+    let value = serde_json::from_slice::<Value>(&owner_json.stdout).expect("owner json");
+    assert_eq!(
+        value["searchSynthesis"]["algorithm"],
+        "bounded-reachability-depth1"
+    );
+    assert_eq!(value["searchSynthesis"]["scope"], "owner");
+    assert_eq!(value["searchSynthesis"]["ownerPath"], "src/lib.rs");
+
+    let owner_item_query = run_search(root, &["owner", "src/lib.rs", "items", "--query", "load"]);
+    assert!(
+        owner_item_query
+            .starts_with("[search-owner] q=src/lib.rs pkg=. own=1 item=1 itemQuery=load"),
+        "{owner_item_query}"
+    );
+    assert!(
+        owner_item_query
+            .contains("|item load kind=fn public=true next=symbol:load read=src/lib.rs:6-6"),
+        "{owner_item_query}"
+    );
+    assert!(
+        owner_item_query.contains(
+            "|code path=src/lib.rs startLine=6 endLine=6 reason=item-query truncated=false text=\"pub fn load() -> Thing\\ncall domain::make_thing\""
+        ),
+        "{owner_item_query}"
+    );
+    assert!(
+        !owner_item_query.contains("clone_value"),
+        "{owner_item_query}"
+    );
+    let owner_names_only = run_search(
+        root,
+        &[
+            "owner",
+            "src/lib.rs",
+            "items",
+            "--query",
+            "loa",
+            "--names-only",
+        ],
+    );
+    assert!(
+        owner_names_only.contains(
+            "|query itemQuery=loa status=hit match=fallback-contains item=1 reason=parser-item-fallback output=names next=code"
+        ),
+        "{owner_names_only}"
+    );
+    assert!(
+        owner_names_only.contains("|item load kind=fn"),
+        "{owner_names_only}"
+    );
+    assert!(
+        !owner_names_only.contains("|code path=src/lib.rs"),
+        "{owner_names_only}"
+    );
+    let owner_multi_query = run_search(
+        root,
+        &[
+            "owner",
+            "src/lib.rs",
+            "items",
+            "--query",
+            "load|clone_value",
+        ],
+    );
+    assert!(
+        owner_multi_query.starts_with(
+            "[search-owner] q=src/lib.rs pkg=. own=1 item=2 itemQuery=load|clone_value"
+        ),
+        "{owner_multi_query}"
+    );
+    assert!(
+        owner_multi_query.contains("|item load kind=fn public=true"),
+        "{owner_multi_query}"
+    );
+    assert!(
+        owner_multi_query.contains("|item clone_value kind=fn public=true"),
+        "{owner_multi_query}"
+    );
+    assert!(
+        owner_multi_query
+            .contains("text=\"pub fn clone_value(input: String) -> String\\ncall clone\""),
+        "{owner_multi_query}"
+    );
     let owner_set = run_search(root, &["owner", "src/lib.rs,src/domain/mod.rs", "items"]);
     assert!(
         owner_set.starts_with(
@@ -612,20 +797,20 @@ fn cli_search_views_render_rfc_line_protocol() {
         "{import}"
     );
 
-    let text = run_search(root, &["text", "Thing", "--scope", "src"]);
+    let fzf = run_search(root, &["fzf", "Thing", "--scope", "src"]);
     assert!(
-        text.starts_with("[search-text] q=Thing pkg=. own=2"),
-        "{text}"
+        fzf.starts_with("[search-fzf] q=Thing mode=fuzzy backend=provider pkg=. own=2"),
+        "{fzf}"
     );
-    assert!(text.contains("|owner src/lib.rs hit_kind=text"), "{text}");
+    assert!(fzf.contains("|owner src/lib.rs hit_kind=fzf"), "{fzf}");
     assert!(
-        text.contains("|owner src/domain/mod.rs hit_kind=text"),
-        "{text}"
+        fzf.contains("|owner src/domain/mod.rs hit_kind=fzf"),
+        "{fzf}"
     );
 
-    let text_set = run_cli([
+    let fzf_set = run_cli([
         "search".as_ref(),
-        "text".as_ref(),
+        "fzf".as_ref(),
         "--query-set".as_ref(),
         "Thing".as_ref(),
         "--query-set".as_ref(),
@@ -634,22 +819,28 @@ fn cli_search_views_render_rfc_line_protocol() {
         "src".as_ref(),
         root.as_os_str(),
     ]);
-    assert!(text_set.status.success(), "{text_set:?}");
-    let text_set_stdout = String::from_utf8(text_set.stdout).expect("utf8 stdout");
+    assert!(fzf_set.status.success(), "{fzf_set:?}");
+    let fzf_set_stdout = String::from_utf8(fzf_set.stdout).expect("utf8 stdout");
     assert!(
-        text_set_stdout.starts_with(
-            "[search-text] q=Thing,make_thing querySet=2 selector=exact-set pkg=. own=2"
+        fzf_set_stdout.starts_with(
+            "[search-fzf] q=Thing,make_thing querySet=2 selector=fuzzy-set mode=fuzzy backend=provider pkg=. own=2"
         ),
-        "{text_set_stdout}"
+        "{fzf_set_stdout}"
     );
     assert!(
-        text_set_stdout.contains("|owner src/lib.rs hit_kind=text querySet=2"),
-        "{text_set_stdout}"
+        fzf_set_stdout.contains("|owner src/lib.rs hit_kind=fzf querySet=2"),
+        "{fzf_set_stdout}"
+    );
+    assert!(
+        fzf_set_stdout.contains("window_set=")
+            && fzf_set_stdout.contains("owner:src/lib.rs")
+            && fzf_set_stdout.contains("owner:src/domain/mod.rs"),
+        "{fzf_set_stdout}"
     );
 
-    let text_set_json = run_cli([
+    let fzf_set_json = run_cli([
         "search".as_ref(),
-        "text".as_ref(),
+        "fzf".as_ref(),
         "--query-set".as_ref(),
         "Thing".as_ref(),
         "--query-set".as_ref(),
@@ -657,13 +848,84 @@ fn cli_search_views_render_rfc_line_protocol() {
         "--json".as_ref(),
         root.as_os_str(),
     ]);
-    assert!(text_set_json.status.success(), "{text_set_json:?}");
-    let value = serde_json::from_slice::<Value>(&text_set_json.stdout).expect("text set json");
+    assert!(fzf_set_json.status.success(), "{fzf_set_json:?}");
+    let value = serde_json::from_slice::<Value>(&fzf_set_json.stdout).expect("fzf set json");
     assert_eq!(value["query"], "Thing,make_thing");
     assert_eq!(value["querySet"][0]["value"], "Thing");
     assert_eq!(value["querySet"][0]["kind"], "text");
     assert_eq!(value["querySet"][1]["value"], "make_thing");
     assert_eq!(value["queryComposition"]["mode"], "query-set");
+
+    let fzf_set_frontier = run_cli([
+        "search".as_ref(),
+        "fzf".as_ref(),
+        "--query-set".as_ref(),
+        "load".as_ref(),
+        "--query-set".as_ref(),
+        "Thing".as_ref(),
+        "--view".as_ref(),
+        "seeds".as_ref(),
+        "--json".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(fzf_set_frontier.status.success(), "{fzf_set_frontier:?}");
+    let value = serde_json::from_slice::<Value>(&fzf_set_frontier.stdout).expect("frontier json");
+    assert_eq!(
+        value["searchSynthesis"]["algorithm"],
+        "change-frontier-query-set"
+    );
+    assert_eq!(value["searchSynthesis"]["scope"], "query-set");
+    assert!(
+        value["searchSynthesis"]["editFrontier"]
+            .as_array()
+            .expect("edit frontier")
+            .iter()
+            .any(|path| path.as_str() == Some("src/lib.rs")),
+        "{value}"
+    );
+    assert!(
+        value["searchSynthesis"]["testFrontier"]
+            .as_array()
+            .expect("test frontier")
+            .iter()
+            .any(|path| path.as_str() == Some("tests/domain.rs")),
+        "{value}"
+    );
+    assert!(
+        value["searchSynthesis"]["windowSet"]
+            .as_array()
+            .expect("window set")
+            .iter()
+            .any(|window| window["kind"] == "owner" && window["target"] == "src/lib.rs"),
+        "{value}"
+    );
+    assert!(
+        value["searchSynthesis"]["windowSet"]
+            .as_array()
+            .expect("window set")
+            .iter()
+            .any(|window| window["kind"] == "tests" && window["target"] == "tests/domain.rs"),
+        "{value}"
+    );
+    assert!(
+        value["searchSynthesis"]["seeds"]
+            .as_array()
+            .expect("frontier seeds")
+            .iter()
+            .any(|seed| seed["kind"] == "owner" && seed["target"] == "src/lib.rs"),
+        "{value}"
+    );
+
+    let owner_with_tests = run_search(root, &["owner", "src/lib.rs", "items", "tests"]);
+    assert!(
+        owner_with_tests.contains("|item load kind=fn public=true"),
+        "{owner_with_tests}"
+    );
+    assert!(
+        owner_with_tests
+            .contains("|test tests/domain.rs functions=1 owner=src/lib.rs reason=symbol:load"),
+        "{owner_with_tests}"
+    );
 
     let cfg = run_search(root, &["cfg", "json"]);
     assert!(
@@ -689,7 +951,7 @@ fn cli_search_views_render_rfc_line_protocol() {
         "{pattern}"
     );
     assert!(
-        pattern.contains("|owner src/lib.rs hit_kind=text"),
+        pattern.contains("|owner src/lib.rs hit_kind=fzf"),
         "{pattern}"
     );
 
@@ -758,7 +1020,7 @@ fn cli_search_views_render_rfc_line_protocol() {
     );
     assert!(
         api_shape.starts_with(
-            "[search-pattern] pattern=public-api-shape q=src/lib.rs pkg=. own=1 item=10"
+            "[search-pattern] pattern=public-api-shape q=src/lib.rs pkg=. own=1 item=6"
         ),
         "{api_shape}"
     );

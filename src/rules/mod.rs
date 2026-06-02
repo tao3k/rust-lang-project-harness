@@ -1,6 +1,6 @@
 //! Built-in Rust harness rule packs.
 
-mod agent_policy;
+pub(crate) mod agent_policy;
 mod catalog;
 mod engine;
 mod modularity;

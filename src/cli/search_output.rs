@@ -45,7 +45,9 @@ fn render_search_seed_view(rendered: &str, seed_limit: Option<usize>) -> String 
 
     let SearchSeeds {
         headers,
+        facts,
         mut seeds,
+        synthesis,
         notes,
     } = collect_search_seeds(rendered);
     seeds.sort_by(|left, right| {
@@ -65,9 +67,17 @@ fn render_search_seed_view(rendered: &str, seed_limit: Option<usize>) -> String 
         compact.push_str(&header);
         compact.push('\n');
     }
+    for fact in facts {
+        compact.push_str(&fact);
+        compact.push('\n');
+    }
     for seed in compact_seed_lines(bounded_seeds(seeds, seed_limit)) {
         compact.push_str("|seed ");
         compact.push_str(&seed);
+        compact.push('\n');
+    }
+    for line in synthesis {
+        compact.push_str(&line);
         compact.push('\n');
     }
     if seed_count > seed_limit {
@@ -441,7 +451,9 @@ fn groupable_seed_kind(kind: &str) -> bool {
 
 struct SearchSeeds {
     headers: Vec<String>,
+    facts: Vec<String>,
     seeds: Vec<String>,
+    synthesis: Vec<String>,
     notes: Vec<String>,
 }
 
@@ -458,7 +470,9 @@ fn collect_search_seeds(rendered: &str) -> SearchSeeds {
 #[derive(Default)]
 struct SearchSeedAccumulator {
     headers: Vec<String>,
+    facts: Vec<String>,
     seeds: Vec<String>,
+    synthesis: Vec<String>,
     notes: Vec<String>,
     seen: BTreeSet<String>,
     current_package: Option<String>,
@@ -473,6 +487,16 @@ impl SearchSeedAccumulator {
         }
         if line.starts_with("|note ") {
             self.notes.push(line.to_string());
+        }
+        if line.starts_with("|query ") || line.starts_with("|fact ") {
+            if self.seen.insert(format!("evidence:{line}")) {
+                self.facts.push(line.to_string());
+            }
+            return;
+        }
+        if line.starts_with("|synthesis ") {
+            self.synthesis.push(line.to_string());
+            return;
         }
         if let Some(seed) = line.strip_prefix("|seed ") {
             record_seed(seed, &mut self.seen, &mut self.seeds);
@@ -489,7 +513,9 @@ impl SearchSeedAccumulator {
     fn finish(self) -> SearchSeeds {
         SearchSeeds {
             headers: self.headers,
+            facts: self.facts,
             seeds: self.seeds,
+            synthesis: self.synthesis,
             notes: self.notes,
         }
     }

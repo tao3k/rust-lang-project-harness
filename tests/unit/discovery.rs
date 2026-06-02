@@ -4,7 +4,9 @@ use std::path::{Path, PathBuf};
 
 use tempfile::TempDir;
 
-use crate::discovery::{glob_pattern_matches, rust_project_harness_scope};
+use crate::discovery::{
+    discover_cargo_package_roots, glob_pattern_matches, rust_project_harness_scope,
+};
 
 #[test]
 fn workspace_member_glob_matches_forward_slash_relative_paths() {
@@ -47,6 +49,38 @@ fn project_scope_is_anchored_to_cargo_manifest_targets() {
     assert!(test_paths.contains("contracts"));
     assert!(package_paths.contains("demo/example.rs"));
     assert!(package_paths.contains("perf/throughput.rs"));
+}
+
+#[test]
+fn workspace_path_dependencies_are_discovered_as_package_roots() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"crates/hook\"]\n\n[workspace.dependencies]\nrust-lang-project-harness = { path = \"languages/rust-lang-project-harness\", default-features = false }\n",
+    )
+    .expect("write root manifest");
+    fs::create_dir_all(root.join("crates/hook")).expect("create hook crate");
+    fs::write(
+        root.join("crates/hook/Cargo.toml"),
+        "[package]\nname = \"hook\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dev-dependencies]\nrust-lang-project-harness = { workspace = true }\n",
+    )
+    .expect("write hook manifest");
+    fs::create_dir_all(root.join("languages/rust-lang-project-harness"))
+        .expect("create harness crate");
+    fs::write(
+        root.join("languages/rust-lang-project-harness/Cargo.toml"),
+        "[package]\nname = \"rust-lang-project-harness\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write harness manifest");
+    write_file(root, "crates/hook/src/lib.rs");
+    write_file(root, "languages/rust-lang-project-harness/src/lib.rs");
+
+    let package_roots = discover_cargo_package_roots(root, &BTreeSet::new());
+    let package_roots = path_set(root, &package_roots);
+
+    assert!(package_roots.contains("crates/hook"));
+    assert!(package_roots.contains("languages/rust-lang-project-harness"));
 }
 
 fn write_file(root: &Path, relative_path: &str) {

@@ -1,0 +1,536 @@
+//! Fuzzy lexical search rendering.
+
+use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Write;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use crate::RustHarnessConfig;
+use crate::discovery::{discover_rust_files, rust_project_harness_scope};
+
+use super::RustSearchOptions;
+use super::context::{PackageSearchContext, search_contexts};
+use super::format::{
+    append_block, compact_locations, display_project_path, owner_role_for_path, package_label,
+    package_roots_for_request, query_set_terms, sort_locations,
+};
+use super::limits::SEARCH_HIT_LIMIT;
+use super::recency::compare_paths_by_recency;
+use super::scope::module_allowed;
+
+pub(super) fn render_search_fzf(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+    options: &RustSearchOptions,
+) -> Result<String, String> {
+    if super::syntax_query::is_rust_syntax_query(query) {
+        return Ok(format!(
+            "[search-fzf] q={} pkg=. skipped=code-shaped-query\n|query intent=code-shaped status=skipped reason=use-native-syntax-api next=search-query\n",
+            query
+        ));
+    }
+    let query_terms = query_set_terms(query);
+    if query_terms.len() > 1 {
+        return render_search_fzf_query_set(project_root, config, query, &query_terms, options);
+    }
+    if options.output_view.as_deref() == Some("seeds") {
+        return render_search_fzf_seed_hits(project_root, config, query, options);
+    }
+    let contexts = search_contexts(project_root, config, options)?;
+    let mut rendered = String::new();
+    for context in contexts {
+        let hits = fzf_hits(&context, query, options);
+        let mut block = format!(
+            "[search-fzf] q={} mode=fuzzy backend=provider pkg={} own={}\n",
+            query,
+            package_label(project_root, &context.package_root),
+            hits.len()
+        );
+        for (path, score, locations) in hits.iter().take(SEARCH_HIT_LIMIT) {
+            let owner_path = display_project_path(&context.package_root, path);
+            let _ = writeln!(
+                block,
+                "|owner {owner_path} hit_kind=fzf score={} locations={} next=owner:{owner_path}",
+                score,
+                compact_locations(locations),
+            );
+        }
+        append_change_frontier_synthesis_line(
+            &mut block,
+            &context.package_root,
+            hits.iter()
+                .take(SEARCH_HIT_LIMIT)
+                .map(|(path, _, _)| path.as_path()),
+            SEARCH_HIT_LIMIT,
+        );
+        append_block(&mut rendered, &block);
+    }
+    Ok(rendered)
+}
+
+fn render_search_fzf_query_set(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+    query_terms: &[&str],
+    options: &RustSearchOptions,
+) -> Result<String, String> {
+    if options.output_view.as_deref() == Some("seeds") {
+        return render_search_fzf_query_set_seed_hits(
+            project_root,
+            config,
+            query,
+            query_terms,
+            options,
+        );
+    }
+    let contexts = search_contexts(project_root, config, options)?;
+    let mut rendered = String::new();
+    for context in contexts {
+        let hits = fzf_query_set_hits(&context, query_terms, options);
+        let mut block = format!(
+            "[search-fzf] q={} querySet={} selector=fuzzy-set mode=fuzzy backend=provider pkg={} own={}\n",
+            query,
+            query_terms.len(),
+            package_label(project_root, &context.package_root),
+            hits.len()
+        );
+        for (path, terms, score, locations) in hits.iter().take(SEARCH_HIT_LIMIT) {
+            let owner_path = display_project_path(&context.package_root, path);
+            let _ = writeln!(
+                block,
+                "|owner {owner_path} hit_kind=fzf querySet={} terms={} score={} locations={} next=owner:{owner_path}",
+                terms.len(),
+                terms.iter().cloned().collect::<Vec<_>>().join(","),
+                score,
+                compact_locations(locations),
+            );
+        }
+        append_change_frontier_synthesis_line(
+            &mut block,
+            &context.package_root,
+            hits.iter()
+                .take(SEARCH_HIT_LIMIT)
+                .map(|(path, _, _, _)| path.as_path()),
+            SEARCH_HIT_LIMIT,
+        );
+        append_block(&mut rendered, &block);
+    }
+    Ok(rendered)
+}
+
+fn fzf_query_set_hits(
+    context: &PackageSearchContext,
+    query_terms: &[&str],
+    options: &RustSearchOptions,
+) -> Vec<(PathBuf, BTreeSet<String>, usize, Vec<String>)> {
+    let mut grouped = BTreeMap::<PathBuf, (BTreeSet<String>, usize, Vec<String>)>::new();
+    for module in context
+        .parsed_modules
+        .iter()
+        .filter(|module| module_allowed(context, module, options))
+    {
+        let owner_path = display_project_path(&context.package_root, &module.report.path);
+        for term in query_terms {
+            let Some(score) = fuzzy_score(&owner_path, term) else {
+                continue;
+            };
+            let entry = grouped
+                .entry(module.report.path.clone())
+                .or_insert_with(|| (BTreeSet::new(), 0, Vec::new()));
+            entry.0.insert((*term).to_string());
+            entry.1 = entry.1.saturating_add(score);
+            entry.2.push("path:1".to_string());
+        }
+        for (index, line) in module.source.lines().enumerate() {
+            for term in query_terms {
+                let Some(score) = fuzzy_score(line, term) else {
+                    continue;
+                };
+                let entry = grouped
+                    .entry(module.report.path.clone())
+                    .or_insert_with(|| (BTreeSet::new(), 0, Vec::new()));
+                entry.0.insert((*term).to_string());
+                entry.1 = entry.1.saturating_add(score);
+                entry.2.push(format!("{}:1", index + 1));
+            }
+        }
+    }
+    let mut hits = grouped
+        .into_iter()
+        .map(|(path, (terms, score, mut locations))| {
+            sort_locations(&mut locations);
+            locations.dedup();
+            (path, terms, score, locations)
+        })
+        .collect::<Vec<_>>();
+    hits.sort_by(|(left, _, left_score, _), (right, _, right_score, _)| {
+        right_score
+            .cmp(left_score)
+            .then_with(|| compare_paths_by_recency(&context.package_root, left, right))
+    });
+    hits
+}
+
+fn render_search_fzf_seed_hits(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+    options: &RustSearchOptions,
+) -> Result<String, String> {
+    let package_roots =
+        package_roots_for_request(project_root, config, options.package.as_deref())?;
+    let mut rendered = String::new();
+    for package_root in package_roots {
+        let hits = fzf_seed_hits(&package_root, config, query);
+        let seed_limit = options.seeds.unwrap_or(8);
+        let owner_limit = seed_limit.min(hits.len());
+        let mut block = format!(
+            "[search-fzf] q={} mode=fuzzy backend=provider pkg={} own={}\n",
+            query,
+            package_label(project_root, &package_root),
+            hits.len()
+        );
+        let owners = hits
+            .iter()
+            .take(owner_limit)
+            .map(|(path, _, _)| display_project_path(&package_root, path))
+            .collect::<Vec<_>>();
+        if !owners.is_empty() {
+            let _ = writeln!(block, "|seed owner:{}", owners.join(","));
+        }
+        append_change_frontier_synthesis_line(
+            &mut block,
+            &package_root,
+            hits.iter()
+                .take(owner_limit)
+                .map(|(path, _, _)| path.as_path()),
+            seed_limit,
+        );
+        if hits.len() > owner_limit {
+            let _ = writeln!(
+                block,
+                "|note seeds_truncated={} limit={}",
+                hits.len() - owner_limit,
+                seed_limit
+            );
+        }
+        append_block(&mut rendered, &block);
+    }
+    Ok(rendered)
+}
+
+fn render_search_fzf_query_set_seed_hits(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+    query_terms: &[&str],
+    options: &RustSearchOptions,
+) -> Result<String, String> {
+    let package_roots =
+        package_roots_for_request(project_root, config, options.package.as_deref())?;
+    let mut rendered = String::new();
+    for package_root in package_roots {
+        let hits = fzf_query_set_seed_hits(&package_root, config, query_terms);
+        let seed_limit = options.seeds.unwrap_or(8);
+        let owner_limit = seed_limit.min(hits.len());
+        let mut block = format!(
+            "[search-fzf] q={} querySet={} selector=fuzzy-set mode=fuzzy backend=provider pkg={} own={}\n",
+            query,
+            query_terms.len(),
+            package_label(project_root, &package_root),
+            hits.len()
+        );
+        let owners = hits
+            .iter()
+            .take(owner_limit)
+            .map(|(path, _, _, _)| format!("owner:{}", display_project_path(&package_root, path)))
+            .collect::<Vec<_>>();
+        if !owners.is_empty() {
+            let _ = writeln!(block, "|seed {}", owners.join(","));
+        }
+        append_change_frontier_synthesis_line(
+            &mut block,
+            &package_root,
+            hits.iter()
+                .take(owner_limit)
+                .map(|(path, _, _, _)| path.as_path()),
+            seed_limit,
+        );
+        if hits.len() > owner_limit {
+            let _ = writeln!(
+                block,
+                "|note seeds_truncated={} limit={}",
+                hits.len() - owner_limit,
+                seed_limit
+            );
+        }
+        append_block(&mut rendered, &block);
+    }
+    Ok(rendered)
+}
+
+fn append_change_frontier_synthesis_line<'a>(
+    block: &mut String,
+    package_root: &Path,
+    paths: impl IntoIterator<Item = &'a Path>,
+    limit: usize,
+) {
+    let mut seen = BTreeSet::new();
+    let mut edit_frontier = Vec::new();
+    let mut test_frontier = Vec::new();
+    for path in paths {
+        let display_path = display_project_path(package_root, path);
+        if !seen.insert(display_path.clone()) {
+            continue;
+        }
+        if owner_role_for_path(package_root, path) == "test" {
+            if test_frontier.len() < limit {
+                test_frontier.push(display_path);
+            }
+        } else if edit_frontier.len() < limit {
+            edit_frontier.push(display_path);
+        }
+    }
+    if edit_frontier.is_empty() && test_frontier.is_empty() {
+        return;
+    }
+    let window_set = edit_frontier
+        .iter()
+        .map(|path| format!("owner:{path}"))
+        .chain(test_frontier.iter().map(|path| format!("tests:{path}")))
+        .collect::<Vec<_>>();
+    let mut parts = vec![
+        "algorithm=change-frontier-query-set".to_string(),
+        "scope=query-set".to_string(),
+        "summary=query-set-frontier".to_string(),
+        format!(
+            "selected_owners={}",
+            edit_frontier.len() + test_frontier.len()
+        ),
+    ];
+    if !edit_frontier.is_empty() {
+        parts.push(format!("edit_frontier={}", edit_frontier.join(",")));
+    }
+    if !test_frontier.is_empty() {
+        parts.push(format!("test_frontier={}", test_frontier.join(",")));
+    }
+    if !window_set.is_empty() {
+        parts.push(format!("window_set={}", window_set.join(",")));
+        parts.push(format!("seeds={}", window_set.join(",")));
+    }
+    let _ = writeln!(block, "|synthesis {}", parts.join(" "));
+}
+
+fn fzf_query_set_seed_hits(
+    package_root: &Path,
+    config: &RustHarnessConfig,
+    query_terms: &[&str],
+) -> Vec<(PathBuf, BTreeSet<String>, usize, Vec<String>)> {
+    let scope = rust_project_harness_scope(
+        package_root,
+        config.include_tests,
+        &config.source_dir_names,
+        &config.test_dir_names,
+    );
+    let mut hits = discover_rust_files(&scope.monitored_paths(), &config.ignored_dir_names)
+        .into_iter()
+        .filter_map(|path| {
+            let Ok(text) = fs::read_to_string(&path) else {
+                return None;
+            };
+            let (terms, score, locations) =
+                fuzzy_query_set_locations_with_path(package_root, &path, &text, query_terms);
+            (!terms.is_empty()).then_some((path, terms, score, locations))
+        })
+        .collect::<Vec<_>>();
+    hits.sort_by(|(left, _, left_score, _), (right, _, right_score, _)| {
+        right_score
+            .cmp(left_score)
+            .then_with(|| compare_paths_by_recency(package_root, left, right))
+    });
+    hits
+}
+
+fn fzf_seed_hits(
+    package_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+) -> Vec<(PathBuf, usize, Vec<String>)> {
+    let scope = rust_project_harness_scope(
+        package_root,
+        config.include_tests,
+        &config.source_dir_names,
+        &config.test_dir_names,
+    );
+    let mut hits = discover_rust_files(&scope.monitored_paths(), &config.ignored_dir_names)
+        .into_iter()
+        .filter_map(|path| {
+            let Ok(text) = fs::read_to_string(&path) else {
+                return None;
+            };
+            let (score, locations) = fuzzy_locations_with_path(package_root, &path, &text, query);
+            (score > 0).then_some((path, score, locations))
+        })
+        .collect::<Vec<_>>();
+    hits.sort_by(|(left, left_score, _), (right, right_score, _)| {
+        right_score
+            .cmp(left_score)
+            .then_with(|| compare_paths_by_recency(package_root, left, right))
+    });
+    hits
+}
+
+fn fzf_hits(
+    context: &PackageSearchContext,
+    query: &str,
+    options: &RustSearchOptions,
+) -> Vec<(PathBuf, usize, Vec<String>)> {
+    let mut hits = context
+        .parsed_modules
+        .iter()
+        .filter(|module| module_allowed(context, module, options))
+        .filter_map(|module| {
+            let (score, locations) = fuzzy_locations_with_path(
+                &context.package_root,
+                &module.report.path,
+                &module.source,
+                query,
+            );
+            (score > 0).then_some((module.report.path.clone(), score, locations))
+        })
+        .collect::<Vec<_>>();
+    hits.sort_by(|(left, left_score, _), (right, right_score, _)| {
+        right_score
+            .cmp(left_score)
+            .then_with(|| compare_paths_by_recency(&context.package_root, left, right))
+    });
+    hits
+}
+
+fn fuzzy_locations(text: &str, query: &str) -> (usize, Vec<String>) {
+    let mut score = 0usize;
+    let mut locations = Vec::new();
+    for (index, line) in text.lines().enumerate() {
+        let Some(line_score) = fuzzy_score(line, query) else {
+            continue;
+        };
+        score = score.saturating_add(line_score);
+        locations.push(format!("{}:1", index + 1));
+    }
+    sort_locations(&mut locations);
+    locations.dedup();
+    (score, locations)
+}
+
+fn fuzzy_locations_with_path(
+    package_root: &Path,
+    path: &Path,
+    text: &str,
+    query: &str,
+) -> (usize, Vec<String>) {
+    let (mut score, mut locations) = fuzzy_locations(text, query);
+    let owner_path = display_project_path(package_root, path);
+    if let Some(path_score) = fuzzy_score(&owner_path, query) {
+        score = score.saturating_add(path_score);
+        locations.push("path:1".to_string());
+    }
+    locations.dedup();
+    (score, locations)
+}
+
+fn fuzzy_query_set_locations(
+    text: &str,
+    query_terms: &[&str],
+) -> (BTreeSet<String>, usize, Vec<String>) {
+    let mut terms = BTreeSet::new();
+    let mut score = 0usize;
+    let mut locations = Vec::new();
+    for (index, line) in text.lines().enumerate() {
+        for term in query_terms {
+            let Some(line_score) = fuzzy_score(line, term) else {
+                continue;
+            };
+            terms.insert((*term).to_string());
+            score = score.saturating_add(line_score);
+            locations.push(format!("{}:1", index + 1));
+        }
+    }
+    sort_locations(&mut locations);
+    locations.dedup();
+    (terms, score, locations)
+}
+
+fn fuzzy_query_set_locations_with_path(
+    package_root: &Path,
+    path: &Path,
+    text: &str,
+    query_terms: &[&str],
+) -> (BTreeSet<String>, usize, Vec<String>) {
+    let (mut terms, mut score, mut locations) = fuzzy_query_set_locations(text, query_terms);
+    let owner_path = display_project_path(package_root, path);
+    for term in query_terms {
+        let Some(path_score) = fuzzy_score(&owner_path, term) else {
+            continue;
+        };
+        terms.insert((*term).to_string());
+        score = score.saturating_add(path_score);
+        if !locations.iter().any(|location| location == "path:1") {
+            locations.push("path:1".to_string());
+        }
+    }
+    (terms, score, locations)
+}
+
+fn fuzzy_score(candidate: &str, query: &str) -> Option<usize> {
+    let query = query.trim();
+    if query.is_empty() {
+        return None;
+    }
+    let candidate = candidate.to_ascii_lowercase();
+    let query = query.to_ascii_lowercase();
+    if let Some(index) = candidate.find(&query) {
+        return Some(
+            10_000usize
+                .saturating_add(query.len().saturating_mul(100))
+                .saturating_sub(index.min(1_000)),
+        );
+    }
+    let positions = fuzzy_match_positions(&candidate, &query)?;
+    if positions.is_empty() {
+        return None;
+    }
+    let first = *positions.first()?;
+    let last = *positions.last()?;
+    let span = last.saturating_sub(first).saturating_add(1);
+    if span
+        > query
+            .len()
+            .saturating_mul(3)
+            .max(query.len().saturating_add(12))
+    {
+        return None;
+    }
+    let compactness_penalty = span.saturating_sub(positions.len()).min(2_000);
+    Some(
+        5_000usize
+            .saturating_add(positions.len().saturating_mul(50))
+            .saturating_sub(compactness_penalty)
+            .saturating_sub(first.min(1_000)),
+    )
+}
+
+fn fuzzy_match_positions(candidate: &str, query: &str) -> Option<Vec<usize>> {
+    query
+        .chars()
+        .filter(|ch| !ch.is_whitespace())
+        .try_fold((Vec::new(), 0usize), |(mut positions, cursor), ch| {
+            let suffix = candidate.get(cursor..)?;
+            let offset = suffix.find(ch)?;
+            let position = cursor + offset;
+            positions.push(position);
+            Some((positions, position + ch.len_utf8()))
+        })
+        .map(|(positions, _)| positions)
+}

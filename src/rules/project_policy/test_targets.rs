@@ -118,8 +118,16 @@ pub(super) fn test_target_module_mount_findings(
             let Some(resolved) = item_mod.resolved_path_attr.as_ref() else {
                 continue;
             };
-            let project_relative = resolved.strip_prefix(project_root).unwrap_or(resolved);
-            if !resolved.exists() || !is_allowed_test_suite_path(project_relative, policy) {
+            let mut candidates = vec![resolved.clone()];
+            if let Some(parent) = parsed.report.path.parent() {
+                candidates.push(parent.join(path_value));
+            }
+            let allowed = candidates.iter().any(|candidate| {
+                let project_relative = candidate.strip_prefix(project_root).unwrap_or(candidate);
+                candidate.exists()
+                    && is_allowed_test_suite_path(project_root, project_relative, policy)
+            });
+            if !allowed {
                 findings.push(RustHarnessFinding::from_rule(
                     rule,
                     format!(

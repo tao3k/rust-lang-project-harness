@@ -6,6 +6,8 @@ use proc_macro2::{TokenStream, TokenTree};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
 
+use super::item_projection::{RustItemProjectionNodeSyntax, item_projection_nodes};
+
 use super::control_flow::{RustFunctionControlFlowSyntax, function_control_flow_syntax};
 use super::data_shape::{
     RustPublicEnumTupleVariantFieldSyntax, RustPublicEnumVariantFieldSyntax,
@@ -47,6 +49,7 @@ pub(crate) struct RustNativeSyntaxFacts {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RustTopLevelItemSyntax {
     pub line: usize,
+    pub end_line: usize,
     pub kind: &'static str,
     pub name: Option<String>,
     pub has_doc: bool,
@@ -64,6 +67,7 @@ pub(crate) struct RustTopLevelItemSyntax {
     pub macro_body_is_facade_boundary: bool,
     pub include_target: Option<String>,
     pub module: Option<RustModuleDeclarationSyntax>,
+    pub projection_nodes: Vec<RustItemProjectionNodeSyntax>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -273,8 +277,11 @@ fn path_reference_syntax(
 }
 
 fn top_level_item_syntax(item: &syn::Item, source_file: &Path) -> RustTopLevelItemSyntax {
+    let start_line = item.span().start().line.max(1);
+    let end_line = item.span().end().line.max(start_line);
     RustTopLevelItemSyntax {
-        line: item.span().start().line.max(1),
+        line: start_line,
+        end_line,
         kind: item_kind(item),
         name: item_name(item),
         has_doc: item_attrs(item)
@@ -294,6 +301,7 @@ fn top_level_item_syntax(item: &syn::Item, source_file: &Path) -> RustTopLevelIt
         macro_body_is_facade_boundary: macro_body_is_facade_boundary_syntax(item),
         include_target: include_target_syntax(item),
         module: module_declaration_syntax(item, source_file),
+        projection_nodes: item_projection_nodes(item),
     }
 }
 

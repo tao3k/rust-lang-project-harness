@@ -2,7 +2,13 @@
 
 mod analysis;
 mod api_path;
+mod assurance_case;
+mod behavior_snapshot;
+mod determinism_readiness;
+mod evidence_graph;
+mod execution_receipt;
 mod fingerprint;
+mod formal_proof_pilot;
 mod model;
 mod module_lookup;
 mod performance;
@@ -15,6 +21,7 @@ mod report_entry;
 mod report_manifest;
 mod report_select;
 mod report_write;
+mod review_packet;
 mod skill_descriptor;
 mod task_builder;
 mod task_index;
@@ -23,6 +30,93 @@ pub use analysis::{
     RustVerificationAnalysisProfile, RustVerificationPackageAnalysisProfile,
     build_rust_verification_analysis_profile, build_rust_verification_analysis_profile_with_config,
     render_rust_verification_analysis_profile, render_rust_verification_analysis_profile_json,
+};
+#[allow(unused_imports)]
+pub use assurance_case::{
+    RUST_ASSURANCE_CASE_PROTOCOL_ID, RUST_ASSURANCE_CASE_PROTOCOL_VERSION,
+    RUST_ASSURANCE_CASE_SCHEMA_ID, RUST_ASSURANCE_CASE_SCHEMA_VERSION, RustAssuranceActionRef,
+    RustAssuranceCase, RustAssuranceCaseInput, RustAssuranceCaseSet, RustAssuranceCaseSetProducer,
+    RustAssuranceCaseSetProject, RustAssuranceCaseStatus, RustAssuranceCaseSummary,
+    RustAssuranceClaim, RustAssuranceClaimKind, RustAssuranceGap, RustAssuranceNodeKind,
+    RustAssuranceNodeRef, RustAssuranceNodeStatus, build_rust_assurance_case_set,
+    render_rust_assurance_case_set, render_rust_assurance_case_set_json,
+};
+pub use behavior_snapshot::{
+    RUST_BEHAVIOR_SNAPSHOT_PROTOCOL_ID, RUST_BEHAVIOR_SNAPSHOT_PROTOCOL_VERSION,
+    RUST_BEHAVIOR_SNAPSHOT_SCHEMA_ID, RUST_BEHAVIOR_SNAPSHOT_SCHEMA_VERSION, RustBehaviorSnapshot,
+    RustBehaviorSnapshotArtifactUri, RustBehaviorSnapshotExpectTestInput, RustBehaviorSnapshotId,
+    RustBehaviorSnapshotInput, RustBehaviorSnapshotLanguageId, RustBehaviorSnapshotLine,
+    RustBehaviorSnapshotNamespace, RustBehaviorSnapshotObservation,
+    RustBehaviorSnapshotObservationKind, RustBehaviorSnapshotObservationMessage,
+    RustBehaviorSnapshotObservedAt, RustBehaviorSnapshotProducer, RustBehaviorSnapshotProtocolId,
+    RustBehaviorSnapshotProtocolVersion, RustBehaviorSnapshotProviderId,
+    RustBehaviorSnapshotSchemaId, RustBehaviorSnapshotSchemaVersion, RustBehaviorSnapshotSha256,
+    RustBehaviorSnapshotStatus, RustBehaviorSnapshotSubject, RustBehaviorSnapshotSubjectKind,
+    RustBehaviorSnapshotSymbol, RustBehaviorSnapshotValue, RustBehaviorSnapshotValueFormat,
+};
+pub use determinism_readiness::{
+    RUST_DETERMINISM_READINESS_PROTOCOL_ID, RUST_DETERMINISM_READINESS_PROTOCOL_VERSION,
+    RUST_DETERMINISM_READINESS_SCHEMA_ID, RUST_DETERMINISM_READINESS_SCHEMA_VERSION,
+    RustDeterminismReadiness, RustDeterminismReadinessCategory,
+    RustDeterminismReadinessEvidenceKind, RustDeterminismReadinessExpression,
+    RustDeterminismReadinessId, RustDeterminismReadinessInput, RustDeterminismReadinessLanguageId,
+    RustDeterminismReadinessLine, RustDeterminismReadinessNamespace,
+    RustDeterminismReadinessObservation, RustDeterminismReadinessObservationId,
+    RustDeterminismReadinessProducer, RustDeterminismReadinessProject,
+    RustDeterminismReadinessProtocolId, RustDeterminismReadinessProtocolVersion,
+    RustDeterminismReadinessProviderId, RustDeterminismReadinessSchemaId,
+    RustDeterminismReadinessSchemaVersion, RustDeterminismReadinessSeverity,
+    RustDeterminismReadinessStatus, RustDeterminismReadinessSuggestion,
+    RustDeterminismReadinessSuggestionKind, RustDeterminismReadinessSuggestionMessage,
+    RustDeterminismReadinessSummary, RustDeterminismReadinessSymbol,
+    RustDeterminismReadinessTraitName, build_rust_determinism_readiness,
+    render_rust_determinism_readiness, render_rust_determinism_readiness_json,
+};
+#[allow(unused_imports)]
+pub use evidence_graph::{
+    RUST_EVIDENCE_GRAPH_PROTOCOL_ID, RUST_EVIDENCE_GRAPH_PROTOCOL_VERSION,
+    RUST_EVIDENCE_GRAPH_SCHEMA_ID, RUST_EVIDENCE_GRAPH_SCHEMA_VERSION, RustEvidenceEdge,
+    RustEvidenceEdgeKind, RustEvidenceGap, RustEvidenceGraph, RustEvidenceGraphInput,
+    RustEvidenceGraphProducer, RustEvidenceGraphProject, RustEvidenceGraphSummary,
+    RustEvidenceLocation, RustEvidenceNode, RustEvidenceNodeKind, RustEvidenceNodeStatus,
+    build_rust_evidence_graph, render_rust_evidence_graph, render_rust_evidence_graph_json,
+};
+pub use execution_receipt::{
+    RUST_VERIFICATION_EXECUTION_RECEIPT_PROTOCOL_ID,
+    RUST_VERIFICATION_EXECUTION_RECEIPT_PROTOCOL_VERSION,
+    RUST_VERIFICATION_EXECUTION_RECEIPT_SCHEMA_ID,
+    RUST_VERIFICATION_EXECUTION_RECEIPT_SCHEMA_VERSION, RustVerificationExecutionAdapterId,
+    RustVerificationExecutionArtifact, RustVerificationExecutionArtifactKind,
+    RustVerificationExecutionArtifactUri, RustVerificationExecutionCommand,
+    RustVerificationExecutionDurationMs, RustVerificationExecutionExitCode,
+    RustVerificationExecutionLanguageId, RustVerificationExecutionLine,
+    RustVerificationExecutionNamespace, RustVerificationExecutionObservation,
+    RustVerificationExecutionObservationKind, RustVerificationExecutionObservationMessage,
+    RustVerificationExecutionObservedAt, RustVerificationExecutionOutputFormat,
+    RustVerificationExecutionPackageName, RustVerificationExecutionProducer,
+    RustVerificationExecutionProject, RustVerificationExecutionProjectName,
+    RustVerificationExecutionProtocolId, RustVerificationExecutionProtocolVersion,
+    RustVerificationExecutionProviderId, RustVerificationExecutionReceipt,
+    RustVerificationExecutionReceiptId, RustVerificationExecutionSchemaId,
+    RustVerificationExecutionSchemaVersion, RustVerificationExecutionSha256,
+    RustVerificationExecutionStatus, RustVerificationExecutionSummary,
+    RustVerificationExecutionTaskFingerprint, RustVerificationExecutionTool,
+    RustVerificationToolAdapter,
+};
+pub use formal_proof_pilot::{
+    RUST_FORMAL_PROOF_PILOT_PROTOCOL_ID, RUST_FORMAL_PROOF_PILOT_PROTOCOL_VERSION,
+    RUST_FORMAL_PROOF_PILOT_SCHEMA_ID, RUST_FORMAL_PROOF_PILOT_SCHEMA_VERSION,
+    RustFormalProofPilot, RustFormalProofPilotCheck, RustFormalProofPilotCheckId,
+    RustFormalProofPilotClaim, RustFormalProofPilotClaimId, RustFormalProofPilotCounterexample,
+    RustFormalProofPilotId, RustFormalProofPilotInput, RustFormalProofPilotLanguageId,
+    RustFormalProofPilotMethod, RustFormalProofPilotMethodKind, RustFormalProofPilotNamespace,
+    RustFormalProofPilotProducer, RustFormalProofPilotProtocolId,
+    RustFormalProofPilotProtocolVersion, RustFormalProofPilotProviderId,
+    RustFormalProofPilotSchemaId, RustFormalProofPilotSchemaVersion, RustFormalProofPilotStatement,
+    RustFormalProofPilotStatus, RustFormalProofPilotSummary, RustFormalProofPilotTarget,
+    RustFormalProofPilotTargetKind, RustFormalProofPilotTargetName, RustFormalProofPilotTool,
+    build_rust_dependency_graph_acyclicity_proof_pilot, render_rust_formal_proof_pilot,
+    render_rust_formal_proof_pilot_json,
 };
 pub use model::{
     RustOwnerResponsibility, RustVerificationApiPathBaseline, RustVerificationDependencySignal,
@@ -93,6 +187,13 @@ pub use report_write::{
     render_rust_verification_report_write_receipt,
     render_rust_verification_report_write_receipt_json, write_rust_verification_reports,
     write_rust_verification_reports_with_options,
+};
+pub use review_packet::{
+    RUST_REVIEW_PACKET_PROTOCOL_ID, RUST_REVIEW_PACKET_PROTOCOL_VERSION,
+    RUST_REVIEW_PACKET_SCHEMA_ID, RUST_REVIEW_PACKET_SCHEMA_VERSION, RustReviewPacket,
+    RustReviewPacketInput, RustReviewPacketReceiptKind, RustReviewPacketWaiver,
+    RustReviewPacketWaiverStatus, build_rust_review_packet, render_rust_review_packet,
+    render_rust_review_packet_json,
 };
 pub use skill_descriptor::RustVerificationSkillDescriptor;
 pub use task_index::{

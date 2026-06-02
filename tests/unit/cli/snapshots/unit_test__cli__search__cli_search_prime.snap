@@ -15,4 +15,5 @@ expression: stdout
 |find AGENT-R002 x2 at=O:src/domain/mod.rs severity=info
 |find RUST-MOD-R001 x1 at=O:src/domain/mod.rs severity=warning
 |find RUST-MOD-R004 x1 at=O:src/lib.rs severity=warning
+|synthesis algorithm=owner-rank-frontier scope=prime summary=owner-graph-frontier selected_owners=2 selected_edges=2 high_impact_owners=src/lib.rs,src/domain/mod.rs finding_owners=src/domain/mod.rs,src/lib.rs
 |next owner:src/lib.rs,owner:src/domain/mod.rs

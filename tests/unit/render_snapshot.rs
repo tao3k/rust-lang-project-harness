@@ -49,6 +49,7 @@ fn snapshot_report() -> RustHarnessReport {
                 ("language".to_string(), "rust".to_string()),
             ]),
         }],
+        invariant_candidates: Vec::new(),
         root_paths: vec![PathBuf::from("$TEMP/src"), PathBuf::from("$TEMP/tests")],
         blocking_severities: BTreeSet::from([
             RustDiagnosticSeverity::Warning,

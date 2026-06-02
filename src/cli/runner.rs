@@ -3,16 +3,19 @@
 use std::env;
 #[cfg(feature = "search")]
 use std::io::{self, Read};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use super::agent_registry::print_agent_registry;
+use super::query::{QueryCommand, QuerySearchOptions, parse_query, print_query_help};
 #[cfg(feature = "search")]
 use super::search_output::{SearchOutputControls, apply_search_output_controls};
 #[cfg(feature = "search")]
 use super::search_plan::{SearchPlanOptions, render_search_plan};
 #[cfg(feature = "search")]
 use super::search_trace::{SearchTraceOptions, render_search_trace};
+#[cfg(feature = "search")]
+use super::semantic_query_json::{SemanticQueryJsonOptions, render_query_json};
 #[cfg(feature = "search")]
 use super::semantic_search_json::{SemanticSearchJsonOptions, render_search_json};
 #[cfg(feature = "search")]
@@ -43,8 +46,29 @@ fn run(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitCode, S
     if is_command(&args, "search") {
         return run_search(args.into_iter().skip(1));
     }
+    if is_command(&args, "query") {
+        return run_query(args.into_iter().skip(1));
+    }
     if is_command(&args, "check") {
         return run_check(args.into_iter().skip(1));
+    }
+    if is_command(&args, "behavior") {
+        return super::behavior_snapshot::run_behavior(args.into_iter().skip(1));
+    }
+    if is_command(&args, "determinism") {
+        return super::determinism_readiness::run_determinism(args.into_iter().skip(1));
+    }
+    if is_command(&args, "receipt") {
+        return super::execution_receipt::run_receipt(args.into_iter().skip(1));
+    }
+    if is_command(&args, "proof") {
+        return super::formal_proof_pilot::run_proof(args.into_iter().skip(1));
+    }
+    if is_command(&args, "review") {
+        return super::review_packet::run_review(args.into_iter().skip(1));
+    }
+    if is_command(&args, "evidence") {
+        return super::evidence_graph::run_evidence(args.into_iter().skip(1));
     }
     if is_command(&args, "agent") {
         return run_agent(args.into_iter().skip(1));
@@ -150,6 +174,16 @@ fn run_search(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<Exit
     run_search_view(&options)
 }
 
+fn run_query(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitCode, String> {
+    match parse_query(args)? {
+        QueryCommand::Help => {
+            print_query_help();
+            Ok(ExitCode::SUCCESS)
+        }
+        QueryCommand::Search(options) => run_query_view(&SearchOptions::from_query(options)),
+    }
+}
+
 #[cfg(feature = "search")]
 fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
     let project_root = options.project_root()?;
@@ -206,6 +240,63 @@ fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
 #[cfg(not(feature = "search"))]
 fn run_search_view(_options: &SearchOptions) -> Result<ExitCode, String> {
     Err("search command requires the `search` feature".to_string())
+}
+
+#[cfg(feature = "search")]
+fn run_query_view(options: &SearchOptions) -> Result<ExitCode, String> {
+    let project_root = options.project_root()?;
+    let render_options = options.render_options();
+    let config = RustHarnessConfig::default();
+    let request = RustSearchViewRequest {
+        project_root: &project_root,
+        config: &config,
+        view: &options.view,
+        query: options.query.as_deref(),
+        options: &render_options,
+    };
+    let raw_rendered = render_rust_project_harness_search_view_with_config(&request)?;
+    let rendered = apply_search_output_controls(
+        SearchOutputControls {
+            depth: options.depth,
+            output_view: options.output_view.as_deref(),
+            seeds: options.seeds,
+        },
+        &raw_rendered,
+    );
+    if options.json && options.output_view.as_deref() == Some("read-packet") {
+        let read_options = super::semantic_read_json::SemanticReadJsonOptions {
+            selector: options
+                .owner
+                .clone()
+                .or_else(|| options.query.clone())
+                .unwrap_or_else(|| ".".to_string()),
+            query: options.item_query.clone(),
+        };
+        println!(
+            "{}",
+            super::semantic_read_json::render_read_json(&project_root, &read_options, &rendered)?
+        );
+    } else if options.json && options.view == "owner" && options.item_query.is_some() {
+        let json_options = options.semantic_query_json_options()?;
+        println!(
+            "{}",
+            render_query_json(&project_root, &json_options, &rendered)?
+        );
+    } else if options.json {
+        let json_options = options.semantic_json_options();
+        println!(
+            "{}",
+            render_search_json(&project_root, &json_options, &rendered)?
+        );
+    } else {
+        print!("{rendered}");
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+#[cfg(not(feature = "search"))]
+fn run_query_view(_options: &SearchOptions) -> Result<ExitCode, String> {
+    Err("query command requires the `search` feature".to_string())
 }
 
 #[derive(Debug, Default)]
@@ -272,10 +363,31 @@ pub(super) struct SearchOptions {
     pub(super) lines: bool,
     pub(super) pipes: Vec<String>,
     pub(super) query_set: Vec<String>,
+    pub(super) item_query: Option<String>,
+    pub(super) item_names_only: bool,
+    pub(super) item_code: bool,
     paths: Vec<PathBuf>,
 }
 
 impl SearchOptions {
+    fn from_query(options: QuerySearchOptions) -> Self {
+        Self {
+            view: options.view,
+            query: options.query,
+            json: options.json,
+            output_view: options.output_view,
+            package: options.package,
+            seeds: options.seeds,
+            pipes: options.pipes,
+            query_set: options.query_set,
+            item_query: options.item_query,
+            item_names_only: options.item_names_only,
+            item_code: options.item_code,
+            paths: options.paths,
+            ..Self::default()
+        }
+    }
+
     fn parse(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<Self, String> {
         let mut options = Self::default();
         let mut positional_only = false;
@@ -302,6 +414,7 @@ impl SearchOptions {
                     "--owners" => options.owners = Some(parse_usize_option(&option, value)?),
                     "--hits" => options.hits = Some(parse_usize_option(&option, value)?),
                     "--query-set" => options.query_set.extend(split_csv_values(value)),
+                    "--query" => options.item_query = Some(value.to_string()),
                     _ => unreachable!("known pending search option"),
                 }
                 continue;
@@ -319,12 +432,14 @@ impl SearchOptions {
                 "--json" => options.json = true,
                 "--help" | "-h" => options.help = true,
                 "--lines" => options.lines = true,
+                "--names-only" => options.item_names_only = true,
+                "--code" => options.item_code = true,
                 "--trace" => options.trace = true,
                 "--explain" => options.explain = true,
                 "--item-slice" => options.pipes.push("items".to_string()),
                 "--package" | "--owner" | "--dependency" | "--scope" | "--view" | "--depth"
                 | "--dir" | "--edge" | "--per-owner" | "--seeds" | "--owners" | "--hits"
-                | "--query-set" => pending_option = Some(value.to_string()),
+                | "--query-set" | "--query" => pending_option = Some(value.to_string()),
                 value if value.starts_with('-') => {
                     return Err(format!("unknown search option: {value}"));
                 }
@@ -336,6 +451,9 @@ impl SearchOptions {
         }
         if options.help {
             return Ok(options);
+        }
+        if options.item_names_only && options.item_code {
+            return Err("search --names-only and --code cannot be combined".to_string());
         }
         options.apply_positionals(positionals)?;
         if options.view.is_empty() {
@@ -361,6 +479,9 @@ impl SearchOptions {
             return Ok(());
         }
         self.view = values.remove(0);
+        if !is_known_search_view(&self.view) {
+            return Ok(());
+        }
         if search_view_requires_query(&self.view) {
             if !self.query_set.is_empty() {
                 self.query = Some(self.query_set.join(","));
@@ -380,6 +501,10 @@ impl SearchOptions {
         for value in values {
             if is_search_pipe(&value) {
                 self.pipes.push(value);
+            } else if is_explicit_rust_project_root(&value) {
+                self.paths.push(PathBuf::from(value));
+            } else if self.scope.is_none() {
+                self.scope = Some(value);
             } else {
                 self.paths.push(PathBuf::from(value));
             }
@@ -441,6 +566,17 @@ impl SearchOptions {
     }
 
     #[cfg(feature = "search")]
+    fn semantic_query_json_options(&self) -> Result<SemanticQueryJsonOptions, String> {
+        let Some(query) = self.item_query.clone() else {
+            return Err("query JSON requires an owner item query".to_string());
+        };
+        Ok(SemanticQueryJsonOptions {
+            query,
+            item_names_only: self.item_names_only,
+        })
+    }
+
+    #[cfg(feature = "search")]
     fn render_options(&self) -> RustSearchOptions {
         RustSearchOptions {
             package: self.package.clone(),
@@ -452,6 +588,9 @@ impl SearchOptions {
             output_view: self.output_view.clone(),
             seeds: self.seeds,
             query_set: self.query_set(),
+            item_query: self.item_query.clone(),
+            item_names_only: self.item_names_only,
+            item_code: self.item_code,
         }
     }
 
@@ -459,9 +598,7 @@ impl SearchOptions {
     fn project_root(&self) -> Result<PathBuf, String> {
         match self.paths.as_slice() {
             [path] => Ok(path.clone()),
-            [] => {
-                env::current_dir().map_err(|error| format!("failed to read current dir: {error}"))
-            }
+            [] => discover_rust_project_root(),
             _ => unreachable!("parse enforces at most one path"),
         }
     }
@@ -664,36 +801,48 @@ impl CliOptions {
 fn print_help() {
     println!(
         "rs-harness [--json | --agent-snapshot] [PROJECT_ROOT]\n\
-         rs-harness search <view> [ARGS] [PIPE...] [--json] [--package PACKAGE] [PROJECT_ROOT]\n\
-         rs-harness check <--changed|--full> [--json] [PROJECT_ROOT]\n\
-         rs-harness agent doctor [--json] [PROJECT_ROOT]\n\
+             rs-harness search <view> [ARGS] [PIPE...] [--json] [--code] [--package PACKAGE] [PROJECT_ROOT]\n\
+             rs-harness query [SELECTOR] [--query SYMBOL | --term TERM] [--code] [PIPE...] [PROJECT_ROOT]\n\
+             rs-harness check <--changed|--full> [--json] [PROJECT_ROOT]\n\
+             rs-harness behavior snapshot --path PATH [--json]\n\
+             rs-harness determinism readiness [--include-tests] [--json] [PROJECT_ROOT]\n\
+             rs-harness receipt <adapter> [--dry-run] [--json] [PROJECT_ROOT]\n\
+             rs-harness proof pilot dependency-graph-acyclicity [--max-nodes N] [--json]\n\
+             rs-harness review packet [--receipt-json PATH] [--behavior-json PATH] [--determinism-json PATH] [--proof-json PATH] [--waiver-json PATH] [--json] [PROJECT_ROOT]\n\
+             rs-harness evidence graph --review-packet-json PATH [--json] [PROJECT_ROOT]\n\
+             rs-harness evidence assurance --evidence-graph-json PATH [--json] [PROJECT_ROOT]\n\
+             rs-harness agent doctor [--json] [PROJECT_ROOT]\n\
          rs-harness agent guide [PROJECT_ROOT]\n\n\
          Runs the default package-level Rust harness.\n\n\
          Compact text is the default agent-facing repair surface.\n\
          Use --json to emit the structured RustHarnessReport audit shape.\n\
          Use --agent-snapshot to emit a low-noise reasoning-tree summary.\n\
-         Use search for RFC line-protocol exploration views."
+         Use search for RFC line-protocol exploration views.\n\
+         Use query for hook reroutes into parser-owned search/code extraction."
     );
 }
 
 fn print_search_help() {
     println!(
         "rs-harness search prime [--package PACKAGE] [PROJECT_ROOT]\n\
-         rs-harness search owner <path-or-owner> [items] [--scope SCOPE] [PROJECT_ROOT]\n\
+         rs-harness search owner <path-or-owner> [items tests] [--scope SCOPE] [PROJECT_ROOT]\n\
+         rs-harness search owner <path-or-owner> items --query SYMBOL [--names-only | --code] [PROJECT_ROOT]\n\
          rs-harness search workspace [--package PACKAGE] [PROJECT_ROOT]\n\
          rs-harness search targets [--package PACKAGE] [PROJECT_ROOT]\n\
-         rs-harness search deps [dep[/subpath][@version][::api]] [public-api] [PROJECT_ROOT]\n\
-         rs-harness search features [feature] [cfg owners tests] [PROJECT_ROOT]\n\
+rs-harness search deps [dep[/subpath][@version][::api]] [public-api] [PROJECT_ROOT]\n\
+rs-harness search policy <rule-id-or-alias> [owner tests] [PROJECT_ROOT]\n\
+rs-harness search query <code-shaped-query> [owner tests] [PROJECT_ROOT]\n\
+rs-harness search features [feature] [cfg owners tests] [PROJECT_ROOT]\n\
          rs-harness search dependency <crate-or-import-or-package> [items public-api docs tests] [PROJECT_ROOT]\n\
-         rs-harness search <symbol|callsite|import|text|cfg|pattern|docs|docs-use|api> <query> [PROJECT_ROOT]\n\
-         rs-harness search <owner|dependency|text|tests> --query-set TERM [--query-set TERM...] [PROJECT_ROOT]\n\
+rs-harness search <symbol|callsite|import|fzf|cfg|pattern|docs|docs-use|api> <query> [PROJECT_ROOT]\n\
+rs-harness search <owner|dependency|fzf|tests> --query-set TERM [--query-set TERM...] [PROJECT_ROOT]\n\
          rs-harness search public-external-types [--dependency DEP] [PROJECT_ROOT]\n\
          rg -n '<query>' src tests | rs-harness search ingest [items tests] [PROJECT_ROOT]\n\n\
          Emits compact RFC line protocol for deterministic agent exploration.\n\
          Compact text is the default; --json wraps the same packet for tools.\n\
          RFC controls accepted here: --trace, --explain, --view graph|hits|both|seeds,\n\
          --depth N, --dir out|in|both, --edge LIST, --item-slice, --dependency DEP,\n\
-         --seeds N, --query-set TERM, --lines."
+         --seeds N, --query-set TERM, --query SYMBOL, --names-only, --code, --lines."
     );
 }
 
@@ -734,11 +883,18 @@ fn print_agent_doctor(project_root: &std::path::Path, _client: Option<&str>) {
 fn print_agent_guide(_project_root: &std::path::Path) {
     println!(
         "[agent-guide] runtime=semantic-agent-hook language=rust provider=rs-harness\n\
-         |flow prime->owner|deps|symbol|tests pipe=text:tests ingest=stdin\n\
-         |cmd prime=rs-harness search prime --view seeds .\n\
-         |cmd owner=rs-harness search owner <path> items --view seeds .\n\
-         |cmd ingest=rg -n '<query>' src tests | rs-harness search ingest items tests --view seeds .\n\
-         |rule hook install/runtime is owned by semantic-agent-hook"
+|flow prime->owner|query|deps|symbol|tests pipe=fzf:tests ingest=stdin\n\
+|cmd prime=rs-harness search prime --view seeds .\n\
+|cmd owner=rs-harness search owner <path> items --view seeds .\n\
+|cmd policy=rs-harness search policy <rule-id-or-alias> owner tests --view seeds .\n\
+|cmd fzf=rs-harness search fzf <query> owner tests --view seeds .\n\
+|cmd query=rs-harness query <path> --query <symbol-or-a|b|c> .\n\
+             |cmd code=rs-harness query <path> --query <symbol-or-a|b|c> --code .\n\
+             |cmd hook-query=rs-harness query --from-hook direct-source-read --selector <path> .\n\
+             |cmd ingest=rg -n '<query>' src tests | rs-harness search ingest items tests --view seeds .\n\
+             |cmd evidence=rs-harness evidence graph --review-packet-json <path> --json .\n\
+             |cmd assurance=rs-harness evidence assurance --evidence-graph-json <path> --json .\n\
+             |rule hook install/runtime is owned by semantic-agent-hook"
     );
 }
 
@@ -752,12 +908,14 @@ fn search_view_requires_query(view: &str) -> bool {
     matches!(
         view,
         "owner"
+            | "policy"
             | "dependency"
             | "tests"
             | "symbol"
             | "callsite"
             | "import"
-            | "text"
+            | "query"
+            | "fzf"
             | "cfg"
             | "pattern"
             | "docs"
@@ -771,13 +929,42 @@ fn search_view_accepts_optional_query(view: &str) -> bool {
 }
 
 fn search_view_supports_query_set(view: &str) -> bool {
-    matches!(view, "owner" | "dependency" | "text" | "tests")
+    matches!(view, "owner" | "dependency" | "fzf" | "tests")
+}
+
+fn is_known_search_view(view: &str) -> bool {
+    matches!(
+        view,
+        "prime"
+            | "workspace"
+            | "targets"
+            | "deps"
+            | "features"
+            | "policy"
+            | "owner"
+            | "dependency"
+            | "tests"
+            | "symbol"
+            | "callsite"
+            | "import"
+            | "query"
+            | "fzf"
+            | "cfg"
+            | "patterns"
+            | "pattern"
+            | "docs"
+            | "docs-use"
+            | "api"
+            | "public-external-types"
+            | "ingest"
+    )
 }
 
 fn is_search_pipe(value: &str) -> bool {
     matches!(
         value,
-        "owners"
+        "owner"
+            | "owners"
             | "usage"
             | "items"
             | "tests"
@@ -792,6 +979,34 @@ fn is_search_pipe(value: &str) -> bool {
             | "features"
             | "dependents"
     )
+}
+
+fn is_explicit_rust_project_root(value: &str) -> bool {
+    Path::new(value).join("Cargo.toml").is_file()
+}
+
+fn discover_rust_project_root() -> Result<PathBuf, String> {
+    let mut current =
+        env::current_dir().map_err(|error| format!("failed to read current dir: {error}"))?;
+    loop {
+        if current.join("Cargo.toml").is_file() {
+            return Ok(current);
+        }
+        if is_git_boundary(&current) {
+            break;
+        }
+        if !current.pop() {
+            break;
+        }
+    }
+    Err(
+        "failed to find Rust project root before repository boundary: Cargo.toml not found"
+            .to_string(),
+    )
+}
+
+fn is_git_boundary(path: &Path) -> bool {
+    path.join(".git").exists()
 }
 
 fn parse_usize_option(option: &str, value: &str) -> Result<usize, String> {
@@ -810,6 +1025,9 @@ fn split_csv_values(value: &str) -> Vec<String> {
 }
 
 fn validate_search_options(options: &SearchOptions) -> Result<(), String> {
+    if !is_known_search_view(&options.view) {
+        return Err(format!("unknown search view: {}", options.view));
+    }
     if let Some(view) = options.output_view.as_deref()
         && !matches!(view, "graph" | "hits" | "both" | "seeds")
     {

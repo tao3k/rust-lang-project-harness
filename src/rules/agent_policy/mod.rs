@@ -3,7 +3,7 @@
 mod algorithm_shape;
 mod api_shape;
 mod data_shape;
-mod dependency_graph;
+pub(crate) mod dependency_graph;
 mod doc_boundary;
 mod pack;
 mod source_surface;

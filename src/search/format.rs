@@ -6,6 +6,7 @@ use crate::parser::{
     CargoDependencyFacts, CargoDependencyKind, ParsedRustModule, RustReasoningOwnerBranchFacts,
     RustReasoningOwnerBranchRole, RustTopLevelItemSyntax,
 };
+use crate::path::normalize_lexical_path;
 
 use super::limits::SOURCE_LARGE_EFFECTIVE_LINES;
 
@@ -104,9 +105,29 @@ fn dependency_kind_label(kind: CargoDependencyKind) -> &'static str {
 
 pub(super) fn render_item_line(item: &RustTopLevelItemSyntax) -> String {
     let name = item.name.as_deref().unwrap_or("-");
+    let mut fields = vec![format!("|item {name}"), format!("kind={}", item.kind)];
+    if item.is_public {
+        fields.push("public=true".to_string());
+    }
+    if item.has_doc {
+        fields.push("doc=true".to_string());
+    }
+    fields.push(format!("next=symbol:{name}"));
+    fields.join(" ")
+}
+
+pub(super) fn render_item_line_with_read(
+    package_root: &Path,
+    path: &Path,
+    item: &RustTopLevelItemSyntax,
+) -> String {
+    let read_path = display_project_path(package_root, path);
     format!(
-        "|item {} kind={} line={} public={} doc={} next=symbol:{}",
-        name, item.kind, item.line, item.is_public, item.has_doc, name
+        "{} read={}:{}-{}",
+        render_item_line(item),
+        read_path,
+        item.line,
+        item.end_line
     )
 }
 
@@ -260,8 +281,10 @@ pub(super) fn should_run_member_scopes(project_root: &Path, package_roots: &[Pat
 }
 
 pub(super) fn display_project_path(root: &Path, path: &Path) -> String {
-    path.strip_prefix(root)
-        .map_or_else(|_| display_path(path), display_path)
+    let root = normalize_lexical_path(root);
+    let path = normalize_lexical_path(path);
+    path.strip_prefix(&root)
+        .map_or_else(|_| display_path(&path), display_path)
 }
 
 fn display_path(path: &Path) -> String {

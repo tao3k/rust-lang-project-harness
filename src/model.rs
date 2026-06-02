@@ -235,6 +235,179 @@ pub struct RustHarnessFinding {
     pub labels: BTreeMap<String, String>,
 }
 
+/// Stable invariant candidate id.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct RustInvariantId(pub String);
+
+impl RustInvariantId {
+    /// Return the id as a borrowed string.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Source rule id for an invariant candidate.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct RustInvariantSourceRuleId(pub String);
+
+impl RustInvariantSourceRuleId {
+    /// Return the rule id as a borrowed string.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Rule pack id for an invariant candidate.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct RustInvariantRulePackId(pub String);
+
+impl RustInvariantRulePackId {
+    /// Return the pack id as a borrowed string.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Machine-facing candidate invariant derived from parser-owned findings.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustInvariantCandidate {
+    /// Stable candidate id.
+    pub invariant_id: RustInvariantId,
+    /// Source finding rule id.
+    pub source_rule_id: RustInvariantSourceRuleId,
+    /// Owning rule pack id.
+    pub rule_pack_id: RustInvariantRulePackId,
+    /// Candidate invariant kind.
+    pub kind: RustInvariantKind,
+    /// Candidate lifecycle status.
+    pub status: RustInvariantCandidateStatus,
+    /// Finding severity after policy configuration.
+    pub severity: RustDiagnosticSeverity,
+    /// Short title.
+    pub title: String,
+    /// Machine-readable invariant hypothesis.
+    pub hypothesis: String,
+    /// Concrete source location.
+    pub location: SourceLocation,
+    /// Evidence used to raise this candidate.
+    pub evidence: Vec<RustInvariantEvidence>,
+    /// Receipts expected before this candidate is accepted as verified.
+    pub required_receipts: Vec<RustInvariantReceiptKind>,
+    /// Proof surfaces that may discharge the candidate.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub proof_targets: Vec<RustInvariantKind>,
+    /// Small labels for tooling.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub fields: BTreeMap<String, String>,
+}
+
+/// Candidate invariant category.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RustInvariantKind {
+    /// Public identifier parameter is still represented as a primitive.
+    PrimitiveIdentifierBoundary,
+    /// Public data shape exposes several semantic primitive fields.
+    PublicDataPrimitiveFields,
+    /// Public API exposes anonymous tuple payloads.
+    AnonymousTupleApiSurface,
+    /// Public semantic alias uses a primitive carrier.
+    PrimitiveTypeAliasBoundary,
+    /// Public data shape exposes stringly state.
+    StringlyStateBoundary,
+    /// Parser-owned fact invariant.
+    ParserFact,
+    /// Public API shape invariant.
+    PublicApiShape,
+    /// Module reasoning tree invariant.
+    ModuleReasoningTree,
+    /// Dependency graph acyclicity invariant.
+    DependencyGraphAcyclicity,
+    /// Provider-owned custom invariant kind.
+    Custom,
+}
+
+/// Candidate invariant lifecycle status.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RustInvariantCandidateStatus {
+    /// Candidate raised from current parser-owned evidence.
+    Candidate,
+    /// Candidate accepted as a review/test/proof obligation.
+    Accepted,
+    /// Candidate discharged by receipts or proof.
+    Verified,
+    /// Candidate waived with an explicit review reason.
+    Waived,
+    /// Candidate refers to outdated evidence.
+    Stale,
+}
+
+/// Receipt family expected for an invariant candidate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RustInvariantReceiptKind {
+    /// `cargo check` evidence.
+    CargoCheck,
+    /// `cargo test` evidence.
+    CargoTest,
+    /// `cargo clippy` evidence.
+    Clippy,
+    /// `expect_test` or equivalent behavior snapshot evidence.
+    ExpectTest,
+    /// `proptest` evidence.
+    Proptest,
+    /// `cargo fuzz` evidence.
+    CargoFuzz,
+    /// Kani proof receipt.
+    Kani,
+    /// Creusot proof receipt.
+    Creusot,
+    /// Verus proof receipt.
+    Verus,
+    /// Explicit waiver evidence.
+    Waiver,
+}
+
+/// Evidence kind attached to an invariant candidate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RustInvariantEvidenceKind {
+    /// Evidence came from a harness finding.
+    Finding,
+    /// Evidence came from parser-owned syntax facts.
+    ParserFact,
+    /// Evidence came from a verification receipt.
+    Receipt,
+    /// Evidence came from proof output.
+    Proof,
+    /// Provider-owned custom evidence kind.
+    Custom,
+}
+
+/// Evidence item attached to an invariant candidate.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustInvariantEvidence {
+    /// Evidence kind.
+    pub kind: RustInvariantEvidenceKind,
+    /// Compact evidence summary.
+    pub summary: String,
+    /// Evidence source location, when available.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<SourceLocation>,
+    /// Extra machine-readable evidence facts.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub fields: BTreeMap<String, String>,
+}
+
 impl RustHarnessFinding {
     /// Build a finding from a catalog rule.
     #[must_use]
@@ -672,6 +845,13 @@ pub struct RustHarnessReport {
     pub modules: Vec<RustModuleReport>,
     /// All findings, including advisory findings.
     pub findings: Vec<RustHarnessFinding>,
+    /// Machine-facing candidate invariants derived from findings.
+    #[serde(
+        default,
+        rename = "invariantCandidates",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub invariant_candidates: Vec<RustInvariantCandidate>,
     /// Roots requested by the caller.
     pub root_paths: Vec<PathBuf>,
     /// Severities that block assertions.

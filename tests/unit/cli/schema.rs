@@ -91,6 +91,12 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
     let methods = value["languages"][0]["methodDescriptors"]
         .as_array()
         .expect("method descriptors");
+    assert!(
+        methods
+            .iter()
+            .all(|descriptor| descriptor["method"] != "search/text"),
+        "{methods:?}"
+    );
     let rust_capability_schema =
         read_json(&package_root().join("schemas/rust-semantic-capabilities.v1.schema.json"));
     let capability_names = schema_enum(
@@ -136,11 +142,107 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
         owner["acceptedQuerySetSelectors"],
         serde_json::json!(["exact-set"])
     );
-    let text = method_descriptor(methods, "search/text");
-    assert_eq!(text["supportsQuerySet"], true);
     assert_eq!(
-        text["acceptedQuerySetSelectors"],
+        owner["acceptedPipes"],
+        serde_json::json!(["items", "tests"])
+    );
+    let fzf = method_descriptor(methods, "search/fzf");
+    assert_eq!(fzf["requiresQuery"], true);
+    assert_eq!(fzf["supportsQuerySet"], true);
+    assert_eq!(
+        fzf["acceptedQuerySetSelectors"],
+        serde_json::json!(["fuzzy-set"])
+    );
+    assert!(
+        fzf["capabilities"].as_array().is_some_and(|capabilities| {
+            capabilities.iter().any(|capability| {
+                capability["namespace"] == "semantic"
+                    && capability["name"] == "finder-fuzzy-candidate-search"
+            }) && capabilities.iter().any(|capability| {
+                capability["namespace"] == "rust"
+                    && capability["name"] == "parser-visible-source-fuzzy-search"
+            })
+        }),
+        "{fzf}"
+    );
+    let policy = method_descriptor(methods, "search/policy");
+    assert_eq!(
+        policy["outputSchemaIds"],
+        serde_json::json!([
+            "agent.semantic-protocols.semantic-search-packet",
+            "agent.semantic-protocols.semantic-handle"
+        ])
+    );
+    assert_eq!(
+        policy["acceptedPipes"],
+        serde_json::json!(["owner", "tests"])
+    );
+    assert!(
+        policy["capabilities"]
+            .as_array()
+            .is_some_and(|capabilities| {
+                capabilities.iter().any(|capability| {
+                    capability["namespace"] == "rust"
+                        && capability["name"] == "rust-project-policy-rule-handle-search"
+                })
+            }),
+        "{policy}"
+    );
+    let query_owner_items = method_descriptor(methods, "query/owner-items");
+    assert_eq!(query_owner_items["command"], "query");
+    assert_eq!(query_owner_items["input"], "owner-path");
+    assert_eq!(
+        query_owner_items["requiredOptions"],
+        serde_json::json!(["--term"])
+    );
+    assert_eq!(
+        query_owner_items["outputSchemaIds"],
+        serde_json::json!(["agent.semantic-protocols.semantic-query-packet"])
+    );
+    assert_eq!(
+        query_owner_items["outputModes"],
+        serde_json::json!(["compact", "json", "code", "names"])
+    );
+    assert_eq!(query_owner_items["supportsQuerySet"], true);
+    assert_eq!(
+        query_owner_items["acceptedQuerySetSelectors"],
         serde_json::json!(["exact-set"])
+    );
+    assert_eq!(
+        query_owner_items["querySetScopes"],
+        serde_json::json!(["owner"])
+    );
+    let direct_source_read = method_descriptor(methods, "query/direct-source-read");
+    assert_eq!(direct_source_read["command"], "query");
+    assert_eq!(direct_source_read["input"], "owner-path");
+    assert_eq!(
+        direct_source_read["requiredOptions"],
+        serde_json::json!(["--from-hook", "--selector"])
+    );
+    assert_eq!(
+        direct_source_read["outputSchemaIds"],
+        serde_json::json!([
+            "agent.semantic-protocols.semantic-query-packet",
+            "agent.semantic-protocols.semantic-read-packet"
+        ])
+    );
+    assert_eq!(
+        direct_source_read["outputModes"],
+        serde_json::json!(["compact", "json", "names", "read-packet"])
+    );
+    let fzf = method_descriptor(methods, "search/fzf");
+    assert_eq!(fzf["supportsQuerySet"], true);
+    assert_eq!(
+        fzf["acceptedQuerySetSelectors"],
+        serde_json::json!(["fuzzy-set"])
+    );
+    let public_external_types = method_descriptor(methods, "search/public-external-types");
+    assert_eq!(
+        public_external_types["outputSchemaIds"],
+        serde_json::json!([
+            "agent.semantic-protocols.semantic-search-packet",
+            "agent.semantic-protocols.semantic-type-surface"
+        ])
     );
     let tests = method_descriptor(methods, "search/tests");
     assert_eq!(tests["supportsQuerySet"], true);
@@ -154,14 +256,12 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
         serde_json::json!(["items", "tests"])
     );
     assert!(
-        text["ingestRequiredFor"]
-            .as_array()
-            .is_some_and(|surfaces| {
-                surfaces
-                    .iter()
-                    .any(|surface| surface["name"] == "schema-json")
-            }),
-        "{text}"
+        fzf["ingestRequiredFor"].as_array().is_some_and(|surfaces| {
+            surfaces
+                .iter()
+                .any(|surface| surface["name"] == "schema-json")
+        }),
+        "{fzf}"
     );
 
     for descriptor in methods {
@@ -211,6 +311,55 @@ fn semantic_schema_files() -> &'static [SemanticSchemaFile] {
             schema_id: "agent.semantic-protocols.semantic-search-packet",
             file_name: "semantic-search-packet.v1.schema.json",
             registry_path: "schemas/semantic-search-packet.v1.schema.json",
+            identity_pointer: &["properties", "schemaId", "const"],
+            syncs_with_protocol_repository: true,
+        },
+        SemanticSchemaFile {
+            schema_id: "agent.semantic-protocols.semantic-query-packet",
+            file_name: "semantic-query-packet.v1.schema.json",
+            registry_path: "schemas/semantic-query-packet.v1.schema.json",
+            identity_pointer: &["properties", "schemaId", "const"],
+            syncs_with_protocol_repository: true,
+        },
+        SemanticSchemaFile {
+            schema_id: "agent.semantic-protocols.semantic-read-packet",
+            file_name: "semantic-read-packet.v1.schema.json",
+            registry_path: "schemas/semantic-read-packet.v1.schema.json",
+            identity_pointer: &["properties", "schemaId", "const"],
+            syncs_with_protocol_repository: true,
+        },
+        SemanticSchemaFile {
+            schema_id: "agent.semantic-protocols.semantic-graph",
+            file_name: "semantic-graph.v1.schema.json",
+            registry_path: "schemas/semantic-graph.v1.schema.json",
+            identity_pointer: &["properties", "schemaId", "const"],
+            syncs_with_protocol_repository: true,
+        },
+        SemanticSchemaFile {
+            schema_id: "agent.semantic-protocols.semantic-type-surface",
+            file_name: "semantic-type-surface.v1.schema.json",
+            registry_path: "schemas/semantic-type-surface.v1.schema.json",
+            identity_pointer: &["properties", "schemaId", "const"],
+            syncs_with_protocol_repository: true,
+        },
+        SemanticSchemaFile {
+            schema_id: "agent.semantic-protocols.semantic-handle",
+            file_name: "semantic-handle.v1.schema.json",
+            registry_path: "schemas/semantic-handle.v1.schema.json",
+            identity_pointer: &["properties", "schemaId", "const"],
+            syncs_with_protocol_repository: true,
+        },
+        SemanticSchemaFile {
+            schema_id: "agent.semantic-protocols.semantic-native-syntax-fact-index",
+            file_name: "semantic-native-syntax-fact-index.v1.schema.json",
+            registry_path: "schemas/semantic-native-syntax-fact-index.v1.schema.json",
+            identity_pointer: &["properties", "schemaId", "const"],
+            syncs_with_protocol_repository: true,
+        },
+        SemanticSchemaFile {
+            schema_id: "agent.semantic-protocols.semantic-review-packet",
+            file_name: "semantic-review-packet.v1.schema.json",
+            registry_path: "schemas/semantic-review-packet.v1.schema.json",
             identity_pointer: &["properties", "schemaId", "const"],
             syncs_with_protocol_repository: true,
         },

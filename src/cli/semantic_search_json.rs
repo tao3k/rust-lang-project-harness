@@ -55,10 +55,19 @@ fn build_packet(project_root: &Path, options: &SemanticSearchJsonOptions, render
     let mut owners = Vec::new();
     let mut items = Vec::new();
     let mut hits = Vec::new();
+    let mut type_surfaces = Vec::new();
+    let mut semantic_handles = Vec::new();
+    let mut native_syntax_facts = Vec::new();
     let mut findings = Vec::new();
     let mut next_actions = Vec::new();
     let mut notes = Vec::new();
+    let mut search_synthesis = None;
     let mut current_owner = None::<String>;
+    if options.view == "policy" {
+        semantic_handles = crate::search::policy::policy_semantic_handles_for_query(
+            options.query.as_deref().unwrap_or_default(),
+        );
+    }
 
     for line in rendered.lines().filter_map(|line| line.strip_prefix('|')) {
         let mut tokens = line.split_whitespace();
@@ -85,9 +94,15 @@ fn build_packet(project_root: &Path, options: &SemanticSearchJsonOptions, render
             "find" => push_finding(&remaining, &mut findings),
             "next" => push_next_actions(remaining.join(" "), None, &mut next_actions),
             "def" | "call" | "api" => push_hit(tag, &remaining, &mut hits),
-            "external-type" => push_hit(tag, &remaining, &mut hits),
+            "fact" => push_native_syntax_fact(&remaining, &mut native_syntax_facts),
+            "handle" if options.view != "policy" => {
+                push_handle(&remaining, &mut semantic_handles);
+            }
+            "handle" => {}
+            "external-type" => push_external_type_hit(&remaining, &mut hits, &mut type_surfaces),
             "api-candidate" => push_api_candidate(&remaining, &mut hits),
             "test" => push_test_node(&remaining, &mut nodes, &mut next_actions),
+            "synthesis" => push_synthesis(&remaining, &mut search_synthesis),
             "note" => push_note(&remaining, &mut notes),
             "feat" | "feature" | "cfg" | "target" | "pat" => {
                 push_fact_note(tag, &remaining, &mut notes)
@@ -115,9 +130,13 @@ fn build_packet(project_root: &Path, options: &SemanticSearchJsonOptions, render
                 owners,
                 items,
                 hits,
+                type_surfaces,
+                semantic_handles,
+                native_syntax_facts,
                 findings,
                 next_actions,
                 notes,
+                search_synthesis,
             },
         );
     }
@@ -134,9 +153,13 @@ fn build_packet(project_root: &Path, options: &SemanticSearchJsonOptions, render
             owners,
             items,
             hits,
+            type_surfaces,
+            semantic_handles,
+            native_syntax_facts,
             findings,
             next_actions,
             notes,
+            search_synthesis,
         },
     )
 }
@@ -148,9 +171,13 @@ struct PacketCollections {
     owners: Vec<Value>,
     items: Vec<Value>,
     hits: Vec<Value>,
+    type_surfaces: Vec<Value>,
+    semantic_handles: Vec<Value>,
+    native_syntax_facts: Vec<Value>,
     findings: Vec<Value>,
     next_actions: Vec<Value>,
     notes: Vec<Value>,
+    search_synthesis: Option<Value>,
 }
 
 fn base_packet(
@@ -183,10 +210,16 @@ fn base_packet(
         "owners": collections.owners,
         "items": collections.items,
         "hits": collections.hits,
+        "typeSurfaces": collections.type_surfaces,
+        "semanticHandles": collections.semantic_handles,
+        "nativeSyntaxFacts": collections.native_syntax_facts,
         "findings": collections.findings,
         "nextActions": collections.next_actions,
         "notes": collections.notes,
     });
+    if let Some(search_synthesis) = collections.search_synthesis {
+        packet["searchSynthesis"] = search_synthesis;
+    }
     if let Some(query) = options.query.as_deref() {
         packet["query"] = json!(query);
     }
@@ -212,11 +245,13 @@ fn base_packet(
                 "packages",
                 "nodes",
                 "edges",
-                "owners",
-                "items",
-                "hits",
-                "findings",
-                "nextActions",
+        "owners",
+        "items",
+        "hits",
+        "typeSurfaces",
+        "nativeSyntaxFacts",
+        "findings",
+        "nextActions",
                 "notes"
             ],
             "fields": {
@@ -242,7 +277,7 @@ fn query_set_kind(options: &SemanticSearchJsonOptions) -> &'static str {
         "cfg" => "cfg",
         "api" | "docs" | "docs-use" | "public-external-types" => "api",
         "symbol" | "callsite" | "import" => "symbol",
-        "text" => "text",
+        "fzf" => "text",
         _ => "custom",
     }
 }
@@ -454,6 +489,189 @@ fn push_hit(kind: &str, tokens: &[&str], hits: &mut Vec<Value>) {
     hits.push(hit);
 }
 
+fn push_handle(tokens: &[&str], semantic_handles: &mut Vec<Value>) {
+    let Some(id) = tokens.first() else {
+        return;
+    };
+    let fields = parse_fields(tokens.iter().skip(1).copied());
+    let kind = string_field(&fields, "kind").unwrap_or_else(|| "custom".to_string());
+    let source = string_field(&fields, "source").unwrap_or_else(|| "custom".to_string());
+    let title = string_field(&fields, "title").unwrap_or_else(|| (*id).to_string());
+    let mut handle = json!({
+    "id": id,
+    "kind": kind,
+    "source": source,
+    "title": title,
+    "fields": fields.clone(),
+    });
+    if let Some(owner_path) = string_field(&fields, "owner") {
+        handle["ownerPath"] = json!(owner_path);
+    }
+    if let Some(query) = string_field(&fields, "query") {
+        handle["queryTerms"] = json!([query]);
+    }
+    if let Some(owner_path) = string_field(&fields, "owner")
+        && let Some(line) = fields.get("line").and_then(Value::as_u64)
+    {
+        handle["locations"] = json!([{
+        "path": owner_path,
+        "line": line,
+        }]);
+    }
+    semantic_handles.push(handle);
+}
+
+fn push_native_syntax_fact(tokens: &[&str], native_syntax_facts: &mut Vec<Value>) {
+    let Some(id) = tokens.first() else {
+        return;
+    };
+    let fields = parse_fields(tokens.iter().skip(1).copied());
+    let owner_path = string_field(&fields, "owner").unwrap_or_else(|| ".".to_string());
+    let kind = string_field(&fields, "kind").unwrap_or_else(|| "custom".to_string());
+    let source = string_field(&fields, "source").unwrap_or_else(|| "native-parser".to_string());
+    let mut fact = json!({
+    "id": id,
+    "kind": kind,
+    "source": source,
+    "ownerPath": owner_path,
+    "fields": fields.clone(),
+    });
+    if let Some(language_kind) = string_field(&fields, "languageKind") {
+        fact["languageKind"] = json!(language_kind);
+    }
+    if let Some(name) = string_field(&fields, "name") {
+        fact["name"] = json!(name);
+    }
+    if let Some(qualified_name) = string_field(&fields, "qualifiedName") {
+        fact["qualifiedName"] = json!(qualified_name);
+    }
+    if let Some(visibility) = string_field(&fields, "visibility") {
+        fact["visibility"] = json!(visibility);
+    }
+    if let Some(exported) = fields.get("exported").and_then(Value::as_bool) {
+        fact["exported"] = json!(exported);
+    }
+    if let Some(query) = string_field(&fields, "query") {
+        fact["queryKeys"] = json!([query]);
+    }
+    if let Some(owner_path) = string_field(&fields, "owner")
+        && let Some(line) = fields.get("line").and_then(Value::as_u64)
+    {
+        fact["location"] = json!({
+        "path": owner_path,
+        "line": line,
+        });
+    }
+    native_syntax_facts.push(fact);
+}
+
+fn push_external_type_hit(tokens: &[&str], hits: &mut Vec<Value>, type_surfaces: &mut Vec<Value>) {
+    let Some(path_token) = tokens.first() else {
+        return;
+    };
+    let (owner_path, line) = split_path_line(path_token);
+    let fields = parse_fields(tokens.iter().skip(1).copied());
+    let location = location_with_line(&owner_path, line);
+    let mut hit = json!({
+        "kind": "external-type",
+        "ownerPath": owner_path,
+        "location": location.clone(),
+        "score": 1.0,
+        "reason": "external-type",
+        "fields": fields.clone(),
+    });
+    if let Some(symbol) = string_field(&fields, "item") {
+        hit["symbol"] = json!(symbol);
+    }
+    type_surfaces.push(external_type_surface(&owner_path, line, location, &fields));
+    hits.push(hit);
+}
+
+fn external_type_surface(
+    owner_path: &str,
+    line: Option<u64>,
+    location: Value,
+    fields: &Map<String, Value>,
+) -> Value {
+    let dependency = string_field(fields, "dep").unwrap_or_else(|| "unknown".to_string());
+    let surface = string_field(fields, "surface");
+    let type_text = string_field(fields, "type").unwrap_or_else(|| "unknown".to_string());
+    let name = string_field(fields, "item").unwrap_or_else(|| type_text.clone());
+    let surface_label = surface.as_deref().unwrap_or("external-type");
+    let mut surface_fields = fields.clone();
+    surface_fields.insert("dependency".to_string(), json!(dependency));
+    json!({
+        "id": format!(
+            "RS:{owner_path}:{}:{name}:{surface_label}",
+            line.map(|line| line.to_string()).unwrap_or_else(|| "-".to_string())
+        ),
+        "name": name,
+        "languageName": name,
+        "qualifiedName": type_text,
+        "kind": type_surface_kind(surface.as_deref()),
+        "role": type_surface_role(surface.as_deref()),
+        "ownerPath": owner_path,
+        "location": location,
+        "visibility": "public",
+        "external": true,
+        "source": string_field(fields, "source").unwrap_or_else(|| "native-parser".to_string()),
+        "package": dependency,
+        "module": dependency,
+        "symbol": name,
+        "versionScope": "external",
+        "carrier": {
+            "name": type_text,
+            "languageName": type_text,
+            "qualifiedName": type_text,
+            "carrier": "external",
+            "package": dependency,
+            "module": dependency,
+            "versionScope": "external",
+            "external": true,
+        },
+        "fields": surface_fields,
+    })
+}
+
+fn split_path_line(value: &str) -> (String, Option<u64>) {
+    if let Some((path, line)) = value.rsplit_once(':') {
+        if !path.is_empty() {
+            if let Ok(line) = line.parse::<u64>() {
+                return (path.to_string(), Some(line));
+            }
+        }
+    }
+    (value.to_string(), None)
+}
+
+fn location_with_line(path: &str, line: Option<u64>) -> Value {
+    let mut location = json!({ "path": path });
+    if let Some(line) = line {
+        location["line"] = json!(line);
+    }
+    location
+}
+
+fn type_surface_kind(surface: Option<&str>) -> &'static str {
+    match surface {
+        Some("alias") => "alias",
+        Some(surface) if surface.starts_with("field:") => "object",
+        Some(surface) if surface.starts_with("tuple-field:") => "tuple",
+        _ => "unknown",
+    }
+}
+
+fn type_surface_role(surface: Option<&str>) -> &'static str {
+    match surface {
+        Some(surface) if surface.starts_with("param:") => "api-input",
+        Some("return") => "api-output",
+        Some(surface) if surface.starts_with("field:") => "api-field",
+        Some(surface) if surface.starts_with("tuple-field:") => "api-field",
+        Some("alias") => "public-type-alias",
+        _ => "external-dependency",
+    }
+}
+
 fn push_api_candidate(tokens: &[&str], hits: &mut Vec<Value>) {
     let Some(symbol) = tokens.first() else {
         return;
@@ -517,6 +735,89 @@ fn push_next_actions(fragment: String, owner_path: Option<&str>, next_actions: &
     next_actions.extend(parse_next_actions(fragment, owner_path));
 }
 
+fn push_synthesis(tokens: &[&str], search_synthesis: &mut Option<Value>) {
+    let mut fields = parse_fields(tokens.iter().copied());
+    let mut synthesis = Map::new();
+    for key in [
+        "algorithm",
+        "scope",
+        "summary",
+        "ownerPath",
+        "selectedOwners",
+        "selectedEdges",
+        "incomingOwners",
+        "outgoingOwners",
+    ] {
+        if let Some(value) = fields.remove(key) {
+            synthesis.insert(key.to_string(), value);
+        }
+    }
+    for key in [
+        "highImpactOwners",
+        "frontierOwners",
+        "findingOwners",
+        "editFrontier",
+        "testFrontier",
+    ] {
+        if let Some(value) = fields.remove(key) {
+            synthesis.insert(key.to_string(), ensure_array_value(value));
+        }
+    }
+    if let Some(value) = fields.remove("seeds") {
+        synthesis.insert(
+            "seeds".to_string(),
+            Value::Array(synthesis_next_actions(value)),
+        );
+    }
+    if let Some(value) = fields.remove("windowSet") {
+        synthesis.insert(
+            "windowSet".to_string(),
+            Value::Array(synthesis_next_actions(value)),
+        );
+    }
+    normalize_synthesis_list_fields(&mut fields);
+    if !fields.is_empty() {
+        synthesis.insert("fields".to_string(), Value::Object(fields));
+    }
+    if synthesis.contains_key("algorithm") && synthesis.contains_key("scope") {
+        *search_synthesis = Some(Value::Object(synthesis));
+    }
+}
+
+fn ensure_array_value(value: Value) -> Value {
+    match value {
+        array @ Value::Array(_) => array,
+        other => Value::Array(vec![other]),
+    }
+}
+
+fn synthesis_next_actions(value: Value) -> Vec<Value> {
+    match value {
+        Value::Array(values) => values
+            .into_iter()
+            .flat_map(|value| match value {
+                Value::String(value) => parse_next_actions(value, None),
+                Value::Object(_) => vec![value],
+                _ => Vec::new(),
+            })
+            .collect(),
+        Value::String(value) => parse_next_actions(value, None),
+        Value::Object(_) => vec![value],
+        _ => Vec::new(),
+    }
+}
+
+fn normalize_synthesis_list_fields(fields: &mut Map<String, Value>) {
+    for key in ["windowSet"] {
+        let Some(value) = fields.get_mut(key) else {
+            continue;
+        };
+        if !value.is_array() {
+            *value = Value::Array(vec![value.take()]);
+        }
+    }
+}
+
 fn schema_view(options: &SemanticSearchJsonOptions) -> &str {
     options.view.as_str()
 }
@@ -528,7 +829,7 @@ fn render_mode(options: &SemanticSearchJsonOptions) -> &str {
     match options.view.as_str() {
         "symbol"
         | "callsite"
-        | "text"
+        | "fzf"
         | "pattern"
         | "docs"
         | "docs-use"

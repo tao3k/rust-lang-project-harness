@@ -6,16 +6,20 @@ pub(crate) mod compact;
 mod context;
 mod dependency;
 mod format;
+mod fzf_query;
 mod hits;
 mod ingest;
+mod item_query;
 mod limits;
 mod owner;
 mod owner_view;
+pub(crate) mod policy;
 mod prime;
 mod prime_support;
 mod query;
 mod recency;
 mod scope;
+mod syntax_query;
 
 pub use api::{
     RustSearchOptions, RustSearchViewRequest, render_rust_project_harness_search_view_with_config,

@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fmt::Write;
 use std::path::{Path, PathBuf};
 
@@ -6,14 +7,16 @@ use crate::parser::{ParsedRustModule, RustReasoningOwnerBranchFacts, parse_rust_
 
 use super::RustSearchOptions;
 use super::context::{
-    PackageSearchContext, exact_owner_path_matches, exact_rust_file_query,
+    PackageSearchContext, exact_owner_path_matches, exact_rust_file_query, search_contexts,
     search_contexts_for_path_queries, search_contexts_for_path_query,
 };
 use super::format::{
     display_project_path, owner_role_for_path, package_label, package_roots_for_request,
-    query_set_terms, render_item_line, render_owner_line,
+    query_set_terms, render_owner_line,
 };
-use super::limits::{SEARCH_ITEM_LIMIT, SEARCH_OWNER_LIMIT};
+use super::item_query::{owner_item_count, render_item_query_line, render_owner_item_lines};
+use super::limits::SEARCH_OWNER_LIMIT;
+use super::owner as owner_search;
 use super::scope::{owner_branch_matches, owner_path_matches};
 
 pub(super) fn render_search_owner(
@@ -68,6 +71,7 @@ fn render_exact_path_owner_query_set(
     let package_roots =
         package_roots_for_request(project_root, config, options.package.as_deref())?;
     let include_items = options.pipes.iter().any(|pipe| pipe == "items");
+    let contexts = search_contexts(project_root, config, options)?;
     let mut rendered = String::new();
     for package_root in package_roots {
         let modules = query_terms
@@ -78,29 +82,48 @@ fn render_exact_path_owner_query_set(
         if modules.is_empty() {
             continue;
         }
-        let item_count = if include_items {
-            modules
-                .iter()
-                .map(|module| module.syntax_facts.top_level_items.len())
-                .sum()
-        } else {
-            0
-        };
+        let module_refs = modules.iter().collect::<Vec<_>>();
+        let item_count =
+            owner_item_count(&module_refs, include_items, options.item_query.as_deref());
+        let item_query_field = options
+            .item_query
+            .as_deref()
+            .filter(|query| !query.is_empty())
+            .map(|query| format!(" itemQuery={query}"))
+            .unwrap_or_default();
         let mut block = format!(
-            "[search-owner] q={} querySet={} selector=exact-set pkg={} own={} item={}\n",
+            "[search-owner] q={} querySet={} selector=exact-set pkg={} own={} item={}{}\n",
             query,
             query_terms.len(),
             package_label(project_root, &package_root),
             modules.len(),
-            item_count
+            item_count,
+            item_query_field
         );
         for module in &modules {
             append_parser_visible_owner_line(&mut block, &package_root, module);
         }
+        append_item_query_line(
+            &mut block,
+            &module_refs,
+            options.item_query.as_deref(),
+            options.item_names_only,
+        );
         append_owner_item_lines(
             &mut block,
-            &modules.iter().collect::<Vec<_>>(),
+            &package_root,
+            &module_refs,
             include_items,
+            options.item_query.as_deref(),
+            options.item_names_only,
+        );
+        append_unique_lines(
+            &mut block,
+            exact_owner_test_lines(&contexts, &package_root, &modules),
+        );
+        append_unique_lines(
+            &mut block,
+            exact_owner_synthesis_lines(&contexts, &package_root, &modules),
         );
         rendered.push_str(&block);
     }
@@ -124,15 +147,25 @@ fn render_exact_path_owner(
     }
 
     let include_items = options.pipes.iter().any(|pipe| pipe == "items");
+    let contexts = search_contexts(project_root, config, options)?;
     let mut rendered = String::new();
     for (package_root, path) in matches {
         let module = parse_rust_file(&path);
+        let test_lines =
+            exact_owner_test_lines(&contexts, &package_root, std::slice::from_ref(&module));
+        let synthesis_lines =
+            exact_owner_synthesis_lines(&contexts, &package_root, std::slice::from_ref(&module));
         rendered.push_str(&render_exact_path_owner_block(
             project_root,
             &package_root,
             query,
             &module,
             include_items,
+            options.item_query.as_deref(),
+            options.item_names_only,
+            options.item_code,
+            test_lines,
+            synthesis_lines,
         ));
     }
     Ok(Some(rendered))
@@ -144,11 +177,40 @@ fn render_exact_path_owner_block(
     query: &str,
     module: &ParsedRustModule,
     include_items: bool,
+    item_query: Option<&str>,
+    item_names_only: bool,
+    item_code: bool,
+    test_lines: Vec<String>,
+    synthesis_lines: Vec<String>,
 ) -> String {
-    let mut block =
-        render_exact_path_owner_header(project_root, package_root, query, module, include_items);
+    if include_items && item_code && item_query.is_some() {
+        return super::item_query::render_owner_item_code_lines(
+            package_root,
+            &[module],
+            item_query,
+        )
+        .join("\n");
+    }
+    let mut block = render_exact_path_owner_header(
+        project_root,
+        package_root,
+        query,
+        module,
+        include_items,
+        item_query,
+    );
     append_parser_visible_owner_line(&mut block, package_root, module);
-    append_owner_item_lines(&mut block, &[module], include_items);
+    append_item_query_line(&mut block, &[module], item_query, item_names_only);
+    append_owner_item_lines(
+        &mut block,
+        package_root,
+        &[module],
+        include_items,
+        item_query,
+        item_names_only,
+    );
+    append_unique_lines(&mut block, test_lines);
+    append_unique_lines(&mut block, synthesis_lines);
     block
 }
 
@@ -159,8 +221,17 @@ fn render_search_owner_block(
     options: &RustSearchOptions,
 ) -> String {
     let include_items = options.pipes.iter().any(|pipe| pipe == "items");
+    let include_tests = options.pipes.iter().any(|pipe| pipe == "tests");
     let matching_branches = matching_owner_branches(context, query);
     let matching_modules = matching_owner_modules(context, query);
+    if include_items && options.item_code && options.item_query.is_some() {
+        return super::item_query::render_owner_item_code_lines(
+            &context.package_root,
+            &matching_modules,
+            options.item_query.as_deref(),
+        )
+        .join("\n");
+    }
     let mut block = render_search_owner_header(
         project_root,
         context,
@@ -168,6 +239,7 @@ fn render_search_owner_block(
         &matching_branches,
         &matching_modules,
         include_items,
+        options.item_query.as_deref(),
     );
     append_owner_graph_or_fallback_lines(
         &mut block,
@@ -176,7 +248,36 @@ fn render_search_owner_block(
         &matching_branches,
         &matching_modules,
     );
-    append_owner_item_lines(&mut block, &matching_modules, include_items);
+    append_item_query_line(
+        &mut block,
+        &matching_modules,
+        options.item_query.as_deref(),
+        options.item_names_only,
+    );
+    append_owner_item_lines(
+        &mut block,
+        &context.package_root,
+        &matching_modules,
+        include_items,
+        options.item_query.as_deref(),
+        options.item_names_only,
+    );
+    if include_tests {
+        append_unique_lines(
+            &mut block,
+            owner_search::test_lines_for_owner_modules(context, &matching_modules),
+        );
+    }
+    append_unique_lines(
+        &mut block,
+        owner_synthesis_lines_for_paths(
+            context,
+            matching_modules
+                .iter()
+                .map(|module| module.report.path.clone())
+                .collect(),
+        ),
+    );
     block
 }
 
@@ -188,9 +289,10 @@ fn render_search_owner_query_set_block(
     options: &RustSearchOptions,
 ) -> String {
     let include_items = options.pipes.iter().any(|pipe| pipe == "items");
+    let include_tests = options.pipes.iter().any(|pipe| pipe == "tests");
     let details = query_terms
         .iter()
-        .map(|term| owner_query_details(context, term, include_items))
+        .map(|term| owner_query_details(context, term, include_items, include_tests))
         .collect::<Vec<_>>();
     let mut block = format!(
         "[search-owner] q={} querySet={} selector=exact-set pkg={} own={} item={}\n",
@@ -217,6 +319,7 @@ fn owner_query_details(
     context: &PackageSearchContext,
     query: &str,
     include_items: bool,
+    include_tests: bool,
 ) -> OwnerQueryDetails {
     let matching_branches = matching_owner_branches(context, query);
     let matching_modules = matching_owner_modules(context, query);
@@ -237,11 +340,173 @@ fn owner_query_details(
         &matching_branches,
         &matching_modules,
     );
-    append_owner_item_lines(&mut lines, &matching_modules, include_items);
+    append_owner_item_lines(
+        &mut lines,
+        &context.package_root,
+        &matching_modules,
+        include_items,
+        None,
+        false,
+    );
+    if include_tests {
+        append_unique_lines(
+            &mut lines,
+            owner_search::test_lines_for_owner_modules(context, &matching_modules),
+        );
+    }
+    append_unique_lines(
+        &mut lines,
+        owner_synthesis_lines_for_paths(
+            context,
+            matching_modules
+                .iter()
+                .map(|module| module.report.path.clone())
+                .collect(),
+        ),
+    );
     OwnerQueryDetails {
         owners,
         items,
         lines: lines.lines().map(ToOwned::to_owned).collect(),
+    }
+}
+
+fn exact_owner_test_lines(
+    contexts: &[PackageSearchContext],
+    package_root: &Path,
+    modules: &[ParsedRustModule],
+) -> Vec<String> {
+    let Some(context) = contexts
+        .iter()
+        .find(|context| context.package_root == package_root)
+    else {
+        return Vec::new();
+    };
+    let owner_modules = modules
+        .iter()
+        .filter_map(|module| {
+            context
+                .parsed_modules
+                .iter()
+                .find(|candidate| candidate.report.path == module.report.path)
+        })
+        .collect::<Vec<_>>();
+    owner_search::test_lines_for_owner_modules(context, &owner_modules)
+}
+
+fn exact_owner_synthesis_lines(
+    contexts: &[PackageSearchContext],
+    package_root: &Path,
+    modules: &[ParsedRustModule],
+) -> Vec<String> {
+    let Some(context) = contexts
+        .iter()
+        .find(|context| context.package_root == package_root)
+    else {
+        return Vec::new();
+    };
+    owner_synthesis_lines_for_paths(
+        context,
+        modules
+            .iter()
+            .map(|module| module.report.path.clone())
+            .collect(),
+    )
+}
+
+fn owner_synthesis_lines_for_paths(
+    context: &PackageSearchContext,
+    owner_paths: Vec<PathBuf>,
+) -> Vec<String> {
+    let Some(line) = owner_graph_synthesis_line(context, &owner_paths) else {
+        return Vec::new();
+    };
+    vec![line]
+}
+
+fn owner_graph_synthesis_line(
+    context: &PackageSearchContext,
+    owner_paths: &[PathBuf],
+) -> Option<String> {
+    if owner_paths.is_empty() {
+        return None;
+    }
+    let selected = owner_paths.iter().cloned().collect::<BTreeSet<_>>();
+    let mut incoming = BTreeSet::new();
+    let mut outgoing = BTreeSet::new();
+    for branch in &context.reasoning_tree.owner_branches {
+        for edge in &branch.declared_child_edges {
+            collect_owner_frontier_edge(
+                &selected,
+                &mut incoming,
+                &mut outgoing,
+                &branch.path,
+                &edge.child_path,
+            );
+        }
+    }
+    for dependency in context
+        .reasoning_tree
+        .owner_dependencies
+        .iter()
+        .filter(|dependency| !dependency.is_test_context)
+    {
+        collect_owner_frontier_edge(
+            &selected,
+            &mut incoming,
+            &mut outgoing,
+            &dependency.source_path,
+            &dependency.target_path,
+        );
+    }
+    let frontier = incoming
+        .iter()
+        .chain(outgoing.iter())
+        .filter(|path| !selected.contains(*path))
+        .map(|path| display_project_path(&context.package_root, path))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .take(4)
+        .collect::<Vec<_>>();
+    let seeds = frontier
+        .iter()
+        .map(|path| format!("owner:{path}"))
+        .collect::<Vec<_>>();
+    let mut parts = vec![
+        "algorithm=bounded-reachability-depth1".to_string(),
+        "scope=owner".to_string(),
+        "summary=owner-graph-frontier".to_string(),
+        format!("selected_owners={}", selected.len()),
+        format!("incoming_owners={}", incoming.len()),
+        format!("outgoing_owners={}", outgoing.len()),
+    ];
+    if owner_paths.len() == 1 {
+        parts.push(format!(
+            "owner_path={}",
+            display_project_path(&context.package_root, &owner_paths[0])
+        ));
+    }
+    if !frontier.is_empty() {
+        parts.push(format!("frontier_owners={}", frontier.join(",")));
+    }
+    if !seeds.is_empty() {
+        parts.push(format!("seeds={}", seeds.join(",")));
+    }
+    Some(format!("|synthesis {}", parts.join(" ")))
+}
+
+fn collect_owner_frontier_edge(
+    selected: &BTreeSet<PathBuf>,
+    incoming: &mut BTreeSet<PathBuf>,
+    outgoing: &mut BTreeSet<PathBuf>,
+    source_path: &PathBuf,
+    target_path: &PathBuf,
+) {
+    if selected.contains(source_path) && !selected.contains(target_path) {
+        outgoing.insert(target_path.clone());
+    }
+    if selected.contains(target_path) && !selected.contains(source_path) {
+        incoming.insert(source_path.clone());
     }
 }
 
@@ -311,22 +576,29 @@ fn append_reasoning_owner_lines(
 
 fn append_owner_item_lines(
     block: &mut String,
+    package_root: &Path,
     matching_modules: &[&ParsedRustModule],
     include_items: bool,
+    item_query: Option<&str>,
+    item_names_only: bool,
 ) {
     if !include_items {
         return;
     }
-    for module in matching_modules.iter().take(SEARCH_OWNER_LIMIT) {
-        for item in module
-            .syntax_facts
-            .top_level_items
-            .iter()
-            .filter(|item| item.name.is_some())
-            .take(SEARCH_ITEM_LIMIT)
-        {
-            let _ = writeln!(block, "{}", render_item_line(item));
-        }
+    for line in render_owner_item_lines(package_root, matching_modules, item_query, item_names_only)
+    {
+        let _ = writeln!(block, "{line}");
+    }
+}
+
+fn append_item_query_line(
+    block: &mut String,
+    matching_modules: &[&ParsedRustModule],
+    item_query: Option<&str>,
+    item_names_only: bool,
+) {
+    if let Some(line) = render_item_query_line(matching_modules, item_query, item_names_only) {
+        let _ = writeln!(block, "{line}");
     }
 }
 
@@ -337,20 +609,20 @@ fn render_search_owner_header(
     matching_branches: &[&RustReasoningOwnerBranchFacts],
     matching_modules: &[&ParsedRustModule],
     include_items: bool,
+    item_query: Option<&str>,
 ) -> String {
+    let item_count = owner_item_count(matching_modules, include_items, item_query);
+    let item_query_field = item_query
+        .filter(|query| !query.is_empty())
+        .map(|query| format!(" itemQuery={query}"))
+        .unwrap_or_default();
     format!(
-        "[search-owner] q={} pkg={} own={} item={}\n",
+        "[search-owner] q={} pkg={} own={} item={}{}\n",
         query,
         package_label(project_root, &context.package_root),
         search_owner_count(context, query, matching_branches, matching_modules),
-        if include_items {
-            matching_modules
-                .iter()
-                .map(|module| module.syntax_facts.top_level_items.len())
-                .sum()
-        } else {
-            0
-        }
+        item_count,
+        item_query_field
     )
 }
 
@@ -360,16 +632,19 @@ fn render_exact_path_owner_header(
     query: &str,
     module: &ParsedRustModule,
     include_items: bool,
+    item_query: Option<&str>,
 ) -> String {
+    let item_count = owner_item_count(&[module], include_items, item_query);
+    let item_query_field = item_query
+        .filter(|query| !query.is_empty())
+        .map(|query| format!(" itemQuery={query}"))
+        .unwrap_or_default();
     format!(
-        "[search-owner] q={} pkg={} own=1 item={}\n",
+        "[search-owner] q={} pkg={} own=1 item={}{}\n",
         query,
         package_label(project_root, package_root),
-        if include_items {
-            module.syntax_facts.top_level_items.len()
-        } else {
-            0
-        }
+        item_count,
+        item_query_field
     )
 }
 
@@ -417,14 +692,25 @@ fn append_parser_visible_owner_line(
 ) {
     let path = display_project_path(package_root, &module.report.path);
     let role = owner_role_for_path(package_root, &module.report.path);
-    let _ = writeln!(
-        block,
-        "|owner {path} role={role} public=false source=parser-visible-module parserOwner=false layer={role} lines={} valid={} syntaxDiagnostics={} semanticDiagnostics=0 imports={} next=owner:{path},text:{path}(owner={path}),tests:{path}",
-        module.source.lines().count(),
-        module.report.is_valid,
-        usize::from(module.report.parse_error.is_some()),
-        module_import_count(module)
-    );
+    let syntax_diagnostics = usize::from(module.report.parse_error.is_some());
+    let mut fields = vec![
+        format!("|owner {path}"),
+        format!("role={role}"),
+        "source=parser-visible-module".to_string(),
+        format!("lines={}", module.source.lines().count()),
+    ];
+    if !module.report.is_valid {
+        fields.push("valid=false".to_string());
+    }
+    if syntax_diagnostics > 0 {
+        fields.push(format!("syntaxDiagnostics={syntax_diagnostics}"));
+    }
+    let imports = module_import_count(module);
+    if imports > 0 {
+        fields.push(format!("imports={imports}"));
+    }
+    fields.push(format!("next=owner:{path},tests:{path}"));
+    let _ = writeln!(block, "{}", fields.join(" "));
 }
 
 fn append_path_only_owner_line(block: &mut String, context: &PackageSearchContext, path: &Path) {
@@ -432,7 +718,7 @@ fn append_path_only_owner_line(block: &mut String, context: &PackageSearchContex
     let role = owner_role_for_path(&context.package_root, Path::new(&path));
     let _ = writeln!(
         block,
-        "|owner {path} role={role} public=false source=path-only parserOwner=false next=ingest:{path}"
+        "|owner {path} role={role} source=path-only next=ingest:{path}"
     );
     block.push_str(
         "|note kind=owner-not-found message=\"path exists but is not a parser-visible owner; use search ingest for line evidence\"\n",

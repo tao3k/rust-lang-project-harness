@@ -27,6 +27,12 @@ pub struct RustSearchOptions {
     pub seeds: Option<usize>,
     /// Optional exact-set query terms for providers that can merge same-view probes.
     pub query_set: Vec<String>,
+    /// Optional parser-native item query inside an owner/module result.
+    pub item_query: Option<String>,
+    /// Suppress compact code for item queries and render only parser item names.
+    pub item_names_only: bool,
+    /// Render only compact parser-owned code for item queries.
+    pub item_code: bool,
 }
 
 /// Request object for rendering an RFC search view.
@@ -67,6 +73,12 @@ pub fn render_rust_project_harness_search_view_with_config(
         "targets" => cargo::render_search_targets(project_root, config, options),
         "deps" => cargo::render_search_deps(project_root, config, request.query, options),
         "features" => cargo::render_search_features(project_root, config, request.query, options),
+        "policy" => super::policy::render_search_policy(
+            project_root,
+            config,
+            format::required_query(request.view, request.query)?,
+            options,
+        ),
         "owner" => owner_view::render_search_owner(
             project_root,
             config,
@@ -98,7 +110,13 @@ pub fn render_rust_project_harness_search_view_with_config(
             format::required_query(request.view, request.query)?,
             options,
         ),
-        "text" => query::render_search_text(
+        "query" => super::syntax_query::render_search_query(
+            project_root,
+            config,
+            format::required_query(request.view, request.query)?,
+            options,
+        ),
+        "fzf" => query::render_search_fzf(
             project_root,
             config,
             format::required_query(request.view, request.query)?,

@@ -90,7 +90,34 @@ pub(super) fn is_allowed_test_root_file(name: &str, policy: &LayoutPolicy) -> bo
     ALLOWED_TEST_ROOT_FILES.contains(&name) || policy.allowed_root_files.contains(name)
 }
 
-pub(super) fn is_allowed_test_suite_path(path: &Path, policy: &LayoutPolicy) -> bool {
+pub(super) fn is_allowed_test_suite_path(
+    project_root: &Path,
+    path: &Path,
+    policy: &LayoutPolicy,
+) -> bool {
+    if let Some(crate_local_path) = crate_local_test_suite_path(project_root, path) {
+        return is_allowed_root_test_suite_path(crate_local_path, policy);
+    }
+    is_allowed_root_test_suite_path(path, policy)
+}
+
+fn crate_local_test_suite_path<'a>(project_root: &Path, path: &'a Path) -> Option<&'a Path> {
+    let mut ancestors = Vec::new();
+    let mut cursor = path.parent();
+    while let Some(parent) = cursor {
+        ancestors.push(parent);
+        cursor = parent.parent();
+    }
+    ancestors
+        .into_iter()
+        .find(|parent| {
+            parent != &Path::new("") && project_root.join(parent).join("Cargo.toml").is_file()
+        })
+        .and_then(|crate_root| path.strip_prefix(crate_root).ok())
+        .filter(|relative| relative.starts_with("tests"))
+}
+
+fn is_allowed_root_test_suite_path(path: &Path, policy: &LayoutPolicy) -> bool {
     let mut components = path.components();
     let Some(Component::Normal(first)) = components.next() else {
         return false;

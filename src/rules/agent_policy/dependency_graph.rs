@@ -45,34 +45,22 @@ fn owner_dependency_cycle_findings(
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     let dependencies = non_test_owner_dependencies(reasoning_tree);
-    let mut outgoing = BTreeMap::<Vec<String>, Vec<&RustReasoningOwnerDependencyFacts>>::new();
-    for dependency in dependencies {
-        outgoing
-            .entry(dependency.source_namespace.clone())
-            .or_default()
-            .push(dependency);
-    }
-    let mut seen_cycles = BTreeSet::<String>::new();
-    let mut findings = Vec::new();
-    for dependency in reasoning_tree
-        .owner_dependencies
+    let proof_edges = dependencies
         .iter()
-        .filter(|dependency| !dependency.is_test_context)
-    {
-        let Some(mut tail) = dependency_path_to_namespace(
-            &dependency.target_namespace,
-            &dependency.source_namespace,
-            &outgoing,
-            &mut BTreeSet::new(),
-        ) else {
+        .map(|dependency| OwnerDependencyProofEdge {
+            source_namespace: dependency.source_namespace.clone(),
+            target_namespace: dependency.target_namespace.clone(),
+        })
+        .collect::<Vec<_>>();
+    let mut findings = Vec::new();
+    for cycle_indices in owner_dependency_cycle_indices(&proof_edges) {
+        let cycle = cycle_indices
+            .iter()
+            .map(|index| dependencies[*index])
+            .collect::<Vec<_>>();
+        let Some(dependency) = cycle.first().copied() else {
             continue;
         };
-        let mut cycle = vec![dependency];
-        cycle.append(&mut tail);
-        let key = dependency_cycle_key(&cycle);
-        if !seen_cycles.insert(key) {
-            continue;
-        }
         let rule = &rules[AGENT_R009];
         findings.push(RustHarnessFinding::from_rule(
             rule,
@@ -88,26 +76,68 @@ fn owner_dependency_cycle_findings(
     findings
 }
 
-fn dependency_path_to_namespace<'a>(
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct OwnerDependencyProofEdge {
+    pub(crate) source_namespace: Vec<String>,
+    pub(crate) target_namespace: Vec<String>,
+}
+
+pub(crate) fn owner_dependency_cycle_indices(
+    dependencies: &[OwnerDependencyProofEdge],
+) -> Vec<Vec<usize>> {
+    let outgoing = dependencies.iter().enumerate().fold(
+        BTreeMap::<Vec<String>, Vec<usize>>::new(),
+        |mut outgoing, (index, dependency)| {
+            outgoing
+                .entry(dependency.source_namespace.clone())
+                .or_default()
+                .push(index);
+            outgoing
+        },
+    );
+    let mut seen_cycles = BTreeSet::<String>::new();
+    dependencies
+        .iter()
+        .enumerate()
+        .filter_map(|(index, dependency)| {
+            let mut tail = dependency_path_to_namespace(
+                &dependency.target_namespace,
+                &dependency.source_namespace,
+                dependencies,
+                &outgoing,
+                &mut BTreeSet::new(),
+            )?;
+            let mut cycle = vec![index];
+            cycle.append(&mut tail);
+            let key = dependency_cycle_key(dependencies, &cycle);
+            seen_cycles.insert(key).then_some(cycle)
+        })
+        .collect()
+}
+
+fn dependency_path_to_namespace(
     current_namespace: &[String],
     target_namespace: &[String],
-    outgoing: &BTreeMap<Vec<String>, Vec<&'a RustReasoningOwnerDependencyFacts>>,
+    dependencies: &[OwnerDependencyProofEdge],
+    outgoing: &BTreeMap<Vec<String>, Vec<usize>>,
     visited: &mut BTreeSet<Vec<String>>,
-) -> Option<Vec<&'a RustReasoningOwnerDependencyFacts>> {
+) -> Option<Vec<usize>> {
     if !visited.insert(current_namespace.to_vec()) {
         return None;
     }
-    for dependency in outgoing.get(current_namespace)? {
+    for dependency_index in outgoing.get(current_namespace)? {
+        let dependency = &dependencies[*dependency_index];
         if dependency.target_namespace == target_namespace {
-            return Some(vec![*dependency]);
+            return Some(vec![*dependency_index]);
         }
         if let Some(mut tail) = dependency_path_to_namespace(
             &dependency.target_namespace,
             target_namespace,
+            dependencies,
             outgoing,
             visited,
         ) {
-            let mut path = vec![*dependency];
+            let mut path = vec![*dependency_index];
             path.append(&mut tail);
             return Some(path);
         }
@@ -115,10 +145,10 @@ fn dependency_path_to_namespace<'a>(
     None
 }
 
-fn dependency_cycle_key(dependencies: &[&RustReasoningOwnerDependencyFacts]) -> String {
-    let nodes = dependencies
+fn dependency_cycle_key(dependencies: &[OwnerDependencyProofEdge], cycle: &[usize]) -> String {
+    let nodes = cycle
         .iter()
-        .map(|dependency| dependency.source_namespace.join("/"))
+        .map(|index| dependencies[*index].source_namespace.join("/"))
         .collect::<Vec<_>>();
     (0..nodes.len())
         .map(|index| {

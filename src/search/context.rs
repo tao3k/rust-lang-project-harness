@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use crate::discovery::{discover_rust_files, rust_project_harness_scope};
@@ -5,6 +6,7 @@ use crate::parser::{
     CargoDependencyFacts, ParsedRustModule, RustReasoningTreeFacts, parse_cargo_dependency_facts,
     parse_rust_file, rust_reasoning_tree_facts,
 };
+use crate::path::normalize_lexical_path;
 use crate::{RustHarnessConfig, RustProjectHarnessScope};
 
 use super::RustSearchOptions;
@@ -89,7 +91,15 @@ fn path_query_package_roots(
         })
         .cloned()
         .collect::<Vec<_>>();
-    if matching.is_empty() { roots } else { matching }
+    if !matching.is_empty() {
+        return matching;
+    }
+    let direct_package_roots = direct_package_roots_for_path_queries(project_root, queries);
+    if direct_package_roots.is_empty() {
+        roots
+    } else {
+        direct_package_roots
+    }
 }
 
 fn path_query_can_select_package(query: &str) -> bool {
@@ -99,14 +109,57 @@ fn path_query_can_select_package(query: &str) -> bool {
 fn package_root_matches_path_query(project_root: &Path, package_root: &Path, query: &str) -> bool {
     let query = query.replace('\\', "/");
     let query_path = Path::new(&query);
+    let project_root = normalize_lexical_path(project_root);
+    let package_root = normalize_lexical_path(package_root);
     if query_path.is_absolute() {
-        return query_path.starts_with(package_root);
+        return normalize_lexical_path(query_path).starts_with(&package_root);
     }
-    let label = package_label(project_root, package_root);
+    let label = package_label(&project_root, &package_root);
     if label != "." && (query == label || query.starts_with(&format!("{label}/"))) {
         return true;
     }
-    project_root.join(query_path).starts_with(package_root)
+    normalize_lexical_path(&project_root.join(query_path)).starts_with(&package_root)
+}
+
+fn direct_package_roots_for_path_queries(project_root: &Path, queries: &[&str]) -> Vec<PathBuf> {
+    queries
+        .iter()
+        .filter_map(|query| direct_package_root_for_path_query(project_root, query))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn direct_package_root_for_path_query(project_root: &Path, query: &str) -> Option<PathBuf> {
+    if query.contains('*') || query.contains('{') || query.contains('}') {
+        return None;
+    }
+    let query = query.replace('\\', "/");
+    let query_path = Path::new(&query);
+    let project_root = normalize_lexical_path(project_root);
+    let absolute_path = if query_path.is_absolute() {
+        query_path.to_path_buf()
+    } else {
+        project_root.join(query_path)
+    };
+    let absolute_path = normalize_lexical_path(&absolute_path);
+    if !absolute_path.starts_with(&project_root) {
+        return None;
+    }
+    let mut current = if absolute_path.is_file() {
+        absolute_path.parent()?
+    } else {
+        absolute_path.as_path()
+    };
+    loop {
+        if current.join("Cargo.toml").is_file() {
+            return Some(current.to_path_buf());
+        }
+        if current == project_root {
+            return None;
+        }
+        current = current.parent()?;
+    }
 }
 
 pub(super) fn exact_rust_file_query(query: &str) -> bool {
@@ -137,9 +190,48 @@ fn exact_owner_path_match(
     if query_path.is_absolute() {
         return exact_rust_path_in_package(query_path, package_root);
     }
-    [project_root.join(query_path), package_root.join(query_path)]
+    exact_owner_path_candidates(project_root, package_root, query_path)
         .into_iter()
         .find_map(|candidate| exact_rust_path_in_package(&candidate, package_root))
+}
+
+fn exact_owner_path_candidates(
+    project_root: &Path,
+    package_root: &Path,
+    query_path: &Path,
+) -> Vec<PathBuf> {
+    let mut candidates = vec![project_root.join(query_path), package_root.join(query_path)];
+    if let Some(package_relative_path) = strip_package_root_query_prefix(package_root, query_path) {
+        candidates.push(package_root.join(package_relative_path));
+    }
+    candidates
+}
+
+fn strip_package_root_query_prefix(package_root: &Path, query_path: &Path) -> Option<PathBuf> {
+    let package_components = normal_path_components(package_root);
+    let query_components = normal_path_components(query_path);
+    if query_components.len() < 2 {
+        return None;
+    }
+    for start in 0..package_components.len() {
+        let suffix = &package_components[start..];
+        if suffix.is_empty() || suffix.len() >= query_components.len() {
+            continue;
+        }
+        if query_components.starts_with(suffix) {
+            return Some(query_components[suffix.len()..].iter().collect());
+        }
+    }
+    None
+}
+
+fn normal_path_components(path: &Path) -> Vec<std::ffi::OsString> {
+    path.components()
+        .filter_map(|component| match component {
+            std::path::Component::Normal(value) => Some(value.to_os_string()),
+            _ => None,
+        })
+        .collect()
 }
 
 fn exact_rust_path_in_package(path: &Path, package_root: &Path) -> Option<PathBuf> {

@@ -1,0 +1,83 @@
+use std::fs;
+
+use rust_lang_project_harness::{
+    RustInvariantCandidateStatus, RustInvariantKind, RustInvariantReceiptKind,
+    run_rust_project_harness,
+};
+
+#[test]
+fn p0_agent_policy_findings_emit_invariant_candidates() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fs::write(
+        temp.path().join("Cargo.toml"),
+        r#"
+[package]
+name = "invariant-catalog-fixture"
+version = "0.1.0"
+edition = "2021"
+"#,
+    )
+    .expect("write manifest");
+    fs::create_dir_all(temp.path().join("src")).expect("create src");
+    fs::write(
+        temp.path().join("src/lib.rs"),
+        r#"
+pub type UserId = String;
+
+pub struct Account {
+    pub user_id: String,
+    pub tenant_id: u64,
+    pub profile_url: String,
+}
+
+pub struct Session {
+    pub status: String,
+}
+
+pub fn load_user(user_id: String) -> (String, u64) {
+    (user_id, 1)
+}
+"#,
+    )
+    .expect("write source");
+
+    let report = run_rust_project_harness(temp.path()).expect("run harness");
+    let candidates = report.invariant_candidates;
+    let kinds = candidates
+        .iter()
+        .map(|candidate| candidate.kind)
+        .collect::<Vec<_>>();
+
+    assert!(kinds.contains(&RustInvariantKind::PrimitiveIdentifierBoundary));
+    assert!(kinds.contains(&RustInvariantKind::PublicDataPrimitiveFields));
+    assert!(kinds.contains(&RustInvariantKind::AnonymousTupleApiSurface));
+    assert!(kinds.contains(&RustInvariantKind::PrimitiveTypeAliasBoundary));
+    assert!(kinds.contains(&RustInvariantKind::StringlyStateBoundary));
+
+    let alias_candidate = candidates
+        .iter()
+        .find(|candidate| candidate.kind == RustInvariantKind::PrimitiveTypeAliasBoundary)
+        .expect("alias candidate");
+    assert_eq!(alias_candidate.source_rule_id.as_str(), "AGENT-R027");
+    assert_eq!(alias_candidate.rule_pack_id.as_str(), "rust.agent_policy");
+    assert_eq!(
+        alias_candidate.status,
+        RustInvariantCandidateStatus::Candidate
+    );
+    assert!(
+        alias_candidate
+            .invariant_id
+            .as_str()
+            .starts_with("agent-r027:")
+    );
+    assert!(
+        alias_candidate
+            .required_receipts
+            .contains(&RustInvariantReceiptKind::CargoCheck)
+    );
+    assert!(
+        alias_candidate
+            .proof_targets
+            .contains(&RustInvariantKind::PublicApiShape)
+    );
+}

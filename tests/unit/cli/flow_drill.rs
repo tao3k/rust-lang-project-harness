@@ -40,6 +40,7 @@ fn cli_rust_flow_drill_exercises_registry_prime_search_and_ingest() {
     let methods = language["methods"].as_array().expect("methods");
     for method in [
         "agent/doctor",
+        "agent/guide",
         "search/workspace",
         "search/prime",
         "search/dependency",
@@ -218,9 +219,7 @@ fn cli_rust_flow_drill_exercises_registry_prime_search_and_ingest() {
         "{test_owner}"
     );
     assert!(
-        test_owner.contains(
-            "|owner tests/domain.rs role=test public=false source=parser-visible-module parserOwner=false layer=test"
-        ),
+        test_owner.contains("|owner tests/domain.rs role=test source=parser-visible-module"),
         "{test_owner}"
     );
     assert!(test_owner.contains(" valid=true "), "{test_owner}");
@@ -238,9 +237,7 @@ fn cli_rust_flow_drill_exercises_registry_prime_search_and_ingest() {
         "{path_only}"
     );
     assert!(
-        path_only.contains(
-            "|owner README.md role=source public=false source=path-only parserOwner=false next=ingest:README.md"
-        ),
+        path_only.contains("|owner README.md role=source source=path-only next=ingest:README.md"),
         "{path_only}"
     );
     assert!(
@@ -412,7 +409,8 @@ fn cli_rust_flow_drill_reduces_search_rounds_with_seeds_and_recipe_plan() {
         "{ingest}"
     );
     assert!(
-        ingest.contains("|item load kind=fn line=6 public=true doc=false next=symbol:load"),
+        ingest
+            .contains("|item load kind=fn line=6 endLine=6 public=true doc=false next=symbol:load"),
         "{ingest}"
     );
     assert!(
@@ -675,7 +673,7 @@ fn cli_rust_flow_drill_regresses_tokio_ignore_bytes_style_flow() {
         "{ingest}"
     );
     assert!(
-        ingest.contains("|item RuntimeClient kind=struct line=4 public=true"),
+        ingest.contains("|item RuntimeClient kind=struct line=4 endLine=4 public=true"),
         "{ingest}"
     );
     assert!(
@@ -683,7 +681,7 @@ fn cli_rust_flow_drill_regresses_tokio_ignore_bytes_style_flow() {
         "{ingest}"
     );
     assert!(
-        ingest.contains("|item WalkPlan kind=struct line=4 public=true"),
+        ingest.contains("|item WalkPlan kind=struct line=4 endLine=4 public=true"),
         "{ingest}"
     );
     assert!(

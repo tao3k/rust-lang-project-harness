@@ -17,6 +17,9 @@ mod path_policy;
 #[path = "unit/rule_catalog.rs"]
 mod rule_catalog;
 
+#[path = "unit/invariant_catalog.rs"]
+mod invariant_catalog;
+
 #[path = "unit/render_snapshot.rs"]
 mod render_snapshot;
 

@@ -80,13 +80,16 @@
         "symbol",
         "callsite",
         "import",
+        "query",
         "cfg",
         "patterns",
         "pattern",
         "docs",
         "api",
         "public-external-types",
+        "policy",
         "tests",
+        "fzf",
         "text",
         "ingest"
       ]
@@ -106,6 +109,42 @@
     },
     "queryComposition": {
       "$ref": "#/$defs/queryComposition"
+    },
+    "queryCoverage": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/queryCoverage"
+      }
+    },
+    "ownerResolution": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ownerResolution"
+      }
+    },
+    "sourceCoverage": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/sourceCoverage"
+      }
+    },
+    "testResolution": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/testResolution"
+      }
+    },
+    "runtimeCost": {
+      "$ref": "#/$defs/runtimeCost"
+    },
+    "searchSynthesis": {
+      "$ref": "#/$defs/searchSynthesis"
+    },
+    "avoidNextActions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/avoidNextAction"
+      }
     },
     "header": {
       "$ref": "#/$defs/header"
@@ -141,6 +180,30 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/item"
+      }
+    },
+    "typeSurfaces": {
+      "type": "array",
+      "items": {
+        "$ref": "semantic-type-surface.v1.schema.json#/$defs/typeSurface"
+      }
+    },
+    "invariantCandidates": {
+      "type": "array",
+      "items": {
+        "$ref": "semantic-invariant-candidate.v1.schema.json#/$defs/invariantCandidate"
+      }
+    },
+    "semanticHandles": {
+      "type": "array",
+      "items": {
+        "$ref": "semantic-handle.v1.schema.json#/$defs/semanticHandle"
+      }
+    },
+    "nativeSyntaxFacts": {
+      "type": "array",
+      "items": {
+        "$ref": "semantic-native-syntax-fact-index.v1.schema.json#/$defs/nativeSyntaxFact"
       }
     },
     "hits": {
@@ -213,6 +276,16 @@
         "$ref": "#/$defs/scalar"
       }
     },
+    "surfaceKind": {
+      "enum": [
+        "real-source",
+        "test-source",
+        "test-fixture-string",
+        "generated-source",
+        "external-source",
+        "unknown"
+      ]
+    },
     "projectPath": {
       "type": "string",
       "minLength": 1,
@@ -260,7 +333,7 @@
           ]
         },
         "selector": {
-          "enum": ["exact", "prefix", "stdin-path"]
+          "enum": ["exact", "prefix", "fuzzy", "stdin-path"]
         },
         "fields": {
           "$ref": "#/$defs/fields"
@@ -280,7 +353,7 @@
           "pattern": "^[a-z][a-z0-9_-]*$"
         },
         "selector": {
-          "enum": ["single", "exact-set", "prefix-set", "stdin-path-set"]
+          "enum": ["single", "exact-set", "prefix-set", "fuzzy-set", "stdin-path-set"]
         },
         "scope": {
           "$ref": "#/$defs/queryScope"
@@ -296,12 +369,434 @@
               "edges",
               "owners",
               "items",
+              "typeSurfaces",
+              "invariantCandidates",
+              "nativeSyntaxFacts",
               "hits",
               "findings",
               "nextActions",
               "notes"
             ]
           }
+        },
+        "fields": {
+          "$ref": "#/$defs/fields"
+        }
+      }
+    },
+    "queryCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "kind", "status", "hitCount"],
+      "properties": {
+        "value": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "dependency",
+            "owner",
+            "path",
+            "symbol",
+            "text",
+            "feature",
+            "cfg",
+            "api",
+            "custom"
+          ]
+        },
+        "selector": {
+          "enum": ["exact", "prefix", "fuzzy", "stdin-path"]
+        },
+        "status": {
+          "enum": ["hit", "miss", "partial", "error"]
+        },
+        "hitCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "surfaces": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/surfaceKind"
+          }
+        },
+        "ownerPaths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectPath"
+          }
+        },
+        "fixturePaths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectPath"
+          }
+        },
+        "fields": {
+          "$ref": "#/$defs/fields"
+        }
+      }
+    },
+    "ownerResolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "status", "realOwner"],
+      "properties": {
+        "target": {
+          "$ref": "#/$defs/projectPath"
+        },
+        "status": {
+          "enum": [
+            "workspace-owner",
+            "fixture-path",
+            "missing",
+            "ambiguous",
+            "external",
+            "unknown"
+          ]
+        },
+        "realOwner": {
+          "type": "boolean"
+        },
+        "ownerPath": {
+          "$ref": "#/$defs/projectPath"
+        },
+        "fixturePath": {
+          "$ref": "#/$defs/projectPath"
+        },
+        "fixtureOwner": {
+          "$ref": "#/$defs/projectPath"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fields": {
+          "$ref": "#/$defs/fields"
+        }
+      }
+    },
+    "sourceCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "status"],
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/queryScope"
+        },
+        "status": {
+          "enum": ["complete", "partial", "missing", "unknown"]
+        },
+        "coverageKind": {
+          "enum": [
+            "parser-source",
+            "config-root",
+            "workspace-package",
+            "generated",
+            "unknown"
+          ]
+        },
+        "configPaths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectPath"
+          }
+        },
+        "sourceRoots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectPath"
+          }
+        },
+        "coveredRoots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectPath"
+          }
+        },
+        "missingRoots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectPath"
+          }
+        },
+        "coveredOwners": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectPath"
+          }
+        },
+        "missingOwners": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectPath"
+          }
+        },
+        "sourceFiles": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "visibleOwners": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missingOwnersCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fields": {
+          "$ref": "#/$defs/fields"
+        }
+      }
+    },
+    "testResolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targetOwner", "status"],
+      "properties": {
+        "targetOwner": {
+          "$ref": "#/$defs/projectPath"
+        },
+        "status": {
+          "enum": [
+            "linked",
+            "missing",
+            "partial",
+            "noisy",
+            "ambiguous",
+            "unsupported",
+            "unknown"
+          ]
+        },
+        "scope": {
+          "$ref": "#/$defs/queryScope"
+        },
+        "testPaths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectPath"
+          }
+        },
+        "candidateTestPaths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectPath"
+          }
+        },
+        "unrelatedTestPaths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectPath"
+          }
+        },
+        "candidateCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "selectedCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "noiseCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fields": {
+          "$ref": "#/$defs/fields"
+        }
+      }
+    },
+    "searchSynthesis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "scope"],
+      "properties": {
+        "algorithm": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "scope": {
+          "enum": [
+            "workspace",
+            "prime",
+            "owner",
+            "dependency",
+            "policy",
+            "query",
+            "query-set",
+            "fzf",
+            "text",
+            "ingest",
+            "custom"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ownerPath": {
+          "$ref": "#/$defs/projectPath"
+        },
+        "selectedOwners": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "selectedEdges": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "incomingOwners": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outgoingOwners": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "highImpactOwners": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectPath"
+          }
+        },
+        "frontierOwners": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectPath"
+          }
+        },
+        "editFrontier": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectPath"
+          }
+        },
+        "testFrontier": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectPath"
+          }
+        },
+        "windowSet": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/windowSetTarget"
+          }
+        },
+        "findingOwners": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectPath"
+          }
+        },
+        "seeds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nextAction"
+          }
+        },
+        "fields": {
+          "$ref": "#/$defs/fields"
+        }
+      }
+    },
+    "windowSetTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "target"],
+      "properties": {
+        "kind": {
+          "enum": ["owner", "tests", "read"]
+        },
+        "target": {
+          "$ref": "#/$defs/projectPath"
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ownerPath": {
+          "$ref": "#/$defs/projectPath"
+        },
+        "fields": {
+          "$ref": "#/$defs/fields"
+        }
+      }
+    },
+    "avoidNextAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "target", "reason"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ownerPath": {
+          "$ref": "#/$defs/projectPath"
+        },
+        "fields": {
+          "$ref": "#/$defs/fields"
+        }
+      }
+    },
+    "runtimeCost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cacheStatus"],
+      "properties": {
+        "cacheStatus": {
+          "enum": ["cold", "warm", "reused", "disabled", "unknown"]
+        },
+        "elapsedMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parseMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sourceFilesParsed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "packagesScanned": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parserFactsReused": {
+          "type": "boolean"
+        },
+        "indexId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
         },
         "fields": {
           "$ref": "#/$defs/fields"
@@ -431,14 +926,19 @@
             "test",
             "finding",
             "symbol",
+            "config",
             "tsconfig",
             "extension",
             "build_tool",
-            "test_surface"
+            "test_surface",
+            "custom"
           ]
         },
         "path": {
           "$ref": "#/$defs/projectPath"
+        },
+        "rank": {
+          "type": "number"
         },
         "fields": {
           "$ref": "#/$defs/fields"
@@ -467,6 +967,9 @@
         },
         "location": {
           "$ref": "#/$defs/location"
+        },
+        "weight": {
+          "type": "number"
         },
         "fields": {
           "$ref": "#/$defs/fields"
@@ -554,6 +1057,18 @@
         },
         "snippet": {
           "type": "string"
+        },
+        "surface": {
+          "$ref": "#/$defs/surfaceKind"
+        },
+        "realOwner": {
+          "type": "boolean"
+        },
+        "fixturePath": {
+          "$ref": "#/$defs/projectPath"
+        },
+        "fixtureOwner": {
+          "$ref": "#/$defs/projectPath"
         },
         "fields": {
           "$ref": "#/$defs/fields"

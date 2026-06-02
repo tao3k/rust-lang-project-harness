@@ -16,10 +16,11 @@ pub(super) fn module_allowed(
         .owner
         .as_deref()
         .is_none_or(|owner| owner_path_matches(&context.package_root, &module.report.path, owner))
-        && options
-            .scope
-            .as_deref()
-            .is_none_or(|scope| scope == "all" || module_is_scope(&context.scope, module, scope))
+        && options.scope.as_deref().is_none_or(|scope| {
+            scope == "all"
+                || module_is_scope(&context.scope, module, scope)
+                || owner_path_matches(&context.package_root, &module.report.path, scope)
+        })
 }
 
 pub(super) fn module_is_scope(
@@ -54,7 +55,7 @@ pub(super) fn module_is_scope(
                 .and_then(|name| name.to_str())
                 == Some("build.rs")
         }
-        _ => true,
+        _ => false,
     }
 }
 

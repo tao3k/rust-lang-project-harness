@@ -3,6 +3,7 @@
 mod collect;
 mod control_flow;
 mod data_shape;
+mod item_projection;
 mod signature;
 
 pub(crate) use collect::{RustNativeSyntaxFacts, RustTopLevelItemSyntax, rust_native_syntax_facts};

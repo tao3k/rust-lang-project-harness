@@ -9,9 +9,11 @@ mod build_gate;
 #[cfg(feature = "cli")]
 mod cli;
 mod discovery;
+mod invariant_catalog;
 mod macros;
 mod model;
 mod parser;
+mod path;
 mod render;
 mod rules;
 mod runner;
@@ -20,6 +22,100 @@ mod search;
 mod self_policy;
 mod verification;
 
+pub use verification::{
+    RUST_BEHAVIOR_SNAPSHOT_PROTOCOL_ID, RUST_BEHAVIOR_SNAPSHOT_PROTOCOL_VERSION,
+    RUST_BEHAVIOR_SNAPSHOT_SCHEMA_ID, RUST_BEHAVIOR_SNAPSHOT_SCHEMA_VERSION, RustBehaviorSnapshot,
+    RustBehaviorSnapshotArtifactUri, RustBehaviorSnapshotExpectTestInput, RustBehaviorSnapshotId,
+    RustBehaviorSnapshotInput, RustBehaviorSnapshotLanguageId, RustBehaviorSnapshotLine,
+    RustBehaviorSnapshotNamespace, RustBehaviorSnapshotObservation,
+    RustBehaviorSnapshotObservationKind, RustBehaviorSnapshotObservationMessage,
+    RustBehaviorSnapshotObservedAt, RustBehaviorSnapshotProducer, RustBehaviorSnapshotProtocolId,
+    RustBehaviorSnapshotProtocolVersion, RustBehaviorSnapshotProviderId,
+    RustBehaviorSnapshotSchemaId, RustBehaviorSnapshotSchemaVersion, RustBehaviorSnapshotSha256,
+    RustBehaviorSnapshotStatus, RustBehaviorSnapshotSubject, RustBehaviorSnapshotSubjectKind,
+    RustBehaviorSnapshotSymbol, RustBehaviorSnapshotValue, RustBehaviorSnapshotValueFormat,
+};
+
+pub use verification::{
+    RUST_DETERMINISM_READINESS_PROTOCOL_ID, RUST_DETERMINISM_READINESS_PROTOCOL_VERSION,
+    RUST_DETERMINISM_READINESS_SCHEMA_ID, RUST_DETERMINISM_READINESS_SCHEMA_VERSION,
+    RustDeterminismReadiness, RustDeterminismReadinessCategory,
+    RustDeterminismReadinessEvidenceKind, RustDeterminismReadinessExpression,
+    RustDeterminismReadinessId, RustDeterminismReadinessInput, RustDeterminismReadinessLanguageId,
+    RustDeterminismReadinessLine, RustDeterminismReadinessNamespace,
+    RustDeterminismReadinessObservation, RustDeterminismReadinessObservationId,
+    RustDeterminismReadinessProducer, RustDeterminismReadinessProject,
+    RustDeterminismReadinessProtocolId, RustDeterminismReadinessProtocolVersion,
+    RustDeterminismReadinessProviderId, RustDeterminismReadinessSchemaId,
+    RustDeterminismReadinessSchemaVersion, RustDeterminismReadinessSeverity,
+    RustDeterminismReadinessStatus, RustDeterminismReadinessSuggestion,
+    RustDeterminismReadinessSuggestionKind, RustDeterminismReadinessSuggestionMessage,
+    RustDeterminismReadinessSummary, RustDeterminismReadinessSymbol,
+    RustDeterminismReadinessTraitName, build_rust_determinism_readiness,
+    render_rust_determinism_readiness, render_rust_determinism_readiness_json,
+};
+
+pub use verification::{
+    RUST_ASSURANCE_CASE_PROTOCOL_ID, RUST_ASSURANCE_CASE_PROTOCOL_VERSION,
+    RUST_ASSURANCE_CASE_SCHEMA_ID, RUST_ASSURANCE_CASE_SCHEMA_VERSION, RustAssuranceActionRef,
+    RustAssuranceCase, RustAssuranceCaseInput, RustAssuranceCaseSet, RustAssuranceCaseSetProducer,
+    RustAssuranceCaseSetProject, RustAssuranceCaseStatus, RustAssuranceCaseSummary,
+    RustAssuranceClaim, RustAssuranceClaimKind, RustAssuranceGap, RustAssuranceNodeKind,
+    RustAssuranceNodeRef, RustAssuranceNodeStatus, build_rust_assurance_case_set,
+    render_rust_assurance_case_set, render_rust_assurance_case_set_json,
+};
+pub use verification::{
+    RUST_EVIDENCE_GRAPH_PROTOCOL_ID, RUST_EVIDENCE_GRAPH_PROTOCOL_VERSION,
+    RUST_EVIDENCE_GRAPH_SCHEMA_ID, RUST_EVIDENCE_GRAPH_SCHEMA_VERSION, RustEvidenceEdge,
+    RustEvidenceEdgeKind, RustEvidenceGap, RustEvidenceGraph, RustEvidenceGraphInput,
+    RustEvidenceGraphProducer, RustEvidenceGraphProject, RustEvidenceGraphSummary,
+    RustEvidenceLocation, RustEvidenceNode, RustEvidenceNodeKind, RustEvidenceNodeStatus,
+    build_rust_evidence_graph, render_rust_evidence_graph, render_rust_evidence_graph_json,
+};
+pub use verification::{
+    RUST_FORMAL_PROOF_PILOT_PROTOCOL_ID, RUST_FORMAL_PROOF_PILOT_PROTOCOL_VERSION,
+    RUST_FORMAL_PROOF_PILOT_SCHEMA_ID, RUST_FORMAL_PROOF_PILOT_SCHEMA_VERSION,
+    RustFormalProofPilot, RustFormalProofPilotCheck, RustFormalProofPilotCheckId,
+    RustFormalProofPilotClaim, RustFormalProofPilotClaimId, RustFormalProofPilotCounterexample,
+    RustFormalProofPilotId, RustFormalProofPilotInput, RustFormalProofPilotLanguageId,
+    RustFormalProofPilotMethod, RustFormalProofPilotMethodKind, RustFormalProofPilotNamespace,
+    RustFormalProofPilotProducer, RustFormalProofPilotProtocolId,
+    RustFormalProofPilotProtocolVersion, RustFormalProofPilotProviderId,
+    RustFormalProofPilotSchemaId, RustFormalProofPilotSchemaVersion, RustFormalProofPilotStatement,
+    RustFormalProofPilotStatus, RustFormalProofPilotSummary, RustFormalProofPilotTarget,
+    RustFormalProofPilotTargetKind, RustFormalProofPilotTargetName, RustFormalProofPilotTool,
+    build_rust_dependency_graph_acyclicity_proof_pilot, render_rust_formal_proof_pilot,
+    render_rust_formal_proof_pilot_json,
+};
+pub use verification::{
+    RUST_REVIEW_PACKET_PROTOCOL_ID, RUST_REVIEW_PACKET_PROTOCOL_VERSION,
+    RUST_REVIEW_PACKET_SCHEMA_ID, RUST_REVIEW_PACKET_SCHEMA_VERSION, RustReviewPacket,
+    RustReviewPacketInput, RustReviewPacketReceiptKind, RustReviewPacketWaiver,
+    RustReviewPacketWaiverStatus, build_rust_review_packet, render_rust_review_packet,
+    render_rust_review_packet_json,
+};
+pub use verification::{
+    RUST_VERIFICATION_EXECUTION_RECEIPT_PROTOCOL_ID,
+    RUST_VERIFICATION_EXECUTION_RECEIPT_PROTOCOL_VERSION,
+    RUST_VERIFICATION_EXECUTION_RECEIPT_SCHEMA_ID,
+    RUST_VERIFICATION_EXECUTION_RECEIPT_SCHEMA_VERSION, RustVerificationExecutionAdapterId,
+    RustVerificationExecutionArtifact, RustVerificationExecutionArtifactKind,
+    RustVerificationExecutionArtifactUri, RustVerificationExecutionCommand,
+    RustVerificationExecutionDurationMs, RustVerificationExecutionExitCode,
+    RustVerificationExecutionLanguageId, RustVerificationExecutionLine,
+    RustVerificationExecutionNamespace, RustVerificationExecutionObservation,
+    RustVerificationExecutionObservationKind, RustVerificationExecutionObservationMessage,
+    RustVerificationExecutionObservedAt, RustVerificationExecutionOutputFormat,
+    RustVerificationExecutionPackageName, RustVerificationExecutionProducer,
+    RustVerificationExecutionProject, RustVerificationExecutionProjectName,
+    RustVerificationExecutionProtocolId, RustVerificationExecutionProtocolVersion,
+    RustVerificationExecutionProviderId, RustVerificationExecutionReceipt,
+    RustVerificationExecutionReceiptId, RustVerificationExecutionSchemaId,
+    RustVerificationExecutionSchemaVersion, RustVerificationExecutionSha256,
+    RustVerificationExecutionStatus, RustVerificationExecutionSummary,
+    RustVerificationExecutionTaskFingerprint, RustVerificationExecutionTool,
+    RustVerificationToolAdapter,
+};
 #[cfg(test)]
 #[path = "../tests/unit/discovery.rs"]
 mod discovery_tests;
@@ -70,8 +166,10 @@ pub use cli::run_cli_from_env;
 pub use discovery::{DEFAULT_IGNORED_DIR_NAMES, discover_rust_files, rust_project_harness_scope};
 pub use model::{
     RulePackDescriptor, RustDiagnosticSeverity, RustHarnessConfig, RustHarnessFinding,
-    RustHarnessReport, RustHarnessRule, RustModuleReport, RustProjectHarnessScope, RustRulePack,
-    SourceLocation,
+    RustHarnessReport, RustHarnessRule, RustInvariantCandidate, RustInvariantCandidateStatus,
+    RustInvariantEvidence, RustInvariantEvidenceKind, RustInvariantId, RustInvariantKind,
+    RustInvariantReceiptKind, RustInvariantRulePackId, RustInvariantSourceRuleId, RustModuleReport,
+    RustProjectHarnessScope, RustRulePack, SourceLocation,
 };
 pub use render::{
     render_rust_project_harness, render_rust_project_harness_advice,

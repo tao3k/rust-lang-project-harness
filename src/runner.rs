@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use crate::discovery::{
     discover_cargo_package_roots, discover_rust_files, rust_project_harness_scope,
 };
+use crate::invariant_catalog::invariant_candidates_from_findings;
 use crate::model::{RustHarnessConfig, RustHarnessReport};
 use crate::parser::{ParsedRustModule, parse_rust_file};
 use crate::rules::evaluate_default_rule_packs_with_config;
@@ -157,12 +158,14 @@ pub fn assert_rust_lang_harness_clean(paths: &[PathBuf]) -> RustHarnessReport {
 fn run_paths(paths: &[PathBuf], config: &RustHarnessConfig) -> RustHarnessReport {
     let parsed_modules = parse_paths(paths, config);
     let findings = evaluate_default_rule_packs_with_config(None, &parsed_modules, config);
+    let invariant_candidates = invariant_candidates_from_findings(&findings);
     RustHarnessReport {
         modules: parsed_modules
             .into_iter()
             .map(|module| module.report)
             .collect(),
         findings,
+        invariant_candidates,
         root_paths: paths.to_vec(),
         blocking_severities: config.blocking_severities.clone(),
         project_scope: None,
@@ -183,12 +186,14 @@ fn run_single_project_harness(
     let monitored_paths = scope.monitored_paths();
     let parsed_modules = parse_paths(&monitored_paths, config);
     let findings = evaluate_default_rule_packs_with_config(Some(&scope), &parsed_modules, config);
+    let invariant_candidates = invariant_candidates_from_findings(&findings);
     RustHarnessReport {
         modules: parsed_modules
             .into_iter()
             .map(|module| module.report)
             .collect(),
         findings,
+        invariant_candidates,
         root_paths: monitored_paths,
         blocking_severities: config.blocking_severities.clone(),
         project_scope: Some(scope),
@@ -230,9 +235,11 @@ fn run_member_scoped_project_harness(
         );
     }
     modules.sort_by(|left, right| left.path.cmp(&right.path));
+    let invariant_candidates = invariant_candidates_from_findings(&findings);
     RustHarnessReport {
         modules,
         findings,
+        invariant_candidates,
         root_paths: vec![project_root.to_path_buf()],
         blocking_severities: config.blocking_severities.clone(),
         project_scope: Some(rust_project_harness_scope(

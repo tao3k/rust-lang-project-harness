@@ -1,6 +1,5 @@
 //! Cargo manifest facts owned by the parser layer.
 
-#[cfg(any(feature = "search", test))]
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -16,6 +15,7 @@ pub(crate) struct CargoManifestFacts {
     pub(crate) has_package: bool,
     pub(crate) workspace_members: Vec<String>,
     pub(crate) workspace_excludes: Vec<String>,
+    pub(crate) path_dependency_roots: Vec<PathBuf>,
     pub(crate) source_target_files: Vec<PathBuf>,
     pub(crate) example_targets: Vec<CargoExampleTargetFacts>,
     pub(crate) test_target_files: Vec<PathBuf>,
@@ -83,10 +83,12 @@ pub(crate) fn parse_cargo_manifest(project_root: &Path) -> CargoManifestFacts {
     let example_targets = manifest_example_targets(project_root, &manifest.example);
     let test_target_files = manifest_test_target_files(project_root, &manifest.test);
     let bench_targets = manifest_bench_targets(project_root, &manifest.bench);
+    let path_dependency_roots = manifest_path_dependency_roots(project_root, &manifest);
     CargoManifestFacts {
         has_package,
         workspace_members,
         workspace_excludes,
+        path_dependency_roots,
         source_target_files,
         example_targets,
         test_target_files,
@@ -147,6 +149,65 @@ pub(crate) fn parse_cargo_cfg_facts(project_root: &Path) -> Vec<CargoCfgFacts> {
     cfgs.sort();
     cfgs.dedup();
     cfgs
+}
+
+fn manifest_path_dependency_roots(project_root: &Path, manifest: &Manifest) -> Vec<PathBuf> {
+    let mut roots = BTreeSet::new();
+    collect_path_dependency_roots(project_root, &manifest.dependencies, &mut roots);
+    collect_path_dependency_roots(project_root, &manifest.dev_dependencies, &mut roots);
+    collect_path_dependency_roots(project_root, &manifest.build_dependencies, &mut roots);
+    for target in manifest.target.values() {
+        collect_path_dependency_roots(project_root, &target.dependencies, &mut roots);
+        collect_path_dependency_roots(project_root, &target.dev_dependencies, &mut roots);
+        collect_path_dependency_roots(project_root, &target.build_dependencies, &mut roots);
+    }
+    roots.into_iter().collect()
+}
+
+fn collect_path_dependency_roots(
+    project_root: &Path,
+    dependencies: &DepsSet,
+    roots: &mut BTreeSet<PathBuf>,
+) {
+    for (name, dependency) in dependencies {
+        if let Some(root) = dependency_path_root(project_root, name, dependency) {
+            roots.insert(root);
+        }
+    }
+}
+
+fn dependency_path_root(
+    project_root: &Path,
+    name: &str,
+    dependency: &Dependency,
+) -> Option<PathBuf> {
+    dependency
+        .detail()
+        .and_then(|detail| detail.path.as_deref())
+        .map(|path| resolve_dependency_path(project_root, path))
+        .or_else(|| workspace_dependency_path_root(project_root, name))
+}
+
+fn workspace_dependency_path_root(project_root: &Path, name: &str) -> Option<PathBuf> {
+    project_root.ancestors().skip(1).find_map(|workspace_root| {
+        let manifest = read_manifest(workspace_root)?;
+        manifest
+            .workspace
+            .as_ref()
+            .and_then(|workspace| workspace.dependencies.get(name))
+            .and_then(|dependency| dependency.detail())
+            .and_then(|detail| detail.path.as_deref())
+            .map(|path| resolve_dependency_path(workspace_root, path))
+    })
+}
+
+fn resolve_dependency_path(base: &Path, path: &str) -> PathBuf {
+    let path = Path::new(path);
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        base.join(path)
+    }
 }
 
 fn read_manifest(project_root: &Path) -> Option<Manifest> {

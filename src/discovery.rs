@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use crate::RustProjectHarnessScope;
 use crate::parser::parse_cargo_manifest;
+use crate::path::normalize_lexical_path;
 
 /// Directory names ignored by default during recursive discovery.
 pub const DEFAULT_IGNORED_DIR_NAMES: &[&str] = &[
@@ -116,7 +117,9 @@ fn discover_package_roots_from_manifest(
 ) -> Vec<PathBuf> {
     let manifest = parse_cargo_manifest(project_root);
     if manifest.workspace_members.is_empty() {
-        return vec![project_root.to_path_buf()];
+        let mut roots = BTreeSet::from([project_root.to_path_buf()]);
+        insert_path_dependency_roots(project_root, ignored_dir_names, &[], &mut roots);
+        return roots.into_iter().collect();
     }
 
     let excludes = manifest
@@ -132,18 +135,68 @@ fn discover_package_roots_from_manifest(
         for member_root in
             expand_workspace_member_pattern(project_root, &member_pattern, ignored_dir_names)
         {
-            if is_excluded_member(&member_root, &excludes) {
-                continue;
-            }
-            if ignored_path_contains_ignored_segment(&member_root, ignored_dir_names) {
-                continue;
-            }
-            if member_root.join("Cargo.toml").is_file() {
-                roots.insert(member_root);
+            insert_package_root(
+                project_root,
+                ignored_dir_names,
+                &excludes,
+                &mut roots,
+                member_root,
+            );
+        }
+    }
+    insert_path_dependency_roots(project_root, ignored_dir_names, &excludes, &mut roots);
+    roots.into_iter().collect()
+}
+
+fn insert_path_dependency_roots(
+    project_root: &Path,
+    ignored_dir_names: &BTreeSet<String>,
+    excludes: &[PathBuf],
+    roots: &mut BTreeSet<PathBuf>,
+) {
+    let mut pending = roots.iter().cloned().collect::<Vec<_>>();
+    let mut visited = BTreeSet::new();
+    while let Some(package_root) = pending.pop() {
+        if !visited.insert(package_root.clone()) {
+            continue;
+        }
+        let manifest = parse_cargo_manifest(&package_root);
+        for dependency_root in manifest.path_dependency_roots {
+            if insert_package_root(
+                project_root,
+                ignored_dir_names,
+                excludes,
+                roots,
+                dependency_root.clone(),
+            ) {
+                pending.push(normalize_lexical_path(&dependency_root));
             }
         }
     }
-    roots.into_iter().collect()
+}
+
+fn insert_package_root(
+    project_root: &Path,
+    ignored_dir_names: &BTreeSet<String>,
+    excludes: &[PathBuf],
+    roots: &mut BTreeSet<PathBuf>,
+    package_root: PathBuf,
+) -> bool {
+    let package_root = normalize_lexical_path(&package_root);
+    let project_root = normalize_lexical_path(project_root);
+    if !package_root.starts_with(&project_root) {
+        return false;
+    }
+    if is_excluded_member(&package_root, excludes) {
+        return false;
+    }
+    if ignored_path_contains_ignored_segment(&package_root, ignored_dir_names) {
+        return false;
+    }
+    if !package_root.join("Cargo.toml").is_file() {
+        return false;
+    }
+    roots.insert(package_root)
 }
 
 fn expand_workspace_member_pattern(

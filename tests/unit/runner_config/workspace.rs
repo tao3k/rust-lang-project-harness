@@ -86,6 +86,38 @@ fn workspace_manifest_member_globs_are_scanned_as_member_crates() {
 }
 
 #[test]
+fn workspace_member_test_target_policy_accepts_crate_local_suite_mounts() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"crates/member\"]\n",
+    )
+    .expect("write workspace manifest");
+    let member = root.join("crates/member");
+    create_member_crate(&member, "member");
+    fs::create_dir_all(member.join("tests/unit")).expect("create member tests");
+    fs::write(
+        member.join("tests/unit_test.rs"),
+        "#[path = \"unit/helper.rs\"]\nmod helper;\n",
+    )
+    .expect("write member unit target");
+    fs::write(member.join("tests/unit/helper.rs"), "fn helper() {}\n").expect("write helper");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    assert!(
+        !has_rule_for_path_suffix(
+            &report,
+            "RUST-PROJ-R008",
+            "crates/member/tests/unit_test.rs"
+        ),
+        "{:?}",
+        report.findings
+    );
+}
+
+#[test]
 fn include_literal_source_shards_are_reachable_from_the_module_tree() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();

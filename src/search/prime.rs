@@ -1,6 +1,6 @@
 //! RFC `search prime` renderer for bounded package and workspace maps.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 use std::path::{Path, PathBuf};
 
@@ -264,6 +264,18 @@ fn render_package_prime(
     {
         let _ = writeln!(rendered, "{finding_line}");
     }
+    let selected_owner_paths = owner_branches
+        .iter()
+        .take(PRIME_OWNER_LIMIT)
+        .map(|branch| branch.path.clone())
+        .collect::<Vec<_>>();
+    append_prime_graph_synthesis_line(
+        &mut rendered,
+        package_root,
+        &selected_owner_paths,
+        &reasoning_tree,
+        &findings,
+    );
     let next = owner_branches
         .iter()
         .take(3)
@@ -287,22 +299,27 @@ fn render_package_prime_seed_source(
         &config.source_dir_names,
         &config.test_dir_names,
     );
-    let mut owner_paths =
-        crate::discovery::discover_rust_files(&scope.monitored_paths(), &config.ignored_dir_names);
-    owner_paths.sort_by(|left, right| {
-        owner_rank_for_path(package_root, right)
-            .cmp(&owner_rank_for_path(package_root, left))
-            .then_with(|| compare_paths_by_recency(package_root, left, right))
-    });
+    let parsed_modules = parse_scope(&scope, config);
+    let reasoning_tree = rust_reasoning_tree_facts(&scope, &parsed_modules);
+    let owner_branches = ranked_owner_branches(package_root, &reasoning_tree, &[]);
+    let owner_paths = owner_branches
+        .iter()
+        .map(|branch| branch.path.clone())
+        .collect::<Vec<_>>();
     let cargo_dependencies = parse_cargo_dependency_facts(package_root);
     let features = manifest_features(package_root);
     let package_label = package_label(project_root, package_root);
     let mut rendered = String::new();
     rendered.push_str("[search-prime] ");
     let _ = write!(rendered, "mode=package package={package_label} ");
-    let _ = write!(rendered, "src={} ", owner_paths.len());
-    let _ = write!(rendered, "own={} ", owner_paths.len());
-    let _ = write!(rendered, "edge=0 ");
+    let source_modules = reasoning_tree
+        .modules
+        .iter()
+        .filter(|module| module.is_source_module)
+        .count();
+    let _ = write!(rendered, "src={source_modules} ");
+    let _ = write!(rendered, "own={} ", reasoning_tree.owner_branches.len());
+    let _ = write!(rendered, "edge={} ", graph_edge_count(&reasoning_tree));
     let _ = write!(rendered, "dep={}", cargo_dependencies.len());
     rendered.push('\n');
     let feature_names = feature_seed_names(&features, seed_limit.max(1));
@@ -329,14 +346,26 @@ fn render_package_prime_seed_source(
     if !docs.is_empty() {
         let _ = writeln!(rendered, "|seed docs:{}", docs.join(","));
     }
-    if owner_paths.iter().any(|path| {
-        let displayed = display_project_path(package_root, path);
+    if parsed_modules.iter().any(|module| {
+        let displayed = display_project_path(package_root, &module.report.path);
         displayed.starts_with("tests/")
             || displayed.starts_with("benches/")
             || displayed.starts_with("examples/")
     }) {
         let _ = writeln!(rendered, "|seed tests");
     }
+    let selected_owner_paths = owner_paths
+        .iter()
+        .take(owner_limit)
+        .cloned()
+        .collect::<Vec<_>>();
+    append_prime_graph_synthesis_line(
+        &mut rendered,
+        package_root,
+        &selected_owner_paths,
+        &reasoning_tree,
+        &[],
+    );
     if owner_paths.len() > owner_limit {
         let _ = writeln!(
             rendered,
@@ -346,6 +375,127 @@ fn render_package_prime_seed_source(
         );
     }
     rendered
+}
+
+fn append_prime_graph_synthesis_line(
+    rendered: &mut String,
+    package_root: &Path,
+    selected_owner_paths: &[PathBuf],
+    reasoning_tree: &RustReasoningTreeFacts,
+    findings: &[RustHarnessFinding],
+) {
+    if selected_owner_paths.is_empty() {
+        return;
+    }
+    let high_impact_owners = selected_owner_paths
+        .iter()
+        .take(4)
+        .map(|path| display_project_path(package_root, path))
+        .collect::<Vec<_>>();
+    let frontier_owners =
+        ranked_frontier_owner_paths(package_root, reasoning_tree, selected_owner_paths)
+            .into_iter()
+            .take(4)
+            .collect::<Vec<_>>();
+    let finding_owners = finding_owner_paths(package_root, findings);
+    let seeds = frontier_owners
+        .iter()
+        .map(|path| format!("owner:{path}"))
+        .collect::<Vec<_>>();
+    let mut parts = vec![
+        "algorithm=owner-rank-frontier".to_string(),
+        "scope=prime".to_string(),
+        "summary=owner-graph-frontier".to_string(),
+        format!("selected_owners={}", selected_owner_paths.len()),
+        format!("selected_edges={}", graph_edge_count(reasoning_tree)),
+        format!("high_impact_owners={}", high_impact_owners.join(",")),
+    ];
+    if !frontier_owners.is_empty() {
+        parts.push(format!("frontier_owners={}", frontier_owners.join(",")));
+    }
+    if !finding_owners.is_empty() {
+        parts.push(format!("finding_owners={}", finding_owners.join(",")));
+    }
+    if !seeds.is_empty() {
+        parts.push(format!("seeds={}", seeds.join(",")));
+    }
+    let _ = writeln!(rendered, "|synthesis {}", parts.join(" "));
+}
+
+fn ranked_frontier_owner_paths(
+    package_root: &Path,
+    reasoning_tree: &RustReasoningTreeFacts,
+    selected_owner_paths: &[PathBuf],
+) -> Vec<String> {
+    let selected = selected_owner_paths.iter().collect::<BTreeSet<_>>();
+    let mut counts = BTreeMap::<PathBuf, usize>::new();
+    for branch in &reasoning_tree.owner_branches {
+        for edge in &branch.declared_child_edges {
+            push_frontier_candidate(&selected, &mut counts, &branch.path, &edge.child_path);
+        }
+    }
+    for dependency in reasoning_tree
+        .owner_dependencies
+        .iter()
+        .filter(|dependency| !dependency.is_test_context)
+    {
+        push_frontier_candidate(
+            &selected,
+            &mut counts,
+            &dependency.source_path,
+            &dependency.target_path,
+        );
+    }
+    let mut frontier = counts.into_iter().collect::<Vec<_>>();
+    frontier.sort_by(|(left_path, left_count), (right_path, right_count)| {
+        right_count
+            .cmp(left_count)
+            .then_with(|| {
+                owner_rank_for_path(package_root, right_path)
+                    .cmp(&owner_rank_for_path(package_root, left_path))
+            })
+            .then_with(|| compare_paths_by_recency(package_root, left_path, right_path))
+    });
+    frontier
+        .into_iter()
+        .map(|(path, _)| display_project_path(package_root, &path))
+        .collect()
+}
+
+fn push_frontier_candidate(
+    selected: &BTreeSet<&PathBuf>,
+    counts: &mut BTreeMap<PathBuf, usize>,
+    source_path: &PathBuf,
+    target_path: &PathBuf,
+) {
+    if selected.contains(source_path) && !selected.contains(target_path) {
+        *counts.entry(target_path.clone()).or_default() += 1;
+    }
+    if selected.contains(target_path) && !selected.contains(source_path) {
+        *counts.entry(source_path.clone()).or_default() += 1;
+    }
+}
+
+fn finding_owner_paths(package_root: &Path, findings: &[RustHarnessFinding]) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    findings
+        .iter()
+        .filter_map(|finding| finding.location.path.as_ref())
+        .filter_map(|path| {
+            let display = display_project_path(package_root, path);
+            seen.insert(display.clone()).then_some(display)
+        })
+        .take(4)
+        .collect()
+}
+
+fn graph_edge_count(reasoning_tree: &RustReasoningTreeFacts) -> usize {
+    child_edge_count(reasoning_tree)
+        + reasoning_tree
+            .owner_dependencies
+            .iter()
+            .filter(|dependency| !dependency.is_test_context)
+            .count()
 }
 
 fn feature_seed_names(features: &[(String, Vec<String>)], seed_limit: usize) -> Vec<&str> {

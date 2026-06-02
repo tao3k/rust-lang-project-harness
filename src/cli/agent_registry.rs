@@ -26,8 +26,9 @@ fn agent_registry_json(project_root: &Path) -> Value {
         "symbol",
         "callsite",
         "import",
+        "query",
         "tests",
-        "text",
+        "fzf",
         "cfg",
         "patterns",
         "pattern",
@@ -35,15 +36,23 @@ fn agent_registry_json(project_root: &Path) -> Value {
         "docs-use",
         "api",
         "public-external-types",
+        "policy",
         "ingest",
     ];
     let mut methods = search_methods
         .iter()
         .map(|view| format!("search/{view}"))
         .chain([
+            "query/owner-items".to_string(),
+            "query/direct-source-read".to_string(),
             "check/changed".to_string(),
             "check/full".to_string(),
+            "proof/pilot".to_string(),
+            "review/packet".to_string(),
+            "evidence/graph".to_string(),
+            "evidence/assurance".to_string(),
             "agent/doctor".to_string(),
+            "agent/guide".to_string(),
         ])
         .collect::<Vec<_>>();
     methods.sort();
@@ -53,6 +62,32 @@ fn agent_registry_json(project_root: &Path) -> Value {
         .map(|view| search_method_descriptor(view))
         .collect::<Vec<_>>();
     method_descriptors.extend([
+        json!({
+            "method": "query/owner-items",
+            "command": "query",
+            "input": "owner-path",
+            "requiredOptions": ["--term"],
+            "outputSchemaIds": ["agent.semantic-protocols.semantic-query-packet"],
+            "supportsJson": true,
+            "supportsCompact": true,
+            "supportsQuerySet": true,
+            "acceptedQuerySetSelectors": ["exact-set"],
+            "querySetScopes": ["owner"],
+            "outputModes": ["compact", "json", "code", "names"]
+        }),
+        json!({
+            "method": "query/direct-source-read",
+            "command": "query",
+            "input": "owner-path",
+            "requiredOptions": ["--from-hook", "--selector"],
+            "outputSchemaIds": [
+                "agent.semantic-protocols.semantic-query-packet",
+                "agent.semantic-protocols.semantic-read-packet"
+            ],
+            "supportsJson": true,
+            "supportsCompact": true,
+            "outputModes": ["compact", "json", "names", "read-packet"]
+        }),
         json!({
             "method": "check/changed",
             "command": "check",
@@ -66,11 +101,52 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "supportsCompact": true
         }),
         json!({
+            "method": "proof/pilot",
+            "command": "proof",
+            "input": "pilot dependency-graph-acyclicity",
+            "outputSchemaIds": ["agent.semantic-protocols.semantic-formal-proof-pilot"],
+            "supportsJson": true,
+            "supportsCompact": true
+        }),
+        json!({
+            "method": "review/packet",
+            "command": "review",
+            "input": "packet",
+            "outputSchemaIds": ["agent.semantic-protocols.semantic-review-packet"],
+            "supportsJson": true,
+            "supportsCompact": true
+        }),
+        json!({
+            "method": "evidence/graph",
+            "command": "evidence",
+            "input": "graph",
+            "requiredOptions": ["--review-packet-json"],
+            "outputSchemaIds": ["agent.semantic-protocols.semantic-evidence-graph"],
+            "supportsJson": true,
+            "supportsCompact": true
+        }),
+        json!({
+            "method": "evidence/assurance",
+            "command": "evidence",
+            "input": "assurance",
+            "requiredOptions": ["--evidence-graph-json"],
+            "outputSchemaIds": ["agent.semantic-protocols.semantic-assurance-case"],
+            "supportsJson": true,
+            "supportsCompact": true
+        }),
+        json!({
             "method": "agent/doctor",
             "command": "agent",
             "clients": ["codex"],
             "outputSchemaIds": ["agent.semantic-protocols.semantic-language-registry"],
             "supportsJson": true,
+            "supportsCompact": true
+        }),
+        json!({
+            "method": "agent/guide",
+            "command": "agent",
+            "clients": ["codex"],
+            "supportsJson": false,
             "supportsCompact": true
         }),
     ]);
@@ -102,6 +178,76 @@ fn agent_registry_json(project_root: &Path) -> Value {
                         "path": "schemas/semantic-search-packet.v1.schema.json"
                     },
                     {
+                        "schemaId": "agent.semantic-protocols.semantic-query-packet",
+                        "schemaVersion": "1",
+                        "path": "schemas/semantic-query-packet.v1.schema.json"
+                    },
+                    {
+                        "schemaId": "agent.semantic-protocols.semantic-read-packet",
+                        "schemaVersion": "1",
+                        "path": "schemas/semantic-read-packet.v1.schema.json"
+                    },
+                    {
+                        "schemaId": "agent.semantic-protocols.semantic-graph",
+                        "schemaVersion": "1",
+                        "path": "schemas/semantic-graph.v1.schema.json"
+                    },
+                    {
+                        "schemaId": "agent.semantic-protocols.semantic-type-surface",
+                        "schemaVersion": "1",
+                        "path": "schemas/semantic-type-surface.v1.schema.json"
+                    },
+                    {
+                        "schemaId": "agent.semantic-protocols.semantic-invariant-candidate",
+                        "schemaVersion": "1",
+                        "path": "schemas/semantic-invariant-candidate.v1.schema.json"
+                    },
+                    {
+                        "schemaId": "agent.semantic-protocols.semantic-verification-receipt",
+                        "schemaVersion": "1",
+                        "path": "schemas/semantic-verification-receipt.v1.schema.json"
+                    },
+                    {
+                        "schemaId": "agent.semantic-protocols.semantic-behavior-snapshot",
+                        "schemaVersion": "1",
+                        "path": "schemas/semantic-behavior-snapshot.v1.schema.json"
+                    },
+                    {
+                        "schemaId": "agent.semantic-protocols.semantic-determinism-readiness",
+                        "schemaVersion": "1",
+                        "path": "schemas/semantic-determinism-readiness.v1.schema.json"
+                    },
+                    {
+                        "schemaId": "agent.semantic-protocols.semantic-formal-proof-pilot",
+                        "schemaVersion": "1",
+                        "path": "schemas/semantic-formal-proof-pilot.v1.schema.json"
+                    },
+                    {
+                        "schemaId": "agent.semantic-protocols.semantic-review-packet",
+                        "schemaVersion": "1",
+                        "path": "schemas/semantic-review-packet.v1.schema.json"
+                    },
+                    {
+                        "schemaId": "agent.semantic-protocols.semantic-evidence-graph",
+                        "schemaVersion": "1",
+                        "path": "schemas/semantic-evidence-graph.v1.schema.json"
+                    },
+                    {
+                        "schemaId": "agent.semantic-protocols.semantic-assurance-case",
+                        "schemaVersion": "1",
+                        "path": "schemas/semantic-assurance-case.v1.schema.json"
+                    },
+                    {
+                        "schemaId": "agent.semantic-protocols.semantic-handle",
+                        "schemaVersion": "1",
+                        "path": "schemas/semantic-handle.v1.schema.json"
+                    },
+                    {
+                        "schemaId": "agent.semantic-protocols.semantic-native-syntax-fact-index",
+                        "schemaVersion": "1",
+                        "path": "schemas/semantic-native-syntax-fact-index.v1.schema.json"
+                    },
+                    {
                         "schemaId": "agent.semantic-protocols.languages.rust.rs-harness.capabilities",
                         "schemaVersion": "1",
                         "path": "schemas/rust-semantic-capabilities.v1.schema.json"
@@ -117,7 +263,7 @@ fn search_method_descriptor(view: &str) -> Value {
         "method": format!("search/{view}"),
         "command": "search",
         "view": view,
-        "outputSchemaIds": ["agent.semantic-protocols.semantic-search-packet"],
+        "outputSchemaIds": search_output_schema_ids(view),
         "requiresQuery": search_view_requires_query(view),
         "acceptsStdin": view == "ingest",
         "supportsPackageScope": true,
@@ -135,7 +281,7 @@ fn search_method_descriptor(view: &str) -> Value {
         fields.insert("supportsQuerySet".to_string(), json!(true));
         fields.insert(
             "acceptedQuerySetSelectors".to_string(),
-            json!(["exact-set"]),
+            json!(search_query_set_selectors(view)),
         );
     }
     let capabilities = search_capabilities(view);
@@ -149,16 +295,32 @@ fn search_method_descriptor(view: &str) -> Value {
     descriptor
 }
 
+fn search_output_schema_ids(view: &str) -> Vec<&'static str> {
+    let mut schema_ids = vec!["agent.semantic-protocols.semantic-search-packet"];
+    if view == "public-external-types" {
+        schema_ids.push("agent.semantic-protocols.semantic-type-surface");
+    }
+    if view == "policy" {
+        schema_ids.push("agent.semantic-protocols.semantic-handle");
+    }
+    if view == "query" {
+        schema_ids.push("agent.semantic-protocols.semantic-native-syntax-fact-index");
+    }
+    schema_ids
+}
+
 fn search_view_requires_query(view: &str) -> bool {
     matches!(
         view,
         "owner"
+            | "policy"
             | "dependency"
             | "tests"
             | "symbol"
             | "callsite"
             | "import"
-            | "text"
+            | "query"
+            | "fzf"
             | "cfg"
             | "pattern"
             | "docs"
@@ -168,15 +330,24 @@ fn search_view_requires_query(view: &str) -> bool {
 }
 
 fn search_view_supports_query_set(view: &str) -> bool {
-    matches!(view, "owner" | "dependency" | "text" | "tests")
+    matches!(view, "owner" | "dependency" | "fzf" | "tests")
+}
+
+fn search_query_set_selectors(view: &str) -> Vec<&'static str> {
+    match view {
+        "fzf" => vec!["fuzzy-set"],
+        _ => vec!["exact-set"],
+    }
 }
 
 fn accepted_search_pipes(view: &str) -> Vec<&'static str> {
     match view {
-        "owner" => vec!["items"],
+        "owner" => vec!["items", "tests"],
+        "policy" => vec!["owner", "tests"],
         "dependency" => vec!["items", "public-api", "docs", "tests"],
         "deps" => vec!["public-api"],
         "features" => vec!["cfg", "owners", "tests"],
+        "query" => vec!["owner", "tests"],
         "ingest" => vec!["items", "tests"],
         _ => Vec::new(),
     }
@@ -214,10 +385,14 @@ fn search_capabilities(view: &str) -> Vec<Value> {
         "symbol" => vec![rust_capability("symbol-definition-search")],
         "callsite" => vec![rust_capability("owner-callsite-search")],
         "import" => vec![rust_capability("import-edge-search")],
+        "query" => vec![
+            semantic_capability("code-shaped-query-routing"),
+            rust_capability("rust-native-syntax-query"),
+        ],
         "tests" => vec![rust_capability("test-owner-search")],
-        "text" => vec![
-            semantic_capability("owner-path-text-search"),
-            rust_capability("parser-visible-source-text-search"),
+        "fzf" => vec![
+            semantic_capability("finder-fuzzy-candidate-search"),
+            rust_capability("parser-visible-source-fuzzy-search"),
         ],
         "patterns" | "pattern" => vec![rust_capability("pattern-recipe-search")],
         "docs" => vec![rust_capability("native-docs-api-search")],
@@ -227,6 +402,11 @@ fn search_capabilities(view: &str) -> Vec<Value> {
         ],
         "api" => vec![rust_capability("native-api-shape-search")],
         "public-external-types" => vec![rust_capability("public-external-type-search")],
+        "policy" => vec![
+            semantic_capability("policy-rule-handle-search"),
+            rust_capability("rust-project-policy-rule-handle-search"),
+            rust_capability("rust-agent-policy-rule-handle-search"),
+        ],
         "ingest" => vec![
             semantic_capability("external-candidate-ingest"),
             semantic_capability("stdin-shape-detection"),
@@ -239,7 +419,7 @@ fn search_capabilities(view: &str) -> Vec<Value> {
 fn search_ingest_required_for(view: &str) -> Vec<Value> {
     match view {
         "owner" => vec![rust_ingest_surface("non-parser-path")],
-        "text" => vec![
+        "fzf" => vec![
             rust_ingest_surface("non-parser-text"),
             rust_ingest_surface("docs-text"),
             rust_ingest_surface("schema-json"),
