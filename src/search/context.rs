@@ -208,6 +208,18 @@ fn exact_owner_path_candidates(
 }
 
 fn strip_package_root_query_prefix(package_root: &Path, query_path: &Path) -> Option<PathBuf> {
+    if let Some(path) = strip_package_root_query_prefix_once(package_root, query_path) {
+        return Some(path);
+    }
+    if package_root.is_relative()
+        && let Ok(current_dir) = std::env::current_dir()
+    {
+        return strip_package_root_query_prefix_once(&current_dir.join(package_root), query_path);
+    }
+    None
+}
+
+fn strip_package_root_query_prefix_once(package_root: &Path, query_path: &Path) -> Option<PathBuf> {
     let package_components = normal_path_components(package_root);
     let query_components = normal_path_components(query_path);
     if query_components.len() < 2 {

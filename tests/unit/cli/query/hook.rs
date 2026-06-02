@@ -149,6 +149,29 @@ fn cli_query_code_output_strips_workspace_prefixed_selector_for_package_root() {
     assert!(stdout.contains("normalize_temp_root("), "{stdout}");
     assert!(!stdout.contains("call push"), "{stdout}");
     assert!(!stdout.contains("call extend"), "{stdout}");
+
+    let relative_root_output = run_cli([
+        "query",
+        "--from-hook",
+        "direct-source-read",
+        "--selector",
+        "languages/rust-lang-project-harness/tests/unit/cli/support.rs",
+        "--query",
+        "run_search",
+        "--code",
+        ".",
+    ]);
+    assert!(
+        relative_root_output.status.success(),
+        "{relative_root_output:?}"
+    );
+    let relative_stdout = String::from_utf8(relative_root_output.stdout).expect("utf8 stdout");
+    assert!(
+        relative_stdout
+            .contains("pub(crate) fn run_search(root: &Path, args: &[&str]) -> String {"),
+        "{relative_stdout}"
+    );
+    assert!(!relative_stdout.contains("call push"), "{relative_stdout}");
 }
 
 #[test]

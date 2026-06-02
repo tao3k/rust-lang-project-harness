@@ -6,7 +6,7 @@ use tempfile::TempDir;
 use crate::cli::support::{normalize_temp_root, run_cli};
 
 #[test]
-fn cli_query_parser_compact_code_projection_snapshot() {
+fn cli_query_parser_code_source_slice_snapshot() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_parser_compact_fixture(root);
@@ -27,20 +27,24 @@ fn cli_query_parser_compact_code_projection_snapshot() {
     insta::assert_snapshot!(
         stdout.trim_end(),
         @r###"
-pub fn branch_and_write(flag: bool, block: &mut String) -> Option<String>
-if let Some(line) = flag.then_some("ok")
-call writeln!(block, "{line}")
-return Some(line.to_string())
-tail None
-pub fn match_and_loop(values: &[String]) -> usize
-let mut count = 0
-for value in values
-match value.as_str()
-case "skip"
-continue
-case _
-assign count += 1
-tail count
+pub fn branch_and_write(flag: bool, block: &mut String) -> Option<String> {
+    if let Some(line) = flag.then_some("ok") {
+        let _ = writeln!(block, "{line}");
+        return Some(line.to_string());
+    }
+
+    None
+}
+pub fn match_and_loop(values: &[String]) -> usize {
+    let mut count = 0;
+    for value in values {
+        match value.as_str() {
+            "skip" => continue,
+            _ => count += 1,
+        }
+    }
+    count
+}
 "###
     );
 }
