@@ -1,0 +1,20 @@
+{
+  "mode": "dry-run",
+  "expectedStatus": "verified",
+  "expectedCapability": "provider-ast-dry-run",
+  "expectedMutationAvailable": false,
+  "expectedOperation": "replace_item",
+  "expectedFailureKind": null,
+  "verificationContains": [
+    "packet-parsed",
+    "operation-supported",
+    "snippet-parsed",
+    "target-item-parsed",
+    "file-reparsed"
+  ],
+  "verificationExcludes": [
+    "file-written",
+    "rustfmt-ran",
+    "formatter-output-reparsed"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "mode": "apply",
+  "expectedStatus": "applied",
+  "expectedCapability": "provider-ast-apply",
+  "expectedMutationAvailable": true,
+  "expectedOperation": "replace_item",
+  "expectedFailureKind": null,
+  "verificationContains": [
+    "packet-parsed",
+    "operation-supported",
+    "snippet-parsed",
+    "expected-snippet-matched",
+    "target-item-parsed",
+    "item-identity-checked",
+    "file-written",
+    "rustfmt-ran",
+    "formatter-output-reparsed"
+  ]
+}

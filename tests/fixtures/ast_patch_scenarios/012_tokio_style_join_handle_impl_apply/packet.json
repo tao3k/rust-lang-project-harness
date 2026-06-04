@@ -1,0 +1,15 @@
+{
+  "target": {
+    "ownerPath": "src/task/join.rs",
+    "locator": "src/task/join.rs#impl:JoinHandle",
+    "read": "src/task/join.rs:9:22",
+    "itemName": "JoinHandle",
+    "itemKind": "impl"
+  },
+  "operation": {
+    "op": "replace_item",
+    "snippet": "impl<T> JoinHandle<T>\nwhere\n    T: Send + 'static,\n{\n    pub(crate) fn poll_join(&mut self, cx: &mut Context<'_>) -> Poll<Result<T, JoinError>> {\n        let _ = cx.waker();\n        match self.output.take() {\n            Some(value) => Poll::Ready(Ok(value)),\n            None => Poll::Pending,\n        }\n    }\n}",
+    "expectedSnippet": "impl<T> JoinHandle<T>\nwhere\n    T: Send + 'static,\n{\n    pub(crate) fn poll_join(\n        &mut self,\n        _cx: &mut Context<'_>,\n    ) -> Poll<Result<T, JoinError>> {\n        match self.output.take() {\n            Some(value) => Poll::Ready(Ok(value)),\n            None => Poll::Pending,\n        }\n    }\n}",
+    "maxEdits": 1
+  }
+}

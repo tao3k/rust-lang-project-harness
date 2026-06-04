@@ -2,7 +2,9 @@
 
 use std::path::Path;
 
-use crate::parser::native_syntax::RustItemProjectionNodeSyntax;
+use crate::parser::native_syntax::{
+    item_projection::RustItemProjectionNodeSyntax, projection_code,
+};
 use crate::parser::{ParsedRustModule, RustTopLevelItemSyntax};
 
 use super::format::{display_project_path, render_item_line_with_read};
@@ -174,25 +176,104 @@ fn render_item_code_line(
     }
     let truncated = item.projection_nodes.len() > 48;
     let parser_nodes = projection_node_tokens(&item.projection_nodes);
+    let responsibilities = projection_responsibility_tokens(item);
     let encoded_text = serde_json::to_string(&text).ok()?;
-    Some(format!(
-        "|code path={} lineRange={}:{} reason=item-query truncated={} nodes={} text={}",
-        path, start_line, end_line, truncated, parser_nodes, encoded_text
-    ))
+    let mut fields = vec![
+        format!("path={path}"),
+        format!("lineRange={start_line}:{end_line}"),
+        "reason=item-query".to_string(),
+        format!("truncated={truncated}"),
+        format!("nodes={parser_nodes}"),
+    ];
+    if !responsibilities.is_empty() {
+        fields.push(format!("responsibilities={responsibilities}"));
+    }
+    Some(format!("|code {} text={}", fields.join(" "), encoded_text))
 }
 
 fn projection_node_tokens(nodes: &[RustItemProjectionNodeSyntax]) -> String {
     nodes
         .iter()
-        .enumerate()
-        .map(|(index, node)| {
+        .map(|node| {
+            let id = projection_node_id(node);
+            let native_id = projection_native_id(node);
+            let fingerprint = projection_structural_fingerprint(node);
             format!(
-                "n{}:{}:{}:{}:{}:{}",
-                index, node.kind, node.role, node.depth, node.line, node.end_line
+                "{}:{}:{}:{}:{}:{}:{}:{}",
+                id,
+                node.kind,
+                node.role,
+                node.depth,
+                node.line,
+                node.end_line,
+                native_id,
+                fingerprint
             )
         })
         .collect::<Vec<_>>()
         .join(",")
+}
+
+fn projection_responsibility_tokens(item: &RustTopLevelItemSyntax) -> String {
+    item.projection_responsibilities.join(",")
+}
+
+fn projection_node_id(node: &RustItemProjectionNodeSyntax) -> String {
+    format!(
+        "{}-{}-{}-{}",
+        safe_projection_id_part(node.kind),
+        node.line,
+        node.end_line,
+        stable_projection_hash(&node.label)
+    )
+}
+
+fn projection_native_id(node: &RustItemProjectionNodeSyntax) -> String {
+    format!(
+        "rust-{}-{}-{}-{}",
+        safe_projection_id_part(node.kind),
+        node.line,
+        node.end_line,
+        stable_projection_hash(&node.label)
+    )
+}
+
+fn projection_structural_fingerprint(node: &RustItemProjectionNodeSyntax) -> String {
+    format!(
+        "{}-{}-{}-{}-{}",
+        safe_projection_id_part(node.kind),
+        safe_projection_id_part(node.role),
+        node.line,
+        node.end_line,
+        stable_projection_hash(&node.label)
+    )
+}
+
+fn safe_projection_id_part(value: &str) -> String {
+    let normalized = value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '.') {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>();
+    if normalized.is_empty() {
+        "node".to_string()
+    } else {
+        normalized
+    }
+}
+
+fn stable_projection_hash(value: &str) -> String {
+    let mut hash = 2_166_136_261u32;
+    for byte in value.as_bytes() {
+        hash ^= u32::from(*byte);
+        hash = hash.wrapping_mul(16_777_619);
+    }
+    format!("{hash:x}")
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -501,11 +582,8 @@ fn item_query_candidates(item: &RustTopLevelItemSyntax) -> [Option<&str>; 6] {
 }
 
 fn item_projection_text(item: &RustTopLevelItemSyntax) -> String {
-    item.projection_nodes
-        .iter()
-        .map(|node| node.label.trim())
-        .filter(|line| !line.is_empty())
-        .take(48)
-        .collect::<Vec<_>>()
-        .join("\n")
+    projection_code::compact_code_from_projection_nodes(
+        item.projection_nodes.iter().take(48),
+        |node| Some((node.depth, node.label.clone())),
+    )
 }

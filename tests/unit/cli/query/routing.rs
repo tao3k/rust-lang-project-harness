@@ -33,15 +33,13 @@ fn cli_query_terms_route_to_fzf_query_set_seeds() {
         ),
         "{stdout}"
     );
-    assert!(stdout.contains("[search-graph] mode=query-set"), "{stdout}");
     assert!(
-        stdout.contains("O2=owner:src/http/client.rs!owner"),
+        stdout.contains("|seed owner:src/http/client.rs,src/lib.rs"),
         "{stdout}"
     );
-    assert!(
-        stdout.contains("frontier=T1.tests,O2.owner,O3.owner"),
-        "{stdout}"
-    );
+    assert!(stdout.contains("|seed tests:tests/flow.rs"), "{stdout}");
+    assert!(!stdout.contains("[search-graph]"), "{stdout}");
+    assert!(!stdout.contains("frontier="), "{stdout}");
 }
 
 #[test]
@@ -68,8 +66,7 @@ fn cli_query_broad_glob_selector_routes_to_prime_seeds() {
         "{stdout}"
     );
     assert!(stdout.contains("owner:src/lib.rs"), "{stdout}");
-    assert!(
-        stdout.contains("|synthesis algorithm=owner-rank-frontier"),
-        "{stdout}"
-    );
+    assert!(stdout.contains("|seed owner:src/lib.rs"), "{stdout}");
+    assert!(!stdout.contains("[search-graph]"), "{stdout}");
+    assert!(!stdout.contains("frontier="), "{stdout}");
 }

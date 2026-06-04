@@ -37,8 +37,8 @@ pub(super) fn search_contexts(
 ) -> Result<Vec<PackageSearchContext>, String> {
     package_roots_for_request(project_root, config, options.package.as_deref()).map(|roots| {
         roots
-            .into_iter()
-            .map(|package_root| package_search_context(&package_root, config))
+            .iter()
+            .map(|package_root| package_search_context(package_root.as_path(), config))
             .collect()
     })
 }
@@ -65,8 +65,8 @@ pub(super) fn search_contexts_for_path_queries(
             path_query_package_roots(project_root, roots, queries)
         };
         roots
-            .into_iter()
-            .map(|package_root| package_search_context(&package_root, config))
+            .iter()
+            .map(|package_root| package_search_context(package_root.as_path(), config))
             .collect()
     })
 }

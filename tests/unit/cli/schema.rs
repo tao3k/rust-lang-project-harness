@@ -371,6 +371,20 @@ fn semantic_schema_files() -> &'static [SemanticSchemaFile] {
             syncs_with_protocol_repository: true,
         },
         SemanticSchemaFile {
+            schema_id: "agent.semantic-protocols.semantic-ast-patch",
+            file_name: "semantic-ast-patch.v1.schema.json",
+            registry_path: "schemas/semantic-ast-patch.v1.schema.json",
+            identity_pointer: &["properties", "schemaId", "const"],
+            syncs_with_protocol_repository: true,
+        },
+        SemanticSchemaFile {
+            schema_id: "agent.semantic-protocols.semantic-ast-patch-receipt",
+            file_name: "semantic-ast-patch-receipt.v1.schema.json",
+            registry_path: "schemas/semantic-ast-patch-receipt.v1.schema.json",
+            identity_pointer: &["properties", "schemaId", "const"],
+            syncs_with_protocol_repository: true,
+        },
+        SemanticSchemaFile {
             schema_id: "agent.semantic-protocols.languages.rust.rs-harness.capabilities",
             file_name: "rust-semantic-capabilities.v1.schema.json",
             registry_path: "schemas/rust-semantic-capabilities.v1.schema.json",

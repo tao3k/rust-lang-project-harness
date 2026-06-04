@@ -340,15 +340,15 @@ fn cli_rust_flow_drill_reduces_search_rounds_with_seeds_and_recipe_plan() {
     assert!(seeds.status.success(), "{seeds:?}");
     let seeds = normalize_temp_root(&String::from_utf8(seeds.stdout).expect("seed stdout"), root);
     assert!(
-        seeds.starts_with("[search-dependency] q=serde pkg=. dep=1 own=2 api=8"),
+        seeds.starts_with("[search-dependency] q=serde alg=seed-frontier"),
         "{seeds}"
     );
     assert!(seeds.lines().count() < full.lines().count(), "{seeds}");
-    assert!(seeds.contains("|seed tests"), "{seeds}");
-    assert!(seeds.contains("|seed docs:Thing"), "{seeds}");
-    assert!(seeds.contains("|seed owner:tests/domain.rs"), "{seeds}");
-    assert!(seeds.contains("|seed deps:serde"), "{seeds}");
-    assert!(seeds.contains("|seed import:serde"), "{seeds}");
+    assert!(seeds.contains("D=dependency:pkg(serde)!deps"), "{seeds}");
+    assert!(seeds.contains("T=test:path(.)!tests"), "{seeds}");
+    assert!(seeds.contains("rank=D,T"), "{seeds}");
+    assert!(seeds.contains("S=symbol:symbol(Thing)!symbol"), "{seeds}");
+    assert!(seeds.contains("frontier=D.deps,T.tests"), "{seeds}");
     assert!(!seeds.contains("|owner src/lib.rs"), "{seeds}");
     assert!(!seeds.contains("|item load"), "{seeds}");
     assert!(!seeds.contains("|api src/domain/mod.rs"), "{seeds}");
@@ -390,10 +390,12 @@ fn cli_rust_flow_drill_reduces_search_rounds_with_seeds_and_recipe_plan() {
         "{plan}"
     );
     assert!(
-        plan.contains("[search-dependency] q=serde pkg=. dep=1 own=2 api=0"),
+        plan.contains("[search-dependency] q=serde alg=seed-frontier"),
         "{plan}"
     );
-    assert!(plan.contains("|seed tests"), "{plan}");
+    assert!(plan.contains("D=dependency:pkg(serde)!deps"), "{plan}");
+    assert!(plan.contains("T=test:path(.)!tests"), "{plan}");
+    assert!(plan.contains("frontier=D.deps,T.tests"), "{plan}");
 
     let ingest = run_search_with_stdin(
         root,

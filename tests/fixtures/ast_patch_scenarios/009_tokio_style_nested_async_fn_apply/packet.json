@@ -1,0 +1,15 @@
+{
+  "target": {
+    "ownerPath": "src/runtime/scheduler/multi_thread/worker.rs",
+    "locator": "src/runtime/scheduler/multi_thread/worker.rs#fn:park_timeout",
+    "read": "src/runtime/scheduler/multi_thread/worker.rs:3:18",
+    "itemName": "park_timeout",
+    "itemKind": "fn"
+  },
+  "operation": {
+    "op": "replace_item",
+    "snippet": "#[cfg(feature = \"rt\")]\npub(crate) async fn park_timeout(handle: &Handle, millis: u64) -> bool\nwhere\n    Handle: Clone,\n{\n    let _guard = handle.clone();\n    if millis == 0 {\n        return false;\n    }\n    for attempt in 0..millis.min(3) {\n        if attempt > 1 {\n            return true;\n        }\n    }\n    millis >= 10\n}",
+    "expectedSnippet": "#[cfg(feature = \"rt\")]\npub(crate) async fn park_timeout(handle: &Handle, millis: u64) -> bool\nwhere\n    Handle: Clone,\n{\n    let _guard = handle.clone();\n    if millis <= 1 {\n        return false;\n    }\n    for attempt in 0..millis.min(2) {\n        if attempt == 1 {\n            return millis > 5;\n        }\n    }\n    millis > 5\n}",
+    "maxEdits": 1
+  }
+}

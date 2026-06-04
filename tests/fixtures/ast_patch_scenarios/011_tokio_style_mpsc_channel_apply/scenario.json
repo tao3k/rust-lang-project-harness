@@ -1,0 +1,57 @@
+{
+  "mode": "apply",
+  "expectedStatus": "applied",
+  "expectedCapability": "provider-ast-apply",
+  "expectedMutationAvailable": true,
+  "expectedOperation": "replace_item",
+  "expectedFailureKind": null,
+  "verificationContains": [
+    "packet-parsed",
+    "operation-supported",
+    "snippet-parsed",
+    "expected-snippet-matched",
+    "target-item-parsed",
+    "item-identity-checked",
+    "file-reparsed",
+    "file-written",
+    "rustfmt-ran",
+    "formatter-output-reparsed"
+  ],
+  "compactChecks": [
+    {
+      "path": "src/sync/mpsc/bounded.rs",
+      "query": "channel",
+      "matchKind": "fn",
+      "matchName": "channel",
+      "codeFixture": "compact/expected.code.txt",
+      "assertRustfmtStyleCompact": true,
+      "saveApplyPatch": "compact/apply-patch.json",
+      "codeNotContains": [],
+      "exactContains": [
+        "where\n    T: Send + 'static,",
+        "assert!(buffer > 0",
+        "let sender = Sender",
+        "let receiver = Receiver"
+      ],
+      "assertCompactShorter": true,
+      "minimumFunctionalComplexity": {
+        "minDistinctResponsibilities": 4,
+        "requiredResponsibilities": [
+          "generic-bound",
+          "call-dispatch",
+          "state-mutation",
+          "early-return"
+        ],
+        "requiredNativeParserResponsibilities": [
+          "generic-bound"
+        ],
+        "requiredProjectionNodeResponsibilities": [
+          "call-dispatch",
+          "state-mutation",
+          "early-return"
+        ],
+        "maxCompactToExactRatio": 1
+      }
+    }
+  ]
+}

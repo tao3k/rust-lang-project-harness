@@ -274,44 +274,22 @@ fn render_search_fzf_query_set_seed_hits(
 }
 
 fn render_query_set_graph(block: &mut String, selected: Vec<String>) {
-    let nodes = selected
+    let (tests, owners): (Vec<_>, Vec<_>) = selected
         .into_iter()
-        .enumerate()
-        .map(|(index, path)| {
-            let is_test = path.starts_with("tests/") || path.contains("/tests/");
-            let (prefix, kind, action) = if is_test {
-                ("T", "test", "tests")
-            } else {
-                ("O", "owner", "owner")
-            };
-            (format!("{prefix}{}", index + 1), kind, action, path)
-        })
-        .collect::<Vec<_>>();
-    if nodes.is_empty() {
+        .partition(|path| is_test_owner_path(path));
+    if owners.is_empty() && tests.is_empty() {
         return;
     }
-    let _ = writeln!(
-        block,
-        "[search-graph] mode=query-set root=. alg=change-frontier-query-set"
-    );
-    let node_lines = nodes
-        .iter()
-        .map(|(id, kind, action, path)| format!("{id}={kind}:{path}!{action}"))
-        .collect::<Vec<_>>()
-        .join("\n");
-    let rank = nodes
-        .iter()
-        .map(|(id, _, _, _)| id.as_str())
-        .collect::<Vec<_>>()
-        .join(",");
-    let frontier = nodes
-        .iter()
-        .map(|(id, _, action, _)| format!("{id}.{action}"))
-        .collect::<Vec<_>>()
-        .join(",");
-    let _ = writeln!(block, "{node_lines}");
-    let _ = writeln!(block, "rank={rank}");
-    let _ = writeln!(block, "frontier={frontier}");
+    if !owners.is_empty() {
+        let _ = writeln!(block, "|seed owner:{}", owners.join(","));
+    }
+    if !tests.is_empty() {
+        let _ = writeln!(block, "|seed tests:{}", tests.join(","));
+    }
+}
+
+fn is_test_owner_path(path: &str) -> bool {
+    path.starts_with("tests/") || path.contains("/tests/")
 }
 
 fn append_change_frontier_synthesis_line<'a>(

@@ -1,0 +1,68 @@
+{
+  "mode": "apply",
+  "expectedStatus": "applied",
+  "expectedCapability": "provider-ast-apply",
+  "expectedMutationAvailable": true,
+  "expectedOperation": "replace_item",
+  "expectedFailureKind": null,
+  "verificationContains": [
+    "packet-parsed",
+    "operation-supported",
+    "snippet-parsed",
+    "expected-snippet-matched",
+    "target-path-resolved",
+    "target-item-parsed",
+    "item-identity-checked",
+    "file-reparsed",
+    "file-written",
+    "rustfmt-ran",
+    "formatter-output-reparsed"
+  ],
+  "compactChecks": [
+    {
+      "path": "src/runtime/scheduler/multi_thread/worker.rs",
+      "query": "park_timeout",
+      "codeFixture": "compact/expected.code.txt",
+      "assertRustfmtStyleCompact": true,
+      "saveApplyPatch": "compact/apply-patch.json",
+      "codeNotContains": [
+        "#[cfg"
+      ],
+      "exactContains": [
+        "#[cfg(feature = \"rt\")]",
+        "where\n    Handle: Clone,",
+        "let _guard = handle.clone();",
+        "if millis == 0",
+        "for attempt in 0..millis.min(3)",
+        "return true;",
+        "millis >= 10"
+      ],
+      "assertCompactShorter": true,
+      "minimumFunctionalComplexity": {
+        "minDistinctResponsibilities": 7,
+        "requiredResponsibilities": [
+          "cfg-feature-gate",
+          "async-item",
+          "generic-bound",
+          "state-mutation",
+          "guard-branch",
+          "bounded-loop",
+          "early-return"
+        ],
+        "requiredNativeParserResponsibilities": [
+          "cfg-feature-gate",
+          "async-item",
+          "generic-bound"
+        ],
+        "requiredProjectionNodeResponsibilities": [
+          "state-mutation",
+          "guard-branch",
+          "bounded-loop",
+          "early-return"
+        ],
+        "maxCompactToExactRatio": 1
+      },
+      "rejectCompactAsPreimage": true
+    }
+  ]
+}

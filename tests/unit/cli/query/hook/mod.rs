@@ -14,6 +14,11 @@ fn cli_query_hook_line_range_code_outputs_source_slice() {
     let root = temp.path();
     fs::create_dir_all(root.join("src")).expect("create src");
     fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"hook-line-range\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    )
+    .expect("write manifest");
+    fs::write(
         root.join("src/lib.rs"),
         r#"fn first() {
     assert_eq!(
@@ -40,17 +45,21 @@ fn second() {
         "--from-hook".as_ref(),
         "direct-source-read".as_ref(),
         "--selector".as_ref(),
-        "src/lib.rs:7-14".as_ref(),
+        "src/lib.rs:7:14".as_ref(),
         "--code".as_ref(),
         root.as_os_str(),
     ]);
 
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert!(stdout.contains("fn second()"), "{stdout}");
-    assert!(
-        stdout.lines().any(|line| line == "\"--selector\","),
-        "{stdout}"
+    assert_no_punctuation_only_lines(&stdout);
+    insta::assert_snapshot!(
+        stdout.trim_end(),
+        @r###"
+fn first() {
+assert_eq!(decision.routes[0].argv, ["py-harness", "query", "--selector", "src/tools/report.py", ".",]);
+fn second() {
+"###
     );
     assert!(!stdout.contains("|fact"), "{stdout}");
 }
@@ -125,15 +134,10 @@ fn cli_query_code_output_strips_workspace_prefixed_selector_for_package_root() {
     ]);
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert!(
-        stdout.contains("fn run_search(root: &Path, args: &[&str]) -> String"),
-        "{stdout}"
-    );
-    assert!(stdout.contains("call push"), "{stdout}");
-    assert!(stdout.contains("call extend"), "{stdout}");
-    assert!(stdout.contains("call normalize_temp_root"), "{stdout}");
-    assert!(!stdout.contains("command_args.push"), "{stdout}");
-    assert!(!stdout.contains("command_args.extend"), "{stdout}");
+    assert!(stdout.contains("fn run_search"), "{stdout}");
+    assert!(stdout.contains("command_args.push"), "{stdout}");
+    assert!(stdout.contains("command_args.extend"), "{stdout}");
+    assert!(stdout.contains("normalize_temp_root"), "{stdout}");
 
     let relative_root_output = run_cli([
         "query",
@@ -152,13 +156,15 @@ fn cli_query_code_output_strips_workspace_prefixed_selector_for_package_root() {
     );
     let relative_stdout = String::from_utf8(relative_root_output.stdout).expect("utf8 stdout");
     assert!(
-        relative_stdout.contains("fn run_search(root: &Path, args: &[&str]) -> String"),
+        relative_stdout.contains("fn run_search"),
         "{relative_stdout}"
     );
-    assert!(relative_stdout.contains("call push"), "{relative_stdout}");
-    assert!(relative_stdout.contains("call extend"), "{relative_stdout}");
     assert!(
-        !relative_stdout.contains("command_args.push"),
+        relative_stdout.contains("command_args.push"),
+        "{relative_stdout}"
+    );
+    assert!(
+        relative_stdout.contains("command_args.extend"),
         "{relative_stdout}"
     );
 }
@@ -207,4 +213,17 @@ fn cli_query_hook_selector_json_can_emit_provider_read_packet() {
             .starts_with("src/lib.rs:"),
         "{value}"
     );
+}
+
+fn assert_no_punctuation_only_lines(stdout: &str) {
+    for line in stdout.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        assert!(
+            trimmed.chars().any(|ch| ch.is_alphanumeric() || ch == '_'),
+            "punctuation-only compact row leaked: {stdout}"
+        );
+    }
 }

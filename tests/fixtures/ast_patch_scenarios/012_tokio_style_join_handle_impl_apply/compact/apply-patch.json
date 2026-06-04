@@ -1,0 +1,45 @@
+{
+  "path": "src/task/join.rs",
+  "query": "JoinHandle",
+  "targetKind": "impl",
+  "targetName": "JoinHandle",
+  "op": "replace_item",
+  "inputCompactFixture": "compact/input.code.txt",
+  "expectedCompactFixture": "compact/expected.code.txt",
+  "replacementRead": "src/task/join.rs:9:20",
+  "maxEdits": 1,
+  "inputMinimumFunctionalComplexity": {
+    "minDistinctResponsibilities": 3,
+    "requiredResponsibilities": [
+      "generic-bound",
+      "match-dispatch",
+      "match-arm"
+    ],
+    "requiredNativeParserResponsibilities": [
+      "generic-bound"
+    ],
+    "requiredProjectionNodeResponsibilities": [
+      "match-dispatch",
+      "match-arm"
+    ],
+    "maxCompactToExactRatio": 1.1
+  },
+  "expectedMinimumFunctionalComplexity": {
+    "minDistinctResponsibilities": 4,
+    "requiredResponsibilities": [
+      "generic-bound",
+      "call-dispatch",
+      "match-dispatch",
+      "match-arm"
+    ],
+    "requiredNativeParserResponsibilities": [
+      "generic-bound"
+    ],
+    "requiredProjectionNodeResponsibilities": [
+      "call-dispatch",
+      "match-dispatch",
+      "match-arm"
+    ],
+    "maxCompactToExactRatio": 1.1
+  }
+}

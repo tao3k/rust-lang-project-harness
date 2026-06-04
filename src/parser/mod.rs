@@ -28,6 +28,8 @@ pub(crate) use native_syntax::{
     RustPublicEnumVariantFieldSyntax, RustPublicStructFieldSyntax, RustPublicTypeAliasSyntax,
     RustTopLevelItemSyntax,
 };
+#[cfg(feature = "cli")]
+pub(crate) use parsed_module::parse_rust_source_syntax;
 pub(crate) use parsed_module::{ParsedRustModule, parse_rust_file};
 pub(crate) use path_resolution::resolve_rust_path_attr;
 pub(crate) use reasoning_tree::{

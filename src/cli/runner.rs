@@ -11,7 +11,9 @@ use super::query::{
     QueryCommand, QuerySearchOptions, parse_query, print_query_help, render_query_local_window,
 };
 #[cfg(feature = "search")]
-use super::search_output::{SearchOutputControls, apply_search_output_controls};
+use super::search_output::{
+    SearchOutputControls, apply_search_output_controls, render_search_graph_packet,
+};
 #[cfg(feature = "search")]
 use super::search_plan::{SearchPlanOptions, render_search_plan};
 #[cfg(feature = "search")]
@@ -19,7 +21,9 @@ use super::search_trace::{SearchTraceOptions, render_search_trace};
 #[cfg(feature = "search")]
 use super::semantic_query_json::{SemanticQueryJsonOptions, render_query_json};
 #[cfg(feature = "search")]
-use super::semantic_search_json::{SemanticSearchJsonOptions, render_search_json};
+use super::semantic_search_json::{
+    SemanticSearchJsonOptions, build_search_packet, render_search_json,
+};
 #[cfg(feature = "search")]
 use crate::{
     RustHarnessConfig, RustSearchOptions, RustSearchViewRequest,
@@ -66,6 +70,9 @@ fn run(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitCode, S
     }
     if is_command(&args, "receipt") {
         return super::execution_receipt::run_receipt(args.into_iter().skip(1));
+    }
+    if is_command(&args, "ast-patch") {
+        return super::ast_patch::run_ast_patch(args.into_iter().skip(1));
     }
     if is_command(&args, "proof") {
         return super::formal_proof_pilot::run_proof(args.into_iter().skip(1));
@@ -216,6 +223,7 @@ fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
         };
         render_rust_project_harness_search_view_with_config(&request)?
     };
+    let json_options = options.semantic_json_options();
     let rendered = apply_search_output_controls(
         SearchOutputControls {
             depth: options.depth,
@@ -224,11 +232,16 @@ fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
         },
         &raw_rendered,
     );
+    let rendered = if options.output_view.as_deref() == Some("seeds") {
+        let packet = build_search_packet(&project_root, &json_options, &raw_rendered);
+        render_search_graph_packet(&packet, options.seeds)?
+    } else {
+        rendered
+    };
     if options.json {
-        let json_options = options.semantic_json_options();
         println!(
             "{}",
-            render_search_json(&project_root, &json_options, &rendered)?
+            render_search_json(&project_root, &json_options, &raw_rendered)?
         );
     } else {
         if options.trace {
@@ -258,7 +271,26 @@ fn run_query_view(options: &SearchOptions) -> Result<ExitCode, String> {
     {
         let project_root = options.project_root()?;
         if let Some(rendered) = render_query_local_window(&project_root, selector)? {
-            print!("{rendered}");
+            if options.json && options.output_view.as_deref() == Some("read-packet") {
+                let read_options = super::semantic_read_json::SemanticReadJsonOptions {
+                    selector: options
+                        .read_selector
+                        .clone()
+                        .or_else(|| options.owner.clone())
+                        .unwrap_or_else(|| selector.to_string()),
+                    query: options.item_query.clone(),
+                };
+                println!(
+                    "{}",
+                    super::semantic_read_json::render_read_json(
+                        &project_root,
+                        &read_options,
+                        &rendered
+                    )?
+                );
+            } else {
+                print!("{rendered}");
+            }
             return Ok(ExitCode::SUCCESS);
         }
     }
@@ -448,6 +480,18 @@ impl SearchOptions {
                 positionals.push(arg);
                 continue;
             }
+            if !matches!(arg.to_str(), Some("--query" | "--query-set"))
+                && options.query_set.is_empty()
+                && options.item_query.is_none()
+                && positionals.len() == 1
+                && positionals
+                    .first()
+                    .and_then(|view| view.to_str())
+                    .is_some_and(search_view_requires_query)
+            {
+                positionals.push(arg);
+                continue;
+            }
             let Some(value) = arg.to_str() else {
                 positionals.push(arg);
                 continue;
@@ -515,10 +559,13 @@ impl SearchOptions {
         if !is_known_search_view(&self.view) {
             return Ok(());
         }
+        if self.view == "fzf" && self.query_set.is_empty() && self.query.is_none() {
+            self.query = self.item_query.take();
+        }
         if search_view_requires_query(&self.view) {
             if !self.query_set.is_empty() {
                 self.query = Some(self.query_set.join(","));
-            } else {
+            } else if self.query.is_none() {
                 if values.is_empty() {
                     return Err(format!("search {} requires a query", self.command_label()));
                 }
@@ -853,21 +900,24 @@ fn print_help() {
              rs-harness review packet [--receipt-json PATH] [--behavior-json PATH] [--determinism-json PATH] [--proof-json PATH] [--waiver-json PATH] [--json] [PROJECT_ROOT]\n\
              rs-harness evidence graph --review-packet-json PATH [--json] [PROJECT_ROOT]\n\
              rs-harness evidence assurance --evidence-graph-json PATH [--json] [PROJECT_ROOT]\n\
+             rs-harness ast-patch <dry-run|apply> --packet <semantic-ast-patch.json|-> [PROJECT_ROOT]\n\
              rs-harness agent doctor [--json] [PROJECT_ROOT]\n\
          rs-harness agent guide [PROJECT_ROOT]\n\n\
          Runs the default package-level Rust harness.\n\n\
          Compact text is the default agent-facing repair surface.\n\
          Use --json to emit the structured RustHarnessReport audit shape.\n\
-         Use --agent-snapshot to emit a low-noise reasoning-tree summary.\n\
-         Use search for RFC line-protocol exploration views.\n\
-         Use query for hook reroutes into parser-owned search/code extraction."
+          Use --agent-snapshot to emit a low-noise reasoning-tree summary.\n\
+          Use search for RFC line-protocol exploration views.\n\
+          Use query for hook reroutes into parser-owned search/code extraction.\n\
+          Use ast-patch dry-run/apply for provider-native structural patch receipts."
     );
 }
 
 fn print_search_help() {
     println!(
         "rs-harness search prime [--package PACKAGE] [PROJECT_ROOT]\n\
-         rs-harness search owner <path-or-owner> [items tests] [--scope SCOPE] [PROJECT_ROOT]\n\
+rs-harness search guide [PROJECT_ROOT]\n\
+rs-harness search owner <path-or-owner> [items tests] [--scope SCOPE] [PROJECT_ROOT]\n\
          rs-harness search owner <path-or-owner> items --query SYMBOL [--names-only | --code] [PROJECT_ROOT]\n\
          rs-harness search workspace [--package PACKAGE] [PROJECT_ROOT]\n\
          rs-harness search targets [--package PACKAGE] [PROJECT_ROOT]\n\
@@ -926,16 +976,18 @@ fn print_agent_guide(_project_root: &std::path::Path) {
     println!(
         "[agent-guide] runtime=semantic-agent-hook language=rust provider=rs-harness\n\
 |flow prime->owner|query|deps|symbol|tests pipe=fzf:tests ingest=stdin\n\
-|cmd prime=rs-harness search prime --view seeds .\n\
-|cmd owner=rs-harness search owner <path> items --view seeds .\n\
-|cmd policy=rs-harness search policy <rule-id-or-alias> owner tests --view seeds .\n\
-|cmd fzf=rs-harness search fzf <query> owner tests --view seeds .\n\
-|cmd query=rs-harness query <path> --query <symbol-or-a|b|c> .\n\
-|cmd code=rs-harness query <path> --query <symbol-or-a|b|c> --code .\n\
-        |cmd hook-query=rs-harness query --from-hook direct-source-read --selector <path[:line-range]> [--code] .\n\
-|cmd ingest=rg -n '<query>' src tests | rs-harness search ingest items tests --view seeds .\n\
-             |cmd evidence=rs-harness evidence graph --review-packet-json <path> --json .\n\
-             |cmd assurance=rs-harness evidence assurance --evidence-graph-json <path> --json .\n\
+|cmd prime=asp rust search prime --view seeds .\n\
+|cmd owner=asp rust search owner <path> items --view seeds .\n\
+|cmd policy=asp rust search policy <rule-id-or-alias> owner tests --view seeds .\n\
+|cmd fzf=asp rust search fzf <query> owner tests --view seeds .\n\
+|cmd query=asp rust query <path> --query <symbol-or-a|b|c> .\n\
+|cmd code=asp rust query <path> --query <symbol-or-a|b|c> --code .\n\
+|cmd hook-query=asp rust query --from-hook direct-source-read --selector <path[:line-range]> [--code] .\n\
+|cmd ast-patch=asp rust ast-patch dry-run --packet <semantic-ast-patch.json|-> .\n\
+|cmd ast-patch-apply=asp rust ast-patch apply --packet <semantic-ast-patch.json|-> .\n\
+|cmd ingest=rg -n '<query>' src tests | asp rust search ingest items tests --view seeds .\n\
+             |cmd evidence=asp rust evidence graph --review-packet-json <path> --json .\n\
+             |cmd assurance=asp rust evidence assurance --evidence-graph-json <path> --json .\n\
              |rule hook install/runtime is owned by semantic-agent-hook"
     );
 }
@@ -963,6 +1015,7 @@ fn search_view_requires_query(view: &str) -> bool {
             | "docs"
             | "docs-use"
             | "api"
+            | "reasoning"
     )
 }
 
@@ -978,6 +1031,7 @@ fn is_known_search_view(view: &str) -> bool {
     matches!(
         view,
         "prime"
+            | "guide"
             | "workspace"
             | "targets"
             | "deps"
@@ -998,6 +1052,7 @@ fn is_known_search_view(view: &str) -> bool {
             | "docs-use"
             | "api"
             | "public-external-types"
+            | "reasoning"
             | "ingest"
     )
 }

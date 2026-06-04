@@ -1,0 +1,15 @@
+{
+  "target": {
+    "ownerPath": "src/lib.rs",
+    "locator": "src/lib.rs#fn:raw_indent",
+    "read": "src/lib.rs:1:5",
+    "itemName": "raw_indent",
+    "itemKind": "fn"
+  },
+  "operation": {
+    "op": "replace_item",
+    "snippet": "pub fn raw_indent() -> &'static str { \"changed\" }",
+    "expectedSnippet": "raw_indent",
+    "maxEdits": 1
+  }
+}

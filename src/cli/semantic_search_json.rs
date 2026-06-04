@@ -4,10 +4,17 @@ use std::path::Path;
 
 use serde_json::{Map, Value, json};
 
+use super::semantic_search_json_canonical::{
+    canonical_owner_path, canonical_query_set_terms, canonicalize_read_field,
+};
 use super::semantic_search_json_fields::{
     bool_field, display_path, header_package, input_detection_from_header, insert_if_some,
     insert_if_usize, location, location_from_node, next_field, parse_edge_kind, parse_fields,
     parse_next_actions, string_field,
+};
+use super::semantic_search_synthesis_json::{
+    graph_seed_fragment, merge_seed_fragment_search_synthesis, push_synthesis,
+    query_set_search_synthesis,
 };
 
 const SCHEMA_ID: &str = "agent.semantic-protocols.semantic-search-packet";
@@ -42,11 +49,15 @@ pub(super) fn render_search_json(
     options: &SemanticSearchJsonOptions,
     rendered: &str,
 ) -> Result<String, String> {
-    let packet = build_packet(project_root, options, rendered);
+    let packet = build_search_packet(project_root, options, rendered);
     serde_json::to_string(&packet).map_err(|error| format!("failed to render search JSON: {error}"))
 }
 
-fn build_packet(project_root: &Path, options: &SemanticSearchJsonOptions, rendered: &str) -> Value {
+pub(super) fn build_search_packet(
+    project_root: &Path,
+    options: &SemanticSearchJsonOptions,
+    rendered: &str,
+) -> Value {
     let (header_kind, mut header_fields) = parse_header(rendered, options);
     enrich_header_fields(&mut header_fields, options);
 
@@ -63,6 +74,7 @@ fn build_packet(project_root: &Path, options: &SemanticSearchJsonOptions, render
     let mut next_actions = Vec::new();
     let mut notes = Vec::new();
     let mut search_synthesis = None;
+    let mut seed_fragments = Vec::<String>::new();
     let mut current_owner = None::<String>;
     if options.view == "policy" {
         semantic_handles = crate::search::policy::policy_semantic_handles_for_query(
@@ -70,7 +82,14 @@ fn build_packet(project_root: &Path, options: &SemanticSearchJsonOptions, render
         );
     }
 
-    for line in rendered.lines().filter_map(|line| line.strip_prefix('|')) {
+    for rendered_line in rendered.lines() {
+        if let Some(seed_fragment) = graph_seed_fragment(rendered_line) {
+            seed_fragments.push(seed_fragment);
+            continue;
+        }
+        let Some(line) = rendered_line.strip_prefix('|') else {
+            continue;
+        };
         let mut tokens = line.split_whitespace();
         let Some(tag) = tokens.next() else {
             continue;
@@ -81,7 +100,9 @@ fn build_packet(project_root: &Path, options: &SemanticSearchJsonOptions, render
             "package" => push_package(&remaining, &mut packages),
             "dep" => push_dependency_node(&remaining, &mut nodes),
             "owner" => {
-                if let Some(owner_path) = push_owner(&remaining, &mut owners, &mut next_actions) {
+                if let Some(owner_path) =
+                    push_owner(options, &remaining, &mut owners, &mut next_actions)
+                {
                     current_owner = Some(owner_path);
                 }
             }
@@ -104,6 +125,7 @@ fn build_packet(project_root: &Path, options: &SemanticSearchJsonOptions, render
             "api-candidate" => push_api_candidate(&remaining, &mut hits),
             "test" => push_test_node(&remaining, &mut nodes, &mut next_actions),
             "synthesis" => push_synthesis(&remaining, &mut search_synthesis),
+            "seed" => seed_fragments.push(remaining.join(" ")),
             "note" => push_note(&remaining, &mut notes),
             "feat" | "feature" | "cfg" | "target" | "pat" => {
                 push_fact_note(tag, &remaining, &mut notes)
@@ -111,6 +133,14 @@ fn build_packet(project_root: &Path, options: &SemanticSearchJsonOptions, render
             _ => push_raw_note(tag, &remaining, &mut notes),
         }
     }
+    if search_synthesis.is_none() && !options.query_set.is_empty() {
+        search_synthesis = query_set_search_synthesis(&owners, &nodes, &seed_fragments);
+    }
+    merge_seed_fragment_search_synthesis(
+        &mut search_synthesis,
+        schema_view(options),
+        &seed_fragments,
+    );
     let input_detection = if options.view == "ingest" {
         input_detection_from_header(&header_fields)
     } else {
@@ -187,6 +217,12 @@ fn base_packet(
     header_fields: Map<String, Value>,
     collections: PacketCollections,
 ) -> Value {
+    let query_set_terms = canonical_query_set_terms(
+        &options.view,
+        options.query.as_deref(),
+        &options.query_set,
+        &header_fields,
+    );
     let mut packet = json!({
         "schemaId": SCHEMA_ID,
         "schemaVersion": SCHEMA_VERSION,
@@ -220,16 +256,27 @@ fn base_packet(
     if options.view == "fzf" {
         packet["finder"] = super::semantic_search_finder_json::fzf_finder(options);
     }
+    if options.view == "reasoning" {
+        packet["avoidNextActions"] = json!([
+            {
+                "kind": "raw-read",
+                "target": "source",
+                "reason": "reasoning-profile"
+            }
+        ]);
+    }
     if let Some(search_synthesis) = collections.search_synthesis {
         packet["searchSynthesis"] = search_synthesis;
+    }
+    if reasoning_profiles_enabled(options) {
+        packet["reasoningProfiles"] = rust_reasoning_profiles();
     }
     if let Some(query) = options.query.as_deref() {
         packet["query"] = json!(query);
     }
-    if !options.query_set.is_empty() {
+    if !query_set_terms.is_empty() {
         packet["querySet"] = json!(
-            options
-                .query_set
+            query_set_terms
                 .iter()
                 .map(|term| {
                     json!({
@@ -258,7 +305,7 @@ fn base_packet(
                 "notes"
             ],
             "fields": {
-                "count": options.query_set.len()
+                "count": query_set_terms.len()
             }
         });
     }
@@ -270,6 +317,68 @@ fn base_packet(
         packet["packageName"] = json!(package_name);
     }
     packet
+}
+
+fn reasoning_profiles_enabled(options: &SemanticSearchJsonOptions) -> bool {
+    matches!(render_mode(options), "graph" | "seeds" | "both" | "facts")
+}
+
+fn rust_reasoning_profiles() -> Value {
+    json!([
+        {
+            "profile": "owner-query",
+            "description": "Return owner-local matching items, read locators, tests, and optional dependency usage for a concrete owner plus query.",
+            "selectors": [
+                { "kind": "owner", "alias": "O", "targetRole": "path", "required": true },
+                { "kind": "query", "alias": "Q", "targetRole": "term", "required": true }
+            ],
+            "returns": ["items", "tests", "dependency-usage"],
+            "frontier": ["O.items", "Q.owner", "Q.tests"],
+            "fields": { "source": "search-guide" }
+        },
+        {
+            "profile": "query-deps",
+            "description": "Return owners, imports, dependency API usage, and usage tests for a concrete query plus dependency.",
+            "selectors": [
+                { "kind": "query", "alias": "Q", "targetRole": "term", "required": true },
+                { "kind": "dependency", "alias": "D", "targetRole": "pkg", "required": true }
+            ],
+            "returns": ["owners", "imports", "usage-tests"],
+            "frontier": ["Q.owner", "D.public-api", "D.tests"],
+            "fields": { "source": "search-guide" }
+        },
+        {
+            "profile": "owner-tests",
+            "description": "Return covering tests, test entrypoints, and fixture handles for a concrete owner.",
+            "selectors": [
+                { "kind": "owner", "alias": "O", "targetRole": "path", "required": true }
+            ],
+            "returns": ["covering-tests", "test-entrypoints", "fixtures"],
+            "frontier": ["O.tests", "T.owner"],
+            "fields": { "source": "search-guide" }
+        },
+        {
+            "profile": "feature-cfg",
+            "description": "Return cfg gates, related owners, and verification surfaces for a concrete Cargo feature.",
+            "selectors": [
+                { "kind": "feature", "alias": "F", "targetRole": "feature", "required": true }
+            ],
+            "returns": ["cfg-gates", "owners", "verification-surfaces"],
+            "frontier": ["F.cfg", "F.owner", "F.tests"],
+            "fields": { "source": "search-guide" }
+        },
+        {
+            "profile": "finding-frontier",
+            "description": "Return affected owners, tests, and verification actions for a concrete finding and optional owner.",
+            "selectors": [
+                { "kind": "finding", "alias": "F", "targetRole": "finding", "required": true },
+                { "kind": "owner", "alias": "O", "targetRole": "path", "required": false }
+            ],
+            "returns": ["affected-owners", "tests", "verification-actions"],
+            "frontier": ["F.owner", "F.tests", "O.policy"],
+            "fields": { "source": "search-guide" }
+        }
+    ])
 }
 
 fn query_set_kind(options: &SemanticSearchJsonOptions) -> &'static str {
@@ -385,11 +494,16 @@ fn push_dependency_node(tokens: &[&str], nodes: &mut Vec<Value>) {
 }
 
 fn push_owner(
+    options: &SemanticSearchJsonOptions,
     tokens: &[&str],
     owners: &mut Vec<Value>,
     next_actions: &mut Vec<Value>,
 ) -> Option<String> {
-    let path = tokens.first()?.to_string();
+    let path = canonical_owner_path(
+        tokens.first()?,
+        options.owner.as_deref(),
+        options.query.as_deref(),
+    );
     let fields = parse_fields(tokens.iter().skip(1).copied());
     let role = string_field(&fields, "role").unwrap_or_else(|| "source".to_string());
     let public = bool_field(&fields, "public")
@@ -418,8 +532,9 @@ fn push_item(
     let Some(name) = tokens.first() else {
         return;
     };
-    let fields = parse_fields(tokens.iter().skip(1).copied());
+    let mut fields = parse_fields(tokens.iter().skip(1).copied());
     let owner_path = current_owner.unwrap_or("-");
+    canonicalize_read_field(&mut fields, owner_path);
     next_actions.extend(
         next_field(&fields)
             .map(|next| parse_next_actions(next, Some(owner_path)))
@@ -736,89 +851,6 @@ fn push_raw_note(tag: &str, tokens: &[&str], notes: &mut Vec<Value>) {
 
 fn push_next_actions(fragment: String, owner_path: Option<&str>, next_actions: &mut Vec<Value>) {
     next_actions.extend(parse_next_actions(fragment, owner_path));
-}
-
-fn push_synthesis(tokens: &[&str], search_synthesis: &mut Option<Value>) {
-    let mut fields = parse_fields(tokens.iter().copied());
-    let mut synthesis = Map::new();
-    for key in [
-        "algorithm",
-        "scope",
-        "summary",
-        "ownerPath",
-        "selectedOwners",
-        "selectedEdges",
-        "incomingOwners",
-        "outgoingOwners",
-    ] {
-        if let Some(value) = fields.remove(key) {
-            synthesis.insert(key.to_string(), value);
-        }
-    }
-    for key in [
-        "highImpactOwners",
-        "frontierOwners",
-        "findingOwners",
-        "editFrontier",
-        "testFrontier",
-    ] {
-        if let Some(value) = fields.remove(key) {
-            synthesis.insert(key.to_string(), ensure_array_value(value));
-        }
-    }
-    if let Some(value) = fields.remove("seeds") {
-        synthesis.insert(
-            "seeds".to_string(),
-            Value::Array(synthesis_next_actions(value)),
-        );
-    }
-    if let Some(value) = fields.remove("windowSet") {
-        synthesis.insert(
-            "windowSet".to_string(),
-            Value::Array(synthesis_next_actions(value)),
-        );
-    }
-    normalize_synthesis_list_fields(&mut fields);
-    if !fields.is_empty() {
-        synthesis.insert("fields".to_string(), Value::Object(fields));
-    }
-    if synthesis.contains_key("algorithm") && synthesis.contains_key("scope") {
-        *search_synthesis = Some(Value::Object(synthesis));
-    }
-}
-
-fn ensure_array_value(value: Value) -> Value {
-    match value {
-        array @ Value::Array(_) => array,
-        other => Value::Array(vec![other]),
-    }
-}
-
-fn synthesis_next_actions(value: Value) -> Vec<Value> {
-    match value {
-        Value::Array(values) => values
-            .into_iter()
-            .flat_map(|value| match value {
-                Value::String(value) => parse_next_actions(value, None),
-                Value::Object(_) => vec![value],
-                _ => Vec::new(),
-            })
-            .collect(),
-        Value::String(value) => parse_next_actions(value, None),
-        Value::Object(_) => vec![value],
-        _ => Vec::new(),
-    }
-}
-
-fn normalize_synthesis_list_fields(fields: &mut Map<String, Value>) {
-    for key in ["windowSet"] {
-        let Some(value) = fields.get_mut(key) else {
-            continue;
-        };
-        if !value.is_array() {
-            *value = Value::Array(vec![value.take()]);
-        }
-    }
 }
 
 fn schema_view(options: &SemanticSearchJsonOptions) -> &str {

@@ -62,12 +62,10 @@ fn search_lab_multi_pipe_dependency_flow_compresses_to_final_packet() {
         &seeds,
         10,
         &[
-            "[search-dependency] q=serde pkg=. dep=1 own=2 api=8",
-            "|seed tests",
-            "|seed docs:Thing",
-            "|seed owner:tests/domain.rs",
-            "|seed deps:serde",
-            "|seed import:serde",
+            "[search-dependency] q=serde alg=seed-frontier",
+            "D=dependency:pkg(serde)!deps",
+            "rank=D,",
+            "frontier=D.deps",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );
@@ -98,13 +96,14 @@ fn search_lab_multi_pipe_dependency_flow_compresses_to_final_packet() {
     assert_lab_packet(
         "dependency_multi_pipe_tight_seed_packet",
         &tight_seeds,
-        5,
+        6,
         &[
-            "[search-dependency] q=serde pkg=. dep=1 own=2 api=8",
-            "|seed deps:serde",
-            "|seed import:serde",
-            "|note seeds_truncated=",
-            "limit=3",
+            "[search-dependency] q=serde alg=seed-frontier",
+            "alias: graph:{G=search,D=dependency",
+            "D=dependency:pkg(serde)!deps",
+            "G>{D:uses",
+            "rank=D,",
+            "frontier=D.deps",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );

@@ -81,7 +81,12 @@ pub(super) fn compact_package_blocks(blocks: Vec<SearchBlock>) -> Vec<SearchBloc
 impl PackageBlockGroup {
     fn render(self) -> SearchBlock {
         SearchBlock {
-            header: format!("{}{}{}", self.prefix, self.packages.join(","), self.suffix),
+            header: format!(
+                "{}pkg={}{}",
+                self.prefix,
+                self.packages.join(","),
+                self.suffix
+            ),
             details: self.details,
         }
     }

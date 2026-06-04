@@ -1,0 +1,98 @@
+{
+  "schemaId": "agent.semantic-protocols.rust-ast-patch-real-project-evidence",
+  "schemaVersion": "1",
+  "capturedAt": "2026-06-04",
+  "project": {
+    "name": "tokio",
+    "repository": "https://github.com/tokio-rs/tokio.git",
+    "commit": "778e9d97d91cff2c3036cc5663936d479edb30cb"
+  },
+  "query": {
+    "projectRootKind": "crate-root",
+    "path": "src/runtime/builder.rs",
+    "term": "Builder",
+    "selectedKind": "impl",
+    "selectedName": "Builder"
+  },
+  "selectedMatch": {
+    "kind": "impl",
+    "name": "Builder",
+    "visibility": "private",
+    "patchSafetyLevel": "ast-patch-safe",
+    "allowedOperations": [
+      "replace_item"
+    ],
+    "targetRead": "src/runtime/builder.rs:1911:1942",
+    "sourceFingerprint": "src/runtime/builder.rs:1911:1942:933:1a25740471876f6b"
+  },
+  "compact": {
+    "syntax": "save-token-rustfmt",
+    "whitespacePolicy": "formatter-structural",
+    "literalPolicy": "summarize",
+    "exactReadRequired": true,
+    "nodeCount": 10,
+    "nodeLimit": 24,
+    "nodesTruncated": false,
+    "expandActionCount": 8,
+    "expandActionLimit": null,
+    "compactBytes": 933,
+    "exactBytes": 1160,
+    "compactToExactRatio": 0.8043,
+    "responsibilities": [
+      {
+        "kind": "early-return",
+        "source": "projection-node"
+      },
+      {
+        "kind": "guard-branch",
+        "source": "projection-node"
+      },
+      {
+        "kind": "state-mutation",
+        "source": "projection-node"
+      }
+    ]
+  },
+  "dryRunReceipt": {
+    "status": "verified",
+    "capability": "provider-ast-dry-run",
+    "failureKind": null,
+    "mutationAvailable": false,
+    "verificationEvents": [
+      "packet-parsed",
+      "operation-supported",
+      "target-read-valid",
+      "snippet-parsed",
+      "project-root-resolved",
+      "target-path-resolved",
+      "target-range-resolved",
+      "expected-snippet-matched",
+      "target-item-parsed",
+      "item-identity-checked",
+      "file-reparsed"
+    ]
+  },
+  "applyTempReceipt": {
+    "status": "applied",
+    "capability": "provider-ast-apply",
+    "failureKind": null,
+    "mutationAvailable": true,
+    "verificationEvents": [
+      "packet-parsed",
+      "operation-supported",
+      "target-read-valid",
+      "snippet-parsed",
+      "project-root-resolved",
+      "target-path-resolved",
+      "target-range-resolved",
+      "expected-snippet-matched",
+      "target-item-parsed",
+      "item-identity-checked",
+      "file-reparsed",
+      "rustfmt-ran",
+      "formatter-output-reparsed",
+      "file-written"
+    ]
+  },
+  "sourceStored": false
+}

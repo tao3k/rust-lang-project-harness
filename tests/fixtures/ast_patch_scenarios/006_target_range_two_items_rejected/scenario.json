@@ -1,0 +1,20 @@
+{
+  "mode": "apply",
+  "expectedStatus": "failed",
+  "expectedCapability": "provider-ast-apply",
+  "expectedMutationAvailable": false,
+  "expectedOperation": "replace_item",
+  "expectedFailureKind": "target-item-parse-error",
+  "verificationContains": [
+    "packet-parsed",
+    "operation-supported",
+    "snippet-parsed",
+    "expected-snippet-matched",
+    "target-range-resolved"
+  ],
+  "verificationExcludes": [
+    "target-item-parsed",
+    "file-reparsed",
+    "file-written"
+  ]
+}

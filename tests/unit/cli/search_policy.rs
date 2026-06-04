@@ -22,13 +22,20 @@ fn cli_search_policy_renders_semantic_handles() {
     assert!(seeds.status.success(), "{seeds:?}");
     let stdout = String::from_utf8(seeds.stdout).expect("utf8 stdout");
     assert!(
-        stdout.starts_with("[search-policy] q=RUST-PROJ-R001 handle=1"),
+        stdout.starts_with("[search-policy] q=RUST-PROJ-R001 alg=policy-handle-catalog"),
         "{stdout}"
     );
     assert!(
-        stdout.contains("|seed owner:src/rules/project_policy/pack.rs"),
+        stdout.contains("O=owner:path(src/rules/project_policy/pack.rs)!owner"),
         "{stdout}"
     );
+    assert!(
+        stdout.contains("T=test:path(tests/unit/rule_catalog.rs)!tests"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("frontier=O.owner"), "{stdout}");
+    assert!(!stdout.contains("|seed "), "{stdout}");
+    assert!(!stdout.contains("|synthesis "), "{stdout}");
     assert!(
         stdout.contains("tests/unit/path_policy/project/build_gate.rs"),
         "{stdout}"

@@ -112,15 +112,15 @@ fn cli_agent_provider_surface_delegates_hook_runtime_to_root_tool() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("rs-harness search prime --view seeds ."),
+        stdout.contains("asp rust search prime --view seeds ."),
         "{stdout}"
     );
     assert!(
-        stdout.contains("rs-harness search fzf <query> owner tests --view seeds ."),
+        stdout.contains("asp rust search fzf <query> owner tests --view seeds ."),
         "{stdout}"
     );
     assert!(
-        !stdout.contains("rs-harness search text <query> owner tests --view seeds ."),
+        !stdout.contains("rs-harness search fzf <query> owner tests --view seeds ."),
         "{stdout}"
     );
 

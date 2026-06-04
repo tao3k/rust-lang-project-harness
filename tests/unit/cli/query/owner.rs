@@ -82,7 +82,7 @@ fn cli_query_owner_selector_extracts_parser_item_code() {
         root,
     );
     assert!(stdout.contains("fn load"), "{stdout}");
-    assert!(stdout.contains("call domain::make_thing"), "{stdout}");
+    assert!(stdout.contains("domain::make_thing()"), "{stdout}");
     assert!(!stdout.contains("[search-owner]"), "{stdout}");
     assert!(!stdout.contains("|code path=src/lib.rs"), "{stdout}");
     let search_code = run_cli([
@@ -101,7 +101,7 @@ fn cli_query_owner_selector_extracts_parser_item_code() {
         root,
     );
     assert!(stdout.contains("fn load"), "{stdout}");
-    assert!(stdout.contains("call domain::make_thing"), "{stdout}");
+    assert!(stdout.contains("domain::make_thing()"), "{stdout}");
     assert!(!stdout.contains("[search-owner]"), "{stdout}");
     assert!(!stdout.contains("|code path=src/lib.rs"), "{stdout}");
     let names_only = run_cli([
@@ -240,13 +240,13 @@ fn cli_query_owner_selector_json_marks_compact_projection() {
         value["matches"][0]["code"]
             .as_str()
             .expect("compact code")
-            .contains("pub fn load() -> Thing"),
+            .contains("fn load() -> Thing {\n    domain::make_thing()"),
         "{value}"
     );
     assert_eq!(value["matches"][0]["projection"]["mode"], "compact");
     assert_eq!(
         value["matches"][0]["projection"]["syntax"],
-        "semantic-outline"
+        "save-token-rustfmt"
     );
     assert_eq!(
         value["matches"][0]["projection"]["sourceAuthority"],
@@ -275,9 +275,9 @@ fn cli_query_owner_selector_json_marks_compact_projection() {
     );
     assert!(
         nodes.iter().any(|node| {
-            node["role"] == "call"
-                && node["kind"] == "call"
-                && node["label"] == "call domain::make_thing"
+            node["role"] == "terminal"
+                && node["kind"] == "return"
+                && node["label"] == "domain::make_thing()"
         }),
         "{value}"
     );

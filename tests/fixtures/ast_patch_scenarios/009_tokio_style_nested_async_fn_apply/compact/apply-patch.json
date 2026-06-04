@@ -1,0 +1,57 @@
+{
+  "path": "src/runtime/scheduler/multi_thread/worker.rs",
+  "query": "park_timeout",
+  "op": "replace_item",
+  "inputCompactFixture": "compact/input.code.txt",
+  "expectedCompactFixture": "compact/expected.code.txt",
+  "replacementRead": "src/runtime/scheduler/multi_thread/worker.rs:3:18",
+  "maxEdits": 1,
+  "inputMinimumFunctionalComplexity": {
+    "minDistinctResponsibilities": 7,
+    "requiredResponsibilities": [
+      "cfg-feature-gate",
+      "async-item",
+      "generic-bound",
+      "state-mutation",
+      "guard-branch",
+      "bounded-loop",
+      "early-return"
+    ],
+    "requiredNativeParserResponsibilities": [
+      "cfg-feature-gate",
+      "async-item",
+      "generic-bound"
+    ],
+    "requiredProjectionNodeResponsibilities": [
+      "state-mutation",
+      "guard-branch",
+      "bounded-loop",
+      "early-return"
+    ],
+    "maxCompactToExactRatio": 1.0
+  },
+  "expectedMinimumFunctionalComplexity": {
+    "minDistinctResponsibilities": 7,
+    "requiredResponsibilities": [
+      "cfg-feature-gate",
+      "async-item",
+      "generic-bound",
+      "state-mutation",
+      "guard-branch",
+      "bounded-loop",
+      "early-return"
+    ],
+    "requiredNativeParserResponsibilities": [
+      "cfg-feature-gate",
+      "async-item",
+      "generic-bound"
+    ],
+    "requiredProjectionNodeResponsibilities": [
+      "state-mutation",
+      "guard-branch",
+      "bounded-loop",
+      "early-return"
+    ],
+    "maxCompactToExactRatio": 1.0
+  }
+}

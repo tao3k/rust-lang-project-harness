@@ -1,0 +1,39 @@
+{
+  "path": "src/runtime/builder.rs",
+  "query": "Builder",
+  "targetKind": "struct",
+  "targetName": "Builder",
+  "op": "replace_item",
+  "inputCompactFixture": "compact/input.code.txt",
+  "expectedCompactFixture": "compact/expected.code.txt",
+  "replacementRead": "src/runtime/builder.rs:1:7",
+  "maxEdits": 1,
+  "inputMinimumFunctionalComplexity": {
+    "minDistinctResponsibilities": 2,
+    "requiredResponsibilities": [
+      "cfg-feature-gate",
+      "data-shape"
+    ],
+    "requiredNativeParserResponsibilities": [
+      "cfg-feature-gate"
+    ],
+    "requiredProjectionNodeResponsibilities": [
+      "data-shape"
+    ],
+    "maxCompactToExactRatio": 1.0
+  },
+  "expectedMinimumFunctionalComplexity": {
+    "minDistinctResponsibilities": 2,
+    "requiredResponsibilities": [
+      "cfg-feature-gate",
+      "data-shape"
+    ],
+    "requiredNativeParserResponsibilities": [
+      "cfg-feature-gate"
+    ],
+    "requiredProjectionNodeResponsibilities": [
+      "data-shape"
+    ],
+    "maxCompactToExactRatio": 1.0
+  }
+}

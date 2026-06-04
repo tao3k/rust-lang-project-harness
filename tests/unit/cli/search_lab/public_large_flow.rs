@@ -34,11 +34,10 @@ fn public_large_tokio_bytes_flow_connects_prime_to_dependency_api_and_docs_axes(
         &prime_seeds,
         8,
         &[
-            "[search-prime] mode=package package=.",
-            "|seed features:io-util",
-            "|seed owner:src/lib.rs,src/io/mod.rs",
-            "|seed tests",
-            "|seed docs:",
+            "[search-prime] root=.",
+            "F=feature:feature(io-util)!features",
+            "C=cfg:cfg(feature:io-util)!cfg",
+            "frontier=F.features",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );
@@ -160,10 +159,10 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
         &prime_seeds,
         10,
         &[
-            "[search-prime] mode=package package=ext/web-search",
-            "|seed owner:ext/web-search/src/lib.rs",
-            "|seed tests",
-            "|seed docs:tool",
+            "[search-prime] root=ext/web-search",
+            "O=owner:path(src/tool.rs)!owner",
+            "rank=O",
+            "frontier=O.owner",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );
@@ -273,10 +272,10 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
         &[
             "[search-trace] source=deps query=codex-api::SearchCommands pipes=public-api view=seeds",
             "|stage cargo=1 owners=1 api=1 final=true lines=",
-            "[search-deps] q=codex-api::SearchCommands pkg=ext/web-search dep=1 own=1 api=1 apiQuery=SearchCommands",
-            "|seed dependency:codex-api",
-            "|seed docs:codex-api::SearchCommands",
-            "|seed tests:SearchCommands",
+            "[search-dependency] q=codex-api::SearchCommands",
+            "D=dependency:pkg(codex-api::SearchCommands)!deps",
+            "rank=D",
+            "frontier=D.deps",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );
@@ -332,10 +331,12 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
     assert_lab_packet(
         "public_codex_web_search_workspace_prefixed_owner_seed_flow",
         &workspace_prefixed_owner_seeds,
-        7,
+        9,
         &[
-            "[search-owner] q=ext/web-search/src/tool.rs pkg=ext/web-search own=1 item=",
-            "|seed symbol:WebSearchTool,run_command,command_action",
+            "[search-owner] owner=ext/web-search/src/tool.rs selector=items terms=3 view=seeds",
+            "O=owner:path(ext/web-search/src/tool.rs)!owner;S=symbol:symbol(WebSearchTool)@ext/web-search/src/tool.rs:4:4!code",
+            "O>{S:contains,S2:contains,S3:contains}",
+            "rank=S,S2,S3,O frontier=S.code,S2.code,S3.code",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );

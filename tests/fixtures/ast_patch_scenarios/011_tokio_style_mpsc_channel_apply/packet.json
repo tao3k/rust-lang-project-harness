@@ -1,0 +1,15 @@
+{
+  "target": {
+    "ownerPath": "src/sync/mpsc/bounded.rs",
+    "locator": "src/sync/mpsc/bounded.rs#fn:channel",
+    "read": "src/sync/mpsc/bounded.rs:9:19",
+    "itemName": "channel",
+    "itemKind": "fn"
+  },
+  "operation": {
+    "op": "replace_item",
+    "snippet": "pub(crate) fn channel<T>(buffer: usize) -> (Sender<T>, Receiver<T>)\nwhere\n    T: Send + 'static,\n{\n    assert!(buffer > 0, \"mpsc channel buffer must be positive\");\n    let sender = Sender { value: None };\n    let receiver = Receiver { value: None };\n    (sender, receiver)\n}",
+    "expectedSnippet": "pub(crate) fn channel<T>(buffer: usize) -> (Sender<T>, Receiver<T>)\nwhere\n    T: Send + 'static,\n{\n    if buffer == 0 {\n        return (Sender { value: None }, Receiver { value: None });\n    }\n    let sender = Sender { value: None };\n    let receiver = Receiver { value: None };\n    (sender, receiver)\n}",
+    "maxEdits": 1
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "target": {
+    "ownerPath": "src/runtime/builder.rs",
+    "locator": "src/runtime/builder.rs#struct:Builder",
+    "read": "src/runtime/builder.rs:1:6",
+    "itemName": "Builder",
+    "itemKind": "struct"
+  },
+  "operation": {
+    "op": "replace_item",
+    "snippet": "#[cfg(feature = \"rt\")]\n#[derive(Debug, Clone)]\npub(crate) struct Builder {\n    pub(crate) worker_threads: usize,\n    pub(crate) enable_io: bool,\n    pub(crate) thread_name: Option<String>,\n}",
+    "expectedSnippet": "#[cfg(feature = \"rt\")]\n#[derive(Debug, Clone)]\npub(crate) struct Builder {\n    pub(crate) worker_threads: usize,\n    pub(crate) enable_io: bool,\n}",
+    "maxEdits": 1
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "mode": "apply",
+  "expectedStatus": "applied",
+  "expectedCapability": "provider-ast-apply",
+  "expectedMutationAvailable": true,
+  "expectedOperation": "replace_item",
+  "expectedFailureKind": null,
+  "verificationContains": [
+    "packet-parsed",
+    "operation-supported",
+    "snippet-parsed",
+    "expected-snippet-matched",
+    "target-item-parsed",
+    "item-identity-checked",
+    "file-reparsed",
+    "file-written",
+    "rustfmt-ran",
+    "formatter-output-reparsed"
+  ],
+  "compactChecks": [
+    {
+      "path": "src/task/join.rs",
+      "query": "JoinHandle",
+      "matchKind": "impl",
+      "matchName": "JoinHandle",
+      "codeFixture": "compact/expected.code.txt",
+      "assertRustfmtStyleCompact": true,
+      "saveApplyPatch": "compact/apply-patch.json",
+      "codeNotContains": [],
+      "exactContains": [
+        "where\n    T: Send + 'static,",
+        "let _ = cx.waker();",
+        "match self.output.take()",
+        "Poll::Ready"
+      ],
+      "assertCompactShorter": false,
+      "minimumFunctionalComplexity": {
+        "minDistinctResponsibilities": 4,
+        "requiredResponsibilities": [
+          "generic-bound",
+          "call-dispatch",
+          "match-dispatch",
+          "match-arm"
+        ],
+        "requiredNativeParserResponsibilities": [
+          "generic-bound"
+        ],
+        "requiredProjectionNodeResponsibilities": [
+          "call-dispatch",
+          "match-dispatch",
+          "match-arm"
+        ],
+        "maxCompactToExactRatio": 1.1
+      }
+    }
+  ]
+}

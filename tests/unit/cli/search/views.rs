@@ -1,542 +1,15 @@
+#![allow(unused_imports)]
+
 use std::fs;
 use std::process::Command;
 
 use serde_json::Value;
 use tempfile::TempDir;
 
-use super::support::{
+use crate::cli::support::{
     normalize_temp_root, run_cli, run_search, run_search_with_stdin, write_manifest,
     write_search_fixture,
 };
-
-#[test]
-fn cli_search_prime_renders_line_protocol() {
-    let temp = TempDir::new().expect("temp dir");
-    let root = temp.path();
-    write_manifest(root, "cli-search-prime");
-    fs::create_dir_all(root.join("src/domain")).expect("create domain");
-    fs::write(
-        root.join("src/lib.rs"),
-        "//! Test crate.\nmod domain;\nuse crate::domain::Thing;\npub fn load() -> Thing { Thing }\n",
-    )
-    .expect("write lib");
-    fs::write(root.join("src/hook_runtime.rs"), "pub fn execute() {}\n").expect("write path owner");
-    fs::write(
-        root.join("src/domain/mod.rs"),
-        "//! Domain branch.\npub struct Thing;\n",
-    )
-    .expect("write domain");
-
-    let output = run_cli(["search".as_ref(), "prime".as_ref(), root.as_os_str()]);
-
-    assert!(output.status.success(), "{output:?}");
-    let stdout = normalize_temp_root(
-        &String::from_utf8(output.stdout).expect("utf8 stdout"),
-        root,
-    );
-    assert!(
-        stdout.starts_with("[search-prime] mode=package package=."),
-        "{stdout}"
-    );
-    assert!(stdout.contains("|package ."), "{stdout}");
-    assert!(stdout.contains("|owner src/lib.rs"), "{stdout}");
-    assert!(
-        stdout.contains("|edge O:src/lib.rs -mod-> O:src/domain/mod.rs"),
-        "{stdout}"
-    );
-    assert!(
-        stdout.contains("|edge O:src/lib.rs -crate:crate-> O:src/domain/mod.rs"),
-        "{stdout}"
-    );
-    assert!(stdout.contains("|next owner:src/lib.rs"), "{stdout}");
-    assert!(!stdout.contains("Modules:"), "{stdout}");
-    assert!(!stdout.trim_start().starts_with('{'), "{stdout}");
-    insta::assert_snapshot!("cli_search_prime", stdout);
-}
-
-#[test]
-fn cli_search_json_and_trace_follow_rfc_output_modes() {
-    let temp = TempDir::new().expect("temp dir");
-    let root = temp.path();
-    write_search_fixture(root);
-
-    let json = run_cli([
-        "search".as_ref(),
-        "prime".as_ref(),
-        "--json".as_ref(),
-        root.as_os_str(),
-    ]);
-    assert!(json.status.success(), "{json:?}");
-    let stdout = String::from_utf8(json.stdout).expect("utf8 stdout");
-    let value = serde_json::from_str::<Value>(&stdout).expect("search json");
-    assert_eq!(
-        value["schemaId"],
-        "agent.semantic-protocols.semantic-search-packet"
-    );
-    assert_eq!(value["schemaVersion"], "1");
-    assert_eq!(
-        value["protocolId"],
-        "agent.semantic-protocols.semantic-language"
-    );
-    assert_eq!(value["protocolVersion"], "1");
-    assert_eq!(value["languageId"], "rust");
-    assert_eq!(value["providerId"], "rs-harness");
-    assert_eq!(value["binary"], "rs-harness");
-    assert_eq!(
-        value["namespace"],
-        "agent.semantic-protocols.semantic-language"
-    );
-    assert_eq!(value["method"], "search/prime");
-    assert_eq!(value["view"], "prime");
-    assert_eq!(value["renderMode"], "graph");
-    assert_eq!(value["header"]["kind"], "search-prime");
-    assert!(value["packages"].as_array().expect("packages").len() == 1);
-    assert!(value["owners"].as_array().expect("owners").len() > 1);
-    assert!(!value["edges"].as_array().expect("edges").is_empty());
-    assert_eq!(value["searchSynthesis"]["algorithm"], "owner-rank-frontier");
-    assert_eq!(value["searchSynthesis"]["scope"], "prime");
-    assert!(
-        value["searchSynthesis"]["highImpactOwners"]
-            .as_array()
-            .expect("high impact owners")
-            .iter()
-            .any(|path| path.as_str() == Some("src/lib.rs")),
-        "{value}"
-    );
-    assert!(value.get("compact").is_none(), "{value}");
-
-    let trace = run_cli([
-        "search".as_ref(),
-        "dependency".as_ref(),
-        "serde".as_ref(),
-        "items".as_ref(),
-        "--trace".as_ref(),
-        "--view".as_ref(),
-        "both".as_ref(),
-        root.as_os_str(),
-    ]);
-    assert!(trace.status.success(), "{trace:?}");
-    let stdout = String::from_utf8(trace.stdout).expect("utf8 stdout");
-    assert!(
-        stdout.starts_with("[search-trace] source=dependency query=serde pipes=items view=both"),
-        "{stdout}"
-    );
-    assert!(
-        stdout.contains("|stage cargo=1 owners=2 items="),
-        "{stdout}"
-    );
-    assert!(stdout.contains(" final=true lines="), "{stdout}");
-    assert!(stdout.contains("[search-dependency] q=serde"), "{stdout}");
-}
-
-#[test]
-fn cli_search_cargo_namespace_is_not_a_compatibility_alias() {
-    let temp = TempDir::new().expect("temp dir");
-    let root = temp.path();
-    write_manifest(root, "cli-search-no-cargo-alias");
-    fs::create_dir(root.join("src")).expect("create src");
-    fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
-
-    let output = run_cli(["search".as_ref(), "cargo".as_ref(), root.as_os_str()]);
-
-    assert!(!output.status.success(), "{output:?}");
-    let stderr = String::from_utf8(output.stderr).expect("utf8 stderr");
-    assert!(stderr.contains("unknown search view: cargo"), "{stderr}");
-}
-
-#[test]
-fn cli_search_cfg_reads_manifest_facts() {
-    let temp = TempDir::new().expect("temp dir");
-    let root = temp.path();
-    fs::write(
-        root.join("Cargo.toml"),
-        "[package]\n\
-         name = \"cli-search-cfg\"\n\
-         version = \"0.1.0\"\n\
-         edition = \"2024\"\n\n\
-         [features]\n\
-         json = []\n\n\
-         [lints.rust]\n\
-         unexpected_cfgs = { level = \"warn\", check-cfg = ['cfg(loom)'] }\n\n\
-         [target.'cfg(loom)'.dev-dependencies]\n\
-         loom = { version = \"0.7\", features = [\"futures\"] }\n",
-    )
-    .expect("write manifest");
-    fs::create_dir_all(root.join("src")).expect("create src");
-    fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
-
-    let loom = run_search(root, &["cfg", "loom"]);
-    assert!(
-        loom.starts_with("[search-cfg] q=loom pkg=. cfg=2 dep=1 own=0"),
-        "{loom}"
-    );
-    assert!(
-        loom.contains("|cfg loom declared_in=lints.rust.unexpected_cfgs expr=cfg(loom) source=manifest manager=cargo"),
-        "{loom}"
-    );
-    assert!(
-        loom.contains(
-            "|cfg loom declared_in=target.dependencies expr=cfg(loom) source=manifest manager=cargo"
-        ),
-        "{loom}"
-    );
-    assert!(
-        loom.contains(
-            "|dep loom import=loom pkg=loom version=0.7 kind=dev opt=false source=manifest manager=cargo target=cfg(loom) feat=futures"
-        ),
-        "{loom}"
-    );
-    assert!(
-        loom.contains("|next text:cfg(loom)(scope=src),text:loom(scope=tests)"),
-        "{loom}"
-    );
-
-    let feature = run_search(root, &["cfg", "json"]);
-    assert!(
-        feature.starts_with("[search-cfg] q=json pkg=. cfg=1 dep=0 own=0"),
-        "{feature}"
-    );
-    assert!(
-        feature.contains("|cfg feature:json declared_in=features expr=cfg(feature=\"json\") source=manifest manager=cargo"),
-        "{feature}"
-    );
-}
-
-#[test]
-fn cli_search_deps_distinguishes_external_version_queries() {
-    let temp = TempDir::new().expect("temp dir");
-    let root = temp.path();
-    fs::write(
-        root.join("Cargo.toml"),
-        "[package]\n\
-         name = \"cli-search-deps-lock\"\n\
-         version = \"0.1.0\"\n\
-         edition = \"2024\"\n\n\
-         [dependencies]\n\
-         serde = { version = \"1\", features = [\"derive\"] }\n",
-    )
-    .expect("write manifest");
-    fs::create_dir(root.join("src")).expect("create src");
-    fs::write(
-        root.join("src/lib.rs"),
-        "use serde::de::DeserializeOwned;\nuse serde::Serialize;\n#[derive(Serialize)]\npub struct Thing;\npub fn decode<T: DeserializeOwned>() {}\n",
-    )
-    .expect("write lib");
-
-    let current = run_search(root, &["deps", "serde@1"]);
-    assert!(
-        current.starts_with(
-            "[search-deps] q=serde@1 pkg=. dep=1 own=1 api=0 requestedVersion=1 currentWorkspaceVersion=1 versionScope=current"
-        ),
-        "{current}"
-    );
-    assert!(
-        current.contains("|owner src/lib.rs hit_kind=dependency"),
-        "{current}"
-    );
-
-    let current_api = run_search(root, &["deps", "serde@1::Serialize"]);
-    assert!(
-        current_api.starts_with(
-            "[search-deps] q=serde@1::Serialize pkg=. dep=1 own=1 api=0 requestedVersion=1 currentWorkspaceVersion=1 versionScope=current apiQuery=Serialize"
-        ),
-        "{current_api}"
-    );
-    assert!(
-        current_api.contains("|owner src/lib.rs hit_kind=dependency-api apiQuery=Serialize"),
-        "{current_api}"
-    );
-
-    let current_subpath_api = run_search(root, &["deps", "serde/de@1::DeserializeOwned"]);
-    assert!(
-        current_subpath_api.starts_with(
-            "[search-deps] q=serde/de@1::DeserializeOwned pkg=. dep=1 own=1 api=0 requestedVersion=1 currentWorkspaceVersion=1 versionScope=current subpath=de apiQuery=DeserializeOwned"
-        ),
-        "{current_subpath_api}"
-    );
-    assert!(
-        current_subpath_api.contains(
-            "|owner src/lib.rs hit_kind=dependency-api subpath=de apiQuery=DeserializeOwned"
-        ),
-        "{current_subpath_api}"
-    );
-    assert!(
-        current_subpath_api.contains("|next dependency:serde,docs:serde/de::DeserializeOwned"),
-        "{current_subpath_api}"
-    );
-
-    let external = run_search(root, &["deps", "serde@2::Serialize"]);
-
-    assert!(
-        external.starts_with(
-            "[search-deps] q=serde@2::Serialize pkg=. dep=1 own=0 api=0 requestedVersion=2 currentWorkspaceVersion=1 versionScope=external apiQuery=Serialize"
-        ),
-        "{external}"
-    );
-    assert!(
-        external.contains("|dep serde import=serde pkg=serde version=1 kind=normal opt=false source=manifest manager=cargo feat=derive"),
-        "{external}"
-    );
-    assert!(
-        external.contains("|note kind=version-scope message=requested-version-is-outside-current-workspace-version"),
-        "{external}"
-    );
-    assert!(
-        external.contains(
-            "|next dependency:serde,docs:serde::Serialize,text:Serialize,tests:Serialize"
-        ),
-        "{external}"
-    );
-    assert!(!external.contains("|owner src/lib.rs"), "{external}");
-
-    let external_json = run_cli([
-        "search".as_ref(),
-        "deps".as_ref(),
-        "serde@2::Serialize".as_ref(),
-        "--json".as_ref(),
-        root.as_os_str(),
-    ]);
-    assert!(external_json.status.success(), "{external_json:?}");
-    let value = serde_json::from_slice::<Value>(&external_json.stdout).expect("external deps json");
-    let header_fields = value["header"]["fields"]
-        .as_object()
-        .expect("header fields");
-    assert_eq!(header_fields["requestedVersion"], "2");
-    assert_eq!(header_fields["currentWorkspaceVersion"], "1");
-    assert_eq!(header_fields["versionScope"], "external");
-    assert_eq!(header_fields["apiQuery"], "Serialize");
-    assert!(!header_fields.contains_key("requested_version"));
-    assert!(!header_fields.contains_key("version_scope"));
-    assert!(!header_fields.contains_key("api_query"));
-    let note_fields = value["notes"][0]["fields"]
-        .as_object()
-        .expect("note fields");
-    assert_eq!(note_fields["kind"], "version-scope");
-    assert_eq!(
-        note_fields["message"],
-        "requested-version-is-outside-current-workspace-version"
-    );
-
-    let external_subpath_api = run_search(root, &["deps", "serde/de@2::DeserializeOwned"]);
-    assert!(
-        external_subpath_api.starts_with(
-            "[search-deps] q=serde/de@2::DeserializeOwned pkg=. dep=1 own=0 api=0 requestedVersion=2 currentWorkspaceVersion=1 versionScope=external subpath=de apiQuery=DeserializeOwned"
-        ),
-        "{external_subpath_api}"
-    );
-    assert!(
-        external_subpath_api.contains(
-            "|note kind=version-scope message=requested-version-is-outside-current-workspace-version"
-        ),
-        "{external_subpath_api}"
-    );
-    assert!(
-        external_subpath_api.contains("|next dependency:serde,docs:serde/de::DeserializeOwned"),
-        "{external_subpath_api}"
-    );
-    assert!(
-        !external_subpath_api.contains("|owner src/lib.rs"),
-        "{external_subpath_api}"
-    );
-}
-
-#[test]
-fn cli_search_fzf_renders_fuzzy_frontier() {
-    let temp = TempDir::new().expect("temp dir");
-    let root = temp.path();
-    fs::write(
-        root.join("Cargo.toml"),
-        "[package]\nname = \"cli-search-fzf\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
-    )
-    .expect("write manifest");
-    fs::create_dir(root.join("src")).expect("create src");
-    fs::write(
-        root.join("src/lib.rs"),
-        "pub mod hook_runtime;\npub struct AgentHookEvent;\npub fn run_codex_agent_hook(_event: AgentHookEvent) {}\npub fn source_snapshot() { assert_snapshot!(\"src\"); }\n",
-    )
-    .expect("write lib");
-    fs::create_dir_all(root.join("tests/unit")).expect("create tests unit");
-    fs::write(
-        root.join("tests/unit/snapshot.rs"),
-        "fn snapshot_case() { assert_snapshot!(\"ok\"); }\n",
-    )
-    .expect("write scoped test");
-
-    let fzf = run_search(root, &["fzf", "runCodexAgentHook"]);
-    assert!(
-        fzf.starts_with("[search-fzf] q=runCodexAgentHook mode=fuzzy backend=provider pkg=. own=1"),
-        "{fzf}"
-    );
-    assert!(fzf.contains("|owner src/lib.rs hit_kind=fzf"), "{fzf}");
-    let path_fzf = run_search(root, &["fzf", "src/lib.rs", "--view", "seeds"]);
-    assert!(path_fzf.contains("owner:src/lib.rs"), "{path_fzf}");
-    let scoped_fzf = run_search(
-        root,
-        &[
-            "fzf",
-            "assert_snapshot!",
-            "owner",
-            "tests/unit",
-            "--view",
-            "seeds",
-        ],
-    );
-    assert!(
-        scoped_fzf.contains("tests/unit/snapshot.rs"),
-        "{scoped_fzf}"
-    );
-    assert!(!scoped_fzf.contains("src/lib.rs"), "{scoped_fzf}");
-
-    let multi_scoped_fzf = run_search(
-        root,
-        &[
-            "fzf",
-            "assert_snapshot!",
-            "owner",
-            "src",
-            "tests/unit",
-            "--view",
-            "seeds",
-        ],
-    );
-    assert!(
-        multi_scoped_fzf.contains("src/lib.rs"),
-        "{multi_scoped_fzf}"
-    );
-    assert!(
-        multi_scoped_fzf.contains("owner:tests/unit/snapshot.rs"),
-        "{multi_scoped_fzf}"
-    );
-
-    let cwd_discovered_output = Command::new(env!("CARGO_BIN_EXE_rs-harness"))
-        .current_dir(root)
-        .args([
-            "search",
-            "fzf",
-            "assert_snapshot!",
-            "owner",
-            "src",
-            "tests/unit",
-            "--view",
-            "seeds",
-        ])
-        .output()
-        .expect("run cli");
-    assert!(
-        cwd_discovered_output.status.success(),
-        "{cwd_discovered_output:?}"
-    );
-    let cwd_discovered_fzf = normalize_temp_root(
-        &String::from_utf8(cwd_discovered_output.stdout).expect("utf8 stdout"),
-        root,
-    );
-    assert!(
-        cwd_discovered_fzf.contains("src/lib.rs"),
-        "{cwd_discovered_fzf}"
-    );
-    assert!(
-        cwd_discovered_fzf.contains("owner:tests/unit/snapshot.rs"),
-        "{cwd_discovered_fzf}"
-    );
-
-    let query_set = run_search(
-        root,
-        &[
-            "fzf",
-            "--query-set",
-            "AgentHookEvent",
-            "--query-set",
-            "runCodexAgentHook",
-            "--view",
-            "seeds",
-        ],
-    );
-    assert!(
-        query_set.starts_with(
-            "[search-fzf] q=AgentHookEvent,runCodexAgentHook querySet=2 selector=fuzzy-set mode=fuzzy backend=provider pkg=. own=1"
-        ),
-        "{query_set}"
-    );
-    assert!(query_set.contains("src/lib.rs"), "{query_set}");
-
-    let fuzzy_acronym = run_search(root, &["fzf", "rCAH", "--view", "seeds"]);
-    assert!(fuzzy_acronym.contains("src/lib.rs"), "{fuzzy_acronym}");
-    let exact_acronym = run_search(
-        root,
-        &["fzf", "rCAH", "--view", "seeds", "--fzf-arg", "--exact"],
-    );
-    assert!(
-        exact_acronym.starts_with(
-            "[search-fzf] q=rCAH mode=exact backend=provider pkg=. own=0 finder=fzf fzfArgs=--exact"
-        ),
-        "{exact_acronym}"
-    );
-    assert!(
-        !exact_acronym.contains("owner:src/lib.rs!owner"),
-        "{exact_acronym}"
-    );
-    assert!(!exact_acronym.contains("|seed "), "{exact_acronym}");
-    let boundary_exact = run_cli([
-        "search".as_ref(),
-        "fzf".as_ref(),
-        "rCAH".as_ref(),
-        "--view".as_ref(),
-        "seeds".as_ref(),
-        root.as_os_str(),
-        "--fzf".as_ref(),
-        "--exact".as_ref(),
-    ]);
-    assert!(boundary_exact.status.success(), "{boundary_exact:?}");
-    let boundary_stdout_raw = String::from_utf8(boundary_exact.stdout).expect("utf8 stdout");
-    let boundary_stdout = normalize_temp_root(&boundary_stdout_raw, root);
-    assert!(
-        boundary_stdout.starts_with(
-            "[search-fzf] q=rCAH mode=exact backend=provider pkg=. own=0 finder=fzf fzfArgs=--exact"
-        ),
-        "{boundary_stdout}"
-    );
-
-    let exact_json = run_cli([
-        "search".as_ref(),
-        "fzf".as_ref(),
-        "runCodexAgentHook".as_ref(),
-        "--json".as_ref(),
-        "--fzf-arg".as_ref(),
-        "--exact".as_ref(),
-        root.as_os_str(),
-    ]);
-    assert!(exact_json.status.success(), "{exact_json:?}");
-    let value = serde_json::from_slice::<Value>(&exact_json.stdout).expect("fzf exact json");
-    assert_eq!(value["finder"]["engine"], "fzf");
-    assert_eq!(value["finder"]["surface"], "search-fzf");
-    assert_eq!(value["finder"]["options"]["matchMode"], "exact");
-    assert_eq!(value["finder"]["options"]["nativeArgs"][0], "--exact");
-
-    let rejected_fzf = run_cli([
-        "search".as_ref(),
-        "fzf".as_ref(),
-        "runCodexAgentHook".as_ref(),
-        "--fzf-arg".as_ref(),
-        "--preview".as_ref(),
-        root.as_os_str(),
-    ]);
-    assert!(!rejected_fzf.status.success(), "{rejected_fzf:?}");
-    let stderr = String::from_utf8(rejected_fzf.stderr).expect("utf8 stderr");
-    assert!(
-        stderr.contains("unsupported fzf option for agent search: --preview"),
-        "{stderr}"
-    );
-
-    let text = run_cli([
-        "search".as_ref(),
-        "text".as_ref(),
-        "runCodexAgentHook".as_ref(),
-        root.as_os_str(),
-    ]);
-    assert!(!text.status.success(), "{text:?}");
-    let stderr = String::from_utf8(text.stderr).expect("utf8 stderr");
-    assert!(stderr.contains("unknown search view: text"), "{stderr}");
-}
 
 #[test]
 fn cli_search_views_render_rfc_line_protocol() {
@@ -809,8 +282,16 @@ fn cli_search_views_render_rfc_line_protocol() {
     );
     assert!(
         owner_item_query.contains(
-            "|code path=src/lib.rs lineRange=6:6 reason=item-query truncated=false nodes=n0:fn:declaration:0:6:6,n1:call:call:1:6:6 text=\"pub fn load() -> Thing\\ncall domain::make_thing\""
+            "|code path=src/lib.rs lineRange=6:6 reason=item-query truncated=false nodes=fn-6-6-"
         ),
+        "{owner_item_query}"
+    );
+    assert!(
+        owner_item_query.contains(",return-6-6-"),
+        "{owner_item_query}"
+    );
+    assert!(
+        owner_item_query.contains(" text=\"fn load() -> Thing {\\n    domain::make_thing()\\n}\""),
         "{owner_item_query}"
     );
     assert!(
@@ -868,7 +349,7 @@ fn cli_search_views_render_rfc_line_protocol() {
     );
     assert!(
         owner_multi_query
-            .contains("text=\"pub fn clone_value(input: String) -> String\\ncall clone\""),
+            .contains("text=\"fn clone_value(input: String) -> String {\\n    input.clone()\\n}\""),
         "{owner_multi_query}"
     );
     let owner_set = run_search(root, &["owner", "src/lib.rs,src/domain/mod.rs", "items"]);
@@ -1374,18 +855,21 @@ fn cli_search_views_render_rfc_line_protocol() {
         "src/lib.rs:6:pub fn load() -> Thing\n",
     );
     assert!(
-        ingest_seeds.starts_with("[search-ingest] src=rg-n in=1 own=1"),
+        ingest_seeds.starts_with("[search-ingest] root=. alg=seed-frontier"),
         "{ingest_seeds}"
     );
     assert!(
-        ingest_seeds.contains("|seed owner:src/lib.rs"),
+        ingest_seeds.contains("O=owner:path(src/lib.rs)!owner"),
         "{ingest_seeds}"
     );
     assert!(
-        ingest_seeds.contains("|seed tests:src/lib.rs"),
+        ingest_seeds.contains("T=test:path(src/lib.rs)!tests"),
         "{ingest_seeds}"
     );
-    assert!(ingest_seeds.contains("|seed symbol:load"), "{ingest_seeds}");
+    assert!(
+        ingest_seeds.contains("S=symbol:symbol(load)!symbol"),
+        "{ingest_seeds}"
+    );
     assert!(
         !ingest_seeds.contains("|owner src/lib.rs"),
         "{ingest_seeds}"

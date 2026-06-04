@@ -1,13 +1,24 @@
 //! JSON renderer for provider-native parser query packets.
 
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 use serde_json::{Map, Value, json};
 
+use crate::parser::native_syntax::projection_code;
+
+use super::semantic_query_projection::{
+    projection_node_classification, projection_semantic_responsibilities,
+    replace_item_patch_safety, string_field_value,
+};
 use super::semantic_search_json_fields::{display_path, parse_fields, string_field};
 
 const SCHEMA_ID: &str = "agent.semantic-protocols.semantic-query-packet";
 const SCHEMA_VERSION: &str = "1";
+const MAX_QUERY_PACKET_MATCHES: usize = 4;
+const MAX_QUERY_PACKET_PROJECTION_NODES: usize = 24;
+const MAX_QUERY_PACKET_EXPAND_ACTIONS: usize = 8;
 
 pub(super) struct SemanticQueryJsonOptions {
     pub(super) query: String,
@@ -68,24 +79,39 @@ fn build_packet(project_root: &Path, options: &SemanticQueryJsonOptions, rendere
         .map(str::trim)
         .filter(|term| !term.is_empty())
         .collect::<Vec<_>>();
+    let match_count = matches.len();
+    let matches_truncated = match_count > MAX_QUERY_PACKET_MATCHES;
+    if matches_truncated {
+        matches.truncate(MAX_QUERY_PACKET_MATCHES);
+    }
     let mut packet = json!({
-        "schemaId": SCHEMA_ID,
-        "schemaVersion": SCHEMA_VERSION,
-        "protocolId": "agent.semantic-protocols.semantic-language",
-        "protocolVersion": "1",
-        "languageId": "rust",
-        "providerId": "rs-harness",
-        "binary": "rs-harness",
-        "namespace": "agent.semantic-protocols.languages.rust.rs-harness",
-        "method": "query/owner-items",
-        "projectRoot": display_path(project_root),
-        "query": options.query,
-        "queryTerms": query_terms,
-        "matchMode": match_mode,
-        "outputMode": output_mode,
-        "matches": matches,
-        "truncated": false,
+            "schemaId": SCHEMA_ID,
+            "schemaVersion": SCHEMA_VERSION,
+            "protocolId": "agent.semantic-protocols.semantic-language",
+            "protocolVersion": "1",
+            "languageId": "rust",
+            "providerId": "rs-harness",
+            "binary": "rs-harness",
+            "namespace": "agent.semantic-protocols.languages.rust.rs-harness",
+            "method": "query/owner-items",
+            "projectRoot": display_path(project_root),
+            "query": options.query,
+            "queryTerms": query_terms,
+            "matchMode": match_mode,
+            "outputMode": output_mode,
+            "patchSafety": {
+                "level": "read-safe",
+                "reason": "compact query packet is not a mutation authority",
+                "nextAction": "query --from-hook direct-source-read",
+            },
+    "matches": matches,
+    "truncated": matches_truncated,
     });
+    if matches_truncated {
+        packet["matchCount"] = json!(match_count);
+        packet["matchLimit"] = json!(MAX_QUERY_PACKET_MATCHES);
+        packet["matchesTruncated"] = json!(true);
+    }
     if let Some(owner_path) = owner_path {
         packet["ownerPath"] = json!(owner_path);
     }
@@ -154,6 +180,12 @@ fn item_match_from_line(line: &str, owner_path: Option<&str>) -> Option<Value> {
             "path": path,
             "lineRange": format!("{line}:{end_line}"),
         },
+        "read": read.clone().unwrap_or_else(|| format!("{path}:{line}:{end_line}")),
+        "patchSafety": {
+            "level": "read-safe",
+            "reason": "read exact source locator before editing this compact match",
+            "exactRead": read.clone().unwrap_or_else(|| format!("{path}:{line}:{end_line}")),
+        },
         "truncated": false,
     });
     if let Some(read) = read {
@@ -174,22 +206,88 @@ fn attach_code_to_last_match(line: &str, matches: &mut [Value]) {
     if let Some(exact_read) = projection_exact_read(&fields) {
         let mut projection = json!({
             "mode": "compact",
-            "syntax": "semantic-outline",
+            "syntax": "save-token-rustfmt",
             "sourceAuthority": "native-parser",
+            "sourceFingerprint": projection_source_fingerprint(&exact_read, text.as_deref()),
+            "compactSafety": {
+                "literalPolicy": "summarize",
+                "whitespacePolicy": "formatter-structural",
+                "normalization": "none",
+                "alignment": "parser-roundtrip",
+                "exactReadRequired": true,
+            },
             "losslessStructure": true,
             "exactRead": exact_read,
         });
-        let nodes = projection_nodes_from_parser_fields(&fields, &exact_read, text.as_deref())
+        let source_fingerprint = string_field_value(&projection, "sourceFingerprint")
+            .unwrap_or_else(|| projection_source_fingerprint(&exact_read, text.as_deref()));
+        let mut nodes = projection_nodes_from_parser_fields(&fields, &exact_read, text.as_deref())
             .or_else(|| {
                 text.as_deref()
                     .map(|text| projection_nodes_from_compact_code(&exact_read, text))
             })
             .unwrap_or_default();
         if !nodes.is_empty() {
-            let expand_actions = projection_expand_actions(&nodes);
+            if item.get("code").is_none() {
+                let compact_code = compact_code_from_projection_nodes(&nodes);
+                if !compact_code.is_empty() {
+                    item["code"] = json!(compact_code);
+                }
+            }
+            let node_count = nodes.len();
+            let nodes_truncated = node_count > MAX_QUERY_PACKET_PROJECTION_NODES;
+            if nodes_truncated {
+                nodes.truncate(MAX_QUERY_PACKET_PROJECTION_NODES);
+                projection["losslessStructure"] = json!(false);
+            }
+            let compact_code = compact_code_from_projection_nodes(&nodes);
+            if !compact_code.is_empty() {
+                item["code"] = json!(compact_code);
+            }
+            let mut expand_actions = projection_expand_actions(&nodes);
+            let expand_action_count = expand_actions.len();
+            let expand_actions_truncated = expand_action_count > MAX_QUERY_PACKET_EXPAND_ACTIONS;
+            if expand_actions_truncated {
+                expand_actions.truncate(MAX_QUERY_PACKET_EXPAND_ACTIONS);
+                projection["losslessStructure"] = json!(false);
+            }
+            projection["nodeCount"] = json!(node_count);
+            projection["nodeLimit"] = json!(MAX_QUERY_PACKET_PROJECTION_NODES);
+            projection["nodesTruncated"] = json!(nodes_truncated);
+            if expand_actions_truncated {
+                projection["expandActionCount"] = json!(expand_action_count);
+                projection["expandActionLimit"] = json!(MAX_QUERY_PACKET_EXPAND_ACTIONS);
+                projection["expandActionsTruncated"] = json!(true);
+            }
+            let rendered_node_ids = rendered_node_ids(&nodes);
+            let rendered_rows = rendered_rows(&nodes, &rendered_node_ids);
+            projection["renderedNodeIds"] = json!(rendered_node_ids);
+            projection["renderedRows"] = json!(rendered_rows);
+            if let Some(root_node_id) = nodes
+                .first()
+                .and_then(|node| string_field_value(node, "id"))
+            {
+                projection["omitted"] = json!([{
+                    "kind": "source-formatting",
+                    "reason": "compact projection removes original whitespace and comments",
+                    "nodeId": root_node_id,
+                    "read": exact_read,
+                }]);
+            }
             projection["nodes"] = json!(nodes);
+            let semantic_responsibilities =
+                projection_semantic_responsibilities(&fields, &nodes, &exact_read);
+            if !semantic_responsibilities.is_empty() {
+                projection["semanticResponsibilities"] = json!(semantic_responsibilities);
+            }
             if !expand_actions.is_empty() {
                 projection["expandActions"] = json!(expand_actions);
+            }
+            if !nodes_truncated
+                && let Some(patch_safety) =
+                    replace_item_patch_safety(item, &exact_read, &source_fingerprint)
+            {
+                item["patchSafety"] = patch_safety;
             }
         }
         item["projection"] = projection;
@@ -197,6 +295,31 @@ fn attach_code_to_last_match(line: &str, matches: &mut [Value]) {
     if let Some(truncated) = bool_field(&fields, "truncated") {
         item["truncated"] = json!(truncated);
     }
+}
+
+fn compact_code_from_projection_nodes(nodes: &[Value]) -> String {
+    projection_code::compact_code_from_projection_nodes(nodes, |node| {
+        Some((
+            projection_node_depth(node),
+            node["label"].as_str().unwrap_or_default().to_string(),
+        ))
+    })
+}
+
+fn projection_node_compact_text(node: &Value) -> Option<String> {
+    let label = node["label"].as_str()?.trim();
+    if label.is_empty() {
+        return None;
+    }
+    let depth = projection_node_depth(node);
+    Some(format!("{}{}", "    ".repeat(depth), label))
+}
+
+fn projection_node_depth(node: &Value) -> usize {
+    node["depth"]
+        .as_u64()
+        .and_then(|depth| usize::try_from(depth).ok())
+        .unwrap_or(0)
 }
 
 fn projection_nodes_from_compact_code(exact_read: &str, text: &str) -> Vec<Value> {
@@ -260,6 +383,8 @@ fn projection_node_from_parser_token(
     let depth = parts.next()?.parse::<usize>().ok()?;
     let line = parts.next()?.parse::<usize>().ok()?;
     let end_line = parts.next()?.parse::<usize>().ok()?;
+    let native_id = parts.next()?.to_string();
+    let structural_fingerprint = parts.next()?.to_string();
     if parts.next().is_some() || line == 0 || end_line < line {
         return None;
     }
@@ -276,6 +401,8 @@ fn projection_node_from_parser_token(
 
     let mut node = json!({
         "id": id,
+        "nativeId": native_id,
+        "structuralFingerprint": structural_fingerprint,
         "kind": kind,
         "role": role,
         "label": parser_projection_label(&kind, &role, compact_label),
@@ -290,6 +417,58 @@ fn projection_node_from_parser_token(
         node["flags"] = json!(flags);
     }
     Some(node)
+}
+
+fn rendered_node_ids(nodes: &[Value]) -> Vec<String> {
+    nodes
+        .iter()
+        .filter_map(|node| string_field_value(node, "id"))
+        .fold(Vec::new(), |mut ids, id| {
+            if !ids.iter().any(|seen| seen == &id) {
+                ids.push(id);
+            }
+            ids
+        })
+}
+
+fn rendered_rows(nodes: &[Value], rendered_node_ids: &[String]) -> Vec<Value> {
+    rendered_node_ids
+        .iter()
+        .filter_map(|node_id| {
+            let node = nodes
+                .iter()
+                .find(|node| string_field_value(node, "id").as_deref() == Some(node_id.as_str()))?;
+            let text = string_field_value(node, "label")?;
+            let text = projection_node_compact_text(node).unwrap_or(text);
+            let role = string_field_value(node, "role");
+            Some(json!({
+                "nodeId": node_id,
+                "rowKind": rendered_row_kind(role.as_deref()),
+                "text": text,
+                "semanticWeight": rendered_row_weight(role.as_deref()),
+            }))
+        })
+        .collect()
+}
+
+fn rendered_row_kind(role: Option<&str>) -> &'static str {
+    match role {
+        Some("declaration") => "declaration",
+        Some("mutation") => "mutation",
+        Some("call") => "call",
+        Some("control-flow") => "control-flow",
+        Some("terminal") => "terminal",
+        Some("effect") => "effect",
+        Some("field") => "field",
+        _ => "unknown",
+    }
+}
+
+fn rendered_row_weight(role: Option<&str>) -> usize {
+    match role {
+        Some("terminal" | "control-flow" | "mutation" | "call" | "effect") => 2,
+        _ => 1,
+    }
 }
 
 fn parser_projection_role(role: &str) -> Option<&'static str> {
@@ -318,8 +497,13 @@ fn parser_projection_label(kind: &str, role: &str, compact_label: Option<&str>) 
 fn compact_projection_labels(text: &str) -> Vec<String> {
     text.lines()
         .map(str::trim)
-        .filter(|label| !label.is_empty())
-        .map(ToOwned::to_owned)
+        .filter_map(|label| {
+            let label = label
+                .strip_prefix('}')
+                .map(str::trim_start)
+                .unwrap_or(label);
+            (!label.is_empty()).then(|| label.to_string())
+        })
         .collect()
 }
 
@@ -357,151 +541,18 @@ fn projection_expand_actions(nodes: &[Value]) -> Vec<Value> {
         .collect()
 }
 
-struct ProjectionNodeClassification {
-    kind: &'static str,
-    role: &'static str,
-    flags: &'static [&'static str],
-}
-
-fn projection_node_classification(index: usize, label: &str) -> ProjectionNodeClassification {
-    if index == 0 {
-        return ProjectionNodeClassification {
-            kind: declaration_projection_kind(label),
-            role: "declaration",
-            flags: &[],
-        };
-    }
-    if label.starts_with("if ") {
-        return ProjectionNodeClassification {
-            kind: "if",
-            role: "control-flow",
-            flags: &["branch", "guard"],
-        };
-    }
-    if label == "else" || label.starts_with("case ") || label.starts_with("match ") {
-        return ProjectionNodeClassification {
-            kind: if label == "else" {
-                "else"
-            } else if label.starts_with("case ") {
-                "case"
-            } else {
-                "match"
-            },
-            role: "control-flow",
-            flags: &["branch"],
-        };
-    }
-    if label == "loop" || label.starts_with("for ") || label.starts_with("while ") {
-        return ProjectionNodeClassification {
-            kind: if label == "loop" {
-                "loop"
-            } else if label.starts_with("for ") {
-                "for"
-            } else {
-                "while"
-            },
-            role: "control-flow",
-            flags: &["loop"],
-        };
-    }
-    if label.starts_with("call ") {
-        return ProjectionNodeClassification {
-            kind: "call",
-            role: "call",
-            flags: &["call"],
-        };
-    }
-    if label.starts_with("field ") {
-        return ProjectionNodeClassification {
-            kind: "field",
-            role: "field",
-            flags: &[],
-        };
-    }
-    if label == "break" || label.starts_with("break ") {
-        return ProjectionNodeClassification {
-            kind: "break",
-            role: "terminal",
-            flags: &[],
-        };
-    }
-    if label == "continue" {
-        return ProjectionNodeClassification {
-            kind: "continue",
-            role: "terminal",
-            flags: &[],
-        };
-    }
-    if label.starts_with("return ") || label == "return" {
-        return ProjectionNodeClassification {
-            kind: "return",
-            role: "terminal",
-            flags: &["return"],
-        };
-    }
-    if label.starts_with("tail ") {
-        return ProjectionNodeClassification {
-            kind: "tail",
-            role: "terminal",
-            flags: &[],
-        };
-    }
-    if label.starts_with("assign ") || label.starts_with("let ") {
-        return ProjectionNodeClassification {
-            kind: if label.starts_with("assign ") {
-                "assign"
-            } else {
-                "let"
-            },
-            role: "mutation",
-            flags: &["mutation"],
-        };
-    }
-    if label.starts_with("await ") || label.starts_with("try ") {
-        return ProjectionNodeClassification {
-            kind: if label.starts_with("await ") {
-                "await"
-            } else {
-                "try"
-            },
-            role: "effect",
-            flags: &["effect"],
-        };
-    }
-    ProjectionNodeClassification {
-        kind: "unknown",
-        role: "unknown",
-        flags: &[],
-    }
-}
-
-fn declaration_projection_kind(label: &str) -> &'static str {
-    if label.contains(" fn ") || label.starts_with("fn ") || label.starts_with("pub fn ") {
-        "fn"
-    } else if label.contains(" struct ")
-        || label.starts_with("struct ")
-        || label.starts_with("pub struct ")
-    {
-        "struct"
-    } else if label.contains(" enum ")
-        || label.starts_with("enum ")
-        || label.starts_with("pub enum ")
-    {
-        "enum"
-    } else if label.contains(" trait ")
-        || label.starts_with("trait ")
-        || label.starts_with("pub trait ")
-    {
-        "trait"
-    } else {
-        "item"
-    }
-}
-
 fn projection_exact_read(fields: &Map<String, Value>) -> Option<String> {
     let path = string_field(fields, "path")?;
     let line_range = string_field(fields, "lineRange")?;
     Some(format!("{path}:{line_range}"))
+}
+
+fn projection_source_fingerprint(exact_read: &str, compact_text: Option<&str>) -> String {
+    let text = compact_text.unwrap_or_default();
+    let mut hasher = DefaultHasher::new();
+    exact_read.hash(&mut hasher);
+    text.hash(&mut hasher);
+    format!("{exact_read}:{}:{:016x}", text.len(), hasher.finish())
 }
 
 fn line_range_field(fields: &Map<String, Value>) -> Option<(usize, usize)> {

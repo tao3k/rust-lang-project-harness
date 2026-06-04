@@ -1,0 +1,22 @@
+use crate::runtime::Handle;
+
+#[cfg(feature = "rt")]
+pub(crate) async fn park_timeout(handle: &Handle, millis: u64) -> bool
+where
+    Handle: Clone,
+{
+    let _guard = handle.clone();
+    if millis == 0 {
+        return false;
+    }
+    for attempt in 0..millis.min(3) {
+        if attempt > 1 {
+            return true;
+        }
+    }
+    millis >= 10
+}
+
+pub(crate) fn untouched() -> &'static str {
+    "runtime"
+}

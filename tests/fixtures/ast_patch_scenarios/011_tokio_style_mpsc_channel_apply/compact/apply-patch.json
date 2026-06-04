@@ -1,0 +1,47 @@
+{
+  "path": "src/sync/mpsc/bounded.rs",
+  "query": "channel",
+  "targetKind": "fn",
+  "targetName": "channel",
+  "op": "replace_item",
+  "inputCompactFixture": "compact/input.code.txt",
+  "expectedCompactFixture": "compact/expected.code.txt",
+  "replacementRead": "src/sync/mpsc/bounded.rs:9:17",
+  "maxEdits": 1,
+  "inputMinimumFunctionalComplexity": {
+    "minDistinctResponsibilities": 4,
+    "requiredResponsibilities": [
+      "generic-bound",
+      "guard-branch",
+      "early-return",
+      "state-mutation"
+    ],
+    "requiredNativeParserResponsibilities": [
+      "generic-bound"
+    ],
+    "requiredProjectionNodeResponsibilities": [
+      "guard-branch",
+      "early-return",
+      "state-mutation"
+    ],
+    "maxCompactToExactRatio": 1.0
+  },
+  "expectedMinimumFunctionalComplexity": {
+    "minDistinctResponsibilities": 4,
+    "requiredResponsibilities": [
+      "generic-bound",
+      "call-dispatch",
+      "state-mutation",
+      "early-return"
+    ],
+    "requiredNativeParserResponsibilities": [
+      "generic-bound"
+    ],
+    "requiredProjectionNodeResponsibilities": [
+      "call-dispatch",
+      "state-mutation",
+      "early-return"
+    ],
+    "maxCompactToExactRatio": 1.0
+  }
+}

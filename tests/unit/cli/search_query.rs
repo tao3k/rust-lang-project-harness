@@ -15,22 +15,13 @@ fn cli_search_query_routes_code_shaped_use_through_native_syntax_facts() {
     );
 
     assert!(
-        query.starts_with("[search-query] q=pub use Thing pkg=. intent=rust-use own=1 fact="),
+        query.starts_with("[search-query] q=pub use Thing alg=native-syntax-query"),
         "{query}"
     );
-    assert!(
-        query.contains("|query intent=rust-use term=Thing status=hit routed=native-syntax"),
-        "{query}"
-    );
-    assert!(
-        query.contains("|fact rust:src/lib.rs:4:reexport:Thing kind=reexport source=native-parser owner=src/lib.rs line=4 visibility=public name=Thing qualifiedName=domain::Thing languageKind=use exported=true query=Thing"),
-        "{query}"
-    );
-    assert!(query.contains("owner:src/lib.rs"), "{query}");
-    assert!(
-        query.contains("|synthesis algorithm=native-syntax-query"),
-        "{query}"
-    );
+    assert!(query.contains("O=owner:path(src/lib.rs)!owner"), "{query}");
+    assert!(query.contains("rank=O frontier=O.owner"), "{query}");
+    assert!(!query.contains("|seed "), "{query}");
+    assert!(!query.contains("|synthesis "), "{query}");
 }
 
 #[test]
@@ -42,15 +33,16 @@ fn cli_search_fzf_points_code_shaped_queries_to_explicit_query_api() {
     let query = run_search(root, &["fzf", "pub use Thing", "tests", "--view", "seeds"]);
 
     assert!(
-        query.starts_with("[search-fzf] q=pub use Thing pkg=. skipped=code-shaped-query"),
+        query.starts_with("[search-fzf] q=pub use Thing alg=native-syntax-query"),
         "{query}"
     );
     assert!(
-        query.contains("|query intent=code-shaped status=skipped"),
+        query.contains("Q=query:term(pub use Thing)!query"),
         "{query}"
     );
-    assert!(query.contains("next=search-query"), "{query}");
+    assert!(query.contains("rank=Q frontier=Q.query"), "{query}");
     assert!(!query.contains("source=native-parser"), "{query}");
+    assert!(!query.contains("|seed "), "{query}");
 }
 
 #[test]

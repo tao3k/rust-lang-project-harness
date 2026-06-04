@@ -3,7 +3,9 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
+use crate::parser::{RustTopLevelItemSyntax, parse_rust_file};
 const MAX_EXACT_DIRECT_READ_LINES: usize = 40;
+const READ_PLAN_FRONTIER_LIMIT: usize = 8;
 
 pub(super) enum QueryCommand {
     Help,
@@ -396,7 +398,18 @@ pub(super) fn render_query_local_window(
     let Some((path, start_line, end_line)) = parse_query_local_window_selector(selector) else {
         return Ok(None);
     };
+    let source_path = query_local_window_source_path(project_root, path);
     if query_local_window_line_count(start_line, end_line) > MAX_EXACT_DIRECT_READ_LINES {
+        if let Some(rendered) = render_query_local_window_symbol_read_plan(
+            path,
+            &source_path,
+            start_line,
+            end_line,
+            "wide-selector",
+            "unknown",
+        ) {
+            return Ok(Some(rendered));
+        }
         return Ok(Some(render_query_local_window_read_plan(
             path,
             start_line,
@@ -407,7 +420,6 @@ pub(super) fn render_query_local_window(
             "unknown",
         )));
     }
-    let source_path = query_local_window_source_path(project_root, path);
     let source = std::fs::read_to_string(&source_path)
         .map_err(|error| format!("failed to read query local window {path}: {error}"))?;
     if let Some(rendered) =
@@ -447,8 +459,56 @@ fn render_query_local_window_items(
     start_line: usize,
     end_line: usize,
 ) -> Option<String> {
-    let _ = (source_path, source, start_line, end_line);
-    None
+    if source.trim().is_empty() {
+        return None;
+    }
+    let parsed = parse_rust_file(source_path);
+    let mut rows = Vec::new();
+    for item in parsed
+        .syntax_facts
+        .top_level_items
+        .iter()
+        .filter(|item| query_lines_overlap(item.line, item.end_line, start_line, end_line))
+    {
+        append_query_local_window_item_rows(&mut rows, item, start_line, end_line);
+    }
+    let rendered =
+        crate::parser::native_syntax::projection_code::compact_code_from_projection_nodes(
+            &rows,
+            |node| Some((node.0, node.1.clone())),
+        );
+    if rendered.trim().is_empty() {
+        None
+    } else {
+        Some(format!("{rendered}\n"))
+    }
+}
+
+fn append_query_local_window_item_rows(
+    rows: &mut Vec<(usize, String)>,
+    item: &RustTopLevelItemSyntax,
+    start_line: usize,
+    end_line: usize,
+) {
+    for node in &item.projection_nodes {
+        if !query_lines_overlap(node.line, node.end_line, start_line, end_line) {
+            continue;
+        }
+        let label = compact_query_local_window_line(&node.label);
+        if label.is_empty() || rows.last().is_some_and(|(_, previous)| previous == &label) {
+            continue;
+        }
+        rows.push((node.depth, label));
+    }
+}
+
+fn query_lines_overlap(
+    left_start: usize,
+    left_end: usize,
+    right_start: usize,
+    right_end: usize,
+) -> bool {
+    left_start <= right_end && right_start <= left_end
 }
 
 fn parse_query_local_window_selector(selector: &str) -> Option<(&str, usize, usize)> {
@@ -503,6 +563,150 @@ fn is_low_signal_query_local_window(text: &str) -> bool {
     !text.chars().any(|ch| ch.is_alphanumeric() || ch == '_')
 }
 
+fn render_query_local_window_symbol_read_plan(
+    path: &str,
+    source_path: &Path,
+    requested_start: usize,
+    requested_end: usize,
+    reason: &str,
+    density: &str,
+) -> Option<String> {
+    let module = parse_rust_file(source_path);
+    if !module.report.is_valid {
+        return None;
+    }
+    let symbols = read_plan_symbols(
+        path,
+        &module.syntax_facts.top_level_items,
+        requested_start,
+        requested_end,
+    );
+    if symbols.is_empty() {
+        return None;
+    }
+    let alias_kinds = symbols
+        .iter()
+        .map(|symbol| format!("{}=symbol", symbol.alias))
+        .collect::<Vec<_>>()
+        .join(",");
+    let aliases = symbols
+        .iter()
+        .map(|symbol| {
+            format!(
+                "{}=symbol:{}({})@{}!code",
+                symbol.alias, symbol.kind, symbol.name, symbol.read
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(";");
+    let edges = symbols
+        .iter()
+        .map(|symbol| format!("{}:contains", symbol.alias))
+        .collect::<Vec<_>>()
+        .join(",");
+    let rank = symbols
+        .iter()
+        .map(|symbol| symbol.alias.as_str())
+        .collect::<Vec<_>>()
+        .join(",");
+    let frontier = symbols
+        .iter()
+        .map(|symbol| format!("{}.code", symbol.alias))
+        .collect::<Vec<_>>()
+        .join(",");
+    let symbol_lines = symbols
+        .iter()
+        .map(|symbol| {
+            format!(
+                "|symbol item={} kind={} lineRange={} read={} lineCount={} reason=parser-item",
+                symbol.name, symbol.kind, symbol.line_range, symbol.read, symbol.line_count
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    Some(format!(
+        "[read-plan] q={path} selector={path}:{requested_start}:{requested_end} mode=range-frontier code=false reason={reason} maxWindow={MAX_EXACT_DIRECT_READ_LINES} alg=symbol-frontier symbol={}\nlegend: ID=kind:role(value)!next; edge SRC>{{DST:rel}}; frontier ID.next\nalias: graph:{{R=range,{alias_kinds}}}\nR=range:requested({path}@{requested_start}:{requested_end})!outline;{aliases}\nR>{{{edges}}}\nrank={rank}\nfrontier={frontier}\nomit=code\navoid=repeat-wide-read,manual-window-scan,raw-read\n|range path={path} requested={requested_start}:{requested_end} selected={requested_start}:{requested_end} matched={requested_start}:{requested_end} coverage=full density={density}\n{symbol_lines}\n",
+        symbols.len()
+    ))
+}
+
+struct ReadPlanSymbol {
+    alias: String,
+    name: String,
+    kind: &'static str,
+    line_range: String,
+    read: String,
+    line_count: usize,
+}
+
+fn read_plan_symbols(
+    path: &str,
+    items: &[RustTopLevelItemSyntax],
+    start_line: usize,
+    end_line: usize,
+) -> Vec<ReadPlanSymbol> {
+    items
+        .iter()
+        .filter(|item| item.end_line >= start_line && item.line <= end_line)
+        .filter_map(|item| {
+            let line_count = query_local_window_line_count(item.line, item.end_line);
+            if line_count > MAX_EXACT_DIRECT_READ_LINES {
+                return None;
+            }
+            let name = read_plan_item_name(item)?;
+            let line_range = format!("{}:{}", item.line, item.end_line);
+            Some((name, item.kind, line_range, line_count))
+        })
+        .take(READ_PLAN_FRONTIER_LIMIT)
+        .enumerate()
+        .map(|(index, (name, kind, line_range, line_count))| {
+            let alias = if index == 0 {
+                "S".to_string()
+            } else {
+                format!("S{}", index + 1)
+            };
+            ReadPlanSymbol {
+                alias,
+                name: read_plan_token(&name),
+                kind,
+                read: format!("{path}:{line_range}"),
+                line_range,
+                line_count,
+            }
+        })
+        .collect()
+}
+
+fn read_plan_item_name(item: &RustTopLevelItemSyntax) -> Option<String> {
+    item.name
+        .clone()
+        .or_else(|| {
+            item.impl_target_name
+                .as_ref()
+                .map(|target| format!("impl_{target}"))
+        })
+        .or_else(|| item.function_name.clone())
+        .or_else(|| item.macro_name.clone())
+}
+
+fn read_plan_token(value: &str) -> String {
+    let token = value
+        .chars()
+        .map(|ch| {
+            if ch.is_alphanumeric() || matches!(ch, '_' | '-' | ':' | '<' | '>' | '.') {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    if token.is_empty() {
+        "item".to_string()
+    } else {
+        token
+    }
+}
+
 fn render_query_local_window_read_plan(
     path: &str,
     requested_start: usize,
@@ -512,11 +716,101 @@ fn render_query_local_window_read_plan(
     reason: &str,
     density: &str,
 ) -> String {
-    let line_range = format!("{selected_start}:{selected_end}");
-    let read = format!("{path}:{line_range}");
+    return render_query_local_window_read_plan_frontier(
+        path,
+        requested_start,
+        requested_end,
+        selected_start,
+        selected_end,
+        reason,
+        density,
+    );
+}
+
+fn render_query_local_window_read_plan_frontier(
+    path: &str,
+    requested_start: usize,
+    requested_end: usize,
+    selected_start: usize,
+    selected_end: usize,
+    reason: &str,
+    density: &str,
+) -> String {
+    let selected_range = format!("{selected_start}:{selected_end}");
+    let windows = read_plan_windows(path, selected_start, selected_end);
+    let alias_kinds = windows
+        .iter()
+        .map(|window| format!("{}=window", window.alias))
+        .collect::<Vec<_>>()
+        .join(",");
+    let aliases = windows
+        .iter()
+        .map(|window| {
+            format!(
+                "{}=window:range({path}@{})!code",
+                window.alias, window.line_range
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(";");
+    let edges = windows
+        .iter()
+        .map(|window| format!("{}:split", window.alias))
+        .collect::<Vec<_>>()
+        .join(",");
+    let rank = windows
+        .iter()
+        .map(|window| window.alias.as_str())
+        .collect::<Vec<_>>()
+        .join(",");
+    let frontier = windows
+        .iter()
+        .map(|window| format!("{}.code", window.alias))
+        .collect::<Vec<_>>()
+        .join(",");
+    let window_lines = windows
+        .iter()
+        .map(|window| {
+            format!(
+                "|window path={path} lineRange={} read={} lineCount={} reason=split",
+                window.line_range, window.read, window.line_count
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
     format!(
-        "[read-plan] q={path} selector={path}:{requested_start}:{requested_end} mode=range-outline code=false reason={reason} window=1\n|range path={path} requested={requested_start}:{requested_end} selected={line_range} matched={line_range} coverage=full density={density}\n|symbol item=local-window kind=range lineRange={line_range} read={read}\n"
+        "[read-plan] q={path} selector={path}:{requested_start}:{requested_end} mode=range-frontier code=false reason={reason} maxWindow={MAX_EXACT_DIRECT_READ_LINES} alg=range-split window={}\nlegend: ID=kind:role(value)!next; edge SRC>{{DST:rel}}; frontier ID.next\nalias: graph:{{R=range,{alias_kinds}}}\nR=range:requested({path}@{requested_start}:{requested_end})!outline;{aliases}\nR>{{{edges}}}\nrank={rank}\nfrontier={frontier}\nomit=code\navoid=repeat-wide-read,manual-window-scan,raw-read\n|range path={path} requested={requested_start}:{requested_end} selected={selected_range} matched={selected_range} coverage=full density={density}\n{window_lines}\n",
+        windows.len()
     )
+}
+
+struct ReadPlanWindow {
+    alias: String,
+    line_range: String,
+    read: String,
+    line_count: usize,
+}
+
+fn read_plan_windows(path: &str, start_line: usize, end_line: usize) -> Vec<ReadPlanWindow> {
+    let mut windows = Vec::new();
+    let mut start = start_line;
+    while start <= end_line {
+        let end = end_line.min(start + MAX_EXACT_DIRECT_READ_LINES - 1);
+        let line_range = format!("{start}:{end}");
+        let alias = if windows.is_empty() {
+            "W".to_string()
+        } else {
+            format!("W{}", windows.len() + 1)
+        };
+        windows.push(ReadPlanWindow {
+            alias,
+            read: format!("{path}:{line_range}"),
+            line_count: query_local_window_line_count(start, end),
+            line_range,
+        });
+        start = end.saturating_add(1);
+    }
+    windows
 }
 
 fn is_search_pipe(value: &str) -> bool {

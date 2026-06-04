@@ -30,7 +30,16 @@ fn cli_search_fzf_accepts_workspace_relative_scope_paths() {
         ],
     );
 
-    assert!(output.contains("owner:tests/unit/snapshot.rs"), "{output}");
+    assert!(
+        output.starts_with(
+            "[search-fzf] q=runCodexAgentHook scope=crates/demo/tests alg=change-frontier-query-set"
+        ),
+        "{output}"
+    );
+    assert!(
+        output.contains("T=test:path(tests/unit/snapshot.rs)!tests"),
+        "{output}"
+    );
     assert!(!output.contains("src/lib.rs"), "{output}");
 
     let token_set_output = run_search(

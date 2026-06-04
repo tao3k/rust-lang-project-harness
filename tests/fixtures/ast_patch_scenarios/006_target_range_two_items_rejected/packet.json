@@ -1,0 +1,15 @@
+{
+  "target": {
+    "ownerPath": "src/lib.rs",
+    "locator": "src/lib.rs#fn:first",
+    "read": "src/lib.rs:1:2",
+    "itemName": "first",
+    "itemKind": "fn"
+  },
+  "operation": {
+    "op": "replace_item",
+    "snippet": "pub fn first() -> usize { 9 }",
+    "expectedSnippet": "pub fn first",
+    "maxEdits": 1
+  }
+}

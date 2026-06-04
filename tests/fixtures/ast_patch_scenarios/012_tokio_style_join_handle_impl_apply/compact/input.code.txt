@@ -1,0 +1,15 @@
+pub(crate) struct JoinHandle {
+    output: Option<T>,
+}
+impl JoinHandle<T> {
+    fn poll_join(&mut self, _cx: &mut Context<'_>) -> Poll<Result<T, JoinError>> {
+        match self.output.take() {
+            Some(value) => {
+                Poll::Ready(Ok(value))
+            }
+            None => {
+                Poll::Pending
+            }
+        }
+    }
+}

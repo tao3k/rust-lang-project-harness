@@ -17,6 +17,10 @@ pub(crate) struct ParsedRustModule {
     pub error_span: Option<Span>,
 }
 
+pub(crate) fn parse_rust_source_syntax(source: &str) -> Result<syn::File, syn::Error> {
+    syn::parse_file(source)
+}
+
 pub(crate) fn parse_rust_file(path: &Path) -> ParsedRustModule {
     let source = match fs::read_to_string(path) {
         Ok(source) => source,
@@ -35,7 +39,7 @@ pub(crate) fn parse_rust_file(path: &Path) -> ParsedRustModule {
         }
     };
     let source_metrics = super::source_metrics::rust_source_metrics(&source);
-    match syn::parse_file(&source) {
+    match parse_rust_source_syntax(&source) {
         Ok(syntax) => {
             let syntax_facts = super::native_syntax::rust_native_syntax_facts(&syntax, path);
             ParsedRustModule {

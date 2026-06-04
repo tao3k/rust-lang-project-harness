@@ -51,8 +51,12 @@ fn render_search_seed_view(rendered: &str, seed_limit: Option<usize>) -> String 
         headers,
         facts,
         mut seeds,
+        synthesis,
         notes,
     } = collect_search_seeds(rendered);
+    for line in &synthesis {
+        seeds.extend(synthesis_seed_lines(line));
+    }
     seeds.sort_by(|left, right| {
         seed_priority(left)
             .cmp(&seed_priority(right))
@@ -60,7 +64,6 @@ fn render_search_seed_view(rendered: &str, seed_limit: Option<usize>) -> String 
             .then_with(|| left.len().cmp(&right.len()))
             .then_with(|| left.cmp(right))
     });
-    let seed_count = seeds.len();
     let seed_limit = seed_limit.unwrap_or(DEFAULT_SEED_LIMIT);
     let has_positive_header = headers
         .iter()
@@ -78,16 +81,10 @@ fn render_search_seed_view(rendered: &str, seed_limit: Option<usize>) -> String 
         compact.push_str(&line);
         compact.push('\n');
     }
-    if seed_count > seed_limit {
-        compact.push_str(&format!(
-            "|note seeds_truncated={} limit={seed_limit}\n",
-            seed_count - seed_limit
-        ));
-    }
     let notes = if has_positive_header {
         notes
             .into_iter()
-            .filter(|note| !note.contains("kind=not-found"))
+            .filter(|note| !note.contains("kind=not-found") && !note.contains("seeds_truncated="))
             .collect::<Vec<_>>()
     } else {
         notes
@@ -269,11 +266,13 @@ pub(in crate::cli::search_output) fn package_header_parts(
     None
 }
 
+#[allow(dead_code)]
 enum SeedLine {
     Raw(String),
     Group { kind: String, targets: Vec<String> },
 }
 
+#[allow(dead_code)]
 fn compact_seed_lines(seeds: Vec<String>) -> Vec<String> {
     let mut entries = Vec::<SeedLine>::new();
     for seed in seeds {
@@ -307,6 +306,44 @@ fn compact_seed_lines(seeds: Vec<String>) -> Vec<String> {
         .collect()
 }
 
+fn graph_seed_definition(line: &str) -> Option<(&str, String)> {
+    let (id, payload) = line.split_once('=')?;
+    if id.is_empty() || !id.chars().all(|ch| ch.is_ascii_alphanumeric()) {
+        return None;
+    }
+    let (typed_target, action) = payload.rsplit_once('!')?;
+    let (kind, target) = typed_target.split_once(':')?;
+    let seed_kind = match (kind, action) {
+        ("owner", "owner") => "owner",
+        ("test" | "tests", "tests") => "tests",
+        _ => return None,
+    };
+    Some((id, format!("{seed_kind}:{target}")))
+}
+
+fn synthesis_seed_lines(line: &str) -> Vec<String> {
+    let Some(raw_seeds) = line_protocol_field(line, "seeds") else {
+        return Vec::new();
+    };
+    raw_seeds
+        .split(',')
+        .filter_map(|seed| {
+            let seed = seed.trim().trim_matches('"');
+            let (kind, target) = seed.split_once(':')?;
+            if target.is_empty() {
+                return None;
+            }
+            Some(format!("{kind}:{target}"))
+        })
+        .collect()
+}
+
+fn line_protocol_field<'a>(line: &'a str, field: &str) -> Option<&'a str> {
+    let needle = format!("{field}=");
+    let start = line.find(&needle)? + needle.len();
+    line[start..].split_whitespace().next()
+}
+
 fn groupable_seed_parts(seed: &str) -> Option<(&str, &str)> {
     let (kind, target) = seed.split_once(':')?;
     if !groupable_seed_kind(kind) || target.is_empty() || target.contains(',') {
@@ -315,6 +352,7 @@ fn groupable_seed_parts(seed: &str) -> Option<(&str, &str)> {
     Some((kind, target))
 }
 
+#[allow(dead_code)]
 fn groupable_seed_kind(kind: &str) -> bool {
     matches!(
         kind,
@@ -330,6 +368,7 @@ fn groupable_seed_kind(kind: &str) -> bool {
             | "package"
             | "prime"
             | "symbol"
+            | "text"
             | "tests"
     )
 }
@@ -338,6 +377,7 @@ struct SearchSeeds {
     headers: Vec<String>,
     facts: Vec<String>,
     seeds: Vec<String>,
+    synthesis: Vec<String>,
     notes: Vec<String>,
 }
 
@@ -356,20 +396,27 @@ struct SearchSeedAccumulator {
     headers: Vec<String>,
     facts: Vec<String>,
     seeds: Vec<String>,
+    synthesis: Vec<String>,
     notes: Vec<String>,
     seen: BTreeSet<String>,
+    graph_nodes: BTreeMap<String, String>,
     current_package: Option<String>,
 }
 
 impl SearchSeedAccumulator {
     fn record_line(&mut self, line: &str) {
         if !line.starts_with('|') {
+            if self.record_graph_line(line) {
+                return;
+            }
             self.current_package = package_from_header(line);
             self.headers.push(line.to_string());
             return;
         }
         if line.starts_with("|note ") {
-            self.notes.push(line.to_string());
+            if !line.contains("seeds_truncated=") {
+                self.notes.push(line.to_string());
+            }
         }
         if line.starts_with("|query ") || line.starts_with("|fact ") {
             if self.seen.insert(format!("evidence:{line}")) {
@@ -378,7 +425,7 @@ impl SearchSeedAccumulator {
             return;
         }
         if line.starts_with("|synthesis ") {
-            self.notes.push(line.to_string());
+            self.synthesis.push(line.to_string());
             return;
         }
         if let Some(seed) = line.strip_prefix("|seed ") {
@@ -393,14 +440,49 @@ impl SearchSeedAccumulator {
         );
     }
 
+    fn record_graph_line(&mut self, line: &str) -> bool {
+        if line.starts_with("[search-graph]") {
+            return true;
+        }
+        if let Some(frontier) = graph_frontier_field(line) {
+            for entry in frontier
+                .split(',')
+                .map(str::trim)
+                .filter(|entry| !entry.is_empty())
+            {
+                let id = entry.split_once('.').map_or(entry, |(id, _)| id);
+                if let Some(seed) = self.graph_nodes.get(id) {
+                    record_seed(seed, &mut self.seen, &mut self.seeds);
+                }
+            }
+            return true;
+        }
+        if line.starts_with("rank=") {
+            return true;
+        }
+        if let Some((id, seed)) = graph_seed_definition(line) {
+            self.graph_nodes.insert(id.to_string(), seed);
+            return true;
+        }
+        false
+    }
+
     fn finish(self) -> SearchSeeds {
         SearchSeeds {
             headers: self.headers,
             facts: self.facts,
             seeds: self.seeds,
+            synthesis: self.synthesis,
             notes: self.notes,
         }
     }
+}
+
+fn graph_frontier_field(line: &str) -> Option<&str> {
+    line.strip_prefix("frontier=").or_else(|| {
+        let start = line.find("frontier=")? + "frontier=".len();
+        line[start..].split_whitespace().next()
+    })
 }
 
 fn record_seed(seed: &str, seen: &mut BTreeSet<String>, seeds: &mut Vec<String>) {

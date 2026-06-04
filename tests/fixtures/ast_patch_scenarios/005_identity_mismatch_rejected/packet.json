@@ -1,0 +1,15 @@
+{
+  "target": {
+    "ownerPath": "src/lib.rs",
+    "locator": "src/lib.rs#fn:demo",
+    "read": "src/lib.rs:1:3",
+    "itemName": "demo",
+    "itemKind": "fn"
+  },
+  "operation": {
+    "op": "replace_item",
+    "snippet": "pub fn other() -> usize { 2 }",
+    "expectedSnippet": "pub fn demo",
+    "maxEdits": 1
+  }
+}
