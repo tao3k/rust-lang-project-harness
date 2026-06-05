@@ -2,6 +2,8 @@ use serde_json::Value;
 use std::fs;
 use std::process::Command;
 
+use crate::cli::support::configure_shared_asp_renderer;
+
 #[test]
 fn cli_dev_mode_records_ordered_command_log_jsonl() {
     let project = tempfile::tempdir().expect("temp project");
@@ -24,8 +26,9 @@ fn cli_dev_mode_records_ordered_command_log_jsonl() {
     )
     .expect("write active context marker");
 
-    let output = Command::new(env!("CARGO_BIN_EXE_rs-harness"))
-        .arg("agent")
+    let mut command = Command::new(env!("CARGO_BIN_EXE_rs-harness"));
+    configure_shared_asp_renderer(&mut command);
+    let output = command
         .arg("guide")
         .arg(project.path())
         .env("SEMANTIC_PROTOCOL_DEV_MODE", "1")

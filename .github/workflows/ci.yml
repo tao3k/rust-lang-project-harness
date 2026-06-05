@@ -51,6 +51,24 @@ jobs:
           fi
           echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
 
+      - name: Checkout ASP graph renderer
+        uses: actions/checkout@v6
+        with:
+          repository: tao3k/agent-semantic-protocols
+          path: .asp-protocol
+          submodules: recursive
+
+      - name: Build ASP graph renderer
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --manifest-path .asp-protocol/Cargo.toml --bin asp
+          suffix=""
+          if [[ "${RUNNER_OS:-}" == "Windows" ]]; then
+            suffix=".exe"
+          fi
+          echo "SEMANTIC_AGENT_PROTOCOL_BIN=${{ github.workspace }}/.asp-protocol/target/debug/asp${suffix}" >> "$GITHUB_ENV"
+
       - name: Restore sccache cache (fallback)
         if: ${{ env.SCCACHE_GHA_ENABLED != 'true' }}
         uses: actions/cache/restore@v5

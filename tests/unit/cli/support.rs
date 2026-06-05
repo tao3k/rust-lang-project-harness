@@ -59,7 +59,7 @@ pub(crate) fn skip_if_protocol_graph_renderer_unavailable() -> bool {
     }
 }
 
-fn configure_shared_asp_renderer(command: &mut Command) {
+pub(crate) fn configure_shared_asp_renderer(command: &mut Command) {
     if std::env::var_os("SEMANTIC_AGENT_PROTOCOL_BIN").is_some() {
         return;
     }
@@ -72,7 +72,12 @@ fn shared_asp_renderer_binary() -> Option<std::path::PathBuf> {
     let current_dir = std::env::current_dir().ok()?;
     current_dir
         .ancestors()
-        .map(|ancestor| ancestor.join("target/debug/asp"))
+        .map(|ancestor| {
+            ancestor
+                .join("target")
+                .join("debug")
+                .join(format!("asp{}", std::env::consts::EXE_SUFFIX))
+        })
         .find(|candidate| candidate.is_file())
 }
 
