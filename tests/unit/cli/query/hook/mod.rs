@@ -224,6 +224,56 @@ fn cli_query_code_output_strips_workspace_prefixed_selector_for_package_root() {
         relative_stdout.contains("command_args.extend"),
         "{relative_stdout}"
     );
+
+    let temp = TempDir::new().expect("temp dir");
+    let package_root = temp.path().join("rust-lang-project-harness");
+    fs::create_dir_all(package_root.join("tests/unit/cli")).expect("create test fixture dir");
+    fs::write(
+        package_root.join("Cargo.toml"),
+        "[package]\nname = \"rust-lang-project-harness\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    )
+    .expect("write manifest");
+    fs::write(
+        package_root.join("tests/unit/cli/support.rs"),
+        r#"fn normalize_temp_root(rendered: &str) -> String {
+    rendered.to_string()
+}
+
+fn run_search() -> String {
+    let mut command_args = Vec::new();
+    command_args.push("search");
+    command_args.extend(["owner"]);
+    normalize_temp_root("ok")
+}
+"#,
+    )
+    .expect("write support fixture");
+
+    let standalone_output = run_cli([
+        "query".as_ref(),
+        "--from-hook".as_ref(),
+        "direct-source-read".as_ref(),
+        "--selector".as_ref(),
+        "languages/rust-lang-project-harness/tests/unit/cli/support.rs".as_ref(),
+        "--query".as_ref(),
+        "run_search".as_ref(),
+        "--code".as_ref(),
+        package_root.as_os_str(),
+    ]);
+    assert!(standalone_output.status.success(), "{standalone_output:?}");
+    let standalone_stdout = String::from_utf8(standalone_output.stdout).expect("utf8 stdout");
+    assert!(
+        standalone_stdout.contains("fn run_search"),
+        "{standalone_stdout}"
+    );
+    assert!(
+        standalone_stdout.contains("command_args.push"),
+        "{standalone_stdout}"
+    );
+    assert!(
+        standalone_stdout.contains("command_args.extend"),
+        "{standalone_stdout}"
+    );
 }
 
 #[test]

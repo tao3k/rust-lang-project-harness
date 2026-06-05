@@ -225,6 +225,9 @@ fn strip_package_root_query_prefix_once(package_root: &Path, query_path: &Path) 
     if query_components.len() < 2 {
         return None;
     }
+    if let Some(path) = strip_workspace_languages_query_prefix(package_root, &query_components) {
+        return Some(path);
+    }
     for start in 0..package_components.len() {
         let suffix = &package_components[start..];
         if suffix.is_empty() || suffix.len() >= query_components.len() {
@@ -235,6 +238,20 @@ fn strip_package_root_query_prefix_once(package_root: &Path, query_path: &Path) 
         }
     }
     None
+}
+
+fn strip_workspace_languages_query_prefix(
+    package_root: &Path,
+    query_components: &[std::ffi::OsString],
+) -> Option<PathBuf> {
+    let package_name = package_root.file_name()?;
+    if query_components.first()?.as_os_str() != std::ffi::OsStr::new("languages") {
+        return None;
+    }
+    if query_components.get(1)?.as_os_str() != package_name {
+        return None;
+    }
+    Some(query_components[2..].iter().collect())
 }
 
 fn normal_path_components(path: &Path) -> Vec<std::ffi::OsString> {
