@@ -75,8 +75,13 @@ pub(super) fn syntax_query_native_fact_refs(rows: &[SyntaxQueryRow]) -> Vec<Stri
 }
 
 fn syntax_query_native_fact_ref(row: &SyntaxQueryRow) -> String {
+    let fact_kind = if row.node == "call_expression" {
+        "syntax"
+    } else {
+        "item"
+    };
     format!(
-        "rust:item:{}:{}:{}",
+        "rust:{fact_kind}:{}:{}:{}",
         row.path,
         syntax_query_line_range(row.item_start_line, row.item_end_line),
         row.name
@@ -127,7 +132,9 @@ fn syntax_query_line_range(start_line: usize, end_line: usize) -> String {
 }
 
 fn syntax_query_capture_field(capture: &str) -> &'static str {
-    if capture.ends_with(".name") {
+    if capture.starts_with("call.") {
+        "function"
+    } else if capture.ends_with(".name") {
         "name"
     } else if capture.ends_with(".target") {
         "target"
@@ -139,6 +146,7 @@ fn syntax_query_capture_field(capture: &str) -> &'static str {
 fn syntax_query_semantic_kind(node: &str) -> &'static str {
     match node {
         "const_item" | "static_item" => "constant",
+        "call_expression" => "call",
         "enum_item" => "enum",
         "extern_crate_declaration" => "extern",
         "function_item" => "function",

@@ -86,6 +86,9 @@ fn agent_registry_json(project_root: &Path) -> Value {
             ],
             "queryInputForms": ["catalog-id", "s-expression"],
             "requiredOptions": ["--catalog|--treesitter-query"],
+            "supportedPredicates": ["#eq?", "#any-eq?", "#any-of?", "#match?", "#any-match?", "#not-eq?", "#not-match?"],
+            "unsupportedPredicates": [],
+            "codeOutput": { "mode": "pure-code", "multiMatch": "deny", "requires": ["exact-selector", "unique-predicate"] },
             "supportsCompact": true,
             "supportsJson": true
         }),

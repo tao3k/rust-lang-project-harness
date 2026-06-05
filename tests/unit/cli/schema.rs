@@ -213,6 +213,20 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
             .all(|catalog| catalog["sourceDelivery"] == "provider-binary-embedded"),
         "{syntax_query}"
     );
+    assert_eq!(
+        syntax_query["supportedPredicates"],
+        serde_json::json!([
+            "#eq?",
+            "#any-eq?",
+            "#any-of?",
+            "#match?",
+            "#any-match?",
+            "#not-eq?",
+            "#not-match?"
+        ])
+    );
+    assert_eq!(syntax_query["unsupportedPredicates"], serde_json::json!([]));
+    assert_eq!(syntax_query["codeOutput"]["multiMatch"], "deny");
     let query_owner_items = method_descriptor(methods, "query/owner-items");
     assert_eq!(query_owner_items["command"], "query");
     assert_eq!(query_owner_items["input"], "owner-path");

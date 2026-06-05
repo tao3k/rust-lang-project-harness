@@ -60,6 +60,46 @@ fn query_catalog_packet_uses_binary_embedded_sources() {
 }
 
 #[test]
+fn calls_catalog_packet_projects_native_call_captures() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    std::fs::create_dir_all(root.join("src")).expect("src dir");
+    std::fs::write(
+        root.join("src/lib.rs"),
+        "fn parse_query() {}\n\nstruct Runner;\nimpl Runner {\n    fn run(&self) {\n        parse_query();\n    }\n}\n",
+    )
+    .expect("fixture");
+
+    let output = run_cli([
+        "query".as_ref(),
+        "--catalog".as_ref(),
+        "calls".as_ref(),
+        "--term".as_ref(),
+        "parse_query".as_ref(),
+        "--json".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(output.status.success(), "{output:?}");
+
+    let packet: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("semantic tree-sitter query packet JSON");
+    assert_eq!(packet["matches"].as_array().expect("matches").len(), 1);
+    let capture = &packet["matches"][0]["captures"][0];
+    assert_eq!(capture["name"], "call.target");
+    assert_eq!(capture["nodeType"], "call_expression");
+    assert_eq!(capture["field"], "function");
+    assert_eq!(capture["fields"]["semanticKind"], "call");
+    assert_eq!(capture["fields"]["read"], "src/lib.rs:6:6");
+    assert_eq!(capture["fields"]["itemRead"], "src/lib.rs:5:7");
+    assert!(
+        capture["nativeFactRefs"][0]
+            .as_str()
+            .expect("native fact ref")
+            .starts_with("rust:syntax:src/lib.rs:5:7:parse_query")
+    );
+}
+
+#[test]
 fn tree_sitter_query_packet_accepts_inline_s_expression() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();

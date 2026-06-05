@@ -1030,7 +1030,7 @@ fn print_agent_guide(_project_root: &std::path::Path) {
 {entries}
 {route}
 |route syntax-locate selectors=S:tree-sitter-query,R:range returns=locator,capture,frontier code=false cmd=asp rust query --treesitter-query '(function_item name: (identifier) @function.name)' --selector <path[:line|:start:end]> .
-|route syntax-code selectors=S:tree-sitter-query,R:exact-selector returns=code code=pure cmd=asp rust query --treesitter-query '(function_item name: (identifier) @function.name)' --selector <path[:line|:start:end]> --code .
+|route syntax-code selectors=S:tree-sitter-query,R:exact-selector|unique-predicate returns=code code=pure multi-match=deny cmd=asp rust query --treesitter-query '(function_item name: (identifier) @function.name)' --selector <path[:line|:start:end]> --code .
 |route query-code selectors=O:owner,Q:symbol returns=code code=pure cmd=asp rust query <path> --query <symbol-or-a|b|c> --code .
 |cmd prime=asp rust search prime --view seeds .
 |cmd owner=asp rust search owner <path> items --view seeds .
@@ -1051,6 +1051,7 @@ fn print_agent_guide(_project_root: &std::path::Path) {
 |rule hook install/runtime is owned by semantic-agent-hook
 |rule run guide commands from project root; trailing . is the project root
 |rule syntax query ABI is compiled by asp; provider projects native parser facts into tree-sitter-compatible captures
+|rule syntax predicates supported=#eq?,#any-eq?,#any-of?,#match?,#any-match?,#not-eq?,#not-match? unsupported=none unsupportedReported=true
 |rule query --code is pure code; search/read-plan returns locators/frontier, not inline code
 |cmd agent-doctor=asp rust agent doctor --json .
 "#

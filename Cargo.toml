@@ -21,6 +21,7 @@ required-features = ["cli"]
 cargo_toml = "0.22.3"
 proc-macro2 = { version = "1", features = ["span-locations"] }
 quote = "1"
+regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 syn = { version = "2", features = ["extra-traits", "full", "parsing", "visit"] }

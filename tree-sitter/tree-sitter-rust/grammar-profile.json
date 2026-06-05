@@ -12,7 +12,7 @@
   "aspWorkspace": {
     "owner": "main-asp",
     "repository": "https://github.com/tao3k/agent-semantic-protocols",
-    "revision": "e9885fb5492e97de85328f94fc5955be64424c92",
+    "revision": "0e3a21bf16c32c4d3b8f4101fd984b47de07fcbd",
     "queryCorpusValidator": "tools/validate-tree-sitter-rust-query-corpus.py"
   },
   "standardQueries": [

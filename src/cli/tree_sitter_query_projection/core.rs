@@ -3,16 +3,18 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use serde::Deserialize;
 use syn::spanned::Spanned;
 
 use crate::parser::parse_rust_source_syntax;
 
-use super::tree_sitter_query_locator::{SyntaxQuerySelector, syntax_selector_matches};
-use super::tree_sitter_query_packet::SyntaxQueryRow;
+use crate::cli::tree_sitter_query_locator::{SyntaxQuerySelector, syntax_selector_matches};
+use crate::cli::tree_sitter_query_packet::SyntaxQueryRow;
 
-const MAX_SYNTAX_QUERY_ROWS: usize = 80;
-pub(super) const SUPPORTED_TREE_SITTER_QUERY_NODES: &[&str] = &[
+pub(super) const MAX_SYNTAX_QUERY_ROWS: usize = 80;
+pub(in crate::cli) const SUPPORTED_TREE_SITTER_QUERY_NODES: &[&str] = &[
     "const_item",
+    "call_expression",
     "enum_item",
     "extern_crate_declaration",
     "function_item",
@@ -27,16 +29,59 @@ pub(super) const SUPPORTED_TREE_SITTER_QUERY_NODES: &[&str] = &[
     "use_declaration",
 ];
 
-pub(super) struct SyntaxQueryProjection {
-    pub(super) rows: Vec<SyntaxQueryRow>,
-    pub(super) total_matches: usize,
-    pub(super) truncated: bool,
-    pub(super) unsupported_nodes: Vec<String>,
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub(in crate::cli) enum SyntaxQueryPredicateOp {
+    Eq,
+    AnyEq,
+    AnyOf,
+    Match,
+    AnyMatch,
+    NotEq,
+    NotMatch,
+}
+
+impl SyntaxQueryPredicateOp {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::Eq => "eq",
+            Self::AnyEq => "any-eq",
+            Self::AnyOf => "any-of",
+            Self::Match => "match",
+            Self::AnyMatch => "any-match",
+            Self::NotEq => "not-eq",
+            Self::NotMatch => "not-match",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(tag = "kind", content = "value", rename_all = "kebab-case")]
+pub(in crate::cli) enum SyntaxQueryPredicateValue {
+    String(String),
+    Capture(String),
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+pub(in crate::cli) struct SyntaxQueryPredicate {
+    pub(in crate::cli) op: SyntaxQueryPredicateOp,
+    pub(in crate::cli) capture: String,
+    pub(in crate::cli) values: Vec<SyntaxQueryPredicateValue>,
+}
+
+pub(in crate::cli) struct SyntaxQueryProjection {
+    pub(in crate::cli) rows: Vec<SyntaxQueryRow>,
+    pub(in crate::cli) total_matches: usize,
+    pub(in crate::cli) truncated: bool,
+    pub(in crate::cli) unsupported_nodes: Vec<String>,
+    pub(in crate::cli) unsupported_predicates: Vec<String>,
 }
 
 impl SyntaxQueryProjection {
-    pub(super) fn match_status(&self) -> &'static str {
-        if !self.unsupported_nodes.is_empty() && self.total_matches == 0 {
+    pub(in crate::cli) fn match_status(&self) -> &'static str {
+        if (!self.unsupported_nodes.is_empty() || !self.unsupported_predicates.is_empty())
+            && self.total_matches == 0
+        {
             "unsupported"
         } else if self.total_matches == 0 {
             "miss"
@@ -46,13 +91,16 @@ impl SyntaxQueryProjection {
     }
 }
 
-pub(super) fn project_tree_sitter_query(
+pub(in crate::cli) fn project_tree_sitter_query(
     project_root: &Path,
     query_node_types: &[String],
     captures: &[String],
     terms: &[String],
+    predicates: &[SyntaxQueryPredicate],
     selector: Option<&SyntaxQuerySelector>,
 ) -> Result<SyntaxQueryProjection, String> {
+    let prepared_predicates = prepare_syntax_query_predicates(predicates)?;
+    let unsupported_predicates = Vec::new();
     let mut supported_nodes = query_node_types
         .iter()
         .filter_map(|node| {
@@ -79,6 +127,7 @@ pub(super) fn project_tree_sitter_query(
             total_matches: 0,
             truncated: false,
             unsupported_nodes,
+            unsupported_predicates,
         });
     }
 
@@ -102,6 +151,7 @@ pub(super) fn project_tree_sitter_query(
             relative_path: &relative_path,
             supported_nodes: &supported_nodes,
             terms,
+            predicates: &prepared_predicates,
             selector,
             captures,
             rows: &mut rows,
@@ -114,18 +164,20 @@ pub(super) fn project_tree_sitter_query(
         rows,
         total_matches,
         unsupported_nodes,
+        unsupported_predicates,
     })
 }
 
-struct ProjectedItemsContext<'a> {
-    source_lines: &'a [&'a str],
-    relative_path: &'a str,
-    supported_nodes: &'a [&'static str],
-    terms: &'a [String],
-    selector: Option<&'a SyntaxQuerySelector>,
-    captures: &'a [String],
-    rows: &'a mut Vec<SyntaxQueryRow>,
-    total_matches: &'a mut usize,
+pub(super) struct ProjectedItemsContext<'a> {
+    pub(super) source_lines: &'a [&'a str],
+    pub(super) relative_path: &'a str,
+    pub(super) supported_nodes: &'a [&'static str],
+    pub(super) terms: &'a [String],
+    pub(super) predicates: &'a [PreparedSyntaxQueryPredicate<'a>],
+    pub(super) selector: Option<&'a SyntaxQuerySelector>,
+    pub(super) captures: &'a [String],
+    pub(super) rows: &'a mut Vec<SyntaxQueryRow>,
+    pub(super) total_matches: &'a mut usize,
 }
 
 fn collect_projected_items(items: &[syn::Item], context: &mut ProjectedItemsContext<'_>) {
@@ -139,9 +191,10 @@ fn collect_projected_items(items: &[syn::Item], context: &mut ProjectedItemsCont
             let (code_line, code_source) =
                 first_code_line_with_number(context.source_lines, start_line, end_line);
             let code = compact_query_code(code_source);
-            if !query_terms_match(&code, context.terms) {
-                continue;
-            }
+            let capture = capture_for_node(node, context.captures);
+            let name = compact_query_atom(&item_query_name(item));
+            let item_code = item_source_code(context.source_lines, start_line, end_line);
+            let capture_text = capture_text_for_projection(&capture, &name, &code, &item_code);
             if !syntax_selector_matches(
                 context.selector,
                 context.relative_path,
@@ -152,12 +205,21 @@ fn collect_projected_items(items: &[syn::Item], context: &mut ProjectedItemsCont
             ) {
                 continue;
             }
+            if !query_terms_match(&capture_text, context.terms) {
+                continue;
+            }
+            if !syntax_query_predicates_match(
+                &capture,
+                &capture_text,
+                &name,
+                &code,
+                &item_code,
+                context.predicates,
+            ) {
+                continue;
+            }
             *context.total_matches += 1;
             if context.rows.len() < MAX_SYNTAX_QUERY_ROWS {
-                let capture = capture_for_node(node, context.captures);
-                let name = compact_query_atom(&item_query_name(item));
-                let item_code = item_source_code(context.source_lines, start_line, end_line);
-                let capture_text = capture_text_for_projection(&capture, &name, &code, &item_code);
                 context.rows.push(SyntaxQueryRow {
                     capture,
                     capture_text,
@@ -172,12 +234,55 @@ fn collect_projected_items(items: &[syn::Item], context: &mut ProjectedItemsCont
                 });
             }
         }
+        if context.supported_nodes.contains(&"call_expression") {
+            super::calls::collect_projected_calls(item, context);
+        }
         if let syn::Item::Mod(module) = item
             && let Some((_, nested_items)) = &module.content
         {
             collect_projected_items(nested_items, context);
         }
     }
+}
+
+pub(super) struct PreparedSyntaxQueryPredicate<'a> {
+    predicate: &'a SyntaxQueryPredicate,
+    regexes: Vec<regex::Regex>,
+}
+
+fn prepare_syntax_query_predicates(
+    predicates: &[SyntaxQueryPredicate],
+) -> Result<Vec<PreparedSyntaxQueryPredicate<'_>>, String> {
+    predicates
+        .iter()
+        .map(|predicate| {
+            let regexes = match predicate.op {
+                SyntaxQueryPredicateOp::Match
+                | SyntaxQueryPredicateOp::AnyMatch
+                | SyntaxQueryPredicateOp::NotMatch => predicate
+                    .values
+                    .iter()
+                    .map(|value| match value {
+                        SyntaxQueryPredicateValue::String(value) => regex::Regex::new(value)
+                            .map_err(|error| {
+                                format!(
+                                    "invalid tree-sitter query predicate regex `{value}` for {}:{}: {error}",
+                                    predicate.op.as_str(),
+                                    predicate.capture
+                                )
+                            }),
+                        SyntaxQueryPredicateValue::Capture(value) => Err(format!(
+                            "tree-sitter query predicate {}:{} requires string regex operands, got capture @{value}",
+                            predicate.op.as_str(),
+                            predicate.capture
+                        )),
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+                _ => Vec::new(),
+            };
+            Ok(PreparedSyntaxQueryPredicate { predicate, regexes })
+        })
+        .collect()
 }
 
 fn tree_sitter_node_for_item(item: &syn::Item, source_lines: &[&str]) -> Option<&'static str> {
@@ -278,17 +383,17 @@ fn capture_for_node(node: &str, captures: &[String]) -> String {
         .unwrap_or_else(|| "item.name".to_string())
 }
 
-fn compact_query_atom(value: &str) -> String {
+pub(super) fn compact_query_atom(value: &str) -> String {
     value.split_whitespace().collect::<Vec<_>>().join("_")
 }
 
-fn capture_text_for_projection(
+pub(super) fn capture_text_for_projection(
     capture: &str,
     name: &str,
     code_line: &str,
     item_code: &str,
 ) -> String {
-    if capture.ends_with(".name") || capture.ends_with(".target") {
+    if capture.ends_with(".name") || capture.ends_with(".target") || capture.ends_with(".method") {
         name.to_string()
     } else if capture.ends_with(".definition") {
         item_code.to_string()
@@ -297,11 +402,108 @@ fn capture_text_for_projection(
     }
 }
 
+pub(super) fn syntax_query_predicates_match(
+    capture: &str,
+    capture_text: &str,
+    name: &str,
+    code_line: &str,
+    item_code: &str,
+    predicates: &[PreparedSyntaxQueryPredicate<'_>],
+) -> bool {
+    predicates.iter().all(|prepared| {
+        let predicate = prepared.predicate;
+        let actual = predicate_capture_text(
+            &predicate.capture,
+            capture,
+            capture_text,
+            name,
+            code_line,
+            item_code,
+        );
+        match predicate.op {
+            SyntaxQueryPredicateOp::Eq
+            | SyntaxQueryPredicateOp::AnyEq
+            | SyntaxQueryPredicateOp::AnyOf => predicate.values.iter().any(|value| {
+                predicate_value_matches(
+                    actual,
+                    value,
+                    capture,
+                    capture_text,
+                    name,
+                    code_line,
+                    item_code,
+                )
+            }),
+            SyntaxQueryPredicateOp::NotEq => predicate.values.iter().all(|value| {
+                !predicate_value_matches(
+                    actual,
+                    value,
+                    capture,
+                    capture_text,
+                    name,
+                    code_line,
+                    item_code,
+                )
+            }),
+            SyntaxQueryPredicateOp::Match | SyntaxQueryPredicateOp::AnyMatch => {
+                prepared.regexes.iter().any(|regex| regex.is_match(actual))
+            }
+            SyntaxQueryPredicateOp::NotMatch => {
+                prepared.regexes.iter().all(|regex| !regex.is_match(actual))
+            }
+        }
+    })
+}
+
+fn predicate_capture_text<'a>(
+    predicate_capture: &str,
+    capture: &str,
+    capture_text: &'a str,
+    name: &'a str,
+    code_line: &'a str,
+    item_code: &'a str,
+) -> &'a str {
+    if predicate_capture == capture {
+        capture_text
+    } else if predicate_capture.ends_with(".name")
+        || predicate_capture.ends_with(".target")
+        || predicate_capture.ends_with(".method")
+    {
+        name
+    } else if predicate_capture.ends_with(".definition") {
+        item_code
+    } else {
+        code_line
+    }
+}
+
+fn predicate_value_matches(
+    actual: &str,
+    value: &SyntaxQueryPredicateValue,
+    capture: &str,
+    capture_text: &str,
+    name: &str,
+    code_line: &str,
+    item_code: &str,
+) -> bool {
+    let expected = match value {
+        SyntaxQueryPredicateValue::String(value) => value.as_str(),
+        SyntaxQueryPredicateValue::Capture(value) => {
+            predicate_capture_text(value, capture, capture_text, name, code_line, item_code)
+        }
+    };
+    actual == expected
+}
+
 fn first_code_line<'a>(source_lines: &'a [&str], start_line: usize, end_line: usize) -> &'a str {
     first_code_line_with_number(source_lines, start_line, end_line).1
 }
 
-fn item_source_code(source_lines: &[&str], start_line: usize, end_line: usize) -> String {
+pub(super) fn item_source_code(
+    source_lines: &[&str],
+    start_line: usize,
+    end_line: usize,
+) -> String {
     source_lines
         .iter()
         .skip(start_line.saturating_sub(1))
@@ -311,7 +513,7 @@ fn item_source_code(source_lines: &[&str], start_line: usize, end_line: usize) -
         .join("\n")
 }
 
-fn first_code_line_with_number<'a>(
+pub(super) fn first_code_line_with_number<'a>(
     source_lines: &'a [&str],
     start_line: usize,
     end_line: usize,
@@ -336,7 +538,7 @@ fn first_code_line_with_number<'a>(
         .unwrap_or((start_line, ""))
 }
 
-fn query_terms_match(code: &str, terms: &[String]) -> bool {
+pub(super) fn query_terms_match(code: &str, terms: &[String]) -> bool {
     if terms.is_empty() {
         return true;
     }
@@ -443,7 +645,7 @@ fn query_relative_path(project_root: &Path, path: &Path) -> String {
         .to_string()
 }
 
-fn compact_query_code(code: &str) -> String {
+pub(super) fn compact_query_code(code: &str) -> String {
     const MAX_CODE_CHARS: usize = 200;
     let mut compact = code.split_whitespace().collect::<Vec<_>>().join(" ");
     if compact.chars().count() > MAX_CODE_CHARS {

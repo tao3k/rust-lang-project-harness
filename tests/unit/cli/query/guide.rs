@@ -27,7 +27,13 @@ fn cli_agent_guide_advertises_query_reroute() {
     );
     assert!(
         stdout.contains(
-            "asp rust query --treesitter-query '(function_item name: (identifier) @function.name)' --selector <path[:line|:start:end]> --code ."
+            "|route syntax-code selectors=S:tree-sitter-query,R:exact-selector|unique-predicate returns=code code=pure multi-match=deny"
+        ),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "|rule syntax predicates supported=#eq?,#any-eq?,#any-of?,#match?,#any-match?,#not-eq?,#not-match? unsupported=none unsupportedReported=true"
         ),
         "{stdout}"
     );

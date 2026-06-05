@@ -9,7 +9,8 @@ use super::tree_sitter_query_packet::{
     SyntaxQueryRow, syntax_query_matches_json, syntax_query_native_fact_refs,
 };
 use super::tree_sitter_query_projection::{
-    SUPPORTED_TREE_SITTER_QUERY_NODES, project_tree_sitter_query,
+    SUPPORTED_TREE_SITTER_QUERY_NODES, SyntaxQueryPredicate, SyntaxQueryPredicateOp,
+    SyntaxQueryPredicateValue, project_tree_sitter_query,
 };
 
 struct RustTreeSitterCatalog {
@@ -26,6 +27,7 @@ struct RustSyntaxQueryPlan {
     captures: Vec<String>,
     node_types: Vec<String>,
     fields: Vec<String>,
+    predicates: Vec<SyntaxQueryPredicate>,
 }
 
 const RUST_TREE_SITTER_GRAMMAR_ID: &str = "tree-sitter-rust";
@@ -34,6 +36,7 @@ const RUST_TREE_SITTER_GRAMMAR_PROFILE_PATH: &str =
     "tree-sitter/tree-sitter-rust/grammar-profile.json";
 const RUST_TREE_SITTER_GRAMMAR_PROFILE_SOURCE: &str =
     include_str!("../../tree-sitter/tree-sitter-rust/grammar-profile.json");
+const MAX_SYNTAX_QUERY_GRAPH_ROWS: usize = 12;
 pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<ExitCode>, String> {
     if !args
         .iter()
@@ -85,6 +88,12 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
                         .get_or_insert_with(RustSyntaxQueryPlan::default)
                         .fields = split_internal_plan_list(value);
                 }
+                "--asp-syntax-query-predicates-json" => {
+                    asp_plan
+                        .get_or_insert_with(RustSyntaxQueryPlan::default)
+                        .predicates
+                        .extend(parse_internal_query_predicates_json(value)?);
+                }
                 _ => unreachable!("unsupported pending query catalog option: {option}"),
             }
             continue;
@@ -105,7 +114,8 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
             }
             "--asp-syntax-query-captures"
             | "--asp-syntax-query-node-types"
-            | "--asp-syntax-query-fields" => {
+            | "--asp-syntax-query-fields"
+            | "--asp-syntax-query-predicates-json" => {
                 pending_option = Some(value.to_string());
             }
             "--json" => {
@@ -208,14 +218,22 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
         &query_plan.node_types,
         &query_plan.captures,
         &terms,
+        &query_plan.predicates,
         selector.as_ref(),
     )?;
 
     if json_output {
+        let predicates = query_plan
+            .predicates
+            .iter()
+            .map(format_query_predicate)
+            .collect::<Vec<_>>();
         let mut query_fields = serde_json::json!({
             "captures": &query_plan.captures,
             "nodeTypes": &query_plan.node_types,
             "fields": &query_plan.fields,
+            "predicates": predicates,
+            "unsupportedPredicates": &projection.unsupported_predicates,
             "catalogCanonical": catalog_canonical,
             "catalogEmbedded": catalog_embedded,
             "compilerBoundary": "asp-tree-sitter-runtime",
@@ -280,6 +298,12 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
         );
     } else {
         if code_output {
+            if projection.total_matches > 1 {
+                return Err(format!(
+                    "query --code matched {} items; add an exact --selector, a unique predicate, or narrow the tree-sitter query before requesting pure code",
+                    projection.total_matches
+                ));
+            }
             print_tree_sitter_query_code(&projection.rows);
             return Ok(Some(ExitCode::SUCCESS));
         }
@@ -317,15 +341,20 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
                     SUPPORTED_TREE_SITTER_QUERY_NODES.join(",")
                 );
             }
+            if !projection.unsupported_predicates.is_empty() {
+                println!(
+                    "|syntax-query-unsupported predicates={} supported=predicate:eq,predicate:any-of,predicate:match,predicate:not-eq,predicate:not-match",
+                    projection.unsupported_predicates.join(",")
+                );
+            }
         }
         if !projection.rows.is_empty() {
-            print_tree_sitter_query_locators(&projection.rows);
-        }
-        if projection.truncated {
-            println!(
-                "truncated rows={} total={} next=narrow-query-or-combine-with-owner",
-                projection.rows.len(),
-                projection.total_matches
+            print_tree_sitter_query_graph(
+                &project_root,
+                &query_plan,
+                &projection.rows,
+                projection.total_matches,
+                projection.truncated,
             );
         }
     }
@@ -342,18 +371,82 @@ fn print_tree_sitter_query_code(rows: &[SyntaxQueryRow]) {
     }
 }
 
-fn print_tree_sitter_query_locators(rows: &[SyntaxQueryRow]) {
-    for (index, row) in rows.iter().enumerate() {
-        if index > 0 {
-            println!();
-        }
-        println!("{}", syntax_query_range_locator(row));
-        println!("{}", row.capture_text);
+fn print_tree_sitter_query_graph(
+    project_root: &std::path::Path,
+    query_plan: &RustSyntaxQueryPlan,
+    rows: &[SyntaxQueryRow],
+    total_matches: usize,
+    truncated: bool,
+) {
+    let display_len = rows.len().min(MAX_SYNTAX_QUERY_GRAPH_ROWS);
+    let display_rows = &rows[..display_len];
+    let overflow = total_matches > display_len;
+    let pattern = syntax_query_pattern_label(query_plan);
+    let capture = query_plan
+        .captures
+        .first()
+        .map_or("item.name", String::as_str);
+    println!(
+        "[query-treesitter] root={} lang=rust pattern={} capture={} alg=syntax-capture-frontier",
+        project_root.display(),
+        pattern,
+        capture
+    );
+    println!("legend: ID=kind:role(value)!next; ts=node/field; frontier ID.next");
+    println!("alias: graph:{{G=query,Q=tsquery,C=capture,I=item,O=owner}}");
+    println!();
+    println!("Q=tsquery:pattern({pattern})!query");
+    for (index, row) in display_rows.iter().enumerate() {
+        let capture_id = graph_id("C", index);
+        let item_id = graph_id("I", index);
+        println!(
+            "{capture_id}=capture:{}({})@{}!code ts={}",
+            row.capture,
+            compact_graph_value(&row.capture_text),
+            syntax_query_capture_locator(row),
+            syntax_query_capture_ts(query_plan, row)
+        );
+        println!(
+            "{item_id}=item:{}({})@{}!code ts={}",
+            syntax_query_item_kind(row),
+            compact_graph_value(&row.name),
+            syntax_query_range_locator(row),
+            row.node
+        );
     }
+    println!();
+    println!("G>{{Q:selects}}");
+    println!("Q>{{{}}}", graph_edges("C", "captures", display_len));
+    for index in 0..display_len {
+        println!(
+            "{}>{{{}:enclosing-item}}",
+            graph_id("C", index),
+            graph_id("I", index)
+        );
+    }
+    println!();
+    if truncated || overflow {
+        println!(
+            "matches={} shown={} omitted={}",
+            total_matches,
+            display_len,
+            total_matches.saturating_sub(display_len)
+        );
+        println!("omit=code,full-node-list,overflow-captures");
+    } else {
+        println!("omit=code,full-node-list,capture-text");
+    }
+    println!("rank={}", graph_id_list("I", display_len));
+    println!("frontier={}", graph_frontier_list("I", display_len));
+    println!("avoid=broad-code-output,raw-read");
 }
 
 fn syntax_query_range_locator(row: &SyntaxQueryRow) -> String {
     syntax_query_compact_locator(&row.path, row.item_start_line, row.item_end_line)
+}
+
+fn syntax_query_capture_locator(row: &SyntaxQueryRow) -> String {
+    syntax_query_compact_locator(&row.path, row.start_line, row.end_line)
 }
 
 fn syntax_query_compact_locator(path: &str, start_line: usize, end_line: usize) -> String {
@@ -364,6 +457,99 @@ fn syntax_query_compact_locator(path: &str, start_line: usize, end_line: usize) 
     } else {
         format!("{path}:{start_line}:{end_line}")
     }
+}
+
+fn syntax_query_pattern_label(query_plan: &RustSyntaxQueryPlan) -> String {
+    let node = query_plan
+        .node_types
+        .iter()
+        .find(|node| node.ends_with("_item"))
+        .or_else(|| query_plan.node_types.first())
+        .map_or("node", String::as_str);
+    query_plan
+        .fields
+        .first()
+        .map_or_else(|| node.to_string(), |field| format!("{node}/{field}"))
+}
+
+fn syntax_query_capture_ts(query_plan: &RustSyntaxQueryPlan, row: &SyntaxQueryRow) -> String {
+    let field = syntax_query_capture_field_name(&row.capture);
+    let node = if row.capture.ends_with(".name")
+        || row.capture.ends_with(".target")
+        || row.capture.ends_with(".method")
+    {
+        query_plan
+            .node_types
+            .iter()
+            .find(|node| {
+                if row.name.contains("::") {
+                    node.as_str() == "scoped_identifier"
+                } else {
+                    node.as_str() == "identifier" || node.as_str() == "type_identifier"
+                }
+            })
+            .map_or("identifier", String::as_str)
+    } else {
+        row.node
+    };
+    format!("{node}/{field}")
+}
+
+fn syntax_query_capture_field_name(capture: &str) -> &str {
+    if capture.starts_with("call.") {
+        return "function";
+    }
+    capture.rsplit_once('.').map_or("item", |(_, field)| field)
+}
+
+fn syntax_query_item_kind(row: &SyntaxQueryRow) -> &'static str {
+    match row.node {
+        "const_item" => "const",
+        "call_expression" => "call",
+        "enum_item" => "enum",
+        "function_item" => "fn",
+        "impl_item" => "impl",
+        "mod_item" => "mod",
+        "static_item" => "static",
+        "struct_item" => "struct",
+        "trait_item" => "trait",
+        "type_item" => "type",
+        "use_declaration" => "use",
+        _ => "item",
+    }
+}
+
+fn compact_graph_value(value: &str) -> String {
+    value.split_whitespace().collect::<Vec<_>>().join("_")
+}
+
+fn graph_id(prefix: &str, index: usize) -> String {
+    if index == 0 {
+        prefix.to_string()
+    } else {
+        format!("{prefix}{}", index + 1)
+    }
+}
+
+fn graph_id_list(prefix: &str, len: usize) -> String {
+    (0..len)
+        .map(|index| graph_id(prefix, index))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn graph_frontier_list(prefix: &str, len: usize) -> String {
+    (0..len)
+        .map(|index| format!("{}.code", graph_id(prefix, index)))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn graph_edges(prefix: &str, edge: &str, len: usize) -> String {
+    (0..len)
+        .map(|index| format!("{}:{edge}", graph_id(prefix, index)))
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 fn rust_tree_sitter_catalog(catalog_id: &str) -> Option<RustTreeSitterCatalog> {
@@ -499,6 +685,7 @@ impl RustTreeSitterCatalog {
                 .iter()
                 .map(|field| (*field).to_string())
                 .collect(),
+            predicates: Vec::new(),
         }
     }
 }
@@ -513,6 +700,68 @@ fn split_internal_plan_list(value: &str) -> Vec<String> {
     values.sort();
     values.dedup();
     values
+}
+
+fn parse_internal_query_predicates_json(value: &str) -> Result<Vec<SyntaxQueryPredicate>, String> {
+    let predicates = serde_json::from_str::<Vec<SyntaxQueryPredicate>>(value)
+        .map_err(|error| format!("invalid ASP syntax query predicate JSON: {error}"))?;
+    for predicate in &predicates {
+        if predicate.capture.trim().is_empty() {
+            return Err("ASP syntax query predicate capture cannot be empty".to_string());
+        }
+        if predicate.values.is_empty() {
+            return Err(format!(
+                "ASP syntax query predicate {}:{} has no values",
+                predicate_op_label(&predicate.op),
+                predicate.capture
+            ));
+        }
+        for operand in &predicate.values {
+            match operand {
+                SyntaxQueryPredicateValue::String(value)
+                | SyntaxQueryPredicateValue::Capture(value)
+                    if value.trim().is_empty() =>
+                {
+                    return Err(format!(
+                        "ASP syntax query predicate {}:{} has an empty operand",
+                        predicate_op_label(&predicate.op),
+                        predicate.capture
+                    ));
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(predicates)
+}
+
+fn format_query_predicate(predicate: &SyntaxQueryPredicate) -> serde_json::Value {
+    serde_json::json!({
+        "op": predicate_op_label(&predicate.op),
+        "capture": predicate.capture.as_str(),
+        "values": predicate.values.iter().map(|value| match value {
+            SyntaxQueryPredicateValue::String(value) => serde_json::json!({
+                "kind": "string",
+                "value": value.as_str()
+            }),
+            SyntaxQueryPredicateValue::Capture(value) => serde_json::json!({
+                "kind": "capture",
+                "value": value.as_str()
+            }),
+        }).collect::<Vec<_>>()
+    })
+}
+
+fn predicate_op_label(op: &SyntaxQueryPredicateOp) -> &'static str {
+    match op {
+        SyntaxQueryPredicateOp::Eq => "eq",
+        SyntaxQueryPredicateOp::AnyEq => "any-eq",
+        SyntaxQueryPredicateOp::AnyOf => "any-of",
+        SyntaxQueryPredicateOp::Match => "match",
+        SyntaxQueryPredicateOp::AnyMatch => "any-match",
+        SyntaxQueryPredicateOp::NotEq => "not-eq",
+        SyntaxQueryPredicateOp::NotMatch => "not-match",
+    }
 }
 
 fn syntax_catalog_fingerprint(id: &str, path: &str, source: &str) -> String {
