@@ -78,6 +78,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Run tests
+        shell: bash
         run: |
           cargo test --workspace --all-targets --all-features -- \
             --skip cli_rust_flow_drill_reduces_search_rounds_with_seeds_and_recipe_plan \
