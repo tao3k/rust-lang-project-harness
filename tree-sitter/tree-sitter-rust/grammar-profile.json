@@ -12,8 +12,9 @@
   "aspWorkspace": {
     "owner": "main-asp",
     "repository": "https://github.com/tao3k/agent-semantic-protocols",
-    "revision": "0e3a21bf16c32c4d3b8f4101fd984b47de07fcbd",
-    "queryCorpusValidator": "tools/validate-tree-sitter-rust-query-corpus.py"
+    "revision": "4e3417721d576716bcf82b7cbf8b9c2dc9a2b32a",
+    "contractFingerprint": "sha256:9a223a9c2a337d9e6d3f3e0701481ac1899cc43d429d3cf4af576c92a30abea1",
+    "queryCorpusValidator": "asp-tree-sitter-validate-rust-query-corpus"
   },
   "standardQueries": [
     {
@@ -32,7 +33,7 @@
   "corpusProfilePath": "tree-sitter/tree-sitter-rust/corpus-profile.json",
   "queryCorpus": {
     "path": "tree-sitter/tree-sitter-rust/query-corpus",
-    "validator": "tools/validate-tree-sitter-rust-query-corpus.py",
+    "validator": "asp-tree-sitter-validate-rust-query-corpus",
     "realLibraryCases": [
       "tests/fixtures/parser-compact/cases/real-library/ripgrep-searcher/rust.json",
       "tests/fixtures/parser-compact/cases/real-library/serde-deserialize-body/rust.json",

@@ -26,10 +26,17 @@ pub const DEFAULT_IGNORED_DIR_NAMES: &[&str] = &[
 pub fn discover_rust_files(
     paths: &[PathBuf],
     ignored_dir_names: &BTreeSet<String>,
+    include_hidden_dir_names: &BTreeSet<String>,
 ) -> Vec<PathBuf> {
     let mut files = BTreeSet::new();
     for path in paths {
-        discover_path(path, ignored_dir_names, &mut files);
+        discover_path(
+            path,
+            ignored_dir_names,
+            include_hidden_dir_names,
+            &mut files,
+            false,
+        );
     }
     files.into_iter().collect()
 }
@@ -39,22 +46,39 @@ pub fn discover_rust_files(
 pub(crate) fn discover_cargo_package_roots(
     project_root: &Path,
     ignored_dir_names: &BTreeSet<String>,
+    include_hidden_dir_names: &BTreeSet<String>,
 ) -> Vec<PathBuf> {
     let manifest_path = project_root.join("Cargo.toml");
     if manifest_path.is_file() {
-        return discover_package_roots_from_manifest(project_root, ignored_dir_names);
+        return discover_package_roots_from_manifest(
+            project_root,
+            ignored_dir_names,
+            include_hidden_dir_names,
+        );
     }
 
     let mut manifests = BTreeSet::new();
-    discover_cargo_manifests(project_root, ignored_dir_names, &mut manifests);
+    discover_cargo_manifests(
+        project_root,
+        ignored_dir_names,
+        include_hidden_dir_names,
+        &mut manifests,
+        false,
+    );
     manifests
         .into_iter()
         .filter_map(|manifest| manifest.parent().map(Path::to_path_buf))
         .collect()
 }
 
-fn discover_path(path: &Path, ignored_dir_names: &BTreeSet<String>, files: &mut BTreeSet<PathBuf>) {
-    if should_ignore(path, ignored_dir_names) {
+fn discover_path(
+    path: &Path,
+    ignored_dir_names: &BTreeSet<String>,
+    include_hidden_dir_names: &BTreeSet<String>,
+    files: &mut BTreeSet<PathBuf>,
+    ignore_current: bool,
+) {
+    if ignore_current && should_ignore(path, ignored_dir_names, include_hidden_dir_names) {
         return;
     }
     if path.is_file() {
@@ -70,16 +94,24 @@ fn discover_path(path: &Path, ignored_dir_names: &BTreeSet<String>, files: &mut 
         return;
     };
     for entry in entries.flatten() {
-        discover_path(&entry.path(), ignored_dir_names, files);
+        discover_path(
+            &entry.path(),
+            ignored_dir_names,
+            include_hidden_dir_names,
+            files,
+            true,
+        );
     }
 }
 
 fn discover_cargo_manifests(
     path: &Path,
     ignored_dir_names: &BTreeSet<String>,
+    include_hidden_dir_names: &BTreeSet<String>,
     manifests: &mut BTreeSet<PathBuf>,
+    ignore_current: bool,
 ) {
-    if should_ignore(path, ignored_dir_names) {
+    if ignore_current && should_ignore(path, ignored_dir_names, include_hidden_dir_names) {
         return;
     }
     if path.is_file() {
@@ -95,14 +127,38 @@ fn discover_cargo_manifests(
         return;
     };
     for entry in entries.flatten() {
-        discover_cargo_manifests(&entry.path(), ignored_dir_names, manifests);
+        discover_cargo_manifests(
+            &entry.path(),
+            ignored_dir_names,
+            include_hidden_dir_names,
+            manifests,
+            true,
+        );
     }
 }
 
-fn should_ignore(path: &Path, ignored_dir_names: &BTreeSet<String>) -> bool {
+fn should_ignore(
+    path: &Path,
+    ignored_dir_names: &BTreeSet<String>,
+    include_hidden_dir_names: &BTreeSet<String>,
+) -> bool {
     path.file_name()
         .and_then(|name| name.to_str())
-        .is_some_and(|name| ignored_dir_names.contains(name))
+        .is_some_and(|name| {
+            should_ignore_dir_name(name, ignored_dir_names, include_hidden_dir_names)
+        })
+}
+
+fn should_ignore_dir_name(
+    name: &str,
+    ignored_dir_names: &BTreeSet<String>,
+    include_hidden_dir_names: &BTreeSet<String>,
+) -> bool {
+    ignored_dir_names.contains(name)
+        || (name.starts_with('.')
+            && name != "."
+            && name != ".."
+            && !include_hidden_dir_names.contains(name))
 }
 
 fn is_rust_file(path: &Path) -> bool {
@@ -114,11 +170,18 @@ fn is_rust_file(path: &Path) -> bool {
 fn discover_package_roots_from_manifest(
     project_root: &Path,
     ignored_dir_names: &BTreeSet<String>,
+    include_hidden_dir_names: &BTreeSet<String>,
 ) -> Vec<PathBuf> {
     let manifest = parse_cargo_manifest(project_root);
     if manifest.workspace_members.is_empty() {
         let mut roots = BTreeSet::from([project_root.to_path_buf()]);
-        insert_path_dependency_roots(project_root, ignored_dir_names, &[], &mut roots);
+        insert_path_dependency_roots(
+            project_root,
+            ignored_dir_names,
+            include_hidden_dir_names,
+            &[],
+            &mut roots,
+        );
         return roots.into_iter().collect();
     }
 
@@ -132,25 +195,36 @@ fn discover_package_roots_from_manifest(
         roots.insert(project_root.to_path_buf());
     }
     for member_pattern in manifest.workspace_members {
-        for member_root in
-            expand_workspace_member_pattern(project_root, &member_pattern, ignored_dir_names)
-        {
+        for member_root in expand_workspace_member_pattern(
+            project_root,
+            &member_pattern,
+            ignored_dir_names,
+            include_hidden_dir_names,
+        ) {
             insert_package_root(
                 project_root,
                 ignored_dir_names,
+                include_hidden_dir_names,
                 &excludes,
                 &mut roots,
                 member_root,
             );
         }
     }
-    insert_path_dependency_roots(project_root, ignored_dir_names, &excludes, &mut roots);
+    insert_path_dependency_roots(
+        project_root,
+        ignored_dir_names,
+        include_hidden_dir_names,
+        &excludes,
+        &mut roots,
+    );
     roots.into_iter().collect()
 }
 
 fn insert_path_dependency_roots(
     project_root: &Path,
     ignored_dir_names: &BTreeSet<String>,
+    include_hidden_dir_names: &BTreeSet<String>,
     excludes: &[PathBuf],
     roots: &mut BTreeSet<PathBuf>,
 ) {
@@ -165,6 +239,7 @@ fn insert_path_dependency_roots(
             if insert_package_root(
                 project_root,
                 ignored_dir_names,
+                include_hidden_dir_names,
                 excludes,
                 roots,
                 dependency_root.clone(),
@@ -178,6 +253,7 @@ fn insert_path_dependency_roots(
 fn insert_package_root(
     project_root: &Path,
     ignored_dir_names: &BTreeSet<String>,
+    include_hidden_dir_names: &BTreeSet<String>,
     excludes: &[PathBuf],
     roots: &mut BTreeSet<PathBuf>,
     package_root: PathBuf,
@@ -190,7 +266,14 @@ fn insert_package_root(
     if is_excluded_member(&package_root, excludes) {
         return false;
     }
-    if ignored_path_contains_ignored_segment(&package_root, ignored_dir_names) {
+    let package_relative = package_root
+        .strip_prefix(&project_root)
+        .unwrap_or(package_root.as_path());
+    if ignored_path_contains_ignored_segment(
+        package_relative,
+        ignored_dir_names,
+        include_hidden_dir_names,
+    ) {
         return false;
     }
     if !package_root.join("Cargo.toml").is_file() {
@@ -203,13 +286,20 @@ fn expand_workspace_member_pattern(
     project_root: &Path,
     pattern: &str,
     ignored_dir_names: &BTreeSet<String>,
+    include_hidden_dir_names: &BTreeSet<String>,
 ) -> Vec<PathBuf> {
     if !pattern.contains('*') {
         return vec![project_root.join(pattern)];
     }
     let search_root = fixed_prefix_root(project_root, pattern);
     let mut manifests = BTreeSet::new();
-    discover_cargo_manifests(&search_root, ignored_dir_names, &mut manifests);
+    discover_cargo_manifests(
+        &search_root,
+        ignored_dir_names,
+        include_hidden_dir_names,
+        &mut manifests,
+        false,
+    );
     manifests
         .into_iter()
         .filter_map(|manifest| manifest.parent().map(Path::to_path_buf))
@@ -290,10 +380,13 @@ fn is_excluded_member(member_root: &Path, excludes: &[PathBuf]) -> bool {
 fn ignored_path_contains_ignored_segment(
     path: &Path,
     ignored_dir_names: &BTreeSet<String>,
+    include_hidden_dir_names: &BTreeSet<String>,
 ) -> bool {
     path.iter()
         .filter_map(|component| component.to_str())
-        .any(|component| ignored_dir_names.contains(component))
+        .any(|component| {
+            should_ignore_dir_name(component, ignored_dir_names, include_hidden_dir_names)
+        })
 }
 
 /// Build a conventional project scope from a project root.

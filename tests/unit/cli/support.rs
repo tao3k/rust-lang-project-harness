@@ -9,10 +9,9 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<std::ffi::OsStr>,
 {
-    Command::new(env!("CARGO_BIN_EXE_rs-harness"))
-        .args(args)
-        .output()
-        .expect("run cli")
+    let mut command = Command::new(env!("CARGO_BIN_EXE_rs-harness"));
+    configure_shared_asp_renderer(&mut command);
+    command.args(args).output().expect("run cli")
 }
 
 pub(crate) fn run_cli_with_stdin<I, S>(args: I, stdin: &str) -> Output
@@ -20,7 +19,9 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<std::ffi::OsStr>,
 {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_rs-harness"))
+    let mut command = Command::new(env!("CARGO_BIN_EXE_rs-harness"));
+    configure_shared_asp_renderer(&mut command);
+    let mut child = command
         .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -38,7 +39,9 @@ where
 
 #[cfg(feature = "search")]
 pub(crate) fn skip_if_protocol_graph_renderer_unavailable() -> bool {
-    let binary = std::env::var_os("SEMANTIC_AGENT_PROTOCOL_BIN").unwrap_or_else(|| "asp".into());
+    let binary = std::env::var_os("SEMANTIC_AGENT_PROTOCOL_BIN")
+        .or_else(|| shared_asp_renderer_binary().map(Into::into))
+        .unwrap_or_else(|| "asp".into());
     let available = Command::new(binary)
         .arg("--help")
         .stdout(Stdio::null())
@@ -54,6 +57,23 @@ pub(crate) fn skip_if_protocol_graph_renderer_unavailable() -> bool {
         );
         true
     }
+}
+
+fn configure_shared_asp_renderer(command: &mut Command) {
+    if std::env::var_os("SEMANTIC_AGENT_PROTOCOL_BIN").is_some() {
+        return;
+    }
+    if let Some(binary) = shared_asp_renderer_binary() {
+        command.env("SEMANTIC_AGENT_PROTOCOL_BIN", binary);
+    }
+}
+
+fn shared_asp_renderer_binary() -> Option<std::path::PathBuf> {
+    let current_dir = std::env::current_dir().ok()?;
+    current_dir
+        .ancestors()
+        .map(|ancestor| ancestor.join("target/debug/asp"))
+        .find(|candidate| candidate.is_file())
 }
 
 #[cfg(feature = "search")]

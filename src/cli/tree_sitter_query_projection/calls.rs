@@ -4,6 +4,7 @@ use quote::ToTokens;
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
 
+use super::capture::{capture_field_for_projection, capture_node_for_call};
 use super::core::{
     MAX_SYNTAX_QUERY_ROWS, ProjectedItemsContext, capture_text_for_projection, compact_query_atom,
     compact_query_code, first_code_line_with_number, item_source_code, query_terms_match,
@@ -99,6 +100,8 @@ impl CallProjectionVisitor<'_, '_> {
         let code = compact_query_code(code_source);
         let capture = capture_for_call(preferred_capture, self.context.captures);
         let name = compact_query_atom(&target);
+        let capture_node = capture_node_for_call(&capture, &name, self.context.query_node_types);
+        let capture_field = capture_field_for_projection(&capture, self.context.fields);
         let capture_text = capture_text_for_projection(&capture, &name, &code, &self.owner.code);
         if !syntax_selector_matches(
             self.context.selector,
@@ -127,6 +130,8 @@ impl CallProjectionVisitor<'_, '_> {
         if self.context.rows.len() < MAX_SYNTAX_QUERY_ROWS {
             self.context.rows.push(SyntaxQueryRow {
                 capture,
+                capture_node,
+                capture_field,
                 capture_text,
                 node: "call_expression",
                 name,

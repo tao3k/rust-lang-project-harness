@@ -123,6 +123,24 @@ fn cli_search_views_render_rfc_line_protocol() {
         workspace.contains("|package . root=. manifest=Cargo.toml"),
         "{workspace}"
     );
+    let workspace_seeds = run_search(root, &["workspace", "--view", "seeds"]);
+    assert!(
+        workspace_seeds.starts_with("[search-workspace] root=. alg=seed-frontier"),
+        "{workspace_seeds}"
+    );
+    assert!(
+        workspace_seeds.contains("aliases: graph:{G=search,P=package}"),
+        "{workspace_seeds}"
+    );
+    assert!(
+        workspace_seeds.contains("P=package:pkg(.)"),
+        "{workspace_seeds}"
+    );
+    assert!(
+        workspace_seeds.contains("frontier=P.owner"),
+        "{workspace_seeds}"
+    );
+    assert!(!workspace_seeds.contains("G>{}"), "{workspace_seeds}");
 
     let targets = run_search(root, &["targets"]);
     assert!(
@@ -407,6 +425,25 @@ fn cli_search_views_render_rfc_line_protocol() {
         fzf.contains("|owner src/domain/mod.rs hit_kind=fzf"),
         "{fzf}"
     );
+
+    let fzf_seeds = run_search(root, &["fzf", "Thing", "--scope", "src", "--view", "seeds"]);
+    assert!(fzf_seeds.starts_with("[search-fzf] q=Thing"), "{fzf_seeds}");
+    assert!(fzf_seeds.contains(" alg=seed-frontier"), "{fzf_seeds}");
+    assert!(
+        fzf_seeds
+            .contains("legend: ID=kind:role(value)!next; edge SRC>{DST:rel}; frontier ID.next"),
+        "{fzf_seeds}"
+    );
+    assert!(
+        fzf_seeds.contains("aliases: graph:{G=search,Q=query"),
+        "{fzf_seeds}"
+    );
+    assert!(
+        fzf_seeds.contains("O=owner:path(src/lib.rs)!owner"),
+        "{fzf_seeds}"
+    );
+    assert!(!fzf_seeds.contains("|seed "), "{fzf_seeds}");
+    assert!(!fzf_seeds.contains("alias: graph:"), "{fzf_seeds}");
 
     let fzf_set = run_cli([
         "search".as_ref(),

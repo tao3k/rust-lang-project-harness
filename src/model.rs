@@ -488,6 +488,9 @@ impl RustProjectHarnessScope {
 pub struct RustHarnessConfig {
     /// Directory names skipped during file discovery.
     pub ignored_dir_names: BTreeSet<String>,
+    /// Hidden directory names that discovery may enter.
+    #[serde(default)]
+    pub include_hidden_dir_names: BTreeSet<String>,
     /// Severities that block assertions.
     pub blocking_severities: BTreeSet<RustDiagnosticSeverity>,
     /// Rule ids that should not emit findings for this run.
@@ -535,6 +538,7 @@ impl Default for RustHarnessConfig {
                 .iter()
                 .map(|name| (*name).to_string())
                 .collect(),
+            include_hidden_dir_names: BTreeSet::new(),
             blocking_severities: BTreeSet::from([
                 RustDiagnosticSeverity::Warning,
                 RustDiagnosticSeverity::Error,

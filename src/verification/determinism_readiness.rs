@@ -321,10 +321,14 @@ pub fn build_rust_determinism_readiness(
         &config.test_dir_names,
     );
     let monitored_paths = scope.monitored_paths();
-    let parsed_modules = discover_rust_files(&monitored_paths, &config.ignored_dir_names)
-        .into_iter()
-        .map(|path| parse_rust_file(&path))
-        .collect::<Vec<_>>();
+    let parsed_modules = discover_rust_files(
+        &monitored_paths,
+        &config.ignored_dir_names,
+        &config.include_hidden_dir_names,
+    )
+    .into_iter()
+    .map(|path| parse_rust_file(&path))
+    .collect::<Vec<_>>();
 
     let mut observations = parsed_modules
         .iter()

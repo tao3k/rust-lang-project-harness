@@ -1,5 +1,7 @@
 //! Hook-oriented query command mapped onto provider-owned search views.
 
+use std::ffi::OsString;
+
 use super::query_options::{QueryOptions, QuerySearchOptions};
 pub(super) use super::query_window::render_query_local_window;
 
@@ -8,8 +10,28 @@ pub(super) enum QueryCommand {
     Search(Box<QuerySearchOptions>),
 }
 
+pub(super) enum QueryGuideKind {
+    Query,
+    TreeSitter,
+}
+
+pub(super) fn query_guide_kind(args: &[OsString]) -> Option<QueryGuideKind> {
+    if args.first().and_then(|arg| arg.to_str()) != Some("guide") {
+        return None;
+    }
+    if args
+        .iter()
+        .skip(1)
+        .any(|arg| matches!(arg.to_str(), Some("treesitter" | "tree-sitter")))
+    {
+        Some(QueryGuideKind::TreeSitter)
+    } else {
+        Some(QueryGuideKind::Query)
+    }
+}
+
 pub(super) fn parse_query(
-    args: impl IntoIterator<Item = std::ffi::OsString>,
+    args: impl IntoIterator<Item = OsString>,
 ) -> Result<QueryCommand, String> {
     let options = QueryOptions::parse(args)?;
     if options.help {
@@ -42,12 +64,79 @@ fn is_exact_direct_source_selector(selector: &str) -> bool {
         && !path.contains('{')
 }
 
+pub(super) fn print_query_guide() {
+    println!(
+        r#"[query-guide] lang=rust provider=asp-rust protocol=query-guide.v1 root=.
+|contract stdout=frontier unless="--code + exact-selector|unique-match"
+|contract pure-code when="--code + exact-selector|unique-match" header=false legend=false metadata=false
+|contract no-inline-code-in-search default=true reason=search-is-discovery
+|contract compact-projection editable=false use=understanding-only exactBeforePatch=true
+
+|mode names command="query <owner-path> --query <symbol> --names-only" output=item-names
+|mode frontier command="query <owner-path> --query <symbol>" output=item-frontier code=false
+|mode code command="query <owner-path> --query <symbol> --code" output=pure-code requires=unique-match
+|mode exact-range command="query --from-hook direct-source-read --selector <path:start-end> --code" output=pure-code maxWindow=40
+|mode read-plan trigger="wide-selector|low-signal-window|broad-selector" output=read-frontier code=false
+
+|action item.code mapsTo="query <owner-path> --query <item-name> --code <root>"
+|action window.code mapsTo="query --from-hook direct-source-read --selector <path:start-end> --code <root>"
+|action item.outline mapsTo="query <owner-path> --query <item-name> --view outline <root>"
+|action exact-read mapsTo="query --from-hook direct-source-read --selector <exactRead> --code <root>"
+
+|read-plan nodeKinds=range,window,symbol,hot
+|read-plan relations=contains,split,remainder,matches,repairs
+|read-plan required=rank,frontier,omit,avoid
+|read-plan avoid=repeat-wide-read,manual-window-scan,raw-read
+
+|output frontier-example="I=item:fn(parse_query)@src/cli/query.rs:32:54!code"
+|output pure-code-example="stdout contains only source text"
+|avoid inline-code-in-search,projection-as-edit-source,manual-window-scan,repeat-owner,raw-read"#
+    );
+}
+
+pub(super) fn print_tree_sitter_query_guide() {
+    println!(
+        r#"[treesitter-query-guide] lang=rust engine=tree-sitter protocol=treesitter-query-guide.v1 root=.
+|contract base=tree-sitter native-extension=rs-harness
+|contract no-code-default=true output=capture-frontier
+|contract pure-code when="--treesitter-query + --code + exact-selector|unique-match"
+|contract codeTargetDefault=enclosing-item fallback=pattern-root captureText=false
+
+|syntax pattern=s-expression captures=@name fields=name:,type:,value: predicates=#eq?,#match?,#any-of?
+|syntax location=path,lineRange,startByte,endByte
+|syntax nodeFields=nodeType,field,capture,text,range,patternRoot,enclosingItem
+|native extension=ownerPath,symbolKind,itemRange,visibility,doc,tests,frontier,exactRead
+
+|template id=rust.functions pattern="(function_item name: (identifier) @function.name)" capture=function.name target=enclosing-item
+|template id=rust.structs pattern="(struct_item name: (type_identifier) @type.name)" capture=type.name target=enclosing-item
+|template id=rust.enums pattern="(enum_item name: (type_identifier) @type.name)" capture=type.name target=enclosing-item
+|template id=rust.impls pattern="(impl_item type: (_) @impl.target)" capture=impl.target target=pattern-root
+|template id=rust.calls pattern="(call_expression function: (_) @call.target)" capture=call.target target=hot-block
+|template id=rust.macros pattern="(macro_invocation macro: (identifier) @macro.name)" capture=macro.name target=pattern-root
+|template id=rust.tests pattern="(attribute_item) @attr (#match? @attr \"test\")" capture=attr target=enclosing-item
+
+|mode frontier command="query --treesitter-query <pattern> <root>" output=capture-frontier code=false
+|mode scoped-frontier command="query --selector <path-or-range> --treesitter-query <pattern> <root>" output=capture-frontier code=false
+|mode pure-code command="query --selector <path-or-range> --treesitter-query <pattern> --code <root>" output=pure-code
+|mode strict command="... --strict-treesitter" noMatch=fail stdout=empty
+
+|rule multiMatchWithoutCode ok=true cap=12 output=frontier
+|rule multiMatchWithCode default=fail require=--limit|--first|unique-predicate
+|rule noMatchWithCode default=fallback-selector strict=false
+|rule noMatchWithCodeStrict exit=nonzero stdout=empty
+
+|example frontier="query --treesitter-query '(function_item name: (identifier) @function.name)' ."
+|example pureCode="query --selector src/cli/query.rs --treesitter-query '(function_item name: (identifier) @function.name (#eq? @function.name \"parse_query\"))' --code ."
+|avoid broad-code-output,capture-name-only-by-default,inline-metadata-in-code-stdout"#
+    );
+}
+
 pub(super) fn print_query_help() {
     println!(
         "rs-harness query <owner-path[:start:end]> [items tests] [--query SYMBOL] [--names-only | --code] [PROJECT_ROOT]\n\
 rs-harness query --catalog <declarations|imports|calls|macros|cfg> [--json] [PROJECT_ROOT]\n\
 rs-harness query --treesitter-query '<s-expression>' [--selector <path[:line|:start:end]>] [--term TERM...] [--code] [--json] [PROJECT_ROOT]\n\
-rs-harness query --from-hook direct-source-read --selector <path[:line-range]> --code [PROJECT_ROOT]\n\
+rs-harness query --from-hook direct-source-read --selector <path[:line-range]> [--source worktree|index|head] --code [PROJECT_ROOT]\n\
 rs-harness query --from-hook KIND --selector SELECTOR [--query SYMBOL | --term TERM] [--names-only | --code] [PROJECT_ROOT]\n\
 rs-harness query --term TERM [--term TERM...] [--surface PIPE] [--view seeds] [PROJECT_ROOT]\n\n\
 Maps hook-denied raw reads and broad searches into parser-owned search output.\n\

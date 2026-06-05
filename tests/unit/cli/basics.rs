@@ -104,37 +104,31 @@ fn cli_agent_provider_surface_delegates_hook_runtime_to_root_tool() {
     let stdout = String::from_utf8(doctor.stdout).expect("utf8 stdout");
     assert!(stdout.contains("runtime=semantic-agent-hook"), "{stdout}");
 
-    let guide = run_cli(["agent".as_ref(), "guide".as_ref(), root.as_os_str()]);
+    let guide = run_cli(["guide".as_ref(), root.as_os_str()]);
     assert!(guide.status.success(), "{guide:?}");
     let stdout = String::from_utf8(guide.stdout).expect("guide stdout");
     assert!(
-        stdout.starts_with("[agent-guide] runtime=semantic-agent-hook language=rust"),
+        stdout.starts_with("[agent-guide] lang=rust provider=asp-rust protocol=agent-guide.v1"),
         "{stdout}"
     );
     assert!(
-        stdout.contains(
-            "|catalog reasoningProfiles=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg entries=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg routes=read-frontier,syntax-locate,syntax-code,query-code"
-        ),
+        stdout.contains("|surface search purpose=tool-map output=search-guide code=false"),
         "{stdout}"
     );
     assert!(
-        stdout.contains("|entry finding-frontier selectors=F:finding,O:owner?"),
+        stdout.contains(r#"|refer search-guide="search guide ." use=low-frequency-tool-map"#),
         "{stdout}"
     );
     assert!(
-        stdout.contains("|entry feature-cfg selectors=F2:feature"),
+        stdout.contains(r#"|refer query-guide="query guide ." use=code-stdout|read-plan-contract"#),
         "{stdout}"
     );
     assert!(
-        stdout.contains("asp rust search prime --view seeds ."),
+        stdout.contains(r#"|refer treesitter-query-guide="query guide treesitter .""#),
         "{stdout}"
     );
     assert!(
-        stdout.contains("asp rust search fzf <query> owner tests --view seeds ."),
-        "{stdout}"
-    );
-    assert!(
-        !stdout.contains("rs-harness search fzf <query> owner tests --view seeds ."),
+        !stdout.contains("|entry finding-frontier selectors=F:finding,O:owner?"),
         "{stdout}"
     );
 
@@ -150,6 +144,13 @@ fn cli_agent_provider_surface_delegates_hook_runtime_to_root_tool() {
         String::from_utf8(install.stderr)
             .expect("stderr")
             .contains("rs-harness agent install moved to asp hook")
+    );
+    let legacy_guide = run_cli(["agent".as_ref(), "guide".as_ref(), root.as_os_str()]);
+    assert!(!legacy_guide.status.success(), "{legacy_guide:?}");
+    assert!(
+        String::from_utf8(legacy_guide.stderr)
+            .expect("stderr")
+            .contains("rs-harness agent guide moved to rs-harness guide")
     );
     let hook = run_cli([
         "agent".as_ref(),

@@ -98,7 +98,13 @@ pub(super) fn build_search_packet(
         let remaining = tokens.collect::<Vec<_>>();
         match tag {
             "node" => push_node(&remaining, &mut nodes, &mut next_actions),
-            "package" => push_package(&remaining, &mut packages),
+            "package" => push_package(
+                &remaining,
+                &mut packages,
+                &mut nodes,
+                &mut next_actions,
+                &mut seed_fragments,
+            ),
             "dep" => push_dependency_node(&remaining, &mut nodes),
             "owner" => {
                 if let Some(owner_path) =
@@ -113,6 +119,7 @@ pub(super) fn build_search_packet(
                 &mut items,
                 &mut next_actions,
             ),
+            "hot" => push_hot(&remaining, current_owner.as_deref(), &mut next_actions),
             "edge" => push_edge(&remaining, &mut edges),
             "find" => push_finding(&remaining, &mut findings),
             "next" => push_next_actions(remaining.join(" "), None, &mut next_actions),
@@ -257,6 +264,23 @@ fn base_packet(
     });
     if options.view == "fzf" {
         packet["finder"] = super::semantic_search_finder_json::fzf_finder(options);
+        packet["avoidNextActions"] = json!([
+            {
+                "kind": "broad-fzf",
+                "target": "search",
+                "reason": "reasoning-profile"
+            },
+            {
+                "kind": "raw-read",
+                "target": "source",
+                "reason": "reasoning-profile"
+            },
+            {
+                "kind": "repeat-glob",
+                "target": "search",
+                "reason": "reasoning-profile"
+            }
+        ]);
     }
     if options.view == "reasoning" {
         packet["avoidNextActions"] = json!([
@@ -465,13 +489,30 @@ fn enrich_header_fields(fields: &mut Map<String, Value>, options: &SemanticSearc
     }
 }
 
-fn push_package(tokens: &[&str], packages: &mut Vec<Value>) {
+fn push_package(
+    tokens: &[&str],
+    packages: &mut Vec<Value>,
+    nodes: &mut Vec<Value>,
+    next_actions: &mut Vec<Value>,
+    seed_fragments: &mut Vec<String>,
+) {
     let Some(id) = tokens.first() else {
         return;
     };
+    let fields = parse_fields(tokens.iter().skip(1).copied());
+    if let Some(next) = next_field(&fields) {
+        seed_fragments.push(next.clone());
+        next_actions.extend(parse_next_actions(next, None));
+    }
     packages.push(json!({
         "id": id,
-        "fields": parse_fields(tokens.iter().skip(1).copied()),
+        "fields": fields.clone(),
+    }));
+    nodes.push(json!({
+        "id": format!("P:{id}"),
+        "kind": "package",
+        "path": id,
+        "fields": fields,
     }));
 }
 
@@ -557,6 +598,26 @@ fn push_item(
         "location": location(owner_path),
         "fields": fields,
     }));
+}
+
+fn push_hot(tokens: &[&str], current_owner: Option<&str>, next_actions: &mut Vec<Value>) {
+    let Some(target) = tokens.first() else {
+        return;
+    };
+    let mut fields = parse_fields(tokens.iter().skip(1).copied());
+    let owner_path = current_owner.unwrap_or("-");
+    canonicalize_read_field(&mut fields, owner_path);
+    let mut action = json!({
+        "kind": "hot",
+        "target": target,
+        "targetRole": "symbol",
+        "ownerPath": owner_path,
+    });
+    if let Some(read) = string_field(&fields, "read") {
+        action["read"] = json!(read);
+    }
+    action["fields"] = json!(fields);
+    next_actions.push(action);
 }
 
 fn push_edge(tokens: &[&str], edges: &mut Vec<Value>) {

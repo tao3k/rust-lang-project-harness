@@ -65,3 +65,52 @@ fn tree_sitter_query_range_locator_can_drive_exact_code_output() {
     let stdout = String::from_utf8(output.stdout).expect("compact output is UTF-8");
     assert_eq!(stdout, "pub fn beta_target() -> usize {\n    2\n}\n");
 }
+
+#[test]
+fn tree_sitter_query_selector_outside_default_roots_drives_exact_code_output() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    std::fs::create_dir_all(root.join("crates/member/src")).expect("member src dir");
+    std::fs::write(
+        root.join("crates/member/src/lib.rs"),
+        "pub fn member_target() -> usize {\n    9\n}\n",
+    )
+    .expect("fixture");
+
+    let output = run_cli(function_name_query_args(
+        root,
+        &["--selector", "crates/member/src/lib.rs:1:3", "--code"],
+    ));
+    assert!(output.status.success(), "{output:?}");
+
+    let stdout = String::from_utf8(output.stdout).expect("compact output is UTF-8");
+    assert_eq!(stdout, "pub fn member_target() -> usize {\n    9\n}\n");
+}
+
+#[test]
+fn tree_sitter_query_selector_uses_canonical_paths_not_suffix_matching() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    std::fs::create_dir_all(root.join("src")).expect("src dir");
+    std::fs::write(
+        root.join("src/lib.rs"),
+        "pub fn locate_me() -> usize {\n    7\n}\n",
+    )
+    .expect("fixture");
+
+    let suffix_output = run_cli(function_name_query_args(
+        root,
+        &["--selector", "lib.rs:1:3", "--code"],
+    ));
+    assert!(suffix_output.status.success(), "{suffix_output:?}");
+    let suffix_stdout = String::from_utf8(suffix_output.stdout).expect("compact output is UTF-8");
+    assert_eq!(suffix_stdout, "");
+
+    let absolute_selector = format!("{}:1:3", root.join("src/lib.rs").display());
+    let absolute_args = ["--selector", absolute_selector.as_str(), "--code"];
+    let absolute_output = run_cli(function_name_query_args(root, &absolute_args));
+    assert!(absolute_output.status.success(), "{absolute_output:?}");
+    let absolute_stdout =
+        String::from_utf8(absolute_output.stdout).expect("compact output is UTF-8");
+    assert_eq!(absolute_stdout, "pub fn locate_me() -> usize {\n    7\n}\n");
+}

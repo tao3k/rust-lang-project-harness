@@ -167,7 +167,11 @@ fn rerun_inputs(project_root: &Path, config: &RustHarnessConfig) -> BTreeSet<Pat
     for path in scope.monitored_paths() {
         paths.insert(path);
     }
-    for path in discover_rust_files(&[project_root.to_path_buf()], &config.ignored_dir_names) {
+    for path in discover_rust_files(
+        &[project_root.to_path_buf()],
+        &config.ignored_dir_names,
+        &config.include_hidden_dir_names,
+    ) {
         paths.insert(path);
     }
     paths.retain(|path| path.exists());

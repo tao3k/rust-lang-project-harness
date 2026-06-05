@@ -5,8 +5,10 @@ use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 use crate::discovery::{
-    discover_cargo_package_roots, glob_pattern_matches, rust_project_harness_scope,
+    discover_cargo_package_roots, discover_rust_files, glob_pattern_matches,
+    rust_project_harness_scope,
 };
+use crate::runner::rust_harness_config_for_project;
 
 #[test]
 fn workspace_member_glob_matches_forward_slash_relative_paths() {
@@ -76,11 +78,49 @@ fn workspace_path_dependencies_are_discovered_as_package_roots() {
     write_file(root, "crates/hook/src/lib.rs");
     write_file(root, "languages/rust-lang-project-harness/src/lib.rs");
 
-    let package_roots = discover_cargo_package_roots(root, &BTreeSet::new());
+    let package_roots = discover_cargo_package_roots(root, &BTreeSet::new(), &BTreeSet::new());
     let package_roots = path_set(root, &package_roots);
 
     assert!(package_roots.contains("crates/hook"));
     assert!(package_roots.contains("languages/rust-lang-project-harness"));
+}
+
+#[test]
+fn hidden_directories_are_ignored_by_default() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_file(root, "src/lib.rs");
+    write_file(root, ".devenv/generated.rs");
+
+    let files = discover_rust_files(&[root.to_path_buf()], &BTreeSet::new(), &BTreeSet::new());
+    let files = path_set(root, &files);
+
+    assert!(files.contains("src/lib.rs"));
+    assert!(!files.contains(".devenv/generated.rs"));
+}
+
+#[test]
+fn asp_toml_can_include_a_hidden_directory() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("asp.toml"),
+        "[discovery]\nincludeHiddenDirNames = [\".agent-fixtures\"]\n",
+    )
+    .expect("write asp config");
+    write_file(root, "src/lib.rs");
+    write_file(root, ".agent-fixtures/generated.rs");
+
+    let config = rust_harness_config_for_project(root);
+    let files = discover_rust_files(
+        &[root.to_path_buf()],
+        &config.ignored_dir_names,
+        &config.include_hidden_dir_names,
+    );
+    let files = path_set(root, &files);
+
+    assert!(files.contains("src/lib.rs"));
+    assert!(files.contains(".agent-fixtures/generated.rs"));
 }
 
 fn write_file(root: &Path, relative_path: &str) {

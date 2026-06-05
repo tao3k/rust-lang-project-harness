@@ -8,33 +8,89 @@ fn cli_agent_guide_advertises_query_reroute() {
     let root = temp.path();
     write_manifest(root, "cli-query-guide");
     write_clean_source(root);
-    let output = run_cli(["agent".as_ref(), "guide".as_ref(), root.as_os_str()]);
+    let output = run_cli(["guide".as_ref(), root.as_os_str()]);
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
     assert!(
-        stdout.contains("asp rust query <path> --query <symbol-or-a|b|c> ."),
+        stdout.contains("[agent-guide] lang=rust provider=asp-rust protocol=agent-guide.v1"),
         "{stdout}"
     );
     assert!(
-        stdout.contains("asp rust query <path> --query <symbol-or-a|b|c> --code ."),
+        stdout.contains("|surface query purpose=locator-or-code output=frontier|pure-code"),
         "{stdout}"
     );
+    assert!(
+        stdout.contains(r#"|flow bootstrap start="search guide .""#),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(r#"|refer search-guide="search guide ." use=low-frequency-tool-map"#),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("|avoid raw-read,manual-window-scan,inline-code-in-search"),
+        "{stdout}"
+    );
+}
+
+#[test]
+fn cli_query_guide_prints_query_contract() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "cli-query-guide-contract");
+    write_clean_source(root);
+    let output = run_cli(["query".as_ref(), "guide".as_ref(), root.as_os_str()]);
+    assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
+    assert!(
+        stdout.contains("[query-guide] lang=rust provider=asp-rust protocol=query-guide.v1"),
+        "{stdout}"
+    );
+    assert!(
+        stdout
+            .contains(r#"|contract stdout=frontier unless="--code + exact-selector|unique-match""#),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(r#"|mode exact-range command="query --from-hook direct-source-read --selector <path:start-end> --code" output=pure-code maxWindow=40"#),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("|read-plan avoid=repeat-wide-read,manual-window-scan,raw-read"),
+        "{stdout}"
+    );
+}
+
+#[test]
+fn cli_query_guide_treesitter_prints_syntax_contract() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "cli-query-guide-treesitter");
+    write_clean_source(root);
+    let output = run_cli([
+        "query".as_ref(),
+        "guide".as_ref(),
+        "treesitter".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
     assert!(
         stdout.contains(
-            "|route syntax-locate selectors=S:tree-sitter-query,R:range returns=locator,capture,frontier code=false"
+            "[treesitter-query-guide] lang=rust engine=tree-sitter protocol=treesitter-query-guide.v1"
         ),
         "{stdout}"
     );
     assert!(
-        stdout.contains(
-            "|route syntax-code selectors=S:tree-sitter-query,R:exact-selector|unique-predicate returns=code code=pure multi-match=deny"
-        ),
+        stdout.contains("|contract base=tree-sitter native-extension=rs-harness"),
         "{stdout}"
     );
     assert!(
-        stdout.contains(
-            "|rule syntax predicates supported=#eq?,#any-eq?,#any-of?,#match?,#any-match?,#not-eq?,#not-match? unsupported=none unsupportedReported=true"
-        ),
+        stdout.contains(r#"|template id=rust.functions pattern="(function_item name: (identifier) @function.name)""#),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(r#"|mode pure-code command="query --selector <path-or-range> --treesitter-query <pattern> --code <root>" output=pure-code"#),
         "{stdout}"
     );
 }

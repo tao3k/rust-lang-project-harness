@@ -8,6 +8,9 @@ use syn::spanned::Spanned;
 
 use crate::parser::parse_rust_source_syntax;
 
+use super::capture::{
+    capture_field_for_projection, capture_line_range_for_item, capture_node_for_item,
+};
 use crate::cli::tree_sitter_query_locator::{SyntaxQuerySelector, syntax_selector_matches};
 use crate::cli::tree_sitter_query_packet::SyntaxQueryRow;
 
@@ -94,6 +97,7 @@ impl SyntaxQueryProjection {
 pub(in crate::cli) fn project_tree_sitter_query(
     project_root: &Path,
     query_node_types: &[String],
+    fields: &[String],
     captures: &[String],
     terms: &[String],
     predicates: &[SyntaxQueryPredicate],
@@ -132,7 +136,10 @@ pub(in crate::cli) fn project_tree_sitter_query(
     }
 
     let project_root = absolute_query_project_root(project_root);
-    let source_files = rust_source_files(&project_root)?;
+    let source_files = rust_source_files(&project_root, selector)?;
+    let normalized_selector =
+        normalized_selector_for_sources(&project_root, selector, &source_files);
+    let active_selector = normalized_selector.as_ref().or(selector);
     let mut rows = Vec::new();
     let mut total_matches = 0usize;
     for path in source_files {
@@ -144,15 +151,18 @@ pub(in crate::cli) fn project_tree_sitter_query(
             Ok(syntax) => syntax,
             Err(_) => continue,
         };
-        let relative_path = query_relative_path(&project_root, &path);
+        let normalized_path = fs::canonicalize(&path).unwrap_or_else(|_| path.clone());
+        let relative_path = query_relative_path(&project_root, &normalized_path);
         let source_lines = source.lines().collect::<Vec<_>>();
         let mut context = ProjectedItemsContext {
             source_lines: &source_lines,
             relative_path: &relative_path,
+            query_node_types,
             supported_nodes: &supported_nodes,
+            fields,
             terms,
             predicates: &prepared_predicates,
-            selector,
+            selector: active_selector,
             captures,
             rows: &mut rows,
             total_matches: &mut total_matches,
@@ -171,7 +181,9 @@ pub(in crate::cli) fn project_tree_sitter_query(
 pub(super) struct ProjectedItemsContext<'a> {
     pub(super) source_lines: &'a [&'a str],
     pub(super) relative_path: &'a str,
+    pub(super) query_node_types: &'a [String],
     pub(super) supported_nodes: &'a [&'static str],
+    pub(super) fields: &'a [String],
     pub(super) terms: &'a [String],
     pub(super) predicates: &'a [PreparedSyntaxQueryPredicate<'a>],
     pub(super) selector: Option<&'a SyntaxQuerySelector>,
@@ -193,13 +205,18 @@ fn collect_projected_items(items: &[syn::Item], context: &mut ProjectedItemsCont
             let code = compact_query_code(code_source);
             let capture = capture_for_node(node, context.captures);
             let name = compact_query_atom(&item_query_name(item));
+            let capture_field = capture_field_for_projection(&capture, context.fields);
+            let capture_node =
+                capture_node_for_item(node, item, &capture_field, context.query_node_types);
+            let (capture_start_line, capture_end_line) =
+                capture_line_range_for_item(item, &capture_field, code_line, start_line, end_line);
             let item_code = item_source_code(context.source_lines, start_line, end_line);
             let capture_text = capture_text_for_projection(&capture, &name, &code, &item_code);
             if !syntax_selector_matches(
                 context.selector,
                 context.relative_path,
-                code_line,
-                code_line,
+                capture_start_line,
+                capture_end_line,
                 start_line,
                 end_line,
             ) {
@@ -222,12 +239,14 @@ fn collect_projected_items(items: &[syn::Item], context: &mut ProjectedItemsCont
             if context.rows.len() < MAX_SYNTAX_QUERY_ROWS {
                 context.rows.push(SyntaxQueryRow {
                     capture,
+                    capture_node,
+                    capture_field,
                     capture_text,
                     node,
                     name,
                     path: context.relative_path.to_string(),
-                    start_line: code_line,
-                    end_line: code_line,
+                    start_line: capture_start_line,
+                    end_line: capture_end_line,
                     item_start_line: start_line,
                     item_end_line: end_line,
                     item_code,
@@ -550,7 +569,13 @@ pub(super) fn query_terms_match(code: &str, terms: &[String]) -> bool {
         .all(|term| code.contains(&term))
 }
 
-fn rust_source_files(project_root: &Path) -> Result<Vec<PathBuf>, String> {
+fn rust_source_files(
+    project_root: &Path,
+    selector: Option<&SyntaxQuerySelector>,
+) -> Result<Vec<PathBuf>, String> {
+    if let Some(files) = selector_source_files(project_root, selector)? {
+        return Ok(files);
+    }
     let mut files = Vec::new();
     for root in rust_query_source_roots(project_root) {
         collect_rust_source_files(&root, &mut files)?;
@@ -558,6 +583,83 @@ fn rust_source_files(project_root: &Path) -> Result<Vec<PathBuf>, String> {
     files.sort();
     files.dedup();
     Ok(files)
+}
+
+fn normalized_selector_for_sources(
+    project_root: &Path,
+    selector: Option<&SyntaxQuerySelector>,
+    source_files: &[PathBuf],
+) -> Option<SyntaxQuerySelector> {
+    let selector = selector?;
+    let selector_path = selector.path();
+    if selector_path
+        .chars()
+        .any(|character| matches!(character, '*' | '?' | '[' | ']'))
+    {
+        return None;
+    }
+    let path = Path::new(selector_path);
+    let candidate = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        project_root.join(path)
+    };
+    let canonical_candidate = fs::canonicalize(&candidate).ok()?;
+    if canonical_candidate.is_dir() {
+        return Some(SyntaxQuerySelector {
+            path: selector.path().to_string(),
+            start_line: selector.start_line,
+            end_line: selector.end_line,
+            matches_all_paths: true,
+        });
+    }
+    source_files.iter().find_map(|source_file| {
+        let canonical_source = fs::canonicalize(source_file).ok()?;
+        if canonical_source == canonical_candidate {
+            Some(SyntaxQuerySelector {
+                path: query_relative_path(project_root, &canonical_source),
+                start_line: selector.start_line,
+                end_line: selector.end_line,
+                matches_all_paths: false,
+            })
+        } else {
+            None
+        }
+    })
+}
+
+fn selector_source_files(
+    project_root: &Path,
+    selector: Option<&SyntaxQuerySelector>,
+) -> Result<Option<Vec<PathBuf>>, String> {
+    let Some(selector) = selector else {
+        return Ok(None);
+    };
+    let selector_path = selector.path();
+    if selector_path
+        .chars()
+        .any(|character| matches!(character, '*' | '?' | '[' | ']'))
+    {
+        return Ok(None);
+    }
+    let path = Path::new(selector_path);
+    let candidate = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        project_root.join(path)
+    };
+    if !candidate.exists() {
+        return Ok(None);
+    }
+    let mut files = Vec::new();
+    collect_rust_source_files(&candidate, &mut files)?;
+    files.sort();
+    files.dedup();
+    if files.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(files))
+    }
 }
 
 fn rust_query_source_roots(project_root: &Path) -> Vec<PathBuf> {
@@ -630,12 +732,14 @@ fn should_skip_query_dir(path: &Path) -> bool {
 }
 
 fn absolute_query_project_root(project_root: &Path) -> PathBuf {
-    if project_root.is_absolute() {
-        return project_root.to_path_buf();
-    }
-    std::env::current_dir()
-        .unwrap_or_else(|_| PathBuf::from("."))
-        .join(project_root)
+    let absolute = if project_root.is_absolute() {
+        project_root.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .join(project_root)
+    };
+    fs::canonicalize(&absolute).unwrap_or(absolute)
 }
 
 fn query_relative_path(project_root: &Path, path: &Path) -> String {

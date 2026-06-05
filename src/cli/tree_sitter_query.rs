@@ -216,6 +216,7 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
     let projection = project_tree_sitter_query(
         &project_root,
         &query_plan.node_types,
+        &query_plan.fields,
         &query_plan.captures,
         &terms,
         &query_plan.predicates,
@@ -392,8 +393,10 @@ fn print_tree_sitter_query_graph(
         pattern,
         capture
     );
-    println!("legend: ID=kind:role(value)!next; ts=node/field; frontier ID.next");
-    println!("alias: graph:{{G=query,Q=tsquery,C=capture,I=item,O=owner}}");
+    println!(
+        "legend: aliases ID:kind; node ID=kind:role(value)!next; ts=node/field; frontier ID.next"
+    );
+    println!("aliases=G:query,Q:tsquery,C:capture,I:item,O:owner");
     println!();
     println!("Q=tsquery:pattern({pattern})!query");
     for (index, row) in display_rows.iter().enumerate() {
@@ -472,34 +475,8 @@ fn syntax_query_pattern_label(query_plan: &RustSyntaxQueryPlan) -> String {
         .map_or_else(|| node.to_string(), |field| format!("{node}/{field}"))
 }
 
-fn syntax_query_capture_ts(query_plan: &RustSyntaxQueryPlan, row: &SyntaxQueryRow) -> String {
-    let field = syntax_query_capture_field_name(&row.capture);
-    let node = if row.capture.ends_with(".name")
-        || row.capture.ends_with(".target")
-        || row.capture.ends_with(".method")
-    {
-        query_plan
-            .node_types
-            .iter()
-            .find(|node| {
-                if row.name.contains("::") {
-                    node.as_str() == "scoped_identifier"
-                } else {
-                    node.as_str() == "identifier" || node.as_str() == "type_identifier"
-                }
-            })
-            .map_or("identifier", String::as_str)
-    } else {
-        row.node
-    };
-    format!("{node}/{field}")
-}
-
-fn syntax_query_capture_field_name(capture: &str) -> &str {
-    if capture.starts_with("call.") {
-        return "function";
-    }
-    capture.rsplit_once('.').map_or("item", |(_, field)| field)
+fn syntax_query_capture_ts(_query_plan: &RustSyntaxQueryPlan, row: &SyntaxQueryRow) -> String {
+    format!("{}/{}", row.capture_node, row.capture_field)
 }
 
 fn syntax_query_item_kind(row: &SyntaxQueryRow) -> &'static str {

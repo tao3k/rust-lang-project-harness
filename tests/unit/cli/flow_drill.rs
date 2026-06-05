@@ -83,7 +83,7 @@ fn cli_rust_flow_drill_exercises_registry_prime_search_and_ingest() {
     );
     assert!(
         workspace.contains(
-            "|package . root=. manifest=Cargo.toml source=manifest manager=cargo next=prime"
+            "|package . root=. manifest=Cargo.toml source=manifest manager=cargo next=package:."
         ),
         "{workspace}"
     );

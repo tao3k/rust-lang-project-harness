@@ -16,7 +16,9 @@ use super::format::{
     display_project_path, owner_role_for_path, package_label, package_roots_for_request,
     query_set_terms, render_owner_line,
 };
-use super::item_query::{owner_item_count, render_item_query_line, render_owner_item_lines};
+use super::item_query::{
+    owner_item_count, render_item_query_line, render_owner_item_hot_lines, render_owner_item_lines,
+};
 use super::limits::SEARCH_OWNER_LIMIT;
 use super::owner as owner_search;
 use super::scope::{owner_branch_matches, owner_path_matches};
@@ -112,6 +114,13 @@ fn render_exact_path_owner_query_set(
             &module_refs,
             options.item_query.as_deref(),
             options.item_names_only,
+        );
+        append_owner_item_hot_lines(
+            &mut block,
+            &package_root,
+            &module_refs,
+            include_items,
+            options.item_query.as_deref(),
         );
         append_owner_item_lines(
             &mut block,
@@ -221,6 +230,13 @@ fn render_exact_path_owner_block(input: ExactPathOwnerBlock<'_>) -> String {
         input.item_query,
         input.item_names_only,
     );
+    append_owner_item_hot_lines(
+        &mut block,
+        input.package_root,
+        &[input.module],
+        input.include_items,
+        input.item_query,
+    );
     append_owner_item_lines(
         &mut block,
         input.package_root,
@@ -278,6 +294,13 @@ fn render_search_owner_block(
         &matching_modules,
         options.item_query.as_deref(),
         options.item_names_only,
+    );
+    append_owner_item_hot_lines(
+        &mut block,
+        &context.package_root,
+        &matching_modules,
+        include_items,
+        options.item_query.as_deref(),
     );
     append_owner_item_lines(
         &mut block,
@@ -655,6 +678,21 @@ fn append_item_query_line(
     let item_names_only =
         item_names_only || broad_item_query_should_use_names_only(matching_modules, item_query);
     if let Some(line) = render_item_query_line(matching_modules, item_query, item_names_only) {
+        let _ = writeln!(block, "{line}");
+    }
+}
+
+fn append_owner_item_hot_lines(
+    block: &mut String,
+    package_root: &Path,
+    matching_modules: &[&ParsedRustModule],
+    include_items: bool,
+    item_query: Option<&str>,
+) {
+    if !include_items {
+        return;
+    }
+    for line in render_owner_item_hot_lines(package_root, matching_modules, item_query) {
         let _ = writeln!(block, "{line}");
     }
 }

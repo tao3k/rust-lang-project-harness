@@ -16,10 +16,14 @@ pub(super) fn parse_scope(
     scope: &RustProjectHarnessScope,
     config: &RustHarnessConfig,
 ) -> Vec<ParsedRustModule> {
-    discover_rust_files(&scope.monitored_paths(), &config.ignored_dir_names)
-        .into_iter()
-        .map(|path| parse_rust_file(&path))
-        .collect()
+    discover_rust_files(
+        &scope.monitored_paths(),
+        &config.ignored_dir_names,
+        &config.include_hidden_dir_names,
+    )
+    .into_iter()
+    .map(|path| parse_rust_file(&path))
+    .collect()
 }
 
 pub(super) struct PackageSearchContext {

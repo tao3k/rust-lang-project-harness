@@ -128,16 +128,20 @@ fn query_set_owner_modules(
     if query_paths.is_empty() {
         return Vec::new();
     }
-    discover_rust_files(&scope.source_paths, &config.ignored_dir_names)
-        .into_iter()
-        .filter(|path| {
-            query_paths
-                .iter()
-                .any(|query| owner_path_matches(package_root, path, query))
-        })
-        .map(|path| parse_rust_file(&path))
-        .filter(|module| !module_is_scope(scope, module, "tests"))
-        .collect()
+    discover_rust_files(
+        &scope.source_paths,
+        &config.ignored_dir_names,
+        &config.include_hidden_dir_names,
+    )
+    .into_iter()
+    .filter(|path| {
+        query_paths
+            .iter()
+            .any(|query| owner_path_matches(package_root, path, query))
+    })
+    .map(|path| parse_rust_file(&path))
+    .filter(|module| !module_is_scope(scope, module, "tests"))
+    .collect()
 }
 
 fn render_exact_path_tests(
@@ -195,10 +199,14 @@ fn parse_test_scope(
     scope: &RustProjectHarnessScope,
     config: &RustHarnessConfig,
 ) -> Vec<ParsedRustModule> {
-    discover_rust_files(&scope.test_paths, &config.ignored_dir_names)
-        .into_iter()
-        .map(|path| parse_rust_file(&path))
-        .collect()
+    discover_rust_files(
+        &scope.test_paths,
+        &config.ignored_dir_names,
+        &config.include_hidden_dir_names,
+    )
+    .into_iter()
+    .map(|path| parse_rust_file(&path))
+    .collect()
 }
 
 fn render_search_tests_block(

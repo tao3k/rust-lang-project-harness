@@ -24,30 +24,32 @@ fn cli_search_guide_renders_typed_reasoning_profiles() {
     let output = run_cli(["search".as_ref(), "guide".as_ref(), root.as_os_str()]);
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8(output.stdout).expect("stdout");
-    assert!(stdout.starts_with("[search-guide] root="), "{stdout}");
-    assert!(stdout.contains("legend:"), "{stdout}");
     assert!(
-        stdout.contains("|catalog reasoningProfiles=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg entries=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg routes=read-frontier"),
+        stdout.starts_with("[search-guide] protocol=search-guide.v1"),
         "{stdout}"
     );
     assert!(
-        stdout.contains("entries=owner-query(O,Q=>items+tests+dependency-usage),query-deps(Q,D=>owners+imports+usage-tests),owner-tests(O=>covering-tests+test-entrypoints+fixtures),finding-frontier(F,O=>affected-owners+tests+verification-actions),feature-cfg(F2=>cfg-gates+owners+verification-surfaces)"),
+        stdout.contains("  overview-prime:\n    command=search prime --view seeds"),
         "{stdout}"
     );
     assert!(
-        stdout.contains("|entry finding-frontier selectors=F:finding,O:owner? returns=affected-owners,tests,verification-actions"),
+        stdout.contains("  owner-items:\n    args=owner:path query:term"),
         "{stdout}"
     );
     assert!(
-        stdout.contains(
-            "|entry feature-cfg selectors=F2:feature returns=cfg-gates,owners,verification-surfaces"
-        ),
+        stdout.contains("  query-deps:\n    args=query:term dependency:pkg"),
         "{stdout}"
     );
     assert!(
-        stdout.contains("|route read-frontier selectors=R:range"),
+        stdout.contains("  read-frontier:\n    args=range:path@start:end"),
         "{stdout}"
     );
+    assert!(
+        stdout.contains("avoid=raw-read,manual-window-scan,full-json,natural-language-intent"),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("|entry "), "{stdout}");
+    assert!(!stdout.contains("|route "), "{stdout}");
     assert!(!stdout.contains("compatible="), "{stdout}");
     assert!(!stdout.trim_start().starts_with('{'), "{stdout}");
 

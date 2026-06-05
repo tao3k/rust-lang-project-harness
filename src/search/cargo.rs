@@ -33,10 +33,11 @@ pub(super) fn render_search_workspace(
     for package_root in roots.into_iter().take(SEARCH_HIT_LIMIT) {
         let _ = writeln!(
             rendered,
-            "|package {} root={} manifest={} source=manifest manager=cargo next=prime",
+            "|package {} root={} manifest={} source=manifest manager=cargo next=package:{}",
             package_label(project_root, &package_root),
             display_project_path(project_root, &package_root),
-            display_project_path(project_root, &package_root.join("Cargo.toml"))
+            display_project_path(project_root, &package_root.join("Cargo.toml")),
+            package_label(project_root, &package_root)
         );
     }
     Ok(rendered)

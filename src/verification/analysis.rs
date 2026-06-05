@@ -280,7 +280,11 @@ fn analyze_rust_verification_package(
 }
 
 fn verification_package_roots(project_root: &Path, config: &RustHarnessConfig) -> Vec<PathBuf> {
-    let package_roots = discover_cargo_package_roots(project_root, &config.ignored_dir_names);
+    let package_roots = discover_cargo_package_roots(
+        project_root,
+        &config.ignored_dir_names,
+        &config.include_hidden_dir_names,
+    );
     if should_run_member_scopes(project_root, &package_roots) {
         package_roots
     } else {
@@ -292,10 +296,14 @@ fn parse_scope(
     scope: &RustProjectHarnessScope,
     config: &RustHarnessConfig,
 ) -> Vec<ParsedRustModule> {
-    discover_rust_files(&scope.monitored_paths(), &config.ignored_dir_names)
-        .into_iter()
-        .map(|path| parse_rust_file(&path))
-        .collect()
+    discover_rust_files(
+        &scope.monitored_paths(),
+        &config.ignored_dir_names,
+        &config.include_hidden_dir_names,
+    )
+    .into_iter()
+    .map(|path| parse_rust_file(&path))
+    .collect()
 }
 
 fn should_run_member_scopes(project_root: &Path, package_roots: &[PathBuf]) -> bool {

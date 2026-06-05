@@ -69,6 +69,40 @@ pub(super) fn render_owner_item_lines(
         .collect()
 }
 
+pub(super) fn render_owner_item_hot_lines(
+    package_root: &Path,
+    matching_modules: &[&ParsedRustModule],
+    item_query: Option<&str>,
+) -> Vec<String> {
+    let Some(query) = item_query.map(str::trim).filter(|query| !query.is_empty()) else {
+        return Vec::new();
+    };
+    let terms = item_query_terms(query);
+    let named_items = matching_modules
+        .iter()
+        .flat_map(|module| searchable_module_items(module))
+        .collect::<Vec<_>>();
+    let selected_items = matching_modules
+        .iter()
+        .flat_map(|module| module_items_for_query(module, Some(query)))
+        .collect::<Vec<_>>();
+    item_query_term_revisions(&named_items, &selected_items, &terms)
+        .into_iter()
+        .filter_map(|revision| {
+            let (source, target) = revision.split_once("->")?;
+            let (module, item) = matching_modules.iter().find_map(|module| {
+                find_item_by_query_candidate(module, target).map(|item| (*module, item))
+            })?;
+            let mut line =
+                render_item_locator_line_with_read(package_root, &module.report.path, item)
+                    .replacen("|item ", "|hot ", 1);
+            line.push_str(" revise=");
+            line.push_str(source);
+            Some(line)
+        })
+        .collect()
+}
+
 pub(super) fn render_owner_item_code_lines(
     _package_root: &Path,
     matching_modules: &[&ParsedRustModule],
@@ -430,6 +464,15 @@ fn item_query_candidate_score(candidate: &str, term: &str) -> usize {
         return 20 + common_prefix.min(20);
     }
     0
+}
+
+fn find_item_by_query_candidate<'a>(
+    module: &'a ParsedRustModule,
+    candidate: &str,
+) -> Option<&'a RustTopLevelItemSyntax> {
+    searchable_module_items(module)
+        .into_iter()
+        .find(|item| item_matches_query_exact(item, candidate))
 }
 
 fn normalize_identifier(value: &str) -> String {

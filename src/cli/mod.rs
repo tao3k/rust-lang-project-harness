@@ -10,6 +10,7 @@ mod execution_receipt;
 mod formal_proof_pilot;
 mod query;
 mod query_options;
+mod query_source;
 mod query_window;
 mod review_packet;
 mod runner;

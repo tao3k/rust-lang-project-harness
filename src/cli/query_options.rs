@@ -1,6 +1,8 @@
 use std::env;
 use std::path::PathBuf;
 
+use super::query_source::{QuerySourceVersion, parse_query_source_version};
+
 #[derive(Debug, Default)]
 pub(super) struct QuerySearchOptions {
     pub(super) view: String,
@@ -15,6 +17,7 @@ pub(super) struct QuerySearchOptions {
     pub(super) read_selector: Option<String>,
     pub(super) item_names_only: bool,
     pub(super) item_code: bool,
+    pub(super) source_version: QuerySourceVersion,
     pub(super) paths: Vec<PathBuf>,
 }
 
@@ -32,6 +35,7 @@ pub(super) struct QueryOptions {
     pub(super) output_view: Option<String>,
     pub(super) package: Option<String>,
     pub(super) seeds: Option<usize>,
+    pub(super) source_version: QuerySourceVersion,
     pub(super) paths: Vec<PathBuf>,
 }
 
@@ -57,6 +61,7 @@ impl QueryOptions {
                     "--package" => options.package = Some(value.to_string()),
                     "--view" => options.output_view = Some(value.to_string()),
                     "--seeds" => options.seeds = Some(parse_usize_option(&option, value)?),
+                    "--source" => options.source_version = parse_query_source_version(value)?,
                     _ => unreachable!("known pending query option"),
                 }
                 continue;
@@ -76,7 +81,7 @@ impl QueryOptions {
                 "--names-only" => options.names_only = true,
                 "--code" => options.code = true,
                 "--selector" | "--query" | "--term" | "--surface" | "--pipe" | "--from-hook"
-                | "--package" | "--view" | "--seeds" => {
+                | "--package" | "--view" | "--seeds" | "--source" => {
                     pending_option = Some(value.to_string());
                 }
                 value if is_search_pipe(value) => options.surfaces.push(value.to_string()),
@@ -182,6 +187,7 @@ impl QueryOptions {
             seeds: self.seeds,
             item_names_only: self.names_only,
             item_code: self.code,
+            source_version: self.source_version,
             ..QuerySearchOptions::default()
         };
         options.paths.push(self.project_root()?);

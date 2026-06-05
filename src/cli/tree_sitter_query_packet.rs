@@ -1,5 +1,7 @@
 pub(super) struct SyntaxQueryRow {
     pub(super) capture: String,
+    pub(super) capture_node: &'static str,
+    pub(super) capture_field: String,
     pub(super) capture_text: String,
     pub(super) node: &'static str,
     pub(super) name: String,
@@ -33,8 +35,8 @@ pub(super) fn syntax_query_matches_json(rows: &[SyntaxQueryRow]) -> Vec<serde_js
                 "captures": [{
                     "id": format!("capture.{ordinal}"),
                     "name": row.capture.as_str(),
-                    "nodeType": row.node,
-                    "field": syntax_query_capture_field(&row.capture),
+                    "nodeType": row.capture_node,
+                    "field": row.capture_field.as_str(),
                     "named": true,
                     "range": {
                         "path": row.path.as_str(),
@@ -129,18 +131,6 @@ fn syntax_query_source_location(
 
 fn syntax_query_line_range(start_line: usize, end_line: usize) -> String {
     format!("{}:{}", start_line.max(1), end_line.max(start_line).max(1))
-}
-
-fn syntax_query_capture_field(capture: &str) -> &'static str {
-    if capture.starts_with("call.") {
-        "function"
-    } else if capture.ends_with(".name") {
-        "name"
-    } else if capture.ends_with(".target") {
-        "target"
-    } else {
-        "item"
-    }
 }
 
 fn syntax_query_semantic_kind(node: &str) -> &'static str {

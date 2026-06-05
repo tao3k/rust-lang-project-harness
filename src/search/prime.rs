@@ -89,7 +89,11 @@ fn render_prime_with_config(
         ));
     }
 
-    let package_roots = discover_cargo_package_roots(project_root, &config.ignored_dir_names);
+    let package_roots = discover_cargo_package_roots(
+        project_root,
+        &config.ignored_dir_names,
+        &config.include_hidden_dir_names,
+    );
     let package_roots = if should_run_member_scopes(project_root, &package_roots) {
         package_roots
     } else {

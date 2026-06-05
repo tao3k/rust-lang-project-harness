@@ -49,7 +49,11 @@ pub fn render_rust_project_harness_agent_snapshot_with_config(
             project_root.display()
         ));
     }
-    let package_roots = discover_cargo_package_roots(project_root, &config.ignored_dir_names);
+    let package_roots = discover_cargo_package_roots(
+        project_root,
+        &config.ignored_dir_names,
+        &config.include_hidden_dir_names,
+    );
     let package_roots = if should_run_member_scopes(project_root, &package_roots) {
         package_roots
     } else {
@@ -205,10 +209,14 @@ fn parse_scope(
     scope: &RustProjectHarnessScope,
     config: &RustHarnessConfig,
 ) -> Vec<crate::parser::ParsedRustModule> {
-    discover_rust_files(&scope.monitored_paths(), &config.ignored_dir_names)
-        .into_iter()
-        .map(|path| parse_rust_file(&path))
-        .collect()
+    discover_rust_files(
+        &scope.monitored_paths(),
+        &config.ignored_dir_names,
+        &config.include_hidden_dir_names,
+    )
+    .into_iter()
+    .map(|path| parse_rust_file(&path))
+    .collect()
 }
 
 fn owner_branch_role_labels(branch: &RustReasoningOwnerBranchFacts) -> Vec<String> {

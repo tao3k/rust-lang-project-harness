@@ -103,18 +103,20 @@ fn seed_priority(seed: &str) -> usize {
         1
     } else if seed.starts_with("cfg:") {
         2
-    } else if seed.starts_with("owner:") {
+    } else if seed.starts_with("package:") || seed.starts_with("prime:") {
         3
-    } else if seed == "tests" || seed.starts_with("tests:") {
+    } else if seed.starts_with("owner:") {
         4
-    } else if seed.starts_with("docs:") || seed.starts_with("docs-use:") {
+    } else if seed == "tests" || seed.starts_with("tests:") {
         5
-    } else if seed.starts_with("text:") {
+    } else if seed.starts_with("docs:") || seed.starts_with("docs-use:") {
         6
-    } else if seed.starts_with("symbol:") {
+    } else if seed.starts_with("text:") {
         7
-    } else {
+    } else if seed.starts_with("symbol:") {
         8
+    } else {
+        9
     }
 }
 
@@ -315,6 +317,7 @@ fn graph_seed_definition(line: &str) -> Option<(&str, String)> {
     let (kind, target) = typed_target.split_once(':')?;
     let seed_kind = match (kind, action) {
         ("owner", "owner") => "owner",
+        ("package", "prime") => "package",
         ("test" | "tests", "tests") => "tests",
         _ => return None,
     };
@@ -482,7 +485,7 @@ impl SearchSeedAccumulator {
 
 fn is_compact_graph_fact_line(line: &str) -> bool {
     line.starts_with("legend: ")
-        || line.starts_with("alias: graph:")
+        || line.starts_with("aliases: graph:")
         || line.starts_with("entries=")
         || line.starts_with("avoid=")
         || line.contains(">{")

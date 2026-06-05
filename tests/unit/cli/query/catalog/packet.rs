@@ -86,8 +86,9 @@ fn calls_catalog_packet_projects_native_call_captures() {
     assert_eq!(packet["matches"].as_array().expect("matches").len(), 1);
     let capture = &packet["matches"][0]["captures"][0];
     assert_eq!(capture["name"], "call.target");
-    assert_eq!(capture["nodeType"], "call_expression");
+    assert_eq!(capture["nodeType"], "identifier");
     assert_eq!(capture["field"], "function");
+    assert_eq!(capture["fields"]["nativeNodeType"], "call_expression");
     assert_eq!(capture["fields"]["semanticKind"], "call");
     assert_eq!(capture["fields"]["read"], "src/lib.rs:6:6");
     assert_eq!(capture["fields"]["itemRead"], "src/lib.rs:5:7");
@@ -125,6 +126,35 @@ fn tree_sitter_query_packet_accepts_inline_s_expression() {
     );
     assert_eq!(packet["query"]["fields"]["catalogCanonical"], false);
     assert_eq!(packet["query"]["fields"]["catalogEmbedded"], false);
+}
+
+#[test]
+fn inline_function_name_capture_uses_name_node_and_line_range() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    std::fs::create_dir_all(root.join("src")).expect("src dir");
+    std::fs::write(
+        root.join("src/lib.rs"),
+        "pub fn\nsplit_name() -> usize {\n    1\n}\n",
+    )
+    .expect("fixture");
+
+    let output = run_cli(function_name_query_args(root, &["--json"]));
+    assert!(output.status.success(), "{output:?}");
+
+    let packet: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("semantic tree-sitter query packet JSON");
+    assert_eq!(packet["matches"].as_array().expect("matches").len(), 1);
+    assert_eq!(packet["matches"][0]["range"]["lineRange"], "1:4");
+
+    let capture = &packet["matches"][0]["captures"][0];
+    assert_eq!(capture["name"], "function.name");
+    assert_eq!(capture["nodeType"], "identifier");
+    assert_eq!(capture["field"], "name");
+    assert_eq!(capture["range"]["lineRange"], "2:2");
+    assert_eq!(capture["fields"]["read"], "src/lib.rs:2:2");
+    assert_eq!(capture["fields"]["itemRead"], "src/lib.rs:1:4");
+    assert_eq!(capture["fields"]["nativeNodeType"], "function_item");
 }
 
 #[test]

@@ -199,16 +199,16 @@ fn render_search_fzf_seed_hits(
             hits.len(),
             fzf_header_suffix(options)
         );
-        append_change_frontier_graph(
+        append_change_frontier_seed_rows(
             &mut block,
             &context.package_root,
-            query,
             hits.iter()
                 .take(owner_limit)
                 .map(|(path, _, _)| path.as_path()),
             seed_limit,
         );
         if hits.len() > owner_limit {
+            trim_trailing_newlines(&mut block);
             let _ = writeln!(
                 block,
                 "|note seeds_truncated={} limit={}",
@@ -243,16 +243,16 @@ fn render_search_fzf_query_set_seed_hits(
             hits.len(),
             fzf_header_suffix(options)
         );
-        append_change_frontier_graph(
+        append_change_frontier_seed_rows(
             &mut block,
             &context.package_root,
-            query,
             hits.iter()
                 .take(owner_limit)
                 .map(|(path, _, _, _)| path.as_path()),
             seed_limit,
         );
         if hits.len() > owner_limit {
+            trim_trailing_newlines(&mut block);
             let _ = writeln!(
                 block,
                 "|note seeds_truncated={} limit={}",
@@ -265,10 +265,9 @@ fn render_search_fzf_query_set_seed_hits(
     Ok(rendered)
 }
 
-fn append_change_frontier_graph<'a>(
+fn append_change_frontier_seed_rows<'a>(
     block: &mut String,
     package_root: &Path,
-    query: &str,
     paths: impl IntoIterator<Item = &'a Path>,
     limit: usize,
 ) {
@@ -288,86 +287,19 @@ fn append_change_frontier_graph<'a>(
             edit_frontier.push(display_path);
         }
     }
-    if edit_frontier.is_empty() && test_frontier.is_empty() {
-        return;
+    if !edit_frontier.is_empty() {
+        let _ = writeln!(block, "|seed owner:{}", edit_frontier.join(","));
     }
-
-    let mut alias_kinds = vec!["G=search".to_string(), "Q=query".to_string()];
-    let mut alias_rows = vec![format!("Q=query:term({query})!query")];
-    let mut edge_targets = vec!["Q:matches".to_string()];
-    let mut rank = vec!["Q".to_string()];
-    let mut frontier = Vec::new();
-    let mut owner_ids = Vec::new();
-    let mut test_ids = Vec::new();
-
-    for (index, path) in edit_frontier.iter().enumerate() {
-        let id = owner_alias_id(index);
-        alias_kinds.push(format!("{id}=owner"));
-        alias_rows.push(format!("{id}=owner:path({path})!owner"));
-        edge_targets.push(format!("{id}:selects"));
-        rank.push(id.clone());
-        frontier.push(format!("{id}.owner"));
-        owner_ids.push(id);
-    }
-    for (index, path) in test_frontier.iter().enumerate() {
-        let id = test_alias_id(index);
-        alias_kinds.push(format!("{id}=test"));
-        alias_rows.push(format!("{id}=test:path({path})!tests"));
-        edge_targets.push(format!("{id}:covers"));
-        rank.push(id.clone());
-        frontier.push(format!("{id}.tests"));
-        test_ids.push(id);
-    }
-
-    let _ = writeln!(
-        block,
-        "legend: ID=kind:role(value)!next; edge SRC>{{DST:rel}}; frontier ID.next"
-    );
-    let _ = writeln!(block, "alias: graph:{{{}}}", alias_kinds.join(","));
-    for alias_row in alias_rows {
-        let _ = writeln!(block, "{alias_row}");
-    }
-    let _ = writeln!(block, "G>{{{}}}", edge_targets.join(","));
-    let _ = writeln!(
-        block,
-        "rank={} frontier={}",
-        rank.join(","),
-        frontier.join(",")
-    );
-
-    let mut entries = Vec::new();
-    if !owner_ids.is_empty() {
-        entries.push(format!(
-            "owner-query({},Q=>items+tests+dependency-usage)",
-            owner_ids.join(",")
-        ));
-    }
-    if !test_ids.is_empty() {
-        entries.push(format!(
-            "owner-tests({}=>covering-tests+test-entrypoints+fixtures)",
-            test_ids.join(",")
-        ));
-    }
-    if !entries.is_empty() {
-        let _ = writeln!(block, "entries={}", entries.join(","));
-    }
-    let _ = writeln!(block, "avoid=broad-fzf,raw-read,repeat-glob");
-}
-
-fn owner_alias_id(index: usize) -> String {
-    if index == 0 {
-        "O".to_string()
-    } else {
-        format!("O{}", index + 1)
+    if !test_frontier.is_empty() {
+        let _ = writeln!(block, "|seed tests:{}", test_frontier.join(","));
     }
 }
 
-fn test_alias_id(index: usize) -> String {
-    if index == 0 {
-        "T".to_string()
-    } else {
-        format!("T{}", index + 1)
+fn trim_trailing_newlines(value: &mut String) {
+    while value.ends_with('\n') {
+        value.pop();
     }
+    value.push('\n');
 }
 
 fn append_change_frontier_synthesis_line<'a>(

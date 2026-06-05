@@ -73,7 +73,11 @@ fn render_search_symbol_seed_hits(
         let mut defs = 0;
         let mut calls = 0;
         let mut owners = Vec::<PathBuf>::new();
-        for path in discover_rust_files(&scope.monitored_paths(), &config.ignored_dir_names) {
+        for path in discover_rust_files(
+            &scope.monitored_paths(),
+            &config.ignored_dir_names,
+            &config.include_hidden_dir_names,
+        ) {
             let Ok(source) = fs::read_to_string(&path) else {
                 continue;
             };

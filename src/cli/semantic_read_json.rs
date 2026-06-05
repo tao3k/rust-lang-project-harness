@@ -2,6 +2,7 @@ use std::path::Path;
 
 use serde_json::{Map, Value, json};
 
+use super::query_source::{QuerySourceVersion, git_source_metadata, query_source_path};
 use super::semantic_search_json_fields::{display_path, parse_fields, string_field};
 use super::semantic_syntax_refs::{
     attach_syntax_refs_to_source_windows, syntax_refs_from_read_plan_symbols,
@@ -13,6 +14,7 @@ const SCHEMA_VERSION: &str = "1";
 pub(super) struct SemanticReadJsonOptions {
     pub(super) selector: String,
     pub(super) query: Option<String>,
+    pub(super) source_version: QuerySourceVersion,
 }
 
 pub(super) fn render_read_json(
@@ -56,11 +58,13 @@ fn build_packet(project_root: &Path, options: &SemanticReadJsonOptions, rendered
         "method": "query/direct-source-read",
         "projectRoot": display_path(project_root),
         "selector": options.selector,
+        "sourceVersion": options.source_version.as_str(),
         "fromHook": "direct-source-read",
         "outputMode": "read-packet",
         "truncated": false,
         "notes": [],
     });
+    attach_source_metadata(project_root, options, &mut packet);
     let syntax_refs = if let Some(read_plan) = read_plan {
         let syntax_refs = syntax_refs_from_read_plan_symbols(&read_plan);
         packet["readPlan"] = read_plan;
@@ -110,6 +114,23 @@ fn build_packet(project_root: &Path, options: &SemanticReadJsonOptions, rendered
         }
     }
     packet
+}
+
+fn attach_source_metadata(
+    project_root: &Path,
+    options: &SemanticReadJsonOptions,
+    packet: &mut Value,
+) {
+    let Some((path, _, _)) = parse_read_locator(&options.selector) else {
+        return;
+    };
+    let source_path = query_source_path(project_root, &path);
+    if let Ok(Some(metadata)) =
+        git_source_metadata(project_root, &path, &source_path, options.source_version)
+    {
+        packet["repositoryRoot"] = json!(display_path(&metadata.repository_root));
+        packet["gitBlobOid"] = json!(metadata.git_blob_oid);
+    }
 }
 
 fn read_plan_from_rendered(rendered: &str) -> Option<Value> {

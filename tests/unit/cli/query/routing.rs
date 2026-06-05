@@ -28,13 +28,11 @@ fn cli_query_terms_route_to_fzf_query_set_seeds() {
         root,
     );
     assert!(
-        stdout.starts_with(
-            "[search-fzf] q=RuntimeClient,send_bytes querySet=2 selector=fuzzy-set mode=fuzzy backend=provider pkg=. own="
-        ),
+        stdout.starts_with("[search-fzf] q=RuntimeClient,send_bytes querySet=2 selector=fuzzy-set alg=change-frontier-query-set"),
         "{stdout}"
     );
     assert!(
-        stdout.contains("Q=query:term(RuntimeClient,send_bytes)!query"),
+        stdout.contains("Q=query:term(RuntimeClient,send_bytes)!fzf"),
         "{stdout}"
     );
     assert!(
@@ -47,7 +45,7 @@ fn cli_query_terms_route_to_fzf_query_set_seeds() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("rank=Q,O,O2,T frontier=O.owner,O2.owner,T.tests"),
+        stdout.contains("rank=Q,O,O2,T frontier=Q.fzf,O.owner,O2.owner,T.tests"),
         "{stdout}"
     );
     assert!(
@@ -55,7 +53,7 @@ fn cli_query_terms_route_to_fzf_query_set_seeds() {
         "{stdout}"
     );
     assert!(!stdout.contains("|seed "), "{stdout}");
-    assert!(!stdout.contains("[search-graph]"), "{stdout}");
+    assert!(stdout.contains("legend:"), "{stdout}");
 }
 
 #[test]
@@ -78,11 +76,15 @@ fn cli_query_broad_glob_selector_routes_to_prime_seeds() {
         root,
     );
     assert!(
-        stdout.starts_with("[search-prime] mode=package package=."),
+        stdout.starts_with("[search-prime] root=. alg=budgeted-prime-frontier-v1"),
         "{stdout}"
     );
-    assert!(stdout.contains("owner:src/lib.rs"), "{stdout}");
-    assert!(stdout.contains("|seed owner:src/lib.rs"), "{stdout}");
-    assert!(!stdout.contains("[search-graph]"), "{stdout}");
-    assert!(!stdout.contains("frontier="), "{stdout}");
+    assert!(
+        stdout.contains("O=owner:path(src/lib.rs)!owner"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("G>{O:selects}"), "{stdout}");
+    assert!(stdout.contains("frontier=O.owner"), "{stdout}");
+    assert!(stdout.contains("profiles=owner-tests(O)"), "{stdout}");
+    assert!(!stdout.contains("|seed "), "{stdout}");
 }

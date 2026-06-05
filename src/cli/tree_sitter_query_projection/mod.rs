@@ -1,6 +1,7 @@
 //! Rust native projection into tree-sitter-compatible query captures.
 
 mod calls;
+mod capture;
 mod core;
 
 pub(super) use core::{

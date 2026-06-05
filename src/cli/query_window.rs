@@ -1,5 +1,6 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
+use super::query_source::{QuerySourceVersion, query_source_path, read_query_source_text};
 use crate::parser::{RustTopLevelItemSyntax, parse_rust_file, syntax_abi::syntax_atom_for_kind};
 
 const MAX_EXACT_DIRECT_READ_LINES: usize = 40;
@@ -8,20 +9,12 @@ pub(super) fn render_query_local_window(
     project_root: &Path,
     selector: &str,
     include_code: bool,
+    source_version: QuerySourceVersion,
 ) -> Result<Option<String>, String> {
     let Some((path, start_line, end_line)) = parse_query_local_window_selector(selector) else {
         return Ok(None);
     };
-    let source_path = query_local_window_source_path(project_root, path);
-    let source = std::fs::read_to_string(&source_path)
-        .map_err(|error| format!("failed to read {}: {error}", source_path.display()))?;
-    let line_count = query_local_window_line_count(start_line, end_line);
-    let mut rendered = source
-        .lines()
-        .skip(start_line.saturating_sub(1))
-        .take(line_count)
-        .collect::<Vec<_>>()
-        .join("\n");
+    let source_path = query_source_path(project_root, path);
     if !include_code {
         return Ok(Some(render_query_local_window_read_plan(
             QueryLocalWindowReadPlan {
@@ -34,6 +27,14 @@ pub(super) fn render_query_local_window(
             },
         )));
     }
+    let source = read_query_source_text(project_root, path, &source_path, source_version)?;
+    let line_count = query_local_window_line_count(start_line, end_line);
+    let mut rendered = source
+        .lines()
+        .skip(start_line.saturating_sub(1))
+        .take(line_count)
+        .collect::<Vec<_>>()
+        .join("\n");
     if !rendered.is_empty() && is_low_signal_query_local_window(&rendered) {
         return Ok(Some(render_query_local_window_read_plan(
             QueryLocalWindowReadPlan {
@@ -137,19 +138,6 @@ fn parse_query_local_window_range<'a>(
     let start_line = start.parse::<usize>().ok()?;
     let end_line = end.parse::<usize>().ok()?;
     (start_line != 0 && end_line >= start_line).then_some((path, start_line, end_line))
-}
-
-fn query_local_window_source_path(project_root: &Path, path: &str) -> PathBuf {
-    let path = Path::new(path);
-    if path.is_absolute() {
-        return path.to_path_buf();
-    }
-    let rooted = project_root.join(path);
-    if rooted.is_file() {
-        rooted
-    } else {
-        path.to_path_buf()
-    }
 }
 
 #[allow(dead_code)]
@@ -257,7 +245,7 @@ fn render_query_local_window_symbol_read_plan(
         .map(|symbol| symbol.syn)
         .unwrap_or("item/name");
     Some(format!(
-        "[read-plan] q={path} selector={path}:{requested_start}:{requested_end} mode=range-frontier code=false reason=locator-frontier maxWindow={MAX_EXACT_DIRECT_READ_LINES} alg=symbol-frontier symbol={} syn={syn}\nlegend: ID=kind:role(value)!next; edge SRC>{{DST:rel}}; frontier ID.next\nalias: graph:{{R=range,{alias_kinds}}}\nR=range:requested({path}@{requested_start}:{requested_end})!outline;{aliases}\nR>{{{edges}}}\nrank={rank}\nfrontier={frontier}\nomit=code\navoid=repeat-wide-read,manual-window-scan,raw-read\n",
+        "[read-plan] q={path} selector={path}:{requested_start}:{requested_end} mode=range-frontier code=false reason=locator-frontier maxWindow={MAX_EXACT_DIRECT_READ_LINES} alg=symbol-frontier symbol={} syn={syn}\nlegend: ID=kind:role(value)!next; edge SRC>{{DST:rel}}; frontier ID.next\naliases: graph:{{R=range,{alias_kinds}}}\nR=range:requested({path}@{requested_start}:{requested_end})!outline;{aliases}\nR>{{{edges}}}\nrank={rank}\nfrontier={frontier}\nomit=code\navoid=repeat-wide-read,manual-window-scan,raw-read\n",
         symbols.len()
     ))
 }
@@ -303,7 +291,7 @@ fn render_query_local_window_range_read_plan(
         .collect::<Vec<_>>()
         .join(",");
     format!(
-        "[read-plan] q={path} selector={path}:{requested_start}:{requested_end} mode=range-frontier code=false reason={reason} maxWindow={MAX_EXACT_DIRECT_READ_LINES} alg=range-split window={}\nlegend: ID=kind:role(value)!next; edge SRC>{{DST:rel}}; frontier ID.next\nalias: graph:{{R=range,{alias_kinds}}}\nR=range:requested({path}@{requested_start}:{requested_end})!outline;{aliases}\nR>{{{edges}}}\nrank={rank}\nfrontier={frontier}\nomit=code\navoid=repeat-wide-read,manual-window-scan,raw-read\n",
+        "[read-plan] q={path} selector={path}:{requested_start}:{requested_end} mode=range-frontier code=false reason={reason} maxWindow={MAX_EXACT_DIRECT_READ_LINES} alg=range-split window={}\nlegend: ID=kind:role(value)!next; edge SRC>{{DST:rel}}; frontier ID.next\naliases: graph:{{R=range,{alias_kinds}}}\nR=range:requested({path}@{requested_start}:{requested_end})!outline;{aliases}\nR>{{{edges}}}\nrank={rank}\nfrontier={frontier}\nomit=code\navoid=repeat-wide-read,manual-window-scan,raw-read\n",
         windows.len()
     )
 }

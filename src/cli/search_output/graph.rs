@@ -1,12 +1,14 @@
 use serde_json::Value;
+use std::ffi::OsString;
 use std::io::Write;
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 pub(in crate::cli) fn render_search_graph_packet(
     packet: &Value,
     seed_limit: Option<usize>,
 ) -> Result<String, String> {
-    let binary = std::env::var_os("SEMANTIC_AGENT_PROTOCOL_BIN").unwrap_or_else(|| "asp".into());
+    let binary = semantic_agent_protocol_binary();
     let mut command = Command::new(binary);
     command.args(["graph", "render", "--packet", "-", "--view", "seeds"]);
     if let Some(limit) = seed_limit {
@@ -55,4 +57,18 @@ pub(in crate::cli) fn render_search_graph_packet(
     String::from_utf8(output.stdout).map_err(|error| {
         format!("semantic-agent-protocol graph render emitted non-UTF-8 output: {error}")
     })
+}
+
+fn semantic_agent_protocol_binary() -> OsString {
+    std::env::var_os("SEMANTIC_AGENT_PROTOCOL_BIN")
+        .or_else(|| repo_local_asp_binary().map(Into::into))
+        .unwrap_or_else(|| "asp".into())
+}
+
+fn repo_local_asp_binary() -> Option<PathBuf> {
+    let current_dir = std::env::current_dir().ok()?;
+    current_dir
+        .ancestors()
+        .map(|ancestor| ancestor.join("target/debug/asp"))
+        .find(|candidate| candidate.is_file())
 }

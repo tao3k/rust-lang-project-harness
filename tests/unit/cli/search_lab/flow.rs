@@ -103,7 +103,7 @@ fn search_lab_multi_pipe_dependency_flow_compresses_to_final_packet() {
         6,
         &[
             "[search-dependency] q=serde alg=seed-frontier",
-            "alias: graph:{G=search,D=dependency",
+            "aliases: graph:{G=search,D=dependency",
             "D=dependency:pkg(serde)!deps",
             "G>{D:uses",
             "rank=D,",

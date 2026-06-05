@@ -4,6 +4,7 @@ pub(super) struct SyntaxQuerySelector {
     pub(super) path: String,
     pub(super) start_line: Option<usize>,
     pub(super) end_line: Option<usize>,
+    pub(super) matches_all_paths: bool,
 }
 
 impl SyntaxQuerySelector {
@@ -12,6 +13,10 @@ impl SyntaxQuerySelector {
             (Some(start), Some(end)) => syntax_line_locator(&self.path, start, end),
             _ => self.path.clone(),
         }
+    }
+
+    pub(super) fn path(&self) -> &str {
+        &self.path
     }
 }
 
@@ -45,6 +50,7 @@ pub(super) fn parse_syntax_query_selector(value: &str) -> Result<SyntaxQuerySele
             path,
             start_line: Some(start),
             end_line: Some(end.max(start)),
+            matches_all_paths: false,
         });
     }
     if let Some((path, line)) = trimmed.rsplit_once(':')
@@ -56,12 +62,14 @@ pub(super) fn parse_syntax_query_selector(value: &str) -> Result<SyntaxQuerySele
             path: path.to_string(),
             start_line: Some(line),
             end_line: Some(line),
+            matches_all_paths: false,
         });
     }
     Ok(SyntaxQuerySelector {
         path: trimmed.to_string(),
         start_line: None,
         end_line: None,
+        matches_all_paths: false,
     })
 }
 
@@ -76,7 +84,7 @@ pub(super) fn syntax_selector_matches(
     let Some(selector) = selector else {
         return true;
     };
-    if !selector_path_matches(&selector.path, path) {
+    if !selector.matches_all_paths && !selector_path_matches(&selector.path, path) {
         return false;
     }
     match (selector.start_line, selector.end_line) {
@@ -109,6 +117,7 @@ fn parse_hash_line_selector(value: &str) -> Result<Option<SyntaxQuerySelector>, 
         path: path.to_string(),
         start_line: Some(start),
         end_line: Some(end.max(start)),
+        matches_all_paths: false,
     }))
 }
 
@@ -120,9 +129,11 @@ fn parse_selector_line(value: &str, label: &str) -> Result<usize, String> {
 }
 
 fn selector_path_matches(selector_path: &str, row_path: &str) -> bool {
-    selector_path == row_path
-        || selector_path.ends_with(row_path)
-        || row_path.ends_with(selector_path.trim_start_matches('/'))
+    normalize_selector_path(selector_path) == normalize_selector_path(row_path)
+}
+
+fn normalize_selector_path(path: &str) -> String {
+    path.replace('\\', "/").trim_start_matches("./").to_string()
 }
 
 fn line_ranges_overlap(

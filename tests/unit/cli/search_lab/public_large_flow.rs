@@ -341,10 +341,10 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
         &workspace_prefixed_owner_seeds,
         10,
         &[
-            "[search-owner] owner=ext/web-search/src/tool.rs selector=items terms=3 view=seeds",
-            "O=owner:path(ext/web-search/src/tool.rs)!owner;S=symbol:symbol(WebSearchTool)@ext/web-search/src/tool.rs:4:4!code",
-            "O>{S:contains,S2:contains,S3:contains}",
-            "rank=S,S2,S3,O frontier=S.code,S2.code,S3.code",
+            "[search-owner] q=ext/web-search/src/tool.rs pkg=ext/web-search selector=items alg=item-frontier",
+            "O=owner:path(ext/web-search/src/tool.rs)!owner;I=item:symbol(WebSearchTool)@ext/web-search/src/tool.rs:4:4!code",
+            "O>{I:contains,I2:contains,I3:contains}",
+            "rank=I,I2,I3,O frontier=I.code,I2.code,I3.code",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );

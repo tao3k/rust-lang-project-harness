@@ -1,6 +1,9 @@
 //! Runner API for embedding the Rust project harness in tests and tools.
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+
+use serde::Deserialize;
 
 use crate::discovery::{
     discover_cargo_package_roots, discover_rust_files, rust_project_harness_scope,
@@ -16,13 +19,22 @@ pub fn default_rust_harness_config() -> RustHarnessConfig {
     RustHarnessConfig::default()
 }
 
+/// Return the default Rust harness configuration merged with nearest `asp.toml`.
+#[must_use]
+pub fn rust_harness_config_for_project(project_root: &Path) -> RustHarnessConfig {
+    apply_asp_project_config(project_root, RustHarnessConfig::default())
+}
+
 /// Run the harness over conventional Rust project paths.
 ///
 /// # Errors
 ///
 /// Returns an error when the project root does not exist.
 pub fn run_rust_project_harness(project_root: &Path) -> Result<RustHarnessReport, String> {
-    run_rust_project_harness_with_config(project_root, &RustHarnessConfig::default())
+    run_rust_project_harness_with_config(
+        project_root,
+        &rust_harness_config_for_project(project_root),
+    )
 }
 
 /// Run the harness over conventional Rust project paths with explicit config.
@@ -40,7 +52,11 @@ pub fn run_rust_project_harness_with_config(
             project_root.display()
         ));
     }
-    let package_roots = discover_cargo_package_roots(project_root, &config.ignored_dir_names);
+    let package_roots = discover_cargo_package_roots(
+        project_root,
+        &config.ignored_dir_names,
+        &config.include_hidden_dir_names,
+    );
     if should_run_member_scopes(project_root, &package_roots) {
         return Ok(run_member_scoped_project_harness(
             project_root,
@@ -260,8 +276,57 @@ fn should_run_member_scopes(project_root: &Path, package_roots: &[PathBuf]) -> b
 }
 
 fn parse_paths(paths: &[PathBuf], config: &RustHarnessConfig) -> Vec<ParsedRustModule> {
-    discover_rust_files(paths, &config.ignored_dir_names)
-        .into_iter()
-        .map(|path| parse_rust_file(&path))
-        .collect()
+    discover_rust_files(
+        paths,
+        &config.ignored_dir_names,
+        &config.include_hidden_dir_names,
+    )
+    .into_iter()
+    .map(|path| parse_rust_file(&path))
+    .collect()
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AspProjectConfig {
+    #[serde(default)]
+    discovery: AspDiscoveryConfig,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AspDiscoveryConfig {
+    #[serde(default)]
+    ignored_dir_names: BTreeSet<String>,
+    #[serde(default)]
+    include_hidden_dir_names: BTreeSet<String>,
+}
+
+fn apply_asp_project_config(
+    project_root: &Path,
+    mut config: RustHarnessConfig,
+) -> RustHarnessConfig {
+    let Some(config_path) = nearest_asp_toml(project_root) else {
+        return config;
+    };
+    let Ok(contents) = std::fs::read_to_string(config_path) else {
+        return config;
+    };
+    let Ok(parsed) = toml::from_str::<AspProjectConfig>(&contents) else {
+        return config;
+    };
+    config
+        .ignored_dir_names
+        .extend(parsed.discovery.ignored_dir_names);
+    config
+        .include_hidden_dir_names
+        .extend(parsed.discovery.include_hidden_dir_names);
+    config
+}
+
+fn nearest_asp_toml(project_root: &Path) -> Option<PathBuf> {
+    project_root
+        .ancestors()
+        .map(|ancestor| ancestor.join("asp.toml"))
+        .find(|candidate| candidate.is_file())
 }

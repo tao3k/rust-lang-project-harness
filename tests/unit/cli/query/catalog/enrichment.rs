@@ -50,7 +50,7 @@ fn tree_sitter_query_json_projects_matches_and_native_enrichment() {
     let capture = &match_value["captures"][0];
     assert_eq!(capture["id"], "capture.1");
     assert_eq!(capture["name"], "function.name");
-    assert_eq!(capture["nodeType"], "function_item");
+    assert_eq!(capture["nodeType"], "identifier");
     assert_eq!(capture["field"], "name");
     assert_eq!(capture["range"]["lineRange"], "1:1");
     assert_eq!(
@@ -64,6 +64,7 @@ fn tree_sitter_query_json_projects_matches_and_native_enrichment() {
         })
     );
     assert_eq!(capture["nativeFactRefs"], serde_json::json!([native_ref]));
+    assert_eq!(capture["fields"]["nativeNodeType"], "function_item");
     assert_eq!(capture["fields"]["semanticKind"], "function");
     assert_eq!(capture["fields"]["sourceAuthority"], "native-parser");
     assert_eq!(capture["fields"]["read"], "src/lib.rs:1:1");

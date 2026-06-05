@@ -7,8 +7,12 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use super::agent_registry::print_agent_registry;
-use super::query::{QueryCommand, parse_query, print_query_help, render_query_local_window};
+use super::query::{
+    QueryCommand, QueryGuideKind, parse_query, print_query_guide, print_query_help,
+    print_tree_sitter_query_guide, query_guide_kind, render_query_local_window,
+};
 use super::query_options::QuerySearchOptions;
+use super::query_source::QuerySourceVersion;
 #[cfg(feature = "search")]
 use super::search_output::{
     SearchOutputControls, apply_search_output_controls, render_search_graph_packet,
@@ -32,7 +36,7 @@ use crate::{
 };
 use crate::{
     render_rust_project_harness, render_rust_project_harness_agent_snapshot,
-    render_rust_project_harness_json, run_rust_project_harness,
+    render_rust_project_harness_json, run_rust_project_harness, rust_harness_config_for_project,
 };
 
 /// Run the Rust harness CLI from process arguments and return its exit code.
@@ -81,6 +85,15 @@ fn run(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitCode, S
     }
     if is_command(&args, "evidence") {
         return super::evidence_graph::run_evidence(args.into_iter().skip(1));
+    }
+    if is_command(&args, "guide") {
+        let options = CliOptions::parse(args.into_iter().skip(1))?;
+        if options.help {
+            print_help();
+            return Ok(ExitCode::SUCCESS);
+        }
+        print_guide(&options.project_root()?);
+        return Ok(ExitCode::SUCCESS);
     }
     if is_command(&args, "agent") {
         return run_agent(args.into_iter().skip(1));
@@ -168,10 +181,6 @@ fn run_agent(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitC
             let _ = options.guard_args.len();
             return Err(moved_agent_action("guard"));
         }
-        "guide" => {
-            let _ = options.client.as_deref();
-            print_agent_guide(&project_root);
-        }
         other => return Err(format!("unknown agent command: {other}")),
     }
     Ok(ExitCode::SUCCESS)
@@ -188,6 +197,13 @@ fn run_search(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<Exit
 
 fn run_query(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitCode, String> {
     let args = args.into_iter().collect::<Vec<_>>();
+    if let Some(kind) = query_guide_kind(&args) {
+        match kind {
+            QueryGuideKind::Query => print_query_guide(),
+            QueryGuideKind::TreeSitter => print_tree_sitter_query_guide(),
+        }
+        return Ok(ExitCode::SUCCESS);
+    }
     if let Some(exit_code) = run_tree_sitter_query_catalog(&args)? {
         return Ok(exit_code);
     }
@@ -208,7 +224,7 @@ fn run_query(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitC
 fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
     let project_root = options.project_root()?;
     let render_options = options.render_options();
-    let config = RustHarnessConfig::default();
+    let config = rust_harness_config_for_project(&project_root);
     let raw_rendered = if options.view == "ingest" {
         let mut input = String::new();
         io::stdin()
@@ -283,9 +299,12 @@ fn run_query_view(options: &SearchOptions) -> Result<ExitCode, String> {
         });
     if let Some(selector) = local_window_selector {
         let project_root = options.project_root()?;
-        if let Some(rendered) =
-            render_query_local_window(&project_root, selector, options.item_code)?
-        {
+        if let Some(rendered) = render_query_local_window(
+            &project_root,
+            selector,
+            options.item_code,
+            options.source_version,
+        )? {
             if options.json && options.output_view.as_deref() == Some("read-packet") {
                 let read_options = super::semantic_read_json::SemanticReadJsonOptions {
                     selector: options
@@ -294,6 +313,7 @@ fn run_query_view(options: &SearchOptions) -> Result<ExitCode, String> {
                         .or_else(|| options.owner.clone())
                         .unwrap_or_else(|| selector.to_string()),
                     query: options.item_query.clone(),
+                    source_version: options.source_version,
                 };
                 println!(
                     "{}",
@@ -336,6 +356,13 @@ fn run_query_view(options: &SearchOptions) -> Result<ExitCode, String> {
         },
         &raw_rendered,
     );
+    let rendered = if options.output_view.as_deref() == Some("seeds") {
+        let json_options = options.semantic_json_options();
+        let packet = build_search_packet(&project_root, &json_options, &raw_rendered);
+        render_search_graph_packet(&packet, options.seeds)?
+    } else {
+        rendered
+    };
     if options.json && options.output_view.as_deref() == Some("read-packet") {
         let read_options = super::semantic_read_json::SemanticReadJsonOptions {
             selector: options
@@ -345,6 +372,7 @@ fn run_query_view(options: &SearchOptions) -> Result<ExitCode, String> {
                 .or_else(|| options.query.clone())
                 .unwrap_or_else(|| ".".to_string()),
             query: options.item_query.clone(),
+            source_version: options.source_version,
         };
         println!(
             "{}",
@@ -443,6 +471,7 @@ pub(super) struct SearchOptions {
     pub(super) item_names_only: bool,
     pub(super) item_code: bool,
     pub(super) item_projection_metadata: bool,
+    pub(super) source_version: QuerySourceVersion,
     paths: Vec<PathBuf>,
 }
 
@@ -461,6 +490,7 @@ impl SearchOptions {
             read_selector: options.read_selector,
             item_names_only: options.item_names_only,
             item_code: options.item_code,
+            source_version: options.source_version,
             paths: options.paths,
             ..Self::default()
         }
@@ -824,9 +854,10 @@ impl AgentOptions {
                 value if value.starts_with('-') => {
                     return Err(format!("unknown agent option: {value}"));
                 }
-                "install" | "doctor" | "hook" | "guide" | "guard"
-                    if options.command == "doctor" =>
-                {
+                "guide" if options.command == "doctor" => {
+                    return Err("rs-harness agent guide moved to rs-harness guide".to_string());
+                }
+                "install" | "doctor" | "hook" | "guard" if options.command == "doctor" => {
                     options.command = value.to_string();
                 }
                 value if options.command == "hook" && options.hook_event.is_none() => {
@@ -925,8 +956,8 @@ fn print_help() {
              rs-harness evidence graph --review-packet-json PATH [--json] [PROJECT_ROOT]\n\
              rs-harness evidence assurance --evidence-graph-json PATH [--json] [PROJECT_ROOT]\n\
              rs-harness ast-patch <dry-run|apply> --packet <semantic-ast-patch.json|-> [PROJECT_ROOT]\n\
-             rs-harness agent doctor [--json] [PROJECT_ROOT]\n\
-         rs-harness agent guide [PROJECT_ROOT]\n\n\
+             rs-harness guide [PROJECT_ROOT]\n\
+             rs-harness agent doctor [--json] [PROJECT_ROOT]\n\n\
          Runs the default package-level Rust harness.\n\n\
          Compact text is the default agent-facing repair surface.\n\
          Use --json to emit the structured RustHarnessReport audit shape.\n\
@@ -972,10 +1003,8 @@ fn print_check_help() {
 
 fn print_agent_help() {
     println!(
-        "rs-harness agent doctor [--json] [PROJECT_ROOT]\n\
-         rs-harness agent guide [PROJECT_ROOT]\n\n\
+        "rs-harness agent doctor [--json] [PROJECT_ROOT]\n\n\
          Hook install/runtime is owned by semantic-agent-hook in the root toolchain.\n\
-         agent guide prints the command-line search flow guide used by hooks.\n\
          Use --json to emit the semantic-language registry contract."
     );
 }
@@ -994,66 +1023,27 @@ fn print_agent_doctor(project_root: &std::path::Path, _client: Option<&str>) {
     );
 }
 
-fn print_agent_guide(_project_root: &std::path::Path) {
-    #[cfg(feature = "search")]
-    let search_guide = crate::search::guide::render_search_guide();
-    #[cfg(not(feature = "search"))]
-    let search_guide = String::new();
-
-    let catalog = search_guide
-        .lines()
-        .find(|line| line.starts_with("|catalog "))
-        .unwrap_or("|catalog reasoningProfiles=none entries=none routes=read-frontier")
-        .replace(
-            "routes=read-frontier",
-            "routes=read-frontier,syntax-locate,syntax-code,query-code",
-        );
-    let entries = search_guide
-        .lines()
-        .filter(|line| line.starts_with("|entry "))
-        .collect::<Vec<_>>()
-        .join("\n");
-    let route = search_guide
-        .lines()
-        .find(|line| line.starts_with("|route read-frontier "))
-        .unwrap_or("|route read-frontier selectors=R:range returns=symbols,windows,tests,next-actions frontier=R.symbols,R.tests,R.code cmd=asp rust query --from-hook direct-source-read --selector <path[:line-range]> .")
-        .replace(
-            "returns=symbols,windows,tests,next-actions ",
-            "returns=symbols,windows,tests,next-actions code=false ",
-        )
-        .replace(" [--code] .", " .");
-
+fn print_guide(_project_root: &std::path::Path) {
     print!(
-        r#"[agent-guide] runtime=semantic-agent-hook language=rust provider=rs-harness
-{catalog}
-|flow prime->owner|syntax-locate|query-code|deps|symbol|tests pipe=fzf:tests ingest=stdin
-{entries}
-{route}
-|route syntax-locate selectors=S:tree-sitter-query,R:range returns=locator,capture,frontier code=false cmd=asp rust query --treesitter-query '(function_item name: (identifier) @function.name)' --selector <path[:line|:start:end]> .
-|route syntax-code selectors=S:tree-sitter-query,R:exact-selector|unique-predicate returns=code code=pure multi-match=deny cmd=asp rust query --treesitter-query '(function_item name: (identifier) @function.name)' --selector <path[:line|:start:end]> --code .
-|route query-code selectors=O:owner,Q:symbol returns=code code=pure cmd=asp rust query <path> --query <symbol-or-a|b|c> --code .
-|cmd prime=asp rust search prime --view seeds .
-|cmd owner=asp rust search owner <path> items --view seeds .
-|cmd policy=asp rust search policy <rule-id-or-alias> owner tests --view seeds .
-|cmd fzf=asp rust search fzf <query> owner tests --view seeds .
-|cmd finding-frontier=asp rust search reasoning finding-frontier --query <finding> [--owner <path>] --view seeds .
-|cmd feature-cfg=asp rust search reasoning feature-cfg --query <feature> --view seeds .
-|cmd query=asp rust query <path> --query <symbol-or-a|b|c> .
-|cmd query-code=asp rust query <path> --query <symbol-or-a|b|c> --code .
-|cmd syntax-locate=asp rust query --treesitter-query '(function_item name: (identifier) @function.name)' --selector <path[:line|:start:end]> .
-|cmd syntax-code=asp rust query --treesitter-query '(function_item name: (identifier) @function.name)' --selector <path[:line|:start:end]> --code .
-|cmd hook-query=asp rust query --from-hook direct-source-read --selector <path[:line-range]> [--code] .
-|cmd ast-patch=asp rust ast-patch dry-run --packet <semantic-ast-patch.json|-> .
-|cmd ast-patch-apply=asp rust ast-patch apply --packet <semantic-ast-patch.json|-> .
-|cmd ingest=rg -n '<query>' src tests | asp rust search ingest items tests --view seeds .
-|cmd evidence=asp rust evidence graph --review-packet-json <path> --json .
-|cmd assurance=asp rust evidence assurance --evidence-graph-json <path> --json .
-|rule hook install/runtime is owned by semantic-agent-hook
-|rule run guide commands from project root; trailing . is the project root
-|rule syntax query ABI is compiled by asp; provider projects native parser facts into tree-sitter-compatible captures
-|rule syntax predicates supported=#eq?,#any-eq?,#any-of?,#match?,#any-match?,#not-eq?,#not-match? unsupported=none unsupportedReported=true
-|rule query --code is pure code; search/read-plan returns locators/frontier, not inline code
-|cmd agent-doctor=asp rust agent doctor --json .
+        r#"[agent-guide] lang=rust provider=asp-rust protocol=agent-guide.v1 root=.
+|contract intent=agent-owned harness=typed-selectors no=--goal,--intent,nl-planning
+|surface search purpose=tool-map output=search-guide code=false
+|surface query purpose=locator-or-code output=frontier|pure-code
+|surface check purpose=verification output=receipt|compact-findings
+|surface patch purpose=mutation authority=agent-core|apply_patch|ast-patch
+
+|flow bootstrap start="search guide ." then="search prime --view seeds ." next="search reasoning <profile> <typed-selectors>"
+|flow code-shaped-read start="refer:treesitter-query-guide" then="query --treesitter-query <pattern>" then="query --selector <path:range> --treesitter-query <pattern> --code"
+|flow wide-read-protection trigger="query --from-hook direct-source-read --selector <wide-range> --code" output=read-frontier code=false
+
+|refer search-guide="search guide ." use=low-frequency-tool-map
+|refer query-guide="query guide ." use=code-stdout|read-plan-contract
+|refer treesitter-query-guide="query guide treesitter ." use=tree-sitter-s-expression
+
+|rule search-no-code default=true reason=avoid-inline-code-token-bloat
+|rule query-code-stdout pure=true when="--code + exact-selector|unique-match"
+|rule tree-sitter-base enabled=true native-extension=true
+|avoid raw-read,manual-window-scan,inline-code-in-search,broad-fzf,search-json-in-prompt,repeat-wide-read
 "#
     );
 }
