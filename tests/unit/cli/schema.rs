@@ -138,6 +138,11 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
     );
     let owner = method_descriptor(methods, "search/owner");
     assert_eq!(owner["supportsQuerySet"], true);
+    assert_eq!(owner["grammarId"], "tree-sitter-rust");
+    assert_eq!(
+        owner["packetSchemas"],
+        serde_json::json!(["semantic-search-packet.v1", "semantic-tree-sitter-query.v1"])
+    );
     assert_eq!(
         owner["acceptedQuerySetSelectors"],
         serde_json::json!(["exact-set"])
@@ -219,6 +224,11 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
         query_owner_items["outputSchemaIds"],
         serde_json::json!(["agent.semantic-protocols.semantic-query-packet"])
     );
+    assert_eq!(query_owner_items["grammarId"], "tree-sitter-rust");
+    assert_eq!(
+        query_owner_items["packetSchemas"],
+        serde_json::json!(["semantic-query-packet.v1", "semantic-tree-sitter-query.v1"])
+    );
     assert_eq!(
         query_owner_items["outputModes"],
         serde_json::json!(["compact", "json", "code", "names"])
@@ -245,6 +255,19 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
             "agent.semantic-protocols.semantic-query-packet",
             "agent.semantic-protocols.semantic-read-packet"
         ])
+    );
+    assert_eq!(direct_source_read["grammarId"], "tree-sitter-rust");
+    assert_eq!(
+        direct_source_read["packetSchemas"],
+        serde_json::json!([
+            "semantic-query-packet.v1",
+            "semantic-read-packet.v1",
+            "semantic-tree-sitter-query.v1"
+        ])
+    );
+    assert_eq!(
+        direct_source_read["queryInputForms"],
+        serde_json::json!(["selector"])
     );
     assert_eq!(
         direct_source_read["outputModes"],
@@ -342,9 +365,37 @@ fn semantic_schema_files() -> &'static [SemanticSchemaFile] {
             syncs_with_protocol_repository: true,
         },
         SemanticSchemaFile {
+            schema_id: "agent.semantic-protocols.semantic-tree-sitter-query",
+            file_name: "semantic-tree-sitter-query.v1.schema.json",
+            registry_path: "schemas/semantic-tree-sitter-query.v1.schema.json",
+            identity_pointer: &["properties", "schemaId", "const"],
+            syncs_with_protocol_repository: true,
+        },
+        SemanticSchemaFile {
+            schema_id: "agent.semantic-protocols.semantic-tree-sitter-grammar-profile",
+            file_name: "semantic-tree-sitter-grammar-profile.v1.schema.json",
+            registry_path: "schemas/semantic-tree-sitter-grammar-profile.v1.schema.json",
+            identity_pointer: &["properties", "schemaId", "const"],
+            syncs_with_protocol_repository: true,
+        },
+        SemanticSchemaFile {
             schema_id: "agent.semantic-protocols.semantic-read-packet",
             file_name: "semantic-read-packet.v1.schema.json",
             registry_path: "schemas/semantic-read-packet.v1.schema.json",
+            identity_pointer: &["properties", "schemaId", "const"],
+            syncs_with_protocol_repository: true,
+        },
+        SemanticSchemaFile {
+            schema_id: "agent.semantic-protocols.semantic-source-location",
+            file_name: "semantic-source-location.v1.schema.json",
+            registry_path: "schemas/semantic-source-location.v1.schema.json",
+            identity_pointer: &["properties", "schemaId", "const"],
+            syncs_with_protocol_repository: true,
+        },
+        SemanticSchemaFile {
+            schema_id: "agent.semantic-protocols.semantic-tree-sitter-provenance",
+            file_name: "semantic-tree-sitter-provenance.v1.schema.json",
+            registry_path: "schemas/semantic-tree-sitter-provenance.v1.schema.json",
             identity_pointer: &["properties", "schemaId", "const"],
             syncs_with_protocol_repository: true,
         },

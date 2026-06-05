@@ -113,7 +113,7 @@ fn cli_agent_provider_surface_delegates_hook_runtime_to_root_tool() {
     );
     assert!(
         stdout.contains(
-            "|catalog reasoningProfiles=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg entries=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg routes=read-frontier"
+            "|catalog reasoningProfiles=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg entries=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg routes=read-frontier,syntax-locate,syntax-code,query-code"
         ),
         "{stdout}"
     );

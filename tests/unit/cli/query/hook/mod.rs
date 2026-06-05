@@ -261,7 +261,7 @@ fn cli_query_hook_selector_json_can_emit_provider_read_packet() {
         value
             .get("sourceWindows")
             .and_then(|windows| windows.as_array())
-            .map_or(true, Vec::is_empty),
+            .is_none_or(Vec::is_empty),
         "{value}"
     );
     let read_plan = value["readPlan"].as_object().expect("read plan");

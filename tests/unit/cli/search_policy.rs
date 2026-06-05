@@ -5,6 +5,10 @@ use super::support::{run_cli, write_manifest};
 
 #[test]
 fn cli_search_policy_renders_semantic_handles() {
+    if crate::cli::support::skip_if_protocol_graph_renderer_unavailable() {
+        return;
+    }
+
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_manifest(root, "cli-search-policy");

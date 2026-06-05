@@ -3,8 +3,9 @@
 
 use serde_json::{Value, json};
 
-pub(super) const RUST_OWNER_ITEMS_QUERY_REF: &str =
-    "semantic-tree-sitter-query/rust-owner-items.v1";
+use crate::parser::syntax_abi::{RustSyntaxAbi, rust_syntax_abi_for_kind};
+
+pub(super) use crate::parser::syntax_abi::RUST_OWNER_ITEMS_QUERY_REF;
 
 pub(super) struct SemanticSyntaxRefs {
     pub(super) query_ref: String,
@@ -118,8 +119,7 @@ fn attach_syntax_ref(
     kind: &str,
     location: Value,
 ) -> Option<MatchSyntaxRef> {
-    let node_type = tree_sitter_node_for_kind(kind);
-    let capture = tree_sitter_capture_for_kind(kind);
+    let syntax = rust_syntax_abi_for_kind(kind);
     let match_ref = format!("match.{}", index + 1);
     let capture_ref = format!("capture.{}", index + 1);
 
@@ -127,27 +127,26 @@ fn attach_syntax_ref(
     item["fields"]["syntaxQueryRef"] = json!(RUST_OWNER_ITEMS_QUERY_REF);
     item["fields"]["syntaxMatchRef"] = json!(match_ref);
     item["fields"]["syntaxCaptureRef"] = json!(capture_ref);
-    item["fields"]["syntaxNodeType"] = json!(node_type);
-    item["fields"]["syntaxCapture"] = json!(capture);
+    item["fields"]["syntaxNodeType"] = json!(syntax.node_type);
+    item["fields"]["syntaxCapture"] = json!(syntax.capture);
 
     Some(MatchSyntaxRef {
         match_ref,
         capture_ref,
-        anchor: syntax_anchor(node_type, capture, location),
+        anchor: syntax_anchor(syntax, location),
     })
 }
 
 fn syntax_ref_from_read_plan_symbol(index: usize, symbol: &Value) -> Option<MatchSyntaxRef> {
     let kind = symbol.get("itemKind").and_then(Value::as_str)?;
     let read = symbol.get("read").and_then(Value::as_str)?;
-    let node_type = tree_sitter_node_for_kind(kind);
-    let capture = tree_sitter_capture_for_kind(kind);
+    let syntax = rust_syntax_abi_for_kind(kind);
     let match_ref = format!("match.{}", index + 1);
     let capture_ref = format!("capture.{}", index + 1);
     Some(MatchSyntaxRef {
         match_ref,
         capture_ref,
-        anchor: syntax_anchor(node_type, capture, location_from_read_locator(read)?),
+        anchor: syntax_anchor(syntax, location_from_read_locator(read)?),
     })
 }
 
@@ -175,53 +174,14 @@ fn ensure_fields_object(item: &mut Value) {
     }
 }
 
-fn syntax_anchor(node_type: &str, capture: &str, location: Value) -> Value {
+fn syntax_anchor(syntax: RustSyntaxAbi, location: Value) -> Value {
     let mut anchor = json!({
-        "nodeType": node_type,
-        "capture": capture,
+        "nodeType": syntax.node_type,
+        "capture": syntax.capture,
         "location": location,
     });
-    if let Some(field) = capture_field(capture) {
+    if let Some(field) = syntax.field {
         anchor["field"] = json!(field);
     }
     anchor
-}
-
-fn tree_sitter_node_for_kind(kind: &str) -> &'static str {
-    match kind {
-        "const" => "const_item",
-        "enum" => "enum_item",
-        "extern_crate" => "extern_crate_declaration",
-        "fn" => "function_item",
-        "impl" => "impl_item",
-        "macro" => "macro_definition",
-        "mod" => "mod_item",
-        "static" => "static_item",
-        "struct" => "struct_item",
-        "trait" | "trait_alias" => "trait_item",
-        "type" => "type_item",
-        "use" => "use_declaration",
-        _ => "item",
-    }
-}
-
-fn tree_sitter_capture_for_kind(kind: &str) -> &'static str {
-    match kind {
-        "const" | "static" => "constant.name",
-        "enum" => "enum.name",
-        "extern_crate" => "extern.name",
-        "fn" => "function.name",
-        "impl" => "impl.name",
-        "macro" => "macro.name",
-        "mod" => "module.name",
-        "struct" => "struct.name",
-        "trait" | "trait_alias" => "trait.name",
-        "type" => "type.name",
-        "use" => "import.name",
-        _ => "item.name",
-    }
-}
-
-fn capture_field(capture: &str) -> Option<&'static str> {
-    capture.ends_with(".name").then_some("name")
 }

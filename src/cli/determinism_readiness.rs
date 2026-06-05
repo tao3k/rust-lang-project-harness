@@ -45,8 +45,8 @@ struct DeterminismOptions {
 impl DeterminismOptions {
     fn parse(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<Self, String> {
         let mut options = Self::default();
-        let mut iter = args.into_iter().peekable();
-        while let Some(arg) = iter.next() {
+        let iter = args.into_iter().peekable();
+        for arg in iter {
             let arg = arg
                 .to_str()
                 .ok_or_else(|| format!("non-utf8 argument: {arg:?}"))?;

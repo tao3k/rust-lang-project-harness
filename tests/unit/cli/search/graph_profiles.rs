@@ -6,6 +6,10 @@ use crate::cli::support::run_search;
 
 #[test]
 fn cli_search_graph_profiles_filter_to_rendered_aliases() {
+    if crate::cli::support::skip_if_protocol_graph_renderer_unavailable() {
+        return;
+    }
+
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();
     fs::write(

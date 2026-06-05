@@ -198,7 +198,7 @@ fn run_query(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitC
             Ok(ExitCode::SUCCESS)
         }
         QueryCommand::Search(options) => {
-            let search_options = SearchOptions::from_query(options);
+            let search_options = SearchOptions::from_query(*options);
             run_query_view(&search_options)
         }
     }
@@ -274,7 +274,7 @@ fn run_query_view(options: &SearchOptions) -> Result<ExitCode, String> {
         .read_selector
         .as_deref()
         .filter(|_| options.item_code || options.item_query.is_none())
-        .or_else(|| {
+        .or({
             if options.item_code {
                 options.query.as_deref()
             } else {
@@ -1003,7 +1003,11 @@ fn print_agent_guide(_project_root: &std::path::Path) {
     let catalog = search_guide
         .lines()
         .find(|line| line.starts_with("|catalog "))
-        .unwrap_or("|catalog reasoningProfiles=none entries=none routes=read-frontier");
+        .unwrap_or("|catalog reasoningProfiles=none entries=none routes=read-frontier")
+        .replace(
+            "routes=read-frontier",
+            "routes=read-frontier,syntax-locate,syntax-code,query-code",
+        );
     let entries = search_guide
         .lines()
         .filter(|line| line.starts_with("|entry "))
@@ -1012,14 +1016,22 @@ fn print_agent_guide(_project_root: &std::path::Path) {
     let route = search_guide
         .lines()
         .find(|line| line.starts_with("|route read-frontier "))
-        .unwrap_or("|route read-frontier selectors=R:range returns=symbols,windows,tests,next-actions frontier=R.symbols,R.tests,R.code cmd=asp rust query --from-hook direct-source-read --selector <path[:line-range]> [--code] .");
+        .unwrap_or("|route read-frontier selectors=R:range returns=symbols,windows,tests,next-actions frontier=R.symbols,R.tests,R.code cmd=asp rust query --from-hook direct-source-read --selector <path[:line-range]> .")
+        .replace(
+            "returns=symbols,windows,tests,next-actions ",
+            "returns=symbols,windows,tests,next-actions code=false ",
+        )
+        .replace(" [--code] .", " .");
 
     print!(
         r#"[agent-guide] runtime=semantic-agent-hook language=rust provider=rs-harness
 {catalog}
-|flow prime->owner|query|deps|symbol|tests pipe=fzf:tests ingest=stdin
+|flow prime->owner|syntax-locate|query-code|deps|symbol|tests pipe=fzf:tests ingest=stdin
 {entries}
 {route}
+|route syntax-locate selectors=S:tree-sitter-query,R:range returns=locator,capture,frontier code=false cmd=asp rust query --treesitter-query '(function_item name: (identifier) @function.name)' --selector <path[:line|:start:end]> .
+|route syntax-code selectors=S:tree-sitter-query,R:exact-selector returns=code code=pure cmd=asp rust query --treesitter-query '(function_item name: (identifier) @function.name)' --selector <path[:line|:start:end]> --code .
+|route query-code selectors=O:owner,Q:symbol returns=code code=pure cmd=asp rust query <path> --query <symbol-or-a|b|c> --code .
 |cmd prime=asp rust search prime --view seeds .
 |cmd owner=asp rust search owner <path> items --view seeds .
 |cmd policy=asp rust search policy <rule-id-or-alias> owner tests --view seeds .
@@ -1027,8 +1039,9 @@ fn print_agent_guide(_project_root: &std::path::Path) {
 |cmd finding-frontier=asp rust search reasoning finding-frontier --query <finding> [--owner <path>] --view seeds .
 |cmd feature-cfg=asp rust search reasoning feature-cfg --query <feature> --view seeds .
 |cmd query=asp rust query <path> --query <symbol-or-a|b|c> .
-|cmd code=asp rust query <path> --query <symbol-or-a|b|c> --code .
-|cmd syntax-query=asp rust query --treesitter-query '(function_item name: (identifier) @function.name)' --selector <path[:line|:start:end]> [--code] .
+|cmd query-code=asp rust query <path> --query <symbol-or-a|b|c> --code .
+|cmd syntax-locate=asp rust query --treesitter-query '(function_item name: (identifier) @function.name)' --selector <path[:line|:start:end]> .
+|cmd syntax-code=asp rust query --treesitter-query '(function_item name: (identifier) @function.name)' --selector <path[:line|:start:end]> --code .
 |cmd hook-query=asp rust query --from-hook direct-source-read --selector <path[:line-range]> [--code] .
 |cmd ast-patch=asp rust ast-patch dry-run --packet <semantic-ast-patch.json|-> .
 |cmd ast-patch-apply=asp rust ast-patch apply --packet <semantic-ast-patch.json|-> .
@@ -1036,6 +1049,9 @@ fn print_agent_guide(_project_root: &std::path::Path) {
 |cmd evidence=asp rust evidence graph --review-packet-json <path> --json .
 |cmd assurance=asp rust evidence assurance --evidence-graph-json <path> --json .
 |rule hook install/runtime is owned by semantic-agent-hook
+|rule run guide commands from project root; trailing . is the project root
+|rule syntax query ABI is compiled by asp; provider projects native parser facts into tree-sitter-compatible captures
+|rule query --code is pure code; search/read-plan returns locators/frontier, not inline code
 |cmd agent-doctor=asp rust agent doctor --json .
 "#
     );

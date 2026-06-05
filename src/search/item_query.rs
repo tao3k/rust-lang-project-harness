@@ -97,7 +97,7 @@ pub(super) fn render_item_query_line(
         .map(str::trim)
         .filter(|query| !query.is_empty())?;
     let summary = item_query_match_summary(matching_modules, query);
-    let output = names_only.then_some(" output=names").unwrap_or_default();
+    let output = if names_only { " output=names" } else { "" };
     let candidate_field = if summary.candidates.is_empty() {
         String::new()
     } else {
@@ -500,11 +500,11 @@ fn item_query_term_revisions(
             }
             let single_term = [*term];
             let mut candidates = item_query_miss_candidates(items, &single_term);
-            if candidates.is_empty() {
-                if let Some(alias) = snake_case_query_alias(term) {
-                    let alias_terms = [alias.as_str()];
-                    candidates = item_query_miss_candidates(items, &alias_terms);
-                }
+            if candidates.is_empty()
+                && let Some(alias) = snake_case_query_alias(term)
+            {
+                let alias_terms = [alias.as_str()];
+                candidates = item_query_miss_candidates(items, &alias_terms);
             }
             candidates
                 .into_iter()

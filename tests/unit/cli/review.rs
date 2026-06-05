@@ -196,7 +196,7 @@ fn review_packet_json(root: &Path, extra_args: &[&str]) -> Value {
         OsStr::new("packet"),
         OsStr::new("--json"),
     ];
-    args.extend(extra_args.iter().map(|arg| OsStr::new(arg)));
+    args.extend(extra_args.iter().map(OsStr::new));
     args.push(root.as_os_str());
     let output = run_cli(args);
     assert!(output.status.success(), "{output:?}");

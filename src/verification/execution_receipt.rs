@@ -396,8 +396,10 @@ impl RustVerificationExecutionReceipt {
         } else {
             RustVerificationExecutionStatus::Failed
         };
-        let mut producer = RustVerificationExecutionProducer::default();
-        producer.adapter_id = adapter.adapter_id();
+        let producer = RustVerificationExecutionProducer {
+            adapter_id: adapter.adapter_id(),
+            ..Default::default()
+        };
         Self {
             schema_id: RustVerificationExecutionSchemaId(
                 RUST_VERIFICATION_EXECUTION_RECEIPT_SCHEMA_ID.to_owned(),

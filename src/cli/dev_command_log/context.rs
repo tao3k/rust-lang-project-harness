@@ -261,11 +261,11 @@ pub(super) fn redact_argv(argv: &[OsString]) -> Vec<String> {
     let mut iter = argv.iter().peekable();
     while let Some(arg) = iter.next() {
         let text = arg.to_string_lossy().to_string();
-        if let Some((flag, _)) = text.split_once('=') {
-            if is_secret_flag(flag) {
-                redacted.push(format!("{flag}=[REDACTED]"));
-                continue;
-            }
+        if let Some((flag, _)) = text.split_once('=')
+            && is_secret_flag(flag)
+        {
+            redacted.push(format!("{flag}=[REDACTED]"));
+            continue;
         }
         if is_secret_flag(&text) {
             redacted.push(text);

@@ -299,6 +299,10 @@ fn cli_search_ranks_equal_hits_by_project_path_mtime() {
 
 #[test]
 fn cli_rust_flow_drill_reduces_search_rounds_with_seeds_and_recipe_plan() {
+    if crate::cli::support::skip_if_protocol_graph_renderer_unavailable() {
+        return;
+    }
+
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_search_fixture(root);

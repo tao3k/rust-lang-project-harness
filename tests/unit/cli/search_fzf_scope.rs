@@ -2,6 +2,10 @@ use super::support::run_search;
 
 #[test]
 fn cli_search_fzf_accepts_workspace_relative_scope_paths() {
+    if crate::cli::support::skip_if_protocol_graph_renderer_unavailable() {
+        return;
+    }
+
     let temp = tempfile::tempdir().expect("tempdir");
     let root = temp.path().join("workspace").join("crates").join("demo");
     std::fs::create_dir_all(root.join("src")).expect("src");

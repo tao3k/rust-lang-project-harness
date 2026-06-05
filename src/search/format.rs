@@ -4,7 +4,7 @@ use crate::RustHarnessConfig;
 use crate::discovery::discover_cargo_package_roots;
 use crate::parser::{
     CargoDependencyFacts, CargoDependencyKind, ParsedRustModule, RustReasoningOwnerBranchFacts,
-    RustReasoningOwnerBranchRole, RustTopLevelItemSyntax,
+    RustReasoningOwnerBranchRole, RustTopLevelItemSyntax, syntax_abi::syntax_atom_for_kind,
 };
 use crate::path::normalize_lexical_path;
 
@@ -107,13 +107,13 @@ pub(super) fn render_item_line(item: &RustTopLevelItemSyntax) -> String {
     format!(
         "{} syn={}",
         render_item_core_line(item),
-        item_syntax_atom(item.kind)
+        syntax_atom_for_kind(item.kind)
     )
 }
 
 fn render_item_core_line(item: &RustTopLevelItemSyntax) -> String {
     fn push_responsibility(responsibilities: &mut Vec<&str>, kind: &'static str) {
-        if !responsibilities.iter().any(|existing| *existing == kind) {
+        if !responsibilities.contains(&kind) {
             responsibilities.push(kind);
         }
     }
@@ -151,24 +151,6 @@ fn render_item_core_line(item: &RustTopLevelItemSyntax) -> String {
     fields.join(" ")
 }
 
-fn item_syntax_atom(kind: &str) -> &'static str {
-    match kind {
-        "const" => "const_item/name",
-        "enum" => "enum_item/name",
-        "extern_crate" => "extern_crate_declaration/name",
-        "fn" => "function_item/name",
-        "impl" => "impl_item/name",
-        "macro" => "macro_definition/name",
-        "mod" => "mod_item/name",
-        "static" => "static_item/name",
-        "struct" => "struct_item/name",
-        "trait" | "trait_alias" => "trait_item/name",
-        "type" => "type_item/name",
-        "use" => "use_declaration/name",
-        _ => "item/name",
-    }
-}
-
 fn item_display_name(item: &RustTopLevelItemSyntax) -> &str {
     item.name
         .as_deref()
@@ -188,7 +170,7 @@ pub(super) fn render_item_locator_line_with_read(
         read_path,
         item.line,
         item.end_line,
-        item_syntax_atom(item.kind)
+        syntax_atom_for_kind(item.kind)
     )
 }
 

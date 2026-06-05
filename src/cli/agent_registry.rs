@@ -78,11 +78,11 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "outputSchemaIds": ["agent.semantic-protocols.semantic-tree-sitter-query"],
             "packetSchemas": ["semantic-tree-sitter-query.v1"],
             "queryCatalogs": [
-                { "id": "declarations", "path": "tree-sitter/tree-sitter-rust/queries/declarations.scm", "sourceDelivery": "provider-binary-embedded", "captures": ["function.definition", "function.name", "function.modifier", "function.return_type", "function.type_parameters", "type.definition", "type.name", "type.type_parameters", "type.aliased_type", "trait.definition", "trait.name", "trait.type_parameters", "trait.bounds", "impl.definition", "impl.target", "impl.trait", "impl.type_parameters", "module.definition", "module.name", "constant.definition", "constant.name", "constant.type", "item.attribute", "item.visibility"] },
-                { "id": "imports", "path": "tree-sitter/tree-sitter-rust/queries/imports.scm", "sourceDelivery": "provider-binary-embedded", "captures": ["import.declaration", "import.path", "import.alias", "import.visibility"] },
-                { "id": "calls", "path": "tree-sitter/tree-sitter-rust/queries/calls.scm", "sourceDelivery": "provider-binary-embedded", "captures": ["call.expression", "call.target", "call.method"] },
-                { "id": "macros", "path": "tree-sitter/tree-sitter-rust/queries/macros.scm", "sourceDelivery": "provider-binary-embedded", "captures": ["macro.invocation", "macro.name", "macro.arguments"] },
-                { "id": "cfg", "path": "tree-sitter/tree-sitter-rust/queries/cfg.scm", "sourceDelivery": "provider-binary-embedded", "captures": ["attribute.item", "attribute.name", "attribute.body", "attribute.arguments", "attribute.value"] }
+                { "id": "declarations", "path": "tree-sitter/tree-sitter-rust/queries/declarations.scm", "sourceDelivery": "provider-binary-embedded", "captures": ["function.definition", "function.name", "function.modifier", "function.return_type", "function.type_parameters", "type.definition", "type.name", "type.type_parameters", "type.aliased_type", "trait.definition", "trait.name", "trait.type_parameters", "trait.bounds", "impl.definition", "impl.target", "impl.trait", "impl.type_parameters", "module.definition", "module.name", "constant.definition", "constant.name", "constant.type", "item.attribute", "item.visibility"], "nodeTypes": ["attribute_item", "const_item", "enum_item", "function_item", "impl_item", "mod_item", "static_item", "struct_item", "trait_item", "type_item", "union_item"], "fields": ["body", "bounds", "declarator", "name", "return_type", "trait", "type", "type_parameters", "value"] },
+                { "id": "imports", "path": "tree-sitter/tree-sitter-rust/queries/imports.scm", "sourceDelivery": "provider-binary-embedded", "captures": ["import.declaration", "import.path", "import.alias", "import.visibility"], "nodeTypes": ["extern_crate_declaration", "use_declaration"], "fields": ["alias", "crate", "name"] },
+                { "id": "calls", "path": "tree-sitter/tree-sitter-rust/queries/calls.scm", "sourceDelivery": "provider-binary-embedded", "captures": ["call.expression", "call.target", "call.method"], "nodeTypes": ["call_expression", "field_expression", "identifier", "scoped_identifier"], "fields": ["function"] },
+                { "id": "macros", "path": "tree-sitter/tree-sitter-rust/queries/macros.scm", "sourceDelivery": "provider-binary-embedded", "captures": ["macro.invocation", "macro.name", "macro.arguments"], "nodeTypes": ["macro_invocation", "token_tree"], "fields": ["macro"] },
+                { "id": "cfg", "path": "tree-sitter/tree-sitter-rust/queries/cfg.scm", "sourceDelivery": "provider-binary-embedded", "captures": ["attribute.item", "attribute.name", "attribute.body", "attribute.arguments", "attribute.value"], "nodeTypes": ["attribute", "attribute_item", "identifier", "meta_item", "string_literal"], "fields": [] }
             ],
             "queryInputForms": ["catalog-id", "s-expression"],
             "requiredOptions": ["--catalog|--treesitter-query"],
@@ -91,11 +91,17 @@ fn agent_registry_json(project_root: &Path) -> Value {
         }),
         json!({
             "acceptedQuerySetSelectors": ["exact-set"],
+            "cacheReplay": true,
             "command": "query",
+            "grammarId": "tree-sitter-rust",
+            "grammarProfileVersion": "2026-06-04.v1",
+            "grammarProfileSchema": "semantic-tree-sitter-grammar-profile.v1",
+            "grammarProfilePath": "tree-sitter/tree-sitter-rust/grammar-profile.json",
             "input": "owner-path",
             "method": "query/owner-items",
             "outputModes": ["compact", "json", "code", "names"],
             "outputSchemaIds": ["agent.semantic-protocols.semantic-query-packet"],
+            "packetSchemas": ["semantic-query-packet.v1", "semantic-tree-sitter-query.v1"],
             "querySetScopes": ["owner"],
             "requiredOptions": ["--term"],
             "supportsCompact": true,
@@ -103,7 +109,12 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "supportsQuerySet": true
         }),
         json!({
+            "cacheReplay": true,
             "command": "query",
+            "grammarId": "tree-sitter-rust",
+            "grammarProfileVersion": "2026-06-04.v1",
+            "grammarProfileSchema": "semantic-tree-sitter-grammar-profile.v1",
+            "grammarProfilePath": "tree-sitter/tree-sitter-rust/grammar-profile.json",
             "input": "owner-path",
             "method": "query/direct-source-read",
             "outputModes": ["compact", "json", "names", "read-packet"],
@@ -111,6 +122,12 @@ fn agent_registry_json(project_root: &Path) -> Value {
                 "agent.semantic-protocols.semantic-query-packet",
                 "agent.semantic-protocols.semantic-read-packet"
             ],
+            "packetSchemas": [
+                "semantic-query-packet.v1",
+                "semantic-read-packet.v1",
+                "semantic-tree-sitter-query.v1"
+            ],
+            "queryInputForms": ["selector"],
             "requiredOptions": ["--from-hook", "--selector"],
             "supportsCompact": true,
             "supportsJson": true
@@ -207,6 +224,9 @@ fn agent_registry_json(project_root: &Path) -> Value {
                 { "path": "schemas/semantic-search-packet.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-search-packet", "schemaVersion": "1" },
                 { "path": "schemas/semantic-query-packet.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-query-packet", "schemaVersion": "1" },
                 { "path": "schemas/semantic-tree-sitter-query.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-tree-sitter-query", "schemaVersion": "1" },
+                { "path": "schemas/semantic-tree-sitter-grammar-profile.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-tree-sitter-grammar-profile", "schemaVersion": "1" },
+                { "path": "schemas/semantic-source-location.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-source-location", "schemaVersion": "1" },
+                { "path": "schemas/semantic-tree-sitter-provenance.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-tree-sitter-provenance", "schemaVersion": "1" },
                 { "path": "schemas/semantic-read-packet.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-read-packet", "schemaVersion": "1" },
                 { "path": "schemas/semantic-graph.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-graph", "schemaVersion": "1" },
                 { "path": "schemas/semantic-type-surface.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-type-surface", "schemaVersion": "1" },
@@ -259,6 +279,23 @@ fn search_method_descriptor(view: &str) -> Value {
     let capabilities = search_capabilities(view);
     if !capabilities.is_empty() {
         fields.insert("capabilities".to_string(), json!(capabilities));
+    }
+    if view == "owner" {
+        fields.insert("cacheReplay".to_string(), json!(true));
+        fields.insert("grammarId".to_string(), json!("tree-sitter-rust"));
+        fields.insert(
+            "grammarProfilePath".to_string(),
+            json!("tree-sitter/tree-sitter-rust/grammar-profile.json"),
+        );
+        fields.insert(
+            "grammarProfileSchema".to_string(),
+            json!("semantic-tree-sitter-grammar-profile.v1"),
+        );
+        fields.insert("grammarProfileVersion".to_string(), json!("2026-06-04.v1"));
+        fields.insert(
+            "packetSchemas".to_string(),
+            json!(["semantic-search-packet.v1", "semantic-tree-sitter-query.v1"]),
+        );
     }
     let ingest_required_for = search_ingest_required_for(view);
     if !ingest_required_for.is_empty() {
@@ -339,6 +376,7 @@ fn search_capabilities(view: &str) -> Vec<Value> {
             semantic_capability("reasoning-owner-search"),
             rust_capability("parser-visible-module-owner-search"),
             rust_capability("test-owner-search"),
+            rust_capability("rust-native-syntax-query"),
             semantic_capability("path-owner-fallback"),
         ],
         "dependency" => vec![

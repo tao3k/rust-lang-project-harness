@@ -5,6 +5,10 @@ use super::support::{run_cli, run_search, write_search_fixture};
 
 #[test]
 fn cli_search_query_routes_code_shaped_use_through_native_syntax_facts() {
+    if crate::cli::support::skip_if_protocol_graph_renderer_unavailable() {
+        return;
+    }
+
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_search_fixture(root);
@@ -26,6 +30,10 @@ fn cli_search_query_routes_code_shaped_use_through_native_syntax_facts() {
 
 #[test]
 fn cli_search_fzf_points_code_shaped_queries_to_explicit_query_api() {
+    if crate::cli::support::skip_if_protocol_graph_renderer_unavailable() {
+        return;
+    }
+
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_search_fixture(root);

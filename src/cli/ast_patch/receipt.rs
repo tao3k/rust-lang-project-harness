@@ -714,20 +714,20 @@ fn split_owner_items_receipt(
     }
 
     let destination_end_line = formatted_destination.lines().count().max(1);
-    split_owner_items_success_receipt(
+    split_owner_items_success_receipt(SplitOwnerItemsSuccessReceipt {
         mode,
         packet,
-        &project_root,
-        &read,
+        project_root: &project_root,
+        read: &read,
         destination_path,
         destination_end_line,
-        selected_items.len(),
+        item_count: selected_items.len(),
         estimated_edits,
         max_edits,
-        source.len(),
-        selected_source.len(),
+        source_bytes_read_local: source.len(),
+        prompt_bytes_avoided: selected_source.len(),
         verification,
-    )
+    })
 }
 
 fn success_receipt(
@@ -773,12 +773,12 @@ fn success_receipt(
     })
 }
 
-fn split_owner_items_success_receipt(
+struct SplitOwnerItemsSuccessReceipt<'a> {
     mode: AstPatchMode,
-    packet: &Value,
-    project_root: &Path,
-    read: &SourceRead,
-    destination_path: &str,
+    packet: &'a Value,
+    project_root: &'a Path,
+    read: &'a SourceRead,
+    destination_path: &'a str,
     destination_end_line: usize,
     item_count: usize,
     estimated_edits: usize,
@@ -786,49 +786,54 @@ fn split_owner_items_success_receipt(
     source_bytes_read_local: usize,
     prompt_bytes_avoided: usize,
     verification: Vec<&'static str>,
-) -> Value {
-    let destination_read = format!("{destination_path}:1:{destination_end_line}");
+}
+
+fn split_owner_items_success_receipt(input: SplitOwnerItemsSuccessReceipt<'_>) -> Value {
+    let destination_read = format!(
+        "{}:1:{}",
+        input.destination_path, input.destination_end_line
+    );
     json!({
         "schemaId": RECEIPT_SCHEMA_ID,
         "schemaVersion": "1",
         "protocolId": AST_PATCH_PROTOCOL_ID,
         "protocolVersion": "1",
-        "status": mode.success_status(),
-        "mode": mode.as_str(),
-        "capability": mode.capability(),
-        "mutationAvailable": mode.mutation_available(),
+        "status": input.mode.success_status(),
+        "mode": input.mode.as_str(),
+        "capability": input.mode.capability(),
+        "mutationAvailable": input.mode.mutation_available(),
         "mutationSource": "provider-native",
         "snippetRequired": false,
         "codeInPrompt": false,
         "languageId": "rust",
-        "target": receipt_target(Some(packet)),
+        "target": receipt_target(Some(input.packet)),
         "operation": "split_owner_items",
         "supportedOperations": SUPPORTED_OPERATIONS,
         "mechanicalEditPlan": {
-            "kind": mode.mechanical_plan_kind(),
+            "kind": input.mode.mechanical_plan_kind(),
             "operation": "split_owner_items",
-            "targetRead": read.raw,
-            "estimatedEdits": estimated_edits,
-            "maxEdits": max_edits,
-            "safeForLargeChange": item_count > 1,
-            "mutationAvailable": mode.mutation_available(),
+            "targetRead": input.read.raw,
+            "estimatedEdits": input.estimated_edits,
+            "maxEdits": input.max_edits,
+            "safeForLargeChange": input.item_count > 1,
+            "mutationAvailable": input.mode.mutation_available(),
             "requiresCodexApplyPatch": false,
             "mutationSource": "provider-native",
             "snippetRequired": false,
             "codeInPrompt": false,
-            "changedPaths": [read.path, destination_path],
-            "sourceBytesReadLocal": source_bytes_read_local,
-            "promptBytesAvoided": prompt_bytes_avoided,
-            "changedRanges": [read.raw, destination_read],
+            "changedPaths": [input.read.path, input.destination_path],
+            "sourceBytesReadLocal": input.source_bytes_read_local,
+            "promptBytesAvoided": input.prompt_bytes_avoided,
+            "changedRanges": [input.read.raw, destination_read],
             "notes": [
                 "Rust provider moved parser-selected top-level items without an agent-authored source hunk",
                 "Rust provider reparsed and rustfmt-normalized both owner and destination modules"
             ]
         },
-        "verification": verification,
+        "verification": input.verification,
         "failureKind": null,
         "failures": [],
-        "next": success_next_guidance(mode, project_root)
+        "next": success_next_guidance(input.mode, input.project_root)
     })
 }
 

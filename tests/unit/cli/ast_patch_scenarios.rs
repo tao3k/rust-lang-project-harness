@@ -10,6 +10,10 @@ use super::support::{run_cli, run_cli_with_stdin};
 
 #[test]
 fn cli_ast_patch_scenarios_match_expected_trees_and_receipts() {
+    if crate::cli::support::skip_if_protocol_graph_renderer_unavailable() {
+        return;
+    }
+
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
         .join("fixtures")
@@ -284,10 +288,10 @@ fn cli_ast_patch_real_checkout_query_target_dry_runs_from_env() {
         .iter()
         .find(|match_value| {
             match_value["patchSafety"]["level"] == "ast-patch-safe"
-                && target_kind.as_deref().map_or(true, |kind| {
+                && target_kind.as_deref().is_none_or(|kind| {
                     match_value["kind"].as_str() == Some(kind)
                 })
-                && target_name.as_deref().map_or(true, |name| {
+                && target_name.as_deref().is_none_or(|name| {
                     match_value["name"].as_str() == Some(name)
                 })
         })
@@ -1045,9 +1049,9 @@ fn select_query_match<'a>(
     matches
         .iter()
         .find(|match_value| {
-            kind.map_or(true, |kind| match_value["kind"].as_str() == Some(kind))
+            kind.is_none_or(|kind| match_value["kind"].as_str() == Some(kind))
                 && item_name
-                    .map_or(true, |item_name| match_value["name"].as_str() == Some(item_name))
+                    .is_none_or(|item_name| match_value["name"].as_str() == Some(item_name))
         })
         .unwrap_or_else(|| {
             panic!(

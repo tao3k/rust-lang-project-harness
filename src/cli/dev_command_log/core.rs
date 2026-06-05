@@ -23,7 +23,7 @@ use super::constants::{PROTOCOL_ID, PROTOCOL_VERSION, SCHEMA_ID, SCHEMA_VERSION}
 
 pub(crate) enum DevCommandLog {
     Disabled,
-    Active(ActiveCommandLog),
+    Active(Box<ActiveCommandLog>),
 }
 
 impl DevCommandLog {
@@ -60,7 +60,7 @@ impl DevCommandLog {
             .unwrap_or_else(|| "rs-harness".to_string());
         let command = normalize_command(&argv);
 
-        Self::Active(ActiveCommandLog {
+        Self::Active(Box::new(ActiveCommandLog {
             argv,
             binary,
             command,
@@ -76,12 +76,12 @@ impl DevCommandLog {
             session_ordinal,
             started_at_instant,
             started_at_system,
-        })
+        }))
     }
 
     pub(crate) fn finish(self, exit_code: i32) {
         if let Self::Active(active) = self {
-            let _ = write_event(&active, exit_code);
+            let _ = write_event(active.as_ref(), exit_code);
         }
     }
 }

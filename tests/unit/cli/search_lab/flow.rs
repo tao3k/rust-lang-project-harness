@@ -7,6 +7,10 @@ use crate::cli::support::{
 
 #[test]
 fn search_lab_multi_pipe_dependency_flow_compresses_to_final_packet() {
+    if crate::cli::support::skip_if_protocol_graph_renderer_unavailable() {
+        return;
+    }
+
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_search_fixture(root);

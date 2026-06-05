@@ -413,10 +413,8 @@ impl SearchSeedAccumulator {
             self.headers.push(line.to_string());
             return;
         }
-        if line.starts_with("|note ") {
-            if !line.contains("seeds_truncated=") {
-                self.notes.push(line.to_string());
-            }
+        if line.starts_with("|note ") && !line.contains("seeds_truncated=") {
+            self.notes.push(line.to_string());
         }
         if line.starts_with("|query ") || line.starts_with("|fact ") {
             if self.seen.insert(format!("evidence:{line}")) {

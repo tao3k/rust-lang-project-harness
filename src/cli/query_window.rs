@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::parser::{RustTopLevelItemSyntax, parse_rust_file};
+use crate::parser::{RustTopLevelItemSyntax, parse_rust_file, syntax_abi::syntax_atom_for_kind};
 
 const MAX_EXACT_DIRECT_READ_LINES: usize = 40;
 
@@ -24,26 +24,26 @@ pub(super) fn render_query_local_window(
         .join("\n");
     if !include_code {
         return Ok(Some(render_query_local_window_read_plan(
-            path,
-            &source_path,
-            start_line,
-            end_line,
-            start_line,
-            end_line,
-            "locator-frontier",
-            "bounded",
+            QueryLocalWindowReadPlan {
+                path,
+                source_path: &source_path,
+                requested: QueryLocalWindowRange::new(start_line, end_line),
+                selected: QueryLocalWindowRange::new(start_line, end_line),
+                reason: "locator-frontier",
+                density: "bounded",
+            },
         )));
     }
     if !rendered.is_empty() && is_low_signal_query_local_window(&rendered) {
         return Ok(Some(render_query_local_window_read_plan(
-            path,
-            &source_path,
-            start_line,
-            end_line,
-            start_line,
-            end_line,
-            "low-signal-window",
-            "low",
+            QueryLocalWindowReadPlan {
+                path,
+                source_path: &source_path,
+                requested: QueryLocalWindowRange::new(start_line, end_line),
+                selected: QueryLocalWindowRange::new(start_line, end_line),
+                reason: "low-signal-window",
+                density: "low",
+            },
         )));
     }
     if !rendered.is_empty() {
@@ -165,32 +165,43 @@ fn is_low_signal_query_local_window(text: &str) -> bool {
     !text.chars().any(|ch| ch.is_alphanumeric() || ch == '_')
 }
 
-fn render_query_local_window_read_plan(
-    path: &str,
-    source_path: &Path,
-    requested_start: usize,
-    requested_end: usize,
-    selected_start: usize,
-    selected_end: usize,
-    reason: &str,
-    _density: &str,
-) -> String {
+struct QueryLocalWindowRange {
+    start: usize,
+    end: usize,
+}
+
+impl QueryLocalWindowRange {
+    fn new(start: usize, end: usize) -> Self {
+        Self { start, end }
+    }
+}
+
+struct QueryLocalWindowReadPlan<'a> {
+    path: &'a str,
+    source_path: &'a Path,
+    requested: QueryLocalWindowRange,
+    selected: QueryLocalWindowRange,
+    reason: &'a str,
+    density: &'a str,
+}
+
+fn render_query_local_window_read_plan(plan: QueryLocalWindowReadPlan<'_>) -> String {
     if let Some(symbol_frontier) = render_query_local_window_symbol_read_plan(
-        path,
-        source_path,
-        requested_start,
-        requested_end,
+        plan.path,
+        plan.source_path,
+        plan.requested.start,
+        plan.requested.end,
     ) {
         return symbol_frontier;
     }
     render_query_local_window_range_read_plan(
-        path,
-        requested_start,
-        requested_end,
-        selected_start,
-        selected_end,
-        reason,
-        _density,
+        plan.path,
+        plan.requested.start,
+        plan.requested.end,
+        plan.selected.start,
+        plan.selected.end,
+        plan.reason,
+        plan.density,
     )
 }
 
@@ -338,27 +349,9 @@ fn read_plan_symbol(path: &str, item: &RustTopLevelItemSyntax) -> Option<ReadPla
         alias: String::new(),
         name: name.to_string(),
         kind: item.kind,
-        syn: read_plan_symbol_syntax_atom(item.kind),
+        syn: syntax_atom_for_kind(item.kind),
         read: format!("{}:{}:{}", path, item.line, item.end_line),
     })
-}
-
-fn read_plan_symbol_syntax_atom(kind: &str) -> &'static str {
-    match kind {
-        "const" => "const_item/name",
-        "enum" => "enum_item/name",
-        "extern_crate" => "extern_crate_declaration/name",
-        "fn" => "function_item/name",
-        "impl" => "impl_item/name",
-        "macro" => "macro_definition/name",
-        "mod" => "mod_item/name",
-        "static" => "static_item/name",
-        "struct" => "struct_item/name",
-        "trait" | "trait_alias" => "trait_item/name",
-        "type" => "type_item/name",
-        "use" => "use_declaration/name",
-        _ => "item/name",
-    }
 }
 
 struct ReadPlanWindow {

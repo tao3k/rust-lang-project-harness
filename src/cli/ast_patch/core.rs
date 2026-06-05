@@ -274,13 +274,13 @@ pub(super) fn validate_item_identity(
 ) -> Result<(), String> {
     let existing_identity = item_identity(existing);
     let replacement_identity = item_identity(replacement);
-    if let (Some(existing), Some(replacement)) = (&existing_identity, &replacement_identity) {
-        if existing != replacement {
-            return Err(format!(
-                "replacement item identity changed from {}:{} to {}:{}",
-                existing.0, existing.1, replacement.0, replacement.1
-            ));
-        }
+    if let (Some(existing), Some(replacement)) = (&existing_identity, &replacement_identity)
+        && existing != replacement
+    {
+        return Err(format!(
+            "replacement item identity changed from {}:{} to {}:{}",
+            existing.0, existing.1, replacement.0, replacement.1
+        ));
     }
     if let Some(expected_name) = target.get("itemName").and_then(Value::as_str) {
         let Some((_, existing_name)) = existing_identity else {

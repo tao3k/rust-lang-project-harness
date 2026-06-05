@@ -21,7 +21,7 @@ pub fn thing() {}
     )
     .expect("write broad query fixture");
 
-    let output = run_cli(&[
+    let output = run_cli([
         "search",
         "owner",
         "src/lib.rs",
@@ -60,7 +60,7 @@ pub fn projection_expand_actions() {}
     )
     .expect("write stale query fixture");
 
-    let output = run_cli(&[
+    let output = run_cli([
         "search",
         "owner",
         "src/lib.rs",

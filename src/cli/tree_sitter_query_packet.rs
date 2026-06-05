@@ -18,6 +18,10 @@ pub(super) fn syntax_query_matches_json(rows: &[SyntaxQueryRow]) -> Vec<serde_js
             let ordinal = index + 1;
             let native_fact_ref = syntax_query_native_fact_ref(row);
             let semantic_handle_ref = syntax_query_semantic_handle_ref(row);
+            let match_source_location =
+                syntax_query_source_location(row, row.item_start_line, row.item_end_line);
+            let capture_source_location =
+                syntax_query_source_location(row, row.start_line, row.end_line);
             serde_json::json!({
                 "id": format!("match.{ordinal}"),
                 "patternIndex": 0,
@@ -25,6 +29,7 @@ pub(super) fn syntax_query_matches_json(rows: &[SyntaxQueryRow]) -> Vec<serde_js
                     "path": row.path.as_str(),
                     "lineRange": syntax_query_line_range(row.item_start_line, row.item_end_line)
                 },
+                "sourceLocation": match_source_location,
                 "captures": [{
                     "id": format!("capture.{ordinal}"),
                     "name": row.capture.as_str(),
@@ -35,6 +40,7 @@ pub(super) fn syntax_query_matches_json(rows: &[SyntaxQueryRow]) -> Vec<serde_js
                         "path": row.path.as_str(),
                         "lineRange": syntax_query_line_range(row.start_line, row.end_line)
                     },
+                    "sourceLocation": capture_source_location,
                     "nativeFactRefs": [native_fact_ref.clone()],
                     "semanticHandleRefs": [semantic_handle_ref.clone()],
                     "fields": {
@@ -95,6 +101,25 @@ fn syntax_query_item_read_locator(row: &SyntaxQueryRow) -> String {
         row.path,
         syntax_query_line_range(row.item_start_line, row.item_end_line)
     )
+}
+
+fn syntax_query_source_location(
+    row: &SyntaxQueryRow,
+    start_line: usize,
+    end_line: usize,
+) -> serde_json::Value {
+    let line_range = syntax_query_line_range(start_line, end_line);
+    let source_span_locator = format!("{}:{}", row.path, line_range);
+    serde_json::json!({
+        "path": row.path.as_str(),
+        "lineRange": line_range.as_str(),
+        "location": {
+            "path": row.path.as_str(),
+            "lineRange": line_range.as_str(),
+        },
+        "sourceLocator": source_span_locator.as_str(),
+        "sourceSpanLocator": source_span_locator.as_str()
+    })
 }
 
 fn syntax_query_line_range(start_line: usize, end_line: usize) -> String {

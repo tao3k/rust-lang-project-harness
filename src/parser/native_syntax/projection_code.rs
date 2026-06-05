@@ -2,11 +2,11 @@
 
 pub(crate) fn compact_code_from_projection_nodes<'a, N: 'a>(
     nodes: impl IntoIterator<Item = &'a N>,
-    mut node_parts: impl FnMut(&N) -> Option<(usize, String)>,
+    node_parts: impl FnMut(&N) -> Option<(usize, String)>,
 ) -> String {
     nodes
         .into_iter()
-        .filter_map(|node| node_parts(node))
+        .filter_map(node_parts)
         .fold(
             CompactCodeRenderState::default(),
             |state, (depth, label)| state.push_node(depth, label),

@@ -78,7 +78,9 @@ fn render_exact_path_owner_query_set(
     for package_root in package_roots {
         let modules = query_terms
             .iter()
-            .flat_map(|term| exact_owner_path_matches(project_root, &[package_root.clone()], term))
+            .flat_map(|term| {
+                exact_owner_path_matches(project_root, std::slice::from_ref(&package_root), term)
+            })
             .map(|(_, path)| parse_rust_file(&path))
             .collect::<Vec<_>>();
         if modules.is_empty() {
@@ -158,74 +160,81 @@ fn render_exact_path_owner(
             exact_owner_test_lines(&contexts, &package_root, std::slice::from_ref(&module));
         let synthesis_lines =
             exact_owner_synthesis_lines(&contexts, &package_root, std::slice::from_ref(&module));
-        rendered.push_str(&render_exact_path_owner_block(
+        rendered.push_str(&render_exact_path_owner_block(ExactPathOwnerBlock {
             project_root,
-            &package_root,
+            package_root: &package_root,
             query,
-            &module,
+            module: &module,
             include_items,
-            !include_items || options.pipes.iter().any(|pipe| pipe == "tests"),
-            options.item_query.as_deref(),
-            options.item_names_only,
-            options.item_code,
-            options.item_projection_metadata,
+            include_tests: !include_items || options.pipes.iter().any(|pipe| pipe == "tests"),
+            item_query: options.item_query.as_deref(),
+            item_names_only: options.item_names_only,
+            item_code: options.item_code,
+            item_projection_metadata: options.item_projection_metadata,
             test_lines,
             synthesis_lines,
-        ));
+        }));
     }
     Ok(Some(rendered))
 }
 
-fn render_exact_path_owner_block(
-    project_root: &Path,
-    package_root: &Path,
-    query: &str,
-    module: &ParsedRustModule,
+struct ExactPathOwnerBlock<'a> {
+    project_root: &'a Path,
+    package_root: &'a Path,
+    query: &'a str,
+    module: &'a ParsedRustModule,
     include_items: bool,
     include_tests: bool,
-    item_query: Option<&str>,
+    item_query: Option<&'a str>,
     item_names_only: bool,
     item_code: bool,
     item_projection_metadata: bool,
     test_lines: Vec<String>,
     synthesis_lines: Vec<String>,
-) -> String {
-    if include_items && item_code && item_query.is_some() {
+}
+
+fn render_exact_path_owner_block(input: ExactPathOwnerBlock<'_>) -> String {
+    if input.include_items && input.item_code && input.item_query.is_some() {
         return super::item_query::render_owner_item_code_lines(
-            package_root,
-            &[module],
-            item_query,
+            input.package_root,
+            &[input.module],
+            input.item_query,
         )
         .join("\n");
     }
     let mut block = render_exact_path_owner_header(
-        project_root,
-        package_root,
-        query,
-        module,
-        include_items,
-        item_query,
+        input.project_root,
+        input.package_root,
+        input.query,
+        input.module,
+        input.include_items,
+        input.item_query,
     );
-    if include_items {
-        append_parser_visible_owner_line_without_next(&mut block, package_root, module);
+    if input.include_items {
+        append_parser_visible_owner_line_without_next(&mut block, input.package_root, input.module);
     } else {
-        append_parser_visible_owner_line(&mut block, package_root, module);
+        append_parser_visible_owner_line(&mut block, input.package_root, input.module);
     }
-    append_item_query_line(&mut block, &[module], item_query, item_names_only);
+    append_item_query_line(
+        &mut block,
+        &[input.module],
+        input.item_query,
+        input.item_names_only,
+    );
     append_owner_item_lines(
         &mut block,
-        package_root,
-        &[module],
-        include_items,
-        item_query,
-        item_names_only,
-        item_projection_metadata,
+        input.package_root,
+        &[input.module],
+        input.include_items,
+        input.item_query,
+        input.item_names_only,
+        input.item_projection_metadata,
     );
-    if include_tests {
-        append_unique_lines(&mut block, test_lines);
+    if input.include_tests {
+        append_unique_lines(&mut block, input.test_lines);
     }
-    if !include_items {
-        append_unique_lines(&mut block, synthesis_lines);
+    if !input.include_items {
+        append_unique_lines(&mut block, input.synthesis_lines);
     }
     block
 }

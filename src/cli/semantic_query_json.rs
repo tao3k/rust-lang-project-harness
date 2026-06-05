@@ -496,7 +496,7 @@ fn projection_node_from_parser_token(
 }
 
 fn decode_projection_node_label(encoded: &str) -> Option<String> {
-    if encoded.len() % 2 != 0 {
+    if !encoded.len().is_multiple_of(2) {
         return None;
     }
     let mut bytes = Vec::with_capacity(encoded.len() / 2);

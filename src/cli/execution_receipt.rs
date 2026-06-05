@@ -216,30 +216,30 @@ fn run_adapter(
                 RustVerificationExecutionObservationKind::Stderr,
                 &output.stderr,
             );
-            receipt(
+            receipt(ExecutionReceiptInput {
                 adapter,
                 project_root,
                 command,
                 status,
                 exit_code,
-                Some(duration_ms),
-                summary_for_status(adapter, status),
+                duration_ms: Some(duration_ms),
+                summary: summary_for_status(adapter, status),
                 observations,
-            )
+            })
         }
-        Err(error) => receipt(
+        Err(error) => receipt(ExecutionReceiptInput {
             adapter,
             project_root,
             command,
-            RustVerificationExecutionStatus::Error,
-            None,
-            Some(duration_ms),
-            format!("{} adapter could not run", adapter_name(adapter)),
-            vec![observation(
+            status: RustVerificationExecutionStatus::Error,
+            exit_code: None,
+            duration_ms: Some(duration_ms),
+            summary: format!("{} adapter could not run", adapter_name(adapter)),
+            observations: vec![observation(
                 RustVerificationExecutionObservationKind::Note,
                 error.to_string(),
             )],
-        ),
+        }),
     }
 }
 
@@ -248,35 +248,37 @@ fn skipped_receipt(
     project_root: &Path,
     command: RustVerificationExecutionCommand,
 ) -> RustVerificationExecutionReceipt {
-    receipt(
+    receipt(ExecutionReceiptInput {
         adapter,
         project_root,
         command,
-        RustVerificationExecutionStatus::Skipped,
-        None,
-        None,
-        format!(
+        status: RustVerificationExecutionStatus::Skipped,
+        exit_code: None,
+        duration_ms: None,
+        summary: format!(
             "{} adapter dry-run skipped execution",
             adapter_name(adapter)
         ),
-        vec![observation(
+        observations: vec![observation(
             RustVerificationExecutionObservationKind::Note,
             "--dry-run requested; adapter command was not executed",
         )],
-    )
+    })
 }
 
-fn receipt(
+struct ExecutionReceiptInput<'a> {
     adapter: RustVerificationToolAdapter,
-    project_root: &Path,
+    project_root: &'a Path,
     command: RustVerificationExecutionCommand,
     status: RustVerificationExecutionStatus,
     exit_code: Option<i32>,
     duration_ms: Option<u64>,
     summary: String,
     observations: Vec<RustVerificationExecutionObservation>,
-) -> RustVerificationExecutionReceipt {
-    let adapter_id = adapter.adapter_id();
+}
+
+fn receipt(input: ExecutionReceiptInput<'_>) -> RustVerificationExecutionReceipt {
+    let adapter_id = input.adapter.adapter_id();
     RustVerificationExecutionReceipt {
         schema_id: RustVerificationExecutionSchemaId(
             RUST_VERIFICATION_EXECUTION_RECEIPT_SCHEMA_ID.to_string(),
@@ -290,7 +292,7 @@ fn receipt(
         protocol_version: RustVerificationExecutionProtocolVersion(
             RUST_VERIFICATION_EXECUTION_RECEIPT_PROTOCOL_VERSION.to_string(),
         ),
-        receipt_id: receipt_id(adapter, status, &adapter_id),
+        receipt_id: receipt_id(input.adapter, input.status, &adapter_id),
         producer: RustVerificationExecutionProducer {
             language_id: RustVerificationExecutionLanguageId("rust".to_string()),
             provider_id: RustVerificationExecutionProviderId("rs-harness".to_string()),
@@ -301,17 +303,17 @@ fn receipt(
         },
         project: Some(RustVerificationExecutionProject {
             name: None,
-            workdir: Some(project_root.to_path_buf()),
+            workdir: Some(input.project_root.to_path_buf()),
             package: None,
         }),
-        tool: adapter.tool(),
-        status,
-        command,
-        exit_code: exit_code.map(RustVerificationExecutionExitCode),
-        duration_ms: duration_ms.map(RustVerificationExecutionDurationMs),
+        tool: input.adapter.tool(),
+        status: input.status,
+        command: input.command,
+        exit_code: input.exit_code.map(RustVerificationExecutionExitCode),
+        duration_ms: input.duration_ms.map(RustVerificationExecutionDurationMs),
         observed_at: None,
-        summary: RustVerificationExecutionSummary(summary),
-        observations,
+        summary: RustVerificationExecutionSummary(input.summary),
+        observations: input.observations,
         candidate_ids: Vec::new(),
         task_fingerprints: Vec::new(),
         artifacts: Vec::new(),

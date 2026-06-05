@@ -762,12 +762,11 @@ fn external_type_surface(
 }
 
 fn split_path_line(value: &str) -> (String, Option<u64>) {
-    if let Some((path, line)) = value.rsplit_once(':') {
-        if !path.is_empty() {
-            if let Ok(line) = line.parse::<u64>() {
-                return (path.to_string(), Some(line));
-            }
-        }
+    if let Some((path, line)) = value.rsplit_once(':')
+        && !path.is_empty()
+        && let Ok(line) = line.parse::<u64>()
+    {
+        return (path.to_string(), Some(line));
     }
     (value.to_string(), None)
 }

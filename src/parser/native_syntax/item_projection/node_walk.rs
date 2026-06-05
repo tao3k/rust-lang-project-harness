@@ -168,10 +168,10 @@ fn append_statement_projection_nodes(
                     depth,
                 );
             }
-            if let Some(init) = &local.init {
-                if low_value_local || local_initializer_needs_expansion(&init.expr) {
-                    append_expression_projection_nodes(nodes, &init.expr, depth);
-                }
+            if let Some(init) = &local.init
+                && (low_value_local || local_initializer_needs_expansion(&init.expr))
+            {
+                append_expression_projection_nodes(nodes, &init.expr, depth);
             }
         }
         syn::Stmt::Item(item) => push_projection_node(

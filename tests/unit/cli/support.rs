@@ -37,6 +37,26 @@ where
 }
 
 #[cfg(feature = "search")]
+pub(crate) fn skip_if_protocol_graph_renderer_unavailable() -> bool {
+    let binary = std::env::var_os("SEMANTIC_AGENT_PROTOCOL_BIN").unwrap_or_else(|| "asp".into());
+    let available = Command::new(binary)
+        .arg("--help")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok();
+
+    if available {
+        false
+    } else {
+        eprintln!(
+            "skipping test: shared asp graph renderer unavailable; set SEMANTIC_AGENT_PROTOCOL_BIN to enable"
+        );
+        true
+    }
+}
+
+#[cfg(feature = "search")]
 pub(crate) fn run_search(root: &Path, args: &[&str]) -> String {
     let mut command_args = Vec::<std::ffi::OsString>::new();
     command_args.push("search".into());

@@ -278,15 +278,15 @@ impl RustEvidenceGraphBuilder {
                 packet_node_id,
                 None,
             );
-            if let Some(invariant_id) = string_field(waiver, "invariantId") {
-                if let Some(invariant_node_id) = invariant_nodes.get(&invariant_id) {
-                    self.insert_edge(
-                        RustEvidenceEdgeKind::WaivedBy,
-                        invariant_node_id,
-                        &waiver_node_id,
-                        None,
-                    );
-                }
+            if let Some(invariant_id) = string_field(waiver, "invariantId")
+                && let Some(invariant_node_id) = invariant_nodes.get(&invariant_id)
+            {
+                self.insert_edge(
+                    RustEvidenceEdgeKind::WaivedBy,
+                    invariant_node_id,
+                    &waiver_node_id,
+                    None,
+                );
             }
         }
     }
@@ -401,15 +401,15 @@ impl RustEvidenceGraphBuilder {
                 &action_node_id,
                 None,
             );
-            if let Some(target_id) = string_field(action, "targetId") {
-                if let Some(invariant_node_id) = invariant_nodes.get(&target_id) {
-                    self.insert_edge(
-                        RustEvidenceEdgeKind::RequiresEvidence,
-                        &action_node_id,
-                        invariant_node_id,
-                        None,
-                    );
-                }
+            if let Some(target_id) = string_field(action, "targetId")
+                && let Some(invariant_node_id) = invariant_nodes.get(&target_id)
+            {
+                self.insert_edge(
+                    RustEvidenceEdgeKind::RequiresEvidence,
+                    &action_node_id,
+                    invariant_node_id,
+                    None,
+                );
             }
         }
     }

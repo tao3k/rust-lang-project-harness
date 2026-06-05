@@ -4,6 +4,10 @@ use crate::cli::support::{run_search, write_search_fixture};
 
 #[test]
 fn cli_search_owner_items_graph_prioritizes_symbol_code_frontier() {
+    if crate::cli::support::skip_if_protocol_graph_renderer_unavailable() {
+        return;
+    }
+
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_search_fixture(root);

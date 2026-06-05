@@ -13,6 +13,10 @@ use crate::cli::support::{
 
 #[test]
 fn cli_search_fzf_renders_fuzzy_frontier() {
+    if crate::cli::support::skip_if_protocol_graph_renderer_unavailable() {
+        return;
+    }
+
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     fs::write(

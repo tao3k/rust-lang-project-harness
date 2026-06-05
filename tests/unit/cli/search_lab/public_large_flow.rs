@@ -8,6 +8,10 @@ use crate::cli::support::{run_search, run_search_with_stdin};
 
 #[test]
 fn public_large_tokio_bytes_flow_connects_prime_to_dependency_api_and_docs_axes() {
+    if crate::cli::support::skip_if_protocol_graph_renderer_unavailable() {
+        return;
+    }
+
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_public_tokio_bytes_fixture(root);
@@ -121,6 +125,10 @@ fn public_large_tokio_bytes_flow_connects_prime_to_dependency_api_and_docs_axes(
 
 #[test]
 fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() {
+    if crate::cli::support::skip_if_protocol_graph_renderer_unavailable() {
+        return;
+    }
+
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_public_codex_web_search_workspace(root);

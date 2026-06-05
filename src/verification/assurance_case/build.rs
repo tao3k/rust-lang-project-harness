@@ -166,17 +166,17 @@ fn build_invariant_case(
     let mut seen_refs = BTreeSet::new();
     let mut seen_actions = BTreeSet::new();
 
-    for (edge, target) in outgoing_targets(index, node) {
-        collect_outgoing_invariant_evidence(
-            index,
-            edge,
-            target,
-            &mut supported_by,
-            &mut observed_by,
-            &mut reviewed_by,
-            &mut waived_by,
-            &mut seen_refs,
-        );
+    {
+        let mut evidence_refs = InvariantEvidenceRefs {
+            supported_by: &mut supported_by,
+            observed_by: &mut observed_by,
+            reviewed_by: &mut reviewed_by,
+            waived_by: &mut waived_by,
+            seen_refs: &mut seen_refs,
+        };
+        for (edge, target) in outgoing_targets(index, node) {
+            collect_outgoing_invariant_evidence(index, edge, target, &mut evidence_refs);
+        }
     }
 
     for (_, source) in incoming_sources(index, node)
@@ -246,12 +246,11 @@ fn build_proof_case(index: &GraphIndex<'_>, node: &RustEvidenceNode) -> RustAssu
         .flatten()
     {
         let edge = &index.graph.edges[*edge_index];
-        if edge.kind == RustEvidenceEdgeKind::SupportsClaim {
-            if let Some(target) = index.node(&edge.to_node_id) {
-                if target.kind == RustEvidenceNodeKind::ReviewPacket {
-                    push_node_ref(&mut reviewed_by, &mut seen_refs, target);
-                }
-            }
+        if edge.kind == RustEvidenceEdgeKind::SupportsClaim
+            && let Some(target) = index.node(&edge.to_node_id)
+            && target.kind == RustEvidenceNodeKind::ReviewPacket
+        {
+            push_node_ref(&mut reviewed_by, &mut seen_refs, target);
         }
     }
 
@@ -328,31 +327,35 @@ fn incoming_sources<'a>(
         })
 }
 
+struct InvariantEvidenceRefs<'a> {
+    supported_by: &'a mut Vec<RustAssuranceNodeRef>,
+    observed_by: &'a mut Vec<RustAssuranceNodeRef>,
+    reviewed_by: &'a mut Vec<RustAssuranceNodeRef>,
+    waived_by: &'a mut Vec<RustAssuranceNodeRef>,
+    seen_refs: &'a mut BTreeSet<String>,
+}
+
 fn collect_outgoing_invariant_evidence(
     index: &GraphIndex<'_>,
     edge: &RustEvidenceEdge,
     target: &RustEvidenceNode,
-    supported_by: &mut Vec<RustAssuranceNodeRef>,
-    observed_by: &mut Vec<RustAssuranceNodeRef>,
-    reviewed_by: &mut Vec<RustAssuranceNodeRef>,
-    waived_by: &mut Vec<RustAssuranceNodeRef>,
-    seen_refs: &mut BTreeSet<String>,
+    refs: &mut InvariantEvidenceRefs<'_>,
 ) {
     match edge.kind {
         RustEvidenceEdgeKind::ObservedBy => {
-            push_node_ref(observed_by, seen_refs, target);
+            push_node_ref(refs.observed_by, refs.seen_refs, target);
             for receipt in receipt_refs_from(index, target) {
-                push_existing_ref(supported_by, seen_refs, receipt);
+                push_existing_ref(refs.supported_by, refs.seen_refs, receipt);
             }
         }
         RustEvidenceEdgeKind::VerifiedBy | RustEvidenceEdgeKind::SupportsClaim => {
-            push_node_ref(supported_by, seen_refs, target);
+            push_node_ref(refs.supported_by, refs.seen_refs, target);
         }
         RustEvidenceEdgeKind::WaivedBy => {
-            push_node_ref(waived_by, seen_refs, target);
+            push_node_ref(refs.waived_by, refs.seen_refs, target);
         }
         RustEvidenceEdgeKind::DerivedFrom if target.kind == RustEvidenceNodeKind::ReviewPacket => {
-            push_node_ref(reviewed_by, seen_refs, target);
+            push_node_ref(refs.reviewed_by, refs.seen_refs, target);
         }
         _ => {}
     }

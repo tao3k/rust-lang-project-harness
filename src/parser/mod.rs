@@ -10,6 +10,8 @@ mod path_resolution;
 mod reasoning_tree;
 mod source_metrics;
 mod source_path;
+#[cfg(any(feature = "cli", feature = "search", test))]
+pub(crate) mod syntax_abi;
 mod use_tree;
 
 #[cfg(any(feature = "search", test))]

@@ -171,10 +171,10 @@ pub(super) fn merge_seed_fragment_search_synthesis(
         return;
     };
     for key in ["seeds", "windowSet", "editFrontier", "testFrontier"] {
-        if existing.get(key).is_none() {
-            if let Some(value) = seed_synthesis.get(key) {
-                existing[key] = value.clone();
-            }
+        if existing.get(key).is_none()
+            && let Some(value) = seed_synthesis.get(key)
+        {
+            existing[key] = value.clone();
         }
     }
 }

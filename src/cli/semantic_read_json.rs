@@ -66,30 +66,28 @@ fn build_packet(project_root: &Path, options: &SemanticReadJsonOptions, rendered
         packet["readPlan"] = read_plan;
         syntax_refs
     } else {
-        if source_windows.is_empty() {
-            if let Some((path, start_line, end_line)) = parse_read_locator(&options.selector) {
-                let text = rendered.trim_end_matches('\n').to_string();
-                if !text.trim().is_empty() {
-                    let line_range = format!("{start_line}:{end_line}");
-                    let lines = text
-                        .lines()
-                        .enumerate()
-                        .map(
-                            |(offset, text)| json!({ "number": start_line + offset, "text": text }),
-                        )
-                        .collect::<Vec<_>>();
-                    let line_count = lines.len();
-                    source_windows.push(json!({
-                        "ownerPath": path.clone(),
-                        "location": { "path": path.clone(), "lineRange": line_range },
-                        "read": format!("{path}:{line_range}"),
-                        "lineCount": line_count,
-                        "reason": "direct-selector",
-                        "text": text,
-                        "lines": lines,
-                        "truncated": false,
-                    }));
-                }
+        if source_windows.is_empty()
+            && let Some((path, start_line, end_line)) = parse_read_locator(&options.selector)
+        {
+            let text = rendered.trim_end_matches('\n').to_string();
+            if !text.trim().is_empty() {
+                let line_range = format!("{start_line}:{end_line}");
+                let lines = text
+                    .lines()
+                    .enumerate()
+                    .map(|(offset, text)| json!({ "number": start_line + offset, "text": text }))
+                    .collect::<Vec<_>>();
+                let line_count = lines.len();
+                source_windows.push(json!({
+                    "ownerPath": path.clone(),
+                    "location": { "path": path.clone(), "lineRange": line_range },
+                    "read": format!("{path}:{line_range}"),
+                    "lineCount": line_count,
+                    "reason": "direct-selector",
+                    "text": text,
+                    "lines": lines,
+                    "truncated": false,
+                }));
             }
         }
         let syntax_refs = attach_syntax_refs_to_source_windows(&mut source_windows);

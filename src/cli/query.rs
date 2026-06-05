@@ -5,7 +5,7 @@ pub(super) use super::query_window::render_query_local_window;
 
 pub(super) enum QueryCommand {
     Help,
-    Search(QuerySearchOptions),
+    Search(Box<QuerySearchOptions>),
 }
 
 pub(super) fn parse_query(
@@ -29,7 +29,7 @@ pub(super) fn parse_query(
     if wants_direct_source_items && search_options.output_view.as_deref() != Some("read-packet") {
         search_options.output_view = None;
     }
-    Ok(QueryCommand::Search(search_options))
+    Ok(QueryCommand::Search(Box::new(search_options)))
 }
 
 fn is_exact_direct_source_selector(selector: &str) -> bool {

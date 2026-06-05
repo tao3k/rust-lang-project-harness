@@ -355,8 +355,7 @@ fn normalize_rust_code_shaped_term(value: &str) -> Option<String> {
     identifiers
         .into_iter()
         .filter(|identifier| is_rust_identifier(identifier))
-        .filter(|identifier| !is_rust_query_keyword(identifier))
-        .next_back()
+        .rfind(|identifier| !is_rust_query_keyword(identifier))
 }
 
 fn is_rust_identifier(value: &str) -> bool {

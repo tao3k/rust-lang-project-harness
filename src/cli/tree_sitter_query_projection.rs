@@ -48,19 +48,13 @@ impl SyntaxQueryProjection {
 
 pub(super) fn project_tree_sitter_query(
     project_root: &Path,
-    query_source: &str,
+    query_node_types: &[String],
     captures: &[String],
     terms: &[String],
     selector: Option<&SyntaxQuerySelector>,
 ) -> Result<SyntaxQueryProjection, String> {
-    let query_nodes = tree_sitter_query_nodes(query_source);
-    let unsupported_nodes = query_nodes
+    let mut supported_nodes = query_node_types
         .iter()
-        .filter(|node| !SUPPORTED_TREE_SITTER_QUERY_NODES.contains(&node.as_str()))
-        .cloned()
-        .collect::<Vec<_>>();
-    let supported_nodes = query_nodes
-        .into_iter()
         .filter_map(|node| {
             SUPPORTED_TREE_SITTER_QUERY_NODES
                 .iter()
@@ -68,6 +62,17 @@ pub(super) fn project_tree_sitter_query(
                 .copied()
         })
         .collect::<Vec<_>>();
+    supported_nodes.sort_unstable();
+    supported_nodes.dedup();
+    let unsupported_nodes = if supported_nodes.is_empty() {
+        query_node_types
+            .iter()
+            .filter(|node| !SUPPORTED_TREE_SITTER_QUERY_NODES.contains(&node.as_str()))
+            .cloned()
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
     if supported_nodes.is_empty() {
         return Ok(SyntaxQueryProjection {
             rows: Vec::new(),
@@ -92,17 +97,17 @@ pub(super) fn project_tree_sitter_query(
         };
         let relative_path = query_relative_path(&project_root, &path);
         let source_lines = source.lines().collect::<Vec<_>>();
-        collect_projected_items(
-            &syntax.items,
-            &source_lines,
-            &relative_path,
-            &supported_nodes,
+        let mut context = ProjectedItemsContext {
+            source_lines: &source_lines,
+            relative_path: &relative_path,
+            supported_nodes: &supported_nodes,
             terms,
             selector,
             captures,
-            &mut rows,
-            &mut total_matches,
-        );
+            rows: &mut rows,
+            total_matches: &mut total_matches,
+        };
+        collect_projected_items(&syntax.items, &mut context);
     }
     Ok(SyntaxQueryProjection {
         truncated: total_matches > rows.len(),
@@ -112,58 +117,34 @@ pub(super) fn project_tree_sitter_query(
     })
 }
 
-fn tree_sitter_query_nodes(query_source: &str) -> Vec<String> {
-    let mut nodes = SUPPORTED_TREE_SITTER_QUERY_NODES
-        .iter()
-        .filter(|node| query_source.contains(**node))
-        .map(|node| (*node).to_string())
-        .collect::<Vec<_>>();
-    for token in query_source.split(|character: char| {
-        character.is_whitespace() || matches!(character, '(' | ')' | '[' | ']' | '{' | '}')
-    }) {
-        if token.ends_with("_item")
-            || token.ends_with("_declaration")
-            || token == "macro_invocation"
-            || token == "macro_definition"
-        {
-            let token = token.trim_matches('"').to_string();
-            if !nodes.contains(&token) {
-                nodes.push(token);
-            }
-        }
-    }
-    nodes.sort();
-    nodes.dedup();
-    nodes
+struct ProjectedItemsContext<'a> {
+    source_lines: &'a [&'a str],
+    relative_path: &'a str,
+    supported_nodes: &'a [&'static str],
+    terms: &'a [String],
+    selector: Option<&'a SyntaxQuerySelector>,
+    captures: &'a [String],
+    rows: &'a mut Vec<SyntaxQueryRow>,
+    total_matches: &'a mut usize,
 }
 
-fn collect_projected_items(
-    items: &[syn::Item],
-    source_lines: &[&str],
-    relative_path: &str,
-    supported_nodes: &[&'static str],
-    terms: &[String],
-    selector: Option<&SyntaxQuerySelector>,
-    captures: &[String],
-    rows: &mut Vec<SyntaxQueryRow>,
-    total_matches: &mut usize,
-) {
+fn collect_projected_items(items: &[syn::Item], context: &mut ProjectedItemsContext<'_>) {
     for item in items {
-        if let Some(node) = tree_sitter_node_for_item(item, source_lines)
-            && supported_nodes.contains(&node)
+        if let Some(node) = tree_sitter_node_for_item(item, context.source_lines)
+            && context.supported_nodes.contains(&node)
         {
             let span = item.span();
             let start_line = span.start().line.max(1);
             let end_line = span.end().line.max(start_line);
             let (code_line, code_source) =
-                first_code_line_with_number(source_lines, start_line, end_line);
+                first_code_line_with_number(context.source_lines, start_line, end_line);
             let code = compact_query_code(code_source);
-            if !query_terms_match(&code, terms) {
+            if !query_terms_match(&code, context.terms) {
                 continue;
             }
             if !syntax_selector_matches(
-                selector,
-                relative_path,
+                context.selector,
+                context.relative_path,
                 code_line,
                 code_line,
                 start_line,
@@ -171,18 +152,18 @@ fn collect_projected_items(
             ) {
                 continue;
             }
-            *total_matches += 1;
-            if rows.len() < MAX_SYNTAX_QUERY_ROWS {
-                let capture = capture_for_node(node, captures);
+            *context.total_matches += 1;
+            if context.rows.len() < MAX_SYNTAX_QUERY_ROWS {
+                let capture = capture_for_node(node, context.captures);
                 let name = compact_query_atom(&item_query_name(item));
-                let item_code = item_source_code(source_lines, start_line, end_line);
+                let item_code = item_source_code(context.source_lines, start_line, end_line);
                 let capture_text = capture_text_for_projection(&capture, &name, &code, &item_code);
-                rows.push(SyntaxQueryRow {
+                context.rows.push(SyntaxQueryRow {
                     capture,
                     capture_text,
                     node,
                     name,
-                    path: relative_path.to_string(),
+                    path: context.relative_path.to_string(),
                     start_line: code_line,
                     end_line: code_line,
                     item_start_line: start_line,
@@ -194,17 +175,7 @@ fn collect_projected_items(
         if let syn::Item::Mod(module) = item
             && let Some((_, nested_items)) = &module.content
         {
-            collect_projected_items(
-                nested_items,
-                source_lines,
-                relative_path,
-                supported_nodes,
-                terms,
-                selector,
-                captures,
-                rows,
-                total_matches,
-            );
+            collect_projected_items(nested_items, context);
         }
     }
 }

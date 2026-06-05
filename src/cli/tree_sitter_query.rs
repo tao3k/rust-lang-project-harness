@@ -4,9 +4,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use super::query::print_query_help;
-use super::tree_sitter_query_locator::{
-    SyntaxQuerySelector, parse_syntax_query_selector, syntax_line_locator,
-};
+use super::tree_sitter_query_locator::{SyntaxQuerySelector, parse_syntax_query_selector};
 use super::tree_sitter_query_packet::{
     SyntaxQueryRow, syntax_query_matches_json, syntax_query_native_fact_refs,
 };
@@ -18,6 +16,16 @@ struct RustTreeSitterCatalog {
     id: &'static str,
     path: &'static str,
     source: &'static str,
+    captures: &'static [&'static str],
+    node_types: &'static [&'static str],
+    fields: &'static [&'static str],
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct RustSyntaxQueryPlan {
+    captures: Vec<String>,
+    node_types: Vec<String>,
+    fields: Vec<String>,
 }
 
 const RUST_TREE_SITTER_GRAMMAR_ID: &str = "tree-sitter-rust";
@@ -38,6 +46,7 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
     let mut tree_sitter_query = None::<String>;
     let mut selector = None::<SyntaxQuerySelector>;
     let mut terms = Vec::<String>::new();
+    let mut asp_plan = None::<RustSyntaxQueryPlan>;
     let mut json_output = false;
     let mut code_output = false;
     let mut positionals = Vec::<PathBuf>::new();
@@ -61,6 +70,21 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
                 "--selector" => {
                     selector = Some(parse_syntax_query_selector(value)?);
                 }
+                "--asp-syntax-query-captures" => {
+                    asp_plan
+                        .get_or_insert_with(RustSyntaxQueryPlan::default)
+                        .captures = split_internal_plan_list(value);
+                }
+                "--asp-syntax-query-node-types" => {
+                    asp_plan
+                        .get_or_insert_with(RustSyntaxQueryPlan::default)
+                        .node_types = split_internal_plan_list(value);
+                }
+                "--asp-syntax-query-fields" => {
+                    asp_plan
+                        .get_or_insert_with(RustSyntaxQueryPlan::default)
+                        .fields = split_internal_plan_list(value);
+                }
                 _ => unreachable!("unsupported pending query catalog option: {option}"),
             }
             continue;
@@ -77,6 +101,11 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
                 pending_option = Some(value.to_string());
             }
             "--selector" => {
+                pending_option = Some(value.to_string());
+            }
+            "--asp-syntax-query-captures"
+            | "--asp-syntax-query-node-types"
+            | "--asp-syntax-query-fields" => {
                 pending_option = Some(value.to_string());
             }
             "--json" => {
@@ -121,9 +150,11 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
         catalog_source,
         catalog_canonical,
         catalog_embedded,
+        query_plan,
     ) = if let Some(catalog_id) = catalog_id {
         let catalog = rust_tree_sitter_catalog(&catalog_id)
             .ok_or_else(|| format!("unknown Rust tree-sitter query catalog: {catalog_id}"))?;
+        let query_plan = asp_plan.unwrap_or_else(|| catalog.query_plan());
         (
             catalog.id.to_string(),
             "catalog-id",
@@ -132,6 +163,7 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
             catalog.source.to_string(),
             true,
             true,
+            query_plan,
         )
     } else {
         let query = tree_sitter_query
@@ -140,6 +172,9 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
         if query.is_empty() {
             return Err("query --treesitter-query value cannot be empty".to_string());
         }
+        let query_plan = asp_plan.ok_or_else(|| {
+            "tree-sitter query projection requires ASP-compiled query plan; use `asp rust query --treesitter-query ...` so ASP owns query ABI compilation".to_string()
+        })?;
         (
             query.clone(),
             "s-expression",
@@ -148,46 +183,39 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
             query,
             false,
             false,
+            query_plan,
         )
     };
 
-    let mut captures = catalog_source
-        .split(|character: char| {
-            character.is_whitespace() || matches!(character, '(' | ')' | '[' | ']' | '{' | '}')
-        })
-        .filter_map(|token| token.strip_prefix('@'))
-        .filter(|capture| !capture.is_empty())
-        .map(str::to_string)
-        .collect::<Vec<_>>();
-    captures.sort();
-    captures.dedup();
-
-    let profile_source = RUST_TREE_SITTER_GRAMMAR_PROFILE_SOURCE;
-    let mut catalog_hasher = std::collections::hash_map::DefaultHasher::new();
-    catalog_source.hash(&mut catalog_hasher);
-    let catalog_hash = catalog_hasher.finish();
-    let catalog_fingerprint = format!("rust-default:{catalog_hash:016x}");
-    let mut profile_hasher = std::collections::hash_map::DefaultHasher::new();
-    profile_source.hash(&mut profile_hasher);
-    let grammar_profile_fingerprint = format!("rust-default:{:016x}", profile_hasher.finish());
     let query_identity = catalog_id.as_deref().unwrap_or("inline");
+    let catalog_fingerprint = syntax_catalog_fingerprint(
+        query_identity,
+        catalog_path.as_deref().unwrap_or("<inline>"),
+        &catalog_source,
+    );
+    let grammar_profile_fingerprint = grammar_profile_fingerprint(
+        RUST_TREE_SITTER_GRAMMAR_PROFILE_PATH,
+        RUST_TREE_SITTER_GRAMMAR_PROFILE_SOURCE,
+    );
     let artifact_stem = catalog_id
         .clone()
-        .unwrap_or_else(|| format!("inline-{catalog_hash:016x}"));
+        .unwrap_or_else(|| format!("inline-{}", fingerprint_suffix(&catalog_fingerprint)));
     let request_fingerprint = format!(
         "semantic-tree-sitter-query.v1:rust:{RUST_TREE_SITTER_GRAMMAR_ID}:{query_identity}:{catalog_fingerprint}:{grammar_profile_fingerprint}",
     );
     let projection = project_tree_sitter_query(
         &project_root,
-        &catalog_source,
-        &captures,
+        &query_plan.node_types,
+        &query_plan.captures,
         &terms,
         selector.as_ref(),
     )?;
 
     if json_output {
         let mut query_fields = serde_json::json!({
-            "captures": captures,
+            "captures": &query_plan.captures,
+            "nodeTypes": &query_plan.node_types,
+            "fields": &query_plan.fields,
             "catalogCanonical": catalog_canonical,
             "catalogEmbedded": catalog_embedded,
             "compilerBoundary": "asp-tree-sitter-runtime",
@@ -261,10 +289,10 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
             } else {
                 format!(" terms={}", terms.join(","))
             };
-            let captures_display = if captures.is_empty() {
+            let captures_display = if query_plan.captures.is_empty() {
                 "none".to_string()
             } else {
-                captures.join(",")
+                query_plan.captures.join(",")
             };
             println!(
                 "|syntax-query inputForm={} input={} grammar={} grammarProfile={} dialect=tree-sitter-query mode=native-parser-projection matchStatus={} match={} rows={} truncated={} captureCount={} captures={}{} catalogCanonical={} catalogEmbedded={} sourceAuthority=native-parser compilerBoundary=asp-tree-sitter-runtime providerRuntimeCompiled=false",
@@ -276,7 +304,7 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
                 projection.total_matches,
                 projection.rows.len(),
                 projection.truncated,
-                captures.len(),
+                query_plan.captures.len(),
                 captures_display,
                 term_field,
                 catalog_canonical,
@@ -319,12 +347,13 @@ fn print_tree_sitter_query_locators(rows: &[SyntaxQueryRow]) {
         if index > 0 {
             println!();
         }
-        println!(
-            "{}",
-            syntax_line_locator(&row.path, row.start_line, row.end_line)
-        );
+        println!("{}", syntax_query_range_locator(row));
         println!("{}", row.capture_text);
     }
+}
+
+fn syntax_query_range_locator(row: &SyntaxQueryRow) -> String {
+    format!("{}:{}:{}", row.path, row.start_line, row.end_line)
 }
 
 fn rust_tree_sitter_catalog(catalog_id: &str) -> Option<RustTreeSitterCatalog> {
@@ -333,27 +362,166 @@ fn rust_tree_sitter_catalog(catalog_id: &str) -> Option<RustTreeSitterCatalog> {
             id: "declarations",
             path: "tree-sitter/tree-sitter-rust/queries/declarations.scm",
             source: include_str!("../../tree-sitter/tree-sitter-rust/queries/declarations.scm"),
+            captures: &[
+                "constant.definition",
+                "constant.name",
+                "constant.type",
+                "function.definition",
+                "function.modifier",
+                "function.name",
+                "function.return_type",
+                "function.type_parameters",
+                "impl.definition",
+                "impl.target",
+                "impl.trait",
+                "impl.type_parameters",
+                "item.attribute",
+                "item.visibility",
+                "module.definition",
+                "module.name",
+                "trait.bounds",
+                "trait.definition",
+                "trait.name",
+                "trait.type_parameters",
+                "type.aliased_type",
+                "type.definition",
+                "type.name",
+                "type.type_parameters",
+            ],
+            node_types: &[
+                "attribute_item",
+                "const_item",
+                "enum_item",
+                "function_item",
+                "impl_item",
+                "mod_item",
+                "static_item",
+                "struct_item",
+                "trait_item",
+                "type_item",
+                "union_item",
+            ],
+            fields: &[
+                "body",
+                "bounds",
+                "declarator",
+                "name",
+                "return_type",
+                "trait",
+                "type",
+                "type_parameters",
+                "value",
+            ],
         }),
         "imports" => Some(RustTreeSitterCatalog {
             id: "imports",
             path: "tree-sitter/tree-sitter-rust/queries/imports.scm",
             source: include_str!("../../tree-sitter/tree-sitter-rust/queries/imports.scm"),
+            captures: &[
+                "import.alias",
+                "import.declaration",
+                "import.path",
+                "import.visibility",
+            ],
+            node_types: &["extern_crate_declaration", "use_declaration"],
+            fields: &["alias", "crate", "name"],
         }),
         "calls" => Some(RustTreeSitterCatalog {
             id: "calls",
             path: "tree-sitter/tree-sitter-rust/queries/calls.scm",
             source: include_str!("../../tree-sitter/tree-sitter-rust/queries/calls.scm"),
+            captures: &["call.expression", "call.method", "call.target"],
+            node_types: &[
+                "call_expression",
+                "field_expression",
+                "identifier",
+                "scoped_identifier",
+            ],
+            fields: &["function"],
         }),
         "macros" => Some(RustTreeSitterCatalog {
             id: "macros",
             path: "tree-sitter/tree-sitter-rust/queries/macros.scm",
             source: include_str!("../../tree-sitter/tree-sitter-rust/queries/macros.scm"),
+            captures: &["macro.arguments", "macro.invocation", "macro.name"],
+            node_types: &["macro_invocation", "token_tree"],
+            fields: &["macro"],
         }),
         "cfg" => Some(RustTreeSitterCatalog {
             id: "cfg",
             path: "tree-sitter/tree-sitter-rust/queries/cfg.scm",
             source: include_str!("../../tree-sitter/tree-sitter-rust/queries/cfg.scm"),
+            captures: &[
+                "attribute.arguments",
+                "attribute.body",
+                "attribute.item",
+                "attribute.name",
+                "attribute.value",
+            ],
+            node_types: &[
+                "attribute",
+                "attribute_item",
+                "identifier",
+                "meta_item",
+                "string_literal",
+            ],
+            fields: &[],
         }),
         _ => None,
     }
+}
+
+impl RustTreeSitterCatalog {
+    fn query_plan(&self) -> RustSyntaxQueryPlan {
+        RustSyntaxQueryPlan {
+            captures: self
+                .captures
+                .iter()
+                .map(|capture| (*capture).to_string())
+                .collect(),
+            node_types: self
+                .node_types
+                .iter()
+                .map(|node_type| (*node_type).to_string())
+                .collect(),
+            fields: self
+                .fields
+                .iter()
+                .map(|field| (*field).to_string())
+                .collect(),
+        }
+    }
+}
+
+fn split_internal_plan_list(value: &str) -> Vec<String> {
+    let mut values = value
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    values.sort();
+    values.dedup();
+    values
+}
+
+fn syntax_catalog_fingerprint(id: &str, path: &str, source: &str) -> String {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    id.hash(&mut hasher);
+    path.hash(&mut hasher);
+    source.hash(&mut hasher);
+    format!("syntax-catalog:{:016x}", hasher.finish())
+}
+
+fn grammar_profile_fingerprint(path: &str, source: &str) -> String {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    path.hash(&mut hasher);
+    source.hash(&mut hasher);
+    format!("grammar-profile:{:016x}", hasher.finish())
+}
+
+fn fingerprint_suffix(fingerprint: &str) -> &str {
+    fingerprint
+        .rsplit_once(':')
+        .map_or(fingerprint, |(_, suffix)| suffix)
 }

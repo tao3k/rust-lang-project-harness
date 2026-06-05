@@ -310,8 +310,10 @@ pub fn build_rust_determinism_readiness(
         ));
     }
 
-    let mut config = RustHarnessConfig::default();
-    config.include_tests = input.include_tests;
+    let config = RustHarnessConfig {
+        include_tests: input.include_tests,
+        ..Default::default()
+    };
     let scope = rust_project_harness_scope(
         &input.project_root,
         config.include_tests,

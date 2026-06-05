@@ -13,6 +13,10 @@ use crate::cli::support::{
 
 #[test]
 fn cli_search_views_render_rfc_line_protocol() {
+    if crate::cli::support::skip_if_protocol_graph_renderer_unavailable() {
+        return;
+    }
+
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_search_fixture(root);
