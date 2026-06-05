@@ -353,7 +353,17 @@ fn print_tree_sitter_query_locators(rows: &[SyntaxQueryRow]) {
 }
 
 fn syntax_query_range_locator(row: &SyntaxQueryRow) -> String {
-    format!("{}:{}:{}", row.path, row.start_line, row.end_line)
+    syntax_query_compact_locator(&row.path, row.item_start_line, row.item_end_line)
+}
+
+fn syntax_query_compact_locator(path: &str, start_line: usize, end_line: usize) -> String {
+    let start_line = start_line.max(1);
+    let end_line = end_line.max(start_line);
+    if start_line == end_line {
+        format!("{path}:{start_line}")
+    } else {
+        format!("{path}:{start_line}:{end_line}")
+    }
 }
 
 fn rust_tree_sitter_catalog(catalog_id: &str) -> Option<RustTreeSitterCatalog> {

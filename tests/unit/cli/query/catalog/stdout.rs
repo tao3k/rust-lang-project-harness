@@ -18,7 +18,7 @@ fn tree_sitter_query_locator_output_names_captures_without_artifact_scope() {
     assert!(output.status.success(), "{output:?}");
 
     let stdout = String::from_utf8(output.stdout).expect("compact output is UTF-8");
-    assert_eq!(stdout, "src/lib.rs:1:1\nexposed\n");
+    assert_eq!(stdout, "src/lib.rs:1:3\nexposed\n");
     assert!(!stdout.contains("pub fn exposed()"));
     assert!(!stdout.contains("----"));
     assert!(!stdout.contains("|syntax-query"));
@@ -43,7 +43,7 @@ fn tree_sitter_query_locator_output_can_be_filtered_by_term() {
     assert!(output.status.success(), "{output:?}");
 
     let stdout = String::from_utf8(output.stdout).expect("compact output is UTF-8");
-    assert_eq!(stdout, "src/lib.rs:5:5\nbeta_target\n");
+    assert_eq!(stdout, "src/lib.rs:5:7\nbeta_target\n");
     assert!(!stdout.contains("name=alpha"));
     assert!(!stdout.contains("pub fn"));
     assert!(!stdout.contains("----"));
@@ -86,7 +86,7 @@ fn tree_sitter_query_range_locator_can_drive_exact_code_output() {
 
     let output = run_cli(function_name_query_args(
         root,
-        &["--selector", "src/lib.rs:5:5", "--code"],
+        &["--selector", "src/lib.rs:5:7", "--code"],
     ));
     assert!(output.status.success(), "{output:?}");
 
