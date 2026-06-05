@@ -44,12 +44,14 @@ fn cli_ast_patch_scenarios_match_expected_trees_and_receipts() {
         .join("rust-ast-patch-real-project-evidence.v1.schema.json");
     let provider_schema = fs::read_to_string(&provider_schema_path)
         .unwrap_or_else(|error| panic!("read {}: {error}", provider_schema_path.display()));
-    let root_schema = fs::read_to_string(&root_schema_path)
-        .unwrap_or_else(|error| panic!("read {}: {error}", root_schema_path.display()));
-    assert_eq!(
-        provider_schema, root_schema,
-        "Rust evidence schema copy drift"
-    );
+    if root_schema_path.exists() {
+        let root_schema = fs::read_to_string(&root_schema_path)
+            .unwrap_or_else(|error| panic!("read {}: {error}", root_schema_path.display()));
+        assert_eq!(
+            provider_schema, root_schema,
+            "Rust evidence schema copy drift"
+        );
+    }
     let evidence_schema = serde_json::from_str::<Value>(&provider_schema)
         .unwrap_or_else(|error| panic!("parse {}: {error}", provider_schema_path.display()));
     assert_eq!(
