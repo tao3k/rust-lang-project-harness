@@ -74,6 +74,7 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "grammarProfilePath": "tree-sitter/tree-sitter-rust/grammar-profile.json",
             "input": "catalog-id",
             "method": "query",
+            "executionBackends": ["native-parser"],
             "outputModes": ["compact", "json"],
             "outputSchemaIds": ["agent.semantic-protocols.semantic-tree-sitter-query"],
             "packetSchemas": ["semantic-tree-sitter-query.v1"],
@@ -102,6 +103,7 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "grammarProfilePath": "tree-sitter/tree-sitter-rust/grammar-profile.json",
             "input": "owner-path",
             "method": "query/owner-items",
+            "executionBackends": ["native-parser"],
             "outputModes": ["compact", "json", "code", "names"],
             "outputSchemaIds": ["agent.semantic-protocols.semantic-query-packet"],
             "packetSchemas": ["semantic-query-packet.v1", "semantic-tree-sitter-query.v1"],
@@ -120,6 +122,7 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "grammarProfilePath": "tree-sitter/tree-sitter-rust/grammar-profile.json",
             "input": "owner-path",
             "method": "query/direct-source-read",
+            "executionBackends": ["native-parser"],
             "outputModes": ["compact", "json", "names", "read-packet"],
             "outputSchemaIds": [
                 "agent.semantic-protocols.semantic-query-packet",
@@ -285,6 +288,7 @@ fn search_method_descriptor(view: &str) -> Value {
     }
     if view == "owner" {
         fields.insert("cacheReplay".to_string(), json!(true));
+        fields.insert("executionBackends".to_string(), json!(["native-parser"]));
         fields.insert("grammarId".to_string(), json!("tree-sitter-rust"));
         fields.insert(
             "grammarProfilePath".to_string(),

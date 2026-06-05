@@ -28,13 +28,7 @@ pub(super) fn render_query_local_window(
         )));
     }
     let source = read_query_source_text(project_root, path, &source_path, source_version)?;
-    let line_count = query_local_window_line_count(start_line, end_line);
-    let mut rendered = source
-        .lines()
-        .skip(start_line.saturating_sub(1))
-        .take(line_count)
-        .collect::<Vec<_>>()
-        .join("\n");
+    let rendered = source_line_window(&source, start_line, end_line);
     if !rendered.is_empty() && is_low_signal_query_local_window(&rendered) {
         return Ok(Some(render_query_local_window_read_plan(
             QueryLocalWindowReadPlan {
@@ -47,10 +41,28 @@ pub(super) fn render_query_local_window(
             },
         )));
     }
-    if !rendered.is_empty() {
-        rendered.push('\n')
-    }
     Ok(Some(rendered))
+}
+
+fn source_line_window(source: &str, start_line: usize, end_line: usize) -> String {
+    let mut ranges = Vec::new();
+    let mut line_start = 0;
+    for (index, byte) in source.as_bytes().iter().enumerate() {
+        if *byte == b'\n' {
+            ranges.push((line_start, index + 1));
+            line_start = index + 1;
+        }
+    }
+    if line_start < source.len() {
+        ranges.push((line_start, source.len()));
+    }
+    if ranges.is_empty() || start_line == 0 || start_line > ranges.len() {
+        return String::new();
+    }
+
+    let start_index = ranges[start_line - 1].0;
+    let end_index = ranges[end_line.min(ranges.len()) - 1].1;
+    source[start_index..end_index].to_string()
 }
 
 #[allow(dead_code)]
@@ -143,10 +155,6 @@ fn parse_query_local_window_range<'a>(
 #[allow(dead_code)]
 fn compact_query_local_window_line(line: &str) -> String {
     line.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
-fn query_local_window_line_count(start_line: usize, end_line: usize) -> usize {
-    end_line.saturating_sub(start_line).saturating_add(1)
 }
 
 fn is_low_signal_query_local_window(text: &str) -> bool {

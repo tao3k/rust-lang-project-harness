@@ -520,6 +520,20 @@
             ]
           }
         },
+        "executionBackends": {
+          "description": "Query execution engines this method can use while preserving the advertised packet shape. CodeQL is optional and must still render through frontier-first packets.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "native-parser",
+              "tree-sitter-runtime",
+              "codeql",
+              "hybrid",
+              "cached-replay"
+            ]
+          }
+        },
         "queryCatalogs": {
           "type": "array",
           "uniqueItems": true,

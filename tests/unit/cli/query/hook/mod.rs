@@ -6,6 +6,7 @@ use tempfile::TempDir;
 
 use crate::cli::support::{normalize_temp_root, run_cli, write_search_fixture};
 mod code;
+mod exact;
 mod range;
 mod selector;
 
