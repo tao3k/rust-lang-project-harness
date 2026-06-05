@@ -40,7 +40,19 @@ fn cli_search_fzf_renders_fuzzy_frontier() {
     );
     assert!(fzf.contains("|owner src/lib.rs hit_kind=fzf"), "{fzf}");
     let path_fzf = run_search(root, &["fzf", "src/lib.rs", "--view", "seeds"]);
-    assert!(path_fzf.contains("owner:path(src/lib.rs)"), "{path_fzf}");
+    assert!(
+        path_fzf.contains("Q=query:term(src/lib.rs)!fzf"),
+        "{path_fzf}"
+    );
+    assert!(
+        path_fzf.contains("O=owner:path(src/lib.rs)!owner"),
+        "{path_fzf}"
+    );
+    assert!(
+        path_fzf.contains("rank=Q,O frontier=Q.fzf,O.owner"),
+        "{path_fzf}"
+    );
+    assert!(!path_fzf.contains("|seed "), "{path_fzf}");
     let scoped_fzf = run_search(
         root,
         &[
@@ -57,13 +69,14 @@ fn cli_search_fzf_renders_fuzzy_frontier() {
         "{scoped_fzf}"
     );
     assert!(
-        scoped_fzf.contains("O=owner:path(tests/unit/snapshot.rs)!owner"),
-        "{scoped_fzf}"
-    );
-    assert!(
         scoped_fzf.contains("T=test:path(tests/unit/snapshot.rs)!tests"),
         "{scoped_fzf}"
     );
+    assert!(
+        scoped_fzf.contains("rank=Q,T frontier=Q.fzf,T.tests"),
+        "{scoped_fzf}"
+    );
+    assert!(!scoped_fzf.contains("|seed "), "{scoped_fzf}");
     assert!(!scoped_fzf.contains("[search-graph]"), "{scoped_fzf}");
 
     let multi_scoped_fzf = run_search(

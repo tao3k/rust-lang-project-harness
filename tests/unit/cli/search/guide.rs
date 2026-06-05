@@ -20,40 +20,28 @@ fn cli_search_guide_renders_typed_reasoning_profiles() {
     let output = run_cli(["search".as_ref(), "guide".as_ref(), root.as_os_str()]);
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8(output.stdout).expect("stdout");
+    assert!(stdout.starts_with("[search-guide] root="), "{stdout}");
+    assert!(stdout.contains("legend:"), "{stdout}");
     assert!(
-        stdout.starts_with(
-            "[search-guide] language=rust provider=rs-harness protocol=search-guide.v1\n"
-        ),
+        stdout.contains("|catalog reasoningProfiles=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg entries=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg routes=read-frontier"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("entries=owner-query(O,Q=>items+tests+dependency-usage),query-deps(Q,D=>owners+imports+usage-tests),owner-tests(O=>covering-tests+test-entrypoints+fixtures),finding-frontier(F,O=>affected-owners+tests+verification-actions),feature-cfg(F2=>cfg-gates+owners+verification-surfaces)"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("|entry finding-frontier selectors=F:finding,O:owner? returns=affected-owners,tests,verification-actions"),
         "{stdout}"
     );
     assert!(
         stdout.contains(
-            "|entry owner-query selectors=O:owner,Q:query returns=items,tests,dependency-usage"
+            "|entry feature-cfg selectors=F2:feature returns=cfg-gates,owners,verification-surfaces"
         ),
         "{stdout}"
     );
     assert!(
-        stdout.contains(
-            "cmd=asp rust search reasoning owner-query --owner <O> --query <Q> --view seeds ."
-        ),
-        "{stdout}"
-    );
-    assert!(
-        stdout.contains(
-            "|entry query-deps selectors=Q:query,D:dependency returns=owners,imports,usage-tests"
-        ),
-        "{stdout}"
-    );
-    assert!(
-        stdout.contains(
-            "|entry owner-tests selectors=O:owner returns=covering-tests,test-entrypoints,fixtures"
-        ),
-        "{stdout}"
-    );
-    assert!(
-        stdout.contains(
-            "|entry read-frontier selectors=R:range returns=symbols,windows,tests,next-actions"
-        ),
+        stdout.contains("|route read-frontier selectors=R:range"),
         "{stdout}"
     );
     assert!(!stdout.contains("compatible="), "{stdout}");
@@ -74,13 +62,10 @@ fn cli_search_guide_renders_typed_reasoning_profiles() {
         owner_stdout.starts_with("[search-reasoning] q=owner-tests"),
         "{owner_stdout}"
     );
-    assert!(owner_stdout.contains("legend:"), "{owner_stdout}");
     assert!(
         owner_stdout.contains("O=owner:path(src/lib.rs)!owner"),
         "{owner_stdout}"
     );
-    assert!(owner_stdout.contains("rank="), "{owner_stdout}");
-    assert!(owner_stdout.contains("frontier="), "{owner_stdout}");
     assert!(
         owner_stdout.contains("entries=owner-tests(O=>covering-tests+test-entrypoints+fixtures)"),
         "{owner_stdout}"
@@ -130,10 +115,105 @@ fn cli_search_guide_renders_typed_reasoning_profiles() {
         deps_stdout.starts_with("[search-reasoning] q=query-deps"),
         "{deps_stdout}"
     );
-    assert!(deps_stdout.contains("rank="), "{deps_stdout}");
-    assert!(deps_stdout.contains("frontier="), "{deps_stdout}");
     assert!(
         deps_stdout.contains("query-deps(Q,D=>owners+imports+usage-tests)"),
         "{deps_stdout}"
+    );
+
+    let feature_stdout = run_search(
+        root,
+        &[
+            "reasoning",
+            "feature-cfg",
+            "--query",
+            "test",
+            "--view",
+            "seeds",
+        ],
+    );
+    assert!(
+        feature_stdout.starts_with("[search-reasoning] q=feature-cfg"),
+        "{feature_stdout}"
+    );
+    assert!(
+        feature_stdout.contains("F=feature:feature(test)!cfg"),
+        "{feature_stdout}"
+    );
+    assert!(
+        feature_stdout.contains("feature-cfg(F=>cfg-gates+owners+verification-surfaces)"),
+        "{feature_stdout}"
+    );
+
+    let feature_packet_stdout = run_search(
+        root,
+        &[
+            "reasoning",
+            "feature-cfg",
+            "--query",
+            "test",
+            "--view",
+            "seeds",
+            "--json",
+        ],
+    );
+    let feature_packet: Value =
+        serde_json::from_str(&feature_packet_stdout).expect("feature packet json");
+    assert!(
+        feature_packet["nextActions"]
+            .as_array()
+            .expect("feature next actions")
+            .iter()
+            .any(|action| action["kind"] == "feature" && action["target"] == "test")
+    );
+
+    let finding_stdout = run_search(
+        root,
+        &[
+            "reasoning",
+            "finding-frontier",
+            "--query",
+            "serde",
+            "--owner",
+            "src/lib.rs",
+            "--view",
+            "seeds",
+        ],
+    );
+    assert!(
+        finding_stdout.starts_with("[search-reasoning] q=finding-frontier"),
+        "{finding_stdout}"
+    );
+    assert!(
+        finding_stdout.contains("F=finding:finding(serde)!finding"),
+        "{finding_stdout}"
+    );
+    assert!(
+        finding_stdout
+            .contains("finding-frontier(F,O=>affected-owners+tests+verification-actions)"),
+        "{finding_stdout}"
+    );
+
+    let finding_packet_stdout = run_search(
+        root,
+        &[
+            "reasoning",
+            "finding-frontier",
+            "--query",
+            "serde",
+            "--owner",
+            "src/lib.rs",
+            "--view",
+            "seeds",
+            "--json",
+        ],
+    );
+    let finding_packet: Value =
+        serde_json::from_str(&finding_packet_stdout).expect("finding packet json");
+    assert!(
+        finding_packet["nextActions"]
+            .as_array()
+            .expect("finding next actions")
+            .iter()
+            .any(|action| action["kind"] == "finding" && action["target"] == "serde")
     );
 }

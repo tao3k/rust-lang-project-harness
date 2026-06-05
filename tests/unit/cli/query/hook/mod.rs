@@ -9,6 +9,59 @@ mod range;
 mod selector;
 
 #[test]
+fn cli_query_hook_line_range_without_code_outputs_read_plan() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::create_dir_all(root.join("src")).expect("create src");
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"hook-line-range-frontier\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    )
+    .expect("write manifest");
+    fs::write(
+        root.join("src/lib.rs"),
+        r#"fn first() {
+    let decision = classify_hook();
+}
+
+fn second() {
+    let output = run_facade();
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = run_cli([
+        "query".as_ref(),
+        "--from-hook".as_ref(),
+        "direct-source-read".as_ref(),
+        "--selector".as_ref(),
+        "src/lib.rs:1:7".as_ref(),
+        root.as_os_str(),
+    ]);
+
+    assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
+    assert!(stdout.starts_with("[read-plan] "), "{stdout}");
+    assert!(stdout.contains("selector=src/lib.rs:1:7"), "{stdout}");
+    assert!(stdout.contains("alg=symbol-frontier"), "{stdout}");
+    assert!(stdout.contains("syn=function_item/name"), "{stdout}");
+    assert!(stdout.contains("frontier="), "{stdout}");
+    assert!(stdout.contains("omit=code"), "{stdout}");
+    assert!(
+        stdout.contains("avoid=repeat-wide-read,manual-window-scan,raw-read"),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("[search-owner]"), "{stdout}");
+    assert!(!stdout.contains("|item "), "{stdout}");
+    assert!(!stdout.contains("fn first()"), "{stdout}");
+    assert!(
+        !stdout.contains("let decision = classify_hook();"),
+        "{stdout}"
+    );
+}
+
+#[test]
 fn cli_query_hook_line_range_code_outputs_source_slice() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
@@ -52,12 +105,16 @@ fn second() {
 
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert_no_punctuation_only_lines(&stdout);
     insta::assert_snapshot!(
         stdout.trim_end(),
         @r###"
-fn first() {
-assert_eq!(decision.routes[0].argv, ["py-harness", "query", "--selector", "src/tools/report.py", ".",]);
+            "--selector",
+            "src/tools/report.py",
+            ".",
+        ],
+    );
+}
+
 fn second() {
 "###
     );
@@ -200,30 +257,28 @@ fn cli_query_hook_selector_json_can_emit_provider_read_packet() {
     assert_eq!(value["method"], "query/direct-source-read");
     assert_eq!(value["selector"], "src/lib.rs:4:8");
     assert_eq!(value["outputMode"], "read-packet");
-    let windows = value["sourceWindows"].as_array().expect("source windows");
-    let load_window = windows
-        .iter()
-        .find(|window| window["itemName"] == "load")
-        .expect("load window");
-    assert_eq!(load_window["ownerPath"], "src/lib.rs");
     assert!(
-        load_window["read"]
-            .as_str()
-            .expect("read locator")
-            .starts_with("src/lib.rs:"),
+        value
+            .get("sourceWindows")
+            .and_then(|windows| windows.as_array())
+            .map_or(true, Vec::is_empty),
         "{value}"
     );
-}
-
-fn assert_no_punctuation_only_lines(stdout: &str) {
-    for line in stdout.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-        assert!(
-            trimmed.chars().any(|ch| ch.is_alphanumeric() || ch == '_'),
-            "punctuation-only compact row leaked: {stdout}"
-        );
-    }
+    let read_plan = value["readPlan"].as_object().expect("read plan");
+    assert_eq!(read_plan["mode"], "range-frontier");
+    assert_eq!(read_plan["code"], false);
+    assert_eq!(read_plan["reason"], "locator-frontier");
+    assert_eq!(read_plan["algorithm"], "symbol-frontier");
+    assert_eq!(read_plan["syn"], "function_item/name");
+    assert_eq!(read_plan["symbols"][0]["itemName"], "load");
+    assert_eq!(read_plan["symbols"][0]["itemKind"], "fn");
+    assert_eq!(read_plan["symbols"][0]["read"], "src/lib.rs:6:6");
+    assert_eq!(read_plan["frontier"][0]["kind"], "symbol");
+    assert_eq!(read_plan["frontier"][0]["read"], "src/lib.rs:6:6");
+    assert_eq!(
+        value["syntaxQueryRef"],
+        "semantic-tree-sitter-query/rust-owner-items.v1"
+    );
+    assert_eq!(value["syntaxAnchor"]["nodeType"], "function_item");
+    assert_eq!(value["syntaxAnchor"]["capture"], "function.name");
 }

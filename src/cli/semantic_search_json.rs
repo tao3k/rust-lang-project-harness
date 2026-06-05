@@ -16,6 +16,7 @@ use super::semantic_search_synthesis_json::{
     graph_seed_fragment, merge_seed_fragment_search_synthesis, push_synthesis,
     query_set_search_synthesis,
 };
+use super::semantic_syntax_refs::attach_syntax_refs_to_search_items;
 
 const SCHEMA_ID: &str = "agent.semantic-protocols.semantic-search-packet";
 const SCHEMA_VERSION: &str = "1";
@@ -215,7 +216,7 @@ fn base_packet(
     options: &SemanticSearchJsonOptions,
     header_kind: String,
     header_fields: Map<String, Value>,
-    collections: PacketCollections,
+    mut collections: PacketCollections,
 ) -> Value {
     let query_set_terms = canonical_query_set_terms(
         &options.view,
@@ -223,6 +224,7 @@ fn base_packet(
         &options.query_set,
         &header_fields,
     );
+    let syntax_refs = attach_syntax_refs_to_search_items(&mut collections.items);
     let mut packet = json!({
         "schemaId": SCHEMA_ID,
         "schemaVersion": SCHEMA_VERSION,
@@ -273,6 +275,14 @@ fn base_packet(
     }
     if let Some(query) = options.query.as_deref() {
         packet["query"] = json!(query);
+    }
+    if let Some(syntax_refs) = syntax_refs {
+        packet["syntaxQueryRef"] = json!(syntax_refs.query_ref);
+        packet["syntaxMatchRefs"] = json!(syntax_refs.match_refs);
+        packet["syntaxCaptureRefs"] = json!(syntax_refs.capture_refs);
+        if let Some(anchor) = syntax_refs.anchor {
+            packet["syntaxAnchor"] = anchor;
+        }
     }
     if !query_set_terms.is_empty() {
         packet["querySet"] = json!(

@@ -2,21 +2,19 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::RustHarnessConfig;
-use crate::discovery::{discover_rust_files, rust_project_harness_scope};
 
 use super::RustSearchOptions;
 use super::context::{PackageSearchContext, search_contexts};
 use super::format::{
     append_block, compact_locations, display_project_path, owner_role_for_path, package_label,
-    package_roots_for_request, query_set_terms, sort_locations,
+    query_set_terms, sort_locations,
 };
 use super::limits::SEARCH_HIT_LIMIT;
 use super::recency::compare_paths_by_recency;
-use super::scope::{module_allowed, path_allowed_by_scope};
+use super::scope::module_allowed;
 
 pub(super) fn render_search_fzf(
     project_root: &Path,
@@ -187,32 +185,24 @@ fn render_search_fzf_seed_hits(
     query: &str,
     options: &RustSearchOptions,
 ) -> Result<String, String> {
-    let package_roots =
-        package_roots_for_request(project_root, config, options.package.as_deref())?;
+    let contexts = search_contexts(project_root, config, options)?;
     let mut rendered = String::new();
-    for package_root in package_roots {
-        let hits = fzf_seed_hits(&package_root, config, query, options);
+    for context in contexts {
+        let hits = fzf_hits(&context, query, options);
         let seed_limit = options.seeds.unwrap_or(8);
         let owner_limit = seed_limit.min(hits.len());
         let mut block = format!(
             "[search-fzf] q={} mode={} backend=provider pkg={} own={}{}\n",
             query,
             fzf_match_mode(options),
-            package_label(project_root, &package_root),
+            package_label(project_root, &context.package_root),
             hits.len(),
             fzf_header_suffix(options)
         );
-        let owners = hits
-            .iter()
-            .take(owner_limit)
-            .map(|(path, _, _)| display_project_path(&package_root, path))
-            .collect::<Vec<_>>();
-        if !owners.is_empty() {
-            let _ = writeln!(block, "|seed owner:{}", owners.join(","));
-        }
-        append_change_frontier_synthesis_line(
+        append_change_frontier_graph(
             &mut block,
-            &package_root,
+            &context.package_root,
+            query,
             hits.iter()
                 .take(owner_limit)
                 .map(|(path, _, _)| path.as_path()),
@@ -238,11 +228,10 @@ fn render_search_fzf_query_set_seed_hits(
     query_terms: &[&str],
     options: &RustSearchOptions,
 ) -> Result<String, String> {
-    let package_roots =
-        package_roots_for_request(project_root, config, options.package.as_deref())?;
+    let contexts = search_contexts(project_root, config, options)?;
     let mut rendered = String::new();
-    for package_root in package_roots {
-        let hits = fzf_query_set_seed_hits(&package_root, config, query_terms, options);
+    for context in contexts {
+        let hits = fzf_query_set_hits(&context, query_terms, options);
         let seed_limit = options.seeds.unwrap_or(8);
         let owner_limit = seed_limit.min(hits.len());
         let mut block = format!(
@@ -250,16 +239,19 @@ fn render_search_fzf_query_set_seed_hits(
             query,
             query_terms.len(),
             fzf_match_mode(options),
-            package_label(project_root, &package_root),
+            package_label(project_root, &context.package_root),
             hits.len(),
             fzf_header_suffix(options)
         );
-        let selected = hits
-            .iter()
-            .take(owner_limit)
-            .map(|(path, _, _, _)| display_project_path(&package_root, path))
-            .collect::<Vec<_>>();
-        render_query_set_graph(&mut block, selected);
+        append_change_frontier_graph(
+            &mut block,
+            &context.package_root,
+            query,
+            hits.iter()
+                .take(owner_limit)
+                .map(|(path, _, _, _)| path.as_path()),
+            seed_limit,
+        );
         if hits.len() > owner_limit {
             let _ = writeln!(
                 block,
@@ -273,23 +265,109 @@ fn render_search_fzf_query_set_seed_hits(
     Ok(rendered)
 }
 
-fn render_query_set_graph(block: &mut String, selected: Vec<String>) {
-    let (tests, owners): (Vec<_>, Vec<_>) = selected
-        .into_iter()
-        .partition(|path| is_test_owner_path(path));
-    if owners.is_empty() && tests.is_empty() {
+fn append_change_frontier_graph<'a>(
+    block: &mut String,
+    package_root: &Path,
+    query: &str,
+    paths: impl IntoIterator<Item = &'a Path>,
+    limit: usize,
+) {
+    let mut seen = BTreeSet::new();
+    let mut edit_frontier = Vec::new();
+    let mut test_frontier = Vec::new();
+    for path in paths {
+        let display_path = display_project_path(package_root, path);
+        if !seen.insert(display_path.clone()) {
+            continue;
+        }
+        if owner_role_for_path(package_root, path) == "test" {
+            if test_frontier.len() < limit {
+                test_frontier.push(display_path);
+            }
+        } else if edit_frontier.len() < limit {
+            edit_frontier.push(display_path);
+        }
+    }
+    if edit_frontier.is_empty() && test_frontier.is_empty() {
         return;
     }
-    if !owners.is_empty() {
-        let _ = writeln!(block, "|seed owner:{}", owners.join(","));
+
+    let mut alias_kinds = vec!["G=search".to_string(), "Q=query".to_string()];
+    let mut alias_rows = vec![format!("Q=query:term({query})!query")];
+    let mut edge_targets = vec!["Q:matches".to_string()];
+    let mut rank = vec!["Q".to_string()];
+    let mut frontier = Vec::new();
+    let mut owner_ids = Vec::new();
+    let mut test_ids = Vec::new();
+
+    for (index, path) in edit_frontier.iter().enumerate() {
+        let id = owner_alias_id(index);
+        alias_kinds.push(format!("{id}=owner"));
+        alias_rows.push(format!("{id}=owner:path({path})!owner"));
+        edge_targets.push(format!("{id}:selects"));
+        rank.push(id.clone());
+        frontier.push(format!("{id}.owner"));
+        owner_ids.push(id);
     }
-    if !tests.is_empty() {
-        let _ = writeln!(block, "|seed tests:{}", tests.join(","));
+    for (index, path) in test_frontier.iter().enumerate() {
+        let id = test_alias_id(index);
+        alias_kinds.push(format!("{id}=test"));
+        alias_rows.push(format!("{id}=test:path({path})!tests"));
+        edge_targets.push(format!("{id}:covers"));
+        rank.push(id.clone());
+        frontier.push(format!("{id}.tests"));
+        test_ids.push(id);
+    }
+
+    let _ = writeln!(
+        block,
+        "legend: ID=kind:role(value)!next; edge SRC>{{DST:rel}}; frontier ID.next"
+    );
+    let _ = writeln!(block, "alias: graph:{{{}}}", alias_kinds.join(","));
+    for alias_row in alias_rows {
+        let _ = writeln!(block, "{alias_row}");
+    }
+    let _ = writeln!(block, "G>{{{}}}", edge_targets.join(","));
+    let _ = writeln!(
+        block,
+        "rank={} frontier={}",
+        rank.join(","),
+        frontier.join(",")
+    );
+
+    let mut entries = Vec::new();
+    if !owner_ids.is_empty() {
+        entries.push(format!(
+            "owner-query({},Q=>items+tests+dependency-usage)",
+            owner_ids.join(",")
+        ));
+    }
+    if !test_ids.is_empty() {
+        entries.push(format!(
+            "owner-tests({}=>covering-tests+test-entrypoints+fixtures)",
+            test_ids.join(",")
+        ));
+    }
+    if !entries.is_empty() {
+        let _ = writeln!(block, "entries={}", entries.join(","));
+    }
+    let _ = writeln!(block, "avoid=broad-fzf,raw-read,repeat-glob");
+}
+
+fn owner_alias_id(index: usize) -> String {
+    if index == 0 {
+        "O".to_string()
+    } else {
+        format!("O{}", index + 1)
     }
 }
 
-fn is_test_owner_path(path: &str) -> bool {
-    path.starts_with("tests/") || path.contains("/tests/")
+fn test_alias_id(index: usize) -> String {
+    if index == 0 {
+        "T".to_string()
+    } else {
+        format!("T{}", index + 1)
+    }
 }
 
 fn append_change_frontier_synthesis_line<'a>(
@@ -342,70 +420,6 @@ fn append_change_frontier_synthesis_line<'a>(
         parts.push(format!("seeds={}", window_set.join(",")));
     }
     let _ = writeln!(block, "|synthesis {}", parts.join(" "));
-}
-
-fn fzf_query_set_seed_hits(
-    package_root: &Path,
-    config: &RustHarnessConfig,
-    query_terms: &[&str],
-    options: &RustSearchOptions,
-) -> Vec<(PathBuf, BTreeSet<String>, usize, Vec<String>)> {
-    let scope = rust_project_harness_scope(
-        package_root,
-        config.include_tests,
-        &config.source_dir_names,
-        &config.test_dir_names,
-    );
-    let mut hits = discover_rust_files(&scope.monitored_paths(), &config.ignored_dir_names)
-        .into_iter()
-        .filter(|path| path_allowed_by_scope(&scope, package_root, path, options))
-        .filter_map(|path| {
-            let Ok(text) = fs::read_to_string(&path) else {
-                return None;
-            };
-            let (terms, score, locations) =
-                fuzzy_query_set_locations_with_path(package_root, &path, &text, query_terms);
-            (!terms.is_empty()).then_some((path, terms, score, locations))
-        })
-        .collect::<Vec<_>>();
-    hits.sort_by(|(left, _, left_score, _), (right, _, right_score, _)| {
-        right_score
-            .cmp(left_score)
-            .then_with(|| compare_paths_by_recency(package_root, left, right))
-    });
-    hits
-}
-
-fn fzf_seed_hits(
-    package_root: &Path,
-    config: &RustHarnessConfig,
-    query: &str,
-    options: &RustSearchOptions,
-) -> Vec<(PathBuf, usize, Vec<String>)> {
-    let scope = rust_project_harness_scope(
-        package_root,
-        config.include_tests,
-        &config.source_dir_names,
-        &config.test_dir_names,
-    );
-    let mut hits = discover_rust_files(&scope.monitored_paths(), &config.ignored_dir_names)
-        .into_iter()
-        .filter(|path| path_allowed_by_scope(&scope, package_root, path, options))
-        .filter_map(|path| {
-            let Ok(text) = fs::read_to_string(&path) else {
-                return None;
-            };
-            let (score, locations) =
-                fuzzy_locations_with_path(package_root, &path, &text, query, options);
-            (score > 0).then_some((path, score, locations))
-        })
-        .collect::<Vec<_>>();
-    hits.sort_by(|(left, left_score, _), (right, right_score, _)| {
-        right_score
-            .cmp(left_score)
-            .then_with(|| compare_paths_by_recency(package_root, left, right))
-    });
-    hits
 }
 
 fn fzf_hits(
@@ -488,58 +502,21 @@ fn fuzzy_locations_with_path(
     let (mut score, mut locations) = fuzzy_locations(text, query, options);
     let owner_path = display_project_path(package_root, path);
     if let Some(path_score) = fuzzy_score_with_options(&owner_path, query, options) {
-        score = score.saturating_add(path_score);
+        let path_boost = if is_path_shaped_query(query) {
+            1_000_000
+        } else {
+            0
+        };
+        score = score.saturating_add(path_score).saturating_add(path_boost);
         locations.push("path:1".to_string());
     }
     locations.dedup();
     (score, locations)
 }
 
-fn fuzzy_query_set_locations(
-    text: &str,
-    query_terms: &[&str],
-) -> (BTreeSet<String>, usize, Vec<String>) {
-    let mut terms = BTreeSet::new();
-    let mut score = 0usize;
-    let mut locations = Vec::new();
-    for (index, line) in text.lines().enumerate() {
-        for term in query_terms {
-            let Some(line_score) = fuzzy_score(line, term) else {
-                continue;
-            };
-            terms.insert((*term).to_string());
-            score = score.saturating_add(line_score);
-            locations.push(format!("{}:1", index + 1));
-        }
-    }
-    sort_locations(&mut locations);
-    locations.dedup();
-    (terms, score, locations)
-}
-
-fn fuzzy_query_set_locations_with_path(
-    package_root: &Path,
-    path: &Path,
-    text: &str,
-    query_terms: &[&str],
-) -> (BTreeSet<String>, usize, Vec<String>) {
-    let (mut terms, mut score, mut locations) = fuzzy_query_set_locations(text, query_terms);
-    let owner_path = display_project_path(package_root, path);
-    for term in query_terms {
-        let Some(path_score) = fuzzy_score(&owner_path, term) else {
-            continue;
-        };
-        terms.insert((*term).to_string());
-        score = score.saturating_add(path_score);
-        if !locations.iter().any(|location| location == "path:1") {
-            locations.push("path:1".to_string());
-        }
-    }
-    (terms, score, locations)
-}
-
-fn fuzzy_score(candidate: &str, query: &str) -> Option<usize> {
-    fuzzy_score_with_args(candidate, query, &[])
+fn is_path_shaped_query(query: &str) -> bool {
+    let query = query.trim();
+    query.contains('/') || query.ends_with(".rs")
 }
 
 fn fuzzy_score_with_options(

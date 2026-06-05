@@ -93,3 +93,4 @@ mod search_owner_items;
 mod search_policy;
 #[cfg(feature = "search")]
 mod search_query;
+mod semantic_syntax_refs;

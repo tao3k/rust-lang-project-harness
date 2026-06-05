@@ -14,7 +14,6 @@
   ],
   "verificationExcludes": [
     "file-written",
-    "rustfmt-ran",
-    "formatter-output-reparsed"
+    "rustfmt-ran"
   ]
 }

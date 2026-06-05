@@ -1,6 +1,3 @@
-pub(crate) struct JoinHandle {
-    output: Option<T>,
-}
 impl JoinHandle<T> {
     fn poll_join(&mut self, cx: &mut Context<'_>) -> Poll<Result<T, JoinError>> {
         cx.waker();

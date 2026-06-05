@@ -19,4 +19,10 @@ fn cli_agent_guide_advertises_query_reroute() {
         stdout.contains("asp rust query <path> --query <symbol-or-a|b|c> --code ."),
         "{stdout}"
     );
+    assert!(
+        stdout.contains(
+            "asp rust query --treesitter-query '(function_item name: (identifier) @function.name)' --selector <path[:line|:start:end]> [--code] ."
+        ),
+        "{stdout}"
+    );
 }

@@ -294,8 +294,8 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
             "[search-ingest] src=rg-json in=2 own=1",
             "|owner src/tool.rs role=source hit_kind=text locations=6:",
             "13:",
-            "|item command_action kind=fn public=true next=symbol:command_action",
-            "|item run_command kind=fn public=true next=symbol:run_command",
+            "|item command_action kind=fn responsibilities=match-dispatch,match-arm,early-return public=true next=symbol:command_action",
+            "|item run_command kind=fn responsibilities=early-return public=true next=symbol:run_command",
             "|test tests/web_search.rs functions=1 owner=src/tool.rs",
         ],
         FORBIDDEN_FLOW_PATTERNS,
@@ -331,7 +331,7 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
     assert_lab_packet(
         "public_codex_web_search_workspace_prefixed_owner_seed_flow",
         &workspace_prefixed_owner_seeds,
-        9,
+        10,
         &[
             "[search-owner] owner=ext/web-search/src/tool.rs selector=items terms=3 view=seeds",
             "O=owner:path(ext/web-search/src/tool.rs)!owner;S=symbol:symbol(WebSearchTool)@ext/web-search/src/tool.rs:4:4!code",
@@ -382,7 +382,7 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
         &[
             "[search-ingest] src=rg-n in=1 own=1",
             "|owner src/tool.rs role=source hit_kind=text locations=6:1 next=owner",
-            "|item command_action kind=fn public=true next=symbol:command_action",
+            "|item command_action kind=fn responsibilities=match-dispatch,match-arm,early-return public=true next=symbol:command_action",
             "|test tests/web_search.rs functions=1 owner=src/tool.rs",
         ],
         FORBIDDEN_FLOW_PATTERNS,

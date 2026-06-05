@@ -52,6 +52,7 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "evidence/assurance".to_string(),
             "evidence/graph".to_string(),
             "proof/pilot".to_string(),
+            "query".to_string(),
             "query/direct-source-read".to_string(),
             "query/owner-items".to_string(),
             "review/packet".to_string(),
@@ -65,27 +66,38 @@ fn agent_registry_json(project_root: &Path) -> Value {
         .collect::<Vec<_>>();
     method_descriptors.extend([
         json!({
-            "acceptedQuerySetSelectors": [
-                "exact-set"
+            "cacheReplay": true,
+            "command": "query",
+            "grammarId": "tree-sitter-rust",
+            "grammarProfileVersion": "2026-06-04.v1",
+            "grammarProfileSchema": "semantic-tree-sitter-grammar-profile.v1",
+            "grammarProfilePath": "tree-sitter/tree-sitter-rust/grammar-profile.json",
+            "input": "catalog-id",
+            "method": "query",
+            "outputModes": ["compact", "json"],
+            "outputSchemaIds": ["agent.semantic-protocols.semantic-tree-sitter-query"],
+            "packetSchemas": ["semantic-tree-sitter-query.v1"],
+            "queryCatalogs": [
+                { "id": "declarations", "path": "tree-sitter/tree-sitter-rust/queries/declarations.scm", "sourceDelivery": "provider-binary-embedded", "captures": ["function.definition", "function.name", "function.modifier", "function.return_type", "function.type_parameters", "type.definition", "type.name", "type.type_parameters", "type.aliased_type", "trait.definition", "trait.name", "trait.type_parameters", "trait.bounds", "impl.definition", "impl.target", "impl.trait", "impl.type_parameters", "module.definition", "module.name", "constant.definition", "constant.name", "constant.type", "item.attribute", "item.visibility"] },
+                { "id": "imports", "path": "tree-sitter/tree-sitter-rust/queries/imports.scm", "sourceDelivery": "provider-binary-embedded", "captures": ["import.declaration", "import.path", "import.alias", "import.visibility"] },
+                { "id": "calls", "path": "tree-sitter/tree-sitter-rust/queries/calls.scm", "sourceDelivery": "provider-binary-embedded", "captures": ["call.expression", "call.target", "call.method"] },
+                { "id": "macros", "path": "tree-sitter/tree-sitter-rust/queries/macros.scm", "sourceDelivery": "provider-binary-embedded", "captures": ["macro.invocation", "macro.name", "macro.arguments"] },
+                { "id": "cfg", "path": "tree-sitter/tree-sitter-rust/queries/cfg.scm", "sourceDelivery": "provider-binary-embedded", "captures": ["attribute.item", "attribute.name", "attribute.body", "attribute.arguments", "attribute.value"] }
             ],
+            "queryInputForms": ["catalog-id", "s-expression"],
+            "requiredOptions": ["--catalog|--treesitter-query"],
+            "supportsCompact": true,
+            "supportsJson": true
+        }),
+        json!({
+            "acceptedQuerySetSelectors": ["exact-set"],
             "command": "query",
             "input": "owner-path",
             "method": "query/owner-items",
-            "outputModes": [
-                "compact",
-                "json",
-                "code",
-                "names"
-            ],
-            "outputSchemaIds": [
-                "agent.semantic-protocols.semantic-query-packet"
-            ],
-            "querySetScopes": [
-                "owner"
-            ],
-            "requiredOptions": [
-                "--term"
-            ],
+            "outputModes": ["compact", "json", "code", "names"],
+            "outputSchemaIds": ["agent.semantic-protocols.semantic-query-packet"],
+            "querySetScopes": ["owner"],
+            "requiredOptions": ["--term"],
             "supportsCompact": true,
             "supportsJson": true,
             "supportsQuerySet": true
@@ -94,42 +106,22 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "command": "query",
             "input": "owner-path",
             "method": "query/direct-source-read",
-            "outputModes": [
-                "compact",
-                "json",
-                "names",
-                "read-packet"
-            ],
+            "outputModes": ["compact", "json", "names", "read-packet"],
             "outputSchemaIds": [
                 "agent.semantic-protocols.semantic-query-packet",
                 "agent.semantic-protocols.semantic-read-packet"
             ],
-            "requiredOptions": [
-                "--from-hook",
-                "--selector"
-            ],
+            "requiredOptions": ["--from-hook", "--selector"],
             "supportsCompact": true,
             "supportsJson": true
         }),
-        json!({
-            "command": "check",
-            "method": "check/changed",
-            "supportsCompact": true,
-            "supportsJson": true
-        }),
-        json!({
-            "command": "check",
-            "method": "check/full",
-            "supportsCompact": true,
-            "supportsJson": true
-        }),
+        json!({ "command": "check", "method": "check/changed", "supportsCompact": true, "supportsJson": true }),
+        json!({ "command": "check", "method": "check/full", "supportsCompact": true, "supportsJson": true }),
         json!({
             "command": "proof",
-            "input": "pilot dependency-graph-acyclicity",
+            "input": "pilot",
             "method": "proof/pilot",
-            "outputSchemaIds": [
-                "agent.semantic-protocols.semantic-formal-proof-pilot"
-            ],
+            "outputSchemaIds": ["agent.semantic-protocols.semantic-formal-proof-pilot"],
             "supportsCompact": true,
             "supportsJson": true
         }),
@@ -137,9 +129,7 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "command": "review",
             "input": "packet",
             "method": "review/packet",
-            "outputSchemaIds": [
-                "agent.semantic-protocols.semantic-review-packet"
-            ],
+            "outputSchemaIds": ["agent.semantic-protocols.semantic-review-packet"],
             "supportsCompact": true,
             "supportsJson": true
         }),
@@ -147,12 +137,8 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "command": "evidence",
             "input": "graph",
             "method": "evidence/graph",
-            "outputSchemaIds": [
-                "agent.semantic-protocols.semantic-evidence-graph"
-            ],
-            "requiredOptions": [
-                "--review-packet-json"
-            ],
+            "outputSchemaIds": ["agent.semantic-protocols.semantic-evidence-graph"],
+            "requiredOptions": ["--review-packet-json"],
             "supportsCompact": true,
             "supportsJson": true
         }),
@@ -160,59 +146,41 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "command": "evidence",
             "input": "assurance",
             "method": "evidence/assurance",
-            "outputSchemaIds": [
-                "agent.semantic-protocols.semantic-assurance-case"
-            ],
-            "requiredOptions": [
-                "--evidence-graph-json"
-            ],
+            "outputSchemaIds": ["agent.semantic-protocols.semantic-assurance-case"],
+            "requiredOptions": ["--evidence-graph-json"],
             "supportsCompact": true,
             "supportsJson": true
         }),
         json!({
             "command": "ast-patch",
-            "input": "semantic-ast-patch packet",
+            "input": "dry-run",
             "method": "ast-patch/dry-run",
             "mutationAvailable": false,
-            "outputSchemaIds": [
-                "agent.semantic-protocols.semantic-ast-patch-receipt"
-            ],
-            "requiredOptions": [
-                "--packet"
-            ],
+            "outputSchemaIds": ["agent.semantic-protocols.semantic-ast-patch-receipt"],
+            "requiredOptions": ["--packet"],
             "supportsCompact": false,
             "supportsJson": true
         }),
         json!({
             "command": "ast-patch",
-            "input": "semantic-ast-patch packet",
+            "input": "apply",
             "method": "ast-patch/apply",
             "mutationAvailable": true,
-            "outputSchemaIds": [
-                "agent.semantic-protocols.semantic-ast-patch-receipt"
-            ],
-            "requiredOptions": [
-                "--packet"
-            ],
+            "outputSchemaIds": ["agent.semantic-protocols.semantic-ast-patch-receipt"],
+            "requiredOptions": ["--packet"],
             "supportsCompact": false,
             "supportsJson": true
         }),
         json!({
-            "clients": [
-                "codex"
-            ],
+            "clients": ["codex"],
             "command": "agent",
             "method": "agent/doctor",
-            "outputSchemaIds": [
-                "agent.semantic-protocols.semantic-language-registry"
-            ],
+            "outputSchemaIds": ["agent.semantic-protocols.semantic-language-registry"],
             "supportsCompact": true,
             "supportsJson": true
         }),
         json!({
-            "clients": [
-                "codex"
-            ],
+            "clients": ["codex"],
             "command": "agent",
             "method": "agent/guide",
             "supportsCompact": true,
@@ -235,112 +203,29 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "methods": methods,
             "methodDescriptors": method_descriptors,
             "schemas": [
-                    {
-                        "path": "schemas/semantic-language-registry.v1.schema.json",
-                        "schemaId": "agent.semantic-protocols.semantic-language-registry",
-                        "schemaVersion": "1"
-                    },
-                    {
-                        "path": "schemas/semantic-search-packet.v1.schema.json",
-                        "schemaId": "agent.semantic-protocols.semantic-search-packet",
-                        "schemaVersion": "1"
-                    },
-                    {
-                        "path": "schemas/semantic-query-packet.v1.schema.json",
-                        "schemaId": "agent.semantic-protocols.semantic-query-packet",
-                        "schemaVersion": "1"
-                    },
-                    {
-                        "path": "schemas/semantic-read-packet.v1.schema.json",
-                        "schemaId": "agent.semantic-protocols.semantic-read-packet",
-                        "schemaVersion": "1"
-                    },
-                    {
-                        "path": "schemas/semantic-graph.v1.schema.json",
-                        "schemaId": "agent.semantic-protocols.semantic-graph",
-                        "schemaVersion": "1"
-                    },
-                    {
-                        "path": "schemas/semantic-type-surface.v1.schema.json",
-                        "schemaId": "agent.semantic-protocols.semantic-type-surface",
-                        "schemaVersion": "1"
-                    },
-                    {
-                        "path": "schemas/semantic-invariant-candidate.v1.schema.json",
-                        "schemaId": "agent.semantic-protocols.semantic-invariant-candidate",
-                        "schemaVersion": "1"
-                    },
-                    {
-                        "path": "schemas/semantic-verification-receipt.v1.schema.json",
-                        "schemaId": "agent.semantic-protocols.semantic-verification-receipt",
-                        "schemaVersion": "1"
-                    },
-                    {
-                        "path": "schemas/semantic-behavior-snapshot.v1.schema.json",
-                        "schemaId": "agent.semantic-protocols.semantic-behavior-snapshot",
-                        "schemaVersion": "1"
-                    },
-                    {
-                        "path": "schemas/semantic-determinism-readiness.v1.schema.json",
-                        "schemaId": "agent.semantic-protocols.semantic-determinism-readiness",
-                        "schemaVersion": "1"
-                    },
-                    {
-                        "path": "schemas/semantic-dev-command-log.v1.schema.json",
-                        "schemaId": "agent.semantic-protocols.dev-command-log",
-                        "schemaVersion": "1"
-                    },
-                    {
-                        "path": "schemas/semantic-formal-proof-pilot.v1.schema.json",
-                        "schemaId": "agent.semantic-protocols.semantic-formal-proof-pilot",
-                        "schemaVersion": "1"
-                    },
-                    {
-                        "path": "schemas/semantic-review-packet.v1.schema.json",
-                        "schemaId": "agent.semantic-protocols.semantic-review-packet",
-                        "schemaVersion": "1"
-                    },
-                    {
-                        "path": "schemas/semantic-evidence-graph.v1.schema.json",
-                        "schemaId": "agent.semantic-protocols.semantic-evidence-graph",
-                        "schemaVersion": "1"
-                    },
-                    {
-                        "path": "schemas/semantic-assurance-case.v1.schema.json",
-                        "schemaId": "agent.semantic-protocols.semantic-assurance-case",
-                        "schemaVersion": "1"
-                    },
-                    {
-                        "path": "schemas/semantic-handle.v1.schema.json",
-                        "schemaId": "agent.semantic-protocols.semantic-handle",
-                        "schemaVersion": "1"
-                    },
-                    {
-                        "path": "schemas/semantic-native-syntax-fact-index.v1.schema.json",
-                        "schemaId": "agent.semantic-protocols.semantic-native-syntax-fact-index",
-                        "schemaVersion": "1"
-                    },
-                    {
-                        "path": "schemas/semantic-ast-patch.v1.schema.json",
-                        "schemaId": "agent.semantic-protocols.semantic-ast-patch",
-                        "schemaVersion": "1"
-                    },
-                    {
-                        "path": "schemas/semantic-ast-patch-receipt.v1.schema.json",
-                        "schemaId": "agent.semantic-protocols.semantic-ast-patch-receipt",
-                        "schemaVersion": "1"
-                    },
-                    {
-                        "schemaId": "agent.semantic-protocols.rust-ast-patch-real-project-evidence",
-                        "schemaVersion": "1",
-                        "path": "schemas/rust-ast-patch-real-project-evidence.v1.schema.json"
-                    },
-                    {
-                        "path": "schemas/rust-semantic-capabilities.v1.schema.json",
-                        "schemaId": "agent.semantic-protocols.languages.rust.rs-harness.capabilities",
-                        "schemaVersion": "1"
-                    },
-                ]
+                { "path": "schemas/semantic-language-registry.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-language-registry", "schemaVersion": "1" },
+                { "path": "schemas/semantic-search-packet.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-search-packet", "schemaVersion": "1" },
+                { "path": "schemas/semantic-query-packet.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-query-packet", "schemaVersion": "1" },
+                { "path": "schemas/semantic-tree-sitter-query.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-tree-sitter-query", "schemaVersion": "1" },
+                { "path": "schemas/semantic-read-packet.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-read-packet", "schemaVersion": "1" },
+                { "path": "schemas/semantic-graph.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-graph", "schemaVersion": "1" },
+                { "path": "schemas/semantic-type-surface.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-type-surface", "schemaVersion": "1" },
+                { "path": "schemas/semantic-invariant-candidate.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-invariant-candidate", "schemaVersion": "1" },
+                { "path": "schemas/semantic-verification-receipt.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-verification-receipt", "schemaVersion": "1" },
+                { "path": "schemas/semantic-behavior-snapshot.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-behavior-snapshot", "schemaVersion": "1" },
+                { "path": "schemas/semantic-determinism-readiness.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-determinism-readiness", "schemaVersion": "1" },
+                { "path": "schemas/semantic-dev-command-log.v1.schema.json", "schemaId": "agent.semantic-protocols.dev-command-log", "schemaVersion": "1" },
+                { "path": "schemas/semantic-formal-proof-pilot.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-formal-proof-pilot", "schemaVersion": "1" },
+                { "path": "schemas/semantic-review-packet.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-review-packet", "schemaVersion": "1" },
+                { "path": "schemas/semantic-evidence-graph.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-evidence-graph", "schemaVersion": "1" },
+                { "path": "schemas/semantic-assurance-case.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-assurance-case", "schemaVersion": "1" },
+                { "path": "schemas/semantic-handle.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-handle", "schemaVersion": "1" },
+                { "path": "schemas/semantic-native-syntax-fact-index.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-native-syntax-fact-index", "schemaVersion": "1" },
+                { "path": "schemas/semantic-ast-patch.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-ast-patch", "schemaVersion": "1" },
+                { "path": "schemas/semantic-ast-patch-receipt.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-ast-patch-receipt", "schemaVersion": "1" },
+                { "schemaId": "agent.semantic-protocols.rust-ast-patch-real-project-evidence", "schemaVersion": "1", "path": "schemas/rust-ast-patch-real-project-evidence.v1.schema.json" },
+                { "path": "schemas/rust-semantic-capabilities.v1.schema.json", "schemaId": "agent.semantic-protocols.languages.rust.rs-harness.capabilities", "schemaVersion": "1" }
+            ]
         }]
     })
 }

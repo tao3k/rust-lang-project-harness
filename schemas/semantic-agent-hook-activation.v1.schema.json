@@ -136,7 +136,6 @@
         "sourceRoots",
         "configFiles",
         "sourceExtensions",
-        "sourceSelectorGlobs",
         "ignoredPathPrefixes"
       ],
       "properties": {
@@ -166,13 +165,6 @@
           "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/sourceExtension"
-          }
-        },
-        "sourceSelectorGlobs": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": {
-            "$ref": "#/$defs/pathPattern"
           }
         },
         "ignoredPathPrefixes": {

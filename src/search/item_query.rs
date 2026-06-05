@@ -2,12 +2,10 @@
 
 use std::path::Path;
 
-use crate::parser::native_syntax::{
-    item_projection::RustItemProjectionNodeSyntax, projection_code,
-};
+use crate::parser::native_syntax::item_projection::RustItemProjectionNodeSyntax;
 use crate::parser::{ParsedRustModule, RustTopLevelItemSyntax};
 
-use super::format::{display_project_path, render_item_line_with_read};
+use super::format::render_item_locator_line_with_read;
 use super::limits::{SEARCH_ITEM_LIMIT, SEARCH_OWNER_LIMIT};
 
 pub(super) fn owner_item_count(
@@ -59,12 +57,15 @@ pub(super) fn render_owner_item_lines(
     package_root: &Path,
     matching_modules: &[&ParsedRustModule],
     item_query: Option<&str>,
-    names_only: bool,
+    _names_only: bool,
+    item_projection_metadata: bool,
 ) -> Vec<String> {
     matching_modules
         .iter()
         .take(SEARCH_OWNER_LIMIT)
-        .flat_map(|module| render_module_item_lines(package_root, module, item_query, names_only))
+        .flat_map(|module| {
+            render_module_item_lines(package_root, module, item_query, item_projection_metadata)
+        })
         .collect()
 }
 
@@ -80,7 +81,7 @@ pub(super) fn render_owner_item_code_lines(
             module_items_for_query(module, item_query)
                 .into_iter()
                 .take(SEARCH_ITEM_LIMIT)
-                .map(item_projection_text)
+                .filter_map(|item| item_source_slice(module, item))
                 .filter(|text| !text.is_empty())
                 .collect::<Vec<_>>()
         })
@@ -113,18 +114,16 @@ pub(super) fn render_item_query_line(
     } else if names_only && summary.item_count > 1 {
         "select-item"
     } else {
-        "code"
+        "query-code"
     };
     Some(format!(
-        "|query itemQuery={} status={} match={} item={} reason={}{}{} next={}",
-        query,
+        "|query itemQuery={query} status={} match={} item={} reason={}{}{} next={next}",
         summary.mode.status(),
         summary.mode.label(),
         summary.item_count,
         summary.mode.reason(),
         output,
-        candidate_field,
-        next
+        candidate_field
     ))
 }
 
@@ -132,12 +131,12 @@ fn render_module_item_lines(
     package_root: &Path,
     module: &ParsedRustModule,
     item_query: Option<&str>,
-    names_only: bool,
+    item_projection_metadata: bool,
 ) -> Vec<String> {
     module_items_for_query(module, item_query)
         .into_iter()
         .take(SEARCH_ITEM_LIMIT)
-        .flat_map(|item| render_item_lines(package_root, module, item, item_query, names_only))
+        .flat_map(|item| render_item_lines(package_root, module, item, item_projection_metadata))
         .collect()
 }
 
@@ -145,50 +144,33 @@ fn render_item_lines(
     package_root: &Path,
     module: &ParsedRustModule,
     item: &RustTopLevelItemSyntax,
-    item_query: Option<&str>,
-    names_only: bool,
+    item_projection_metadata: bool,
 ) -> Vec<String> {
-    let mut lines = vec![render_item_line_with_read(
-        package_root,
-        &module.report.path,
-        item,
-    )];
-    if item_query.is_some()
-        && !names_only
-        && let Some(line) = render_item_code_line(package_root, module, item)
-    {
-        lines.push(line);
+    let mut line = render_item_locator_line_with_read(package_root, &module.report.path, item);
+    if item_projection_metadata {
+        let parser_nodes = projection_node_tokens(&item.projection_nodes);
+        if !parser_nodes.is_empty() {
+            line.push_str(" nodes=");
+            line.push_str(&parser_nodes);
+        }
     }
-    lines
+    vec![line]
 }
 
-fn render_item_code_line(
-    package_root: &Path,
-    module: &ParsedRustModule,
-    item: &RustTopLevelItemSyntax,
-) -> Option<String> {
-    let path = display_project_path(package_root, &module.report.path);
+fn item_source_slice(module: &ParsedRustModule, item: &RustTopLevelItemSyntax) -> Option<String> {
     let start_line = item.line.max(1);
     let end_line = item.end_line.max(start_line);
-    let text = item_projection_text(item);
-    if text.is_empty() {
-        return None;
+    let lines = module
+        .source
+        .lines()
+        .skip(start_line.saturating_sub(1))
+        .take(end_line.saturating_sub(start_line).saturating_add(1))
+        .collect::<Vec<_>>();
+    if lines.is_empty() {
+        None
+    } else {
+        Some(lines.join("\n"))
     }
-    let truncated = item.projection_nodes.len() > 48;
-    let parser_nodes = projection_node_tokens(&item.projection_nodes);
-    let responsibilities = projection_responsibility_tokens(item);
-    let encoded_text = serde_json::to_string(&text).ok()?;
-    let mut fields = vec![
-        format!("path={path}"),
-        format!("lineRange={start_line}:{end_line}"),
-        "reason=item-query".to_string(),
-        format!("truncated={truncated}"),
-        format!("nodes={parser_nodes}"),
-    ];
-    if !responsibilities.is_empty() {
-        fields.push(format!("responsibilities={responsibilities}"));
-    }
-    Some(format!("|code {} text={}", fields.join(" "), encoded_text))
 }
 
 fn projection_node_tokens(nodes: &[RustItemProjectionNodeSyntax]) -> String {
@@ -198,8 +180,9 @@ fn projection_node_tokens(nodes: &[RustItemProjectionNodeSyntax]) -> String {
             let id = projection_node_id(node);
             let native_id = projection_native_id(node);
             let fingerprint = projection_structural_fingerprint(node);
+            let label = encode_projection_node_label(node.label.trim());
             format!(
-                "{}:{}:{}:{}:{}:{}:{}:{}",
+                "{}:{}:{}:{}:{}:{}:{}:{}:{}",
                 id,
                 node.kind,
                 node.role,
@@ -207,15 +190,22 @@ fn projection_node_tokens(nodes: &[RustItemProjectionNodeSyntax]) -> String {
                 node.line,
                 node.end_line,
                 native_id,
-                fingerprint
+                fingerprint,
+                label
             )
         })
         .collect::<Vec<_>>()
         .join(",")
 }
 
-fn projection_responsibility_tokens(item: &RustTopLevelItemSyntax) -> String {
-    item.projection_responsibilities.join(",")
+fn encode_projection_node_label(label: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut encoded = String::with_capacity(label.len() * 2);
+    for byte in label.as_bytes() {
+        encoded.push(HEX[(byte >> 4) as usize] as char);
+        encoded.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    encoded
 }
 
 fn projection_node_id(node: &RustItemProjectionNodeSyntax) -> String {
@@ -579,11 +569,4 @@ fn item_query_candidates(item: &RustTopLevelItemSyntax) -> [Option<&str>; 6] {
         item.include_target.as_deref(),
         Some(item.kind),
     ]
-}
-
-fn item_projection_text(item: &RustTopLevelItemSyntax) -> String {
-    projection_code::compact_code_from_projection_nodes(
-        item.projection_nodes.iter().take(48),
-        |node| Some((node.depth, node.label.clone())),
-    )
 }

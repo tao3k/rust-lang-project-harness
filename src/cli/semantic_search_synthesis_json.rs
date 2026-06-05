@@ -12,9 +12,15 @@ pub(super) fn graph_seed_fragment(line: &str) -> Option<String> {
     let seed_kind = match (kind, action) {
         ("owner", "owner") => "owner",
         ("test" | "tests", "tests") => "tests",
+        ("feature", "cfg" | "feature") => "feature",
+        ("finding", "finding" | "owner" | "tests") => "finding",
         _ => return None,
     };
     let target = target.trim().trim_start_matches('{').trim_end_matches('}');
+    let target = target
+        .strip_prefix("path(")
+        .and_then(|target| target.strip_suffix(')'))
+        .unwrap_or(target);
     if target.is_empty() {
         return None;
     }

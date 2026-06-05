@@ -191,9 +191,12 @@ fn cli_ast_patch_scenario_uses_query_patch_safety_target_for_tokio_style_apply()
         match_value["patchSafety"]["level"], "ast-patch-safe",
         "{query_packet}"
     );
-    assert_eq!(
-        match_value["patchSafety"]["allowedOperations"],
-        json!(["replace_item"]),
+    assert!(
+        match_value["patchSafety"]["allowedOperations"]
+            .as_array()
+            .is_some_and(|operations| operations
+                .iter()
+                .any(|operation| operation == "replace_item")),
         "{query_packet}"
     );
     assert_eq!(
@@ -487,32 +490,6 @@ fn assert_compact_check(name: &str, scenario_dir: &Path, root: &Path, check: &Va
         .as_str()
         .unwrap_or_else(|| panic!("{name}: compactChecks[].query must be a string"));
 
-    let code_output = run_cli([
-        "query".as_ref(),
-        path.as_ref(),
-        "--query".as_ref(),
-        query.as_ref(),
-        "--code".as_ref(),
-        root.as_os_str(),
-    ]);
-    assert!(code_output.status.success(), "{name}: {code_output:?}");
-    let compact_code = String::from_utf8(code_output.stdout)
-        .unwrap_or_else(|error| panic!("{name}: compact code stdout utf8: {error}"));
-    let compact_code = compact_code.trim_end();
-    assert_expected_compact_code(name, scenario_dir, check, compact_code);
-    for expected in json_string_array(check, "codeContains") {
-        assert!(
-            compact_code.contains(expected),
-            "{name}: compact code missing {expected:?}:\n{compact_code}"
-        );
-    }
-    for forbidden in json_string_array(check, "codeNotContains") {
-        assert!(
-            !compact_code.contains(forbidden),
-            "{name}: compact code unexpectedly contained {forbidden:?}:\n{compact_code}"
-        );
-    }
-
     let json_output = run_cli([
         "query".as_ref(),
         path.as_ref(),
@@ -532,7 +509,22 @@ fn assert_compact_check(name: &str, scenario_dir: &Path, root: &Path, check: &Va
         check.get("matchName").and_then(Value::as_str),
     );
     let projection = &match_value["projection"];
-    let selected_compact_code = match_value["code"].as_str().unwrap_or(compact_code);
+    let compact_code = compact_code_from_projection(projection)
+        .unwrap_or_else(|| panic!("{name}: compact projection did not include rendered nodes"));
+    assert_expected_compact_code(name, scenario_dir, check, &compact_code);
+    for expected in json_string_array(check, "codeContains") {
+        assert!(
+            compact_code.contains(expected),
+            "{name}: compact code missing {expected:?}:\n{compact_code}"
+        );
+    }
+    for forbidden in json_string_array(check, "codeNotContains") {
+        assert!(
+            !compact_code.contains(forbidden),
+            "{name}: compact code unexpectedly contained {forbidden:?}:\n{compact_code}"
+        );
+    }
+    let selected_compact_code = match_value["code"].as_str().unwrap_or(&compact_code);
     assert_eq!(
         projection["compactSafety"]["literalPolicy"], "summarize",
         "{name}: compactSafety.literalPolicy"
@@ -553,9 +545,12 @@ fn assert_compact_check(name: &str, scenario_dir: &Path, root: &Path, check: &Va
         match_value["patchSafety"]["preimageSource"], "exact-read",
         "{name}: patchSafety.preimageSource"
     );
-    assert_eq!(
-        match_value["patchSafety"]["allowedOperations"],
-        json!(["replace_item"]),
+    assert!(
+        match_value["patchSafety"]["allowedOperations"]
+            .as_array()
+            .is_some_and(|operations| operations
+                .iter()
+                .any(|operation| operation == "replace_item")),
         "{name}: patchSafety.allowedOperations"
     );
 
@@ -785,6 +780,69 @@ fn assert_expected_compact_code(name: &str, scenario_dir: &Path, check: &Value, 
     }
 }
 
+fn compact_code_from_projection(projection: &Value) -> Option<String> {
+    let nodes = projection["nodes"].as_array()?;
+    let state = nodes
+        .iter()
+        .filter_map(|node| {
+            let depth = node["depth"].as_u64()? as usize;
+            let label = node["label"].as_str()?.to_string();
+            Some((depth, label))
+        })
+        .fold(
+            CompactCodeRenderState::default(),
+            |state, (depth, label)| state.push_node(depth, label),
+        );
+    let compact_code = state.finish();
+    (!compact_code.trim().is_empty()).then_some(compact_code)
+}
+
+#[derive(Default)]
+struct CompactCodeRenderState {
+    lines: Vec<String>,
+    open_depths: Vec<usize>,
+}
+
+impl CompactCodeRenderState {
+    fn push_node(mut self, depth: usize, label: String) -> Self {
+        let label = label.trim();
+        let label_consumed = self.close_projection_blocks(depth, Some(label));
+        if !label_consumed && !label.is_empty() {
+            self.lines
+                .push(format!("{}{}", "    ".repeat(depth), label));
+        }
+        if label.ends_with('{') {
+            self.open_depths.push(depth);
+        }
+        self
+    }
+
+    fn finish(mut self) -> String {
+        self.close_projection_blocks(0, None);
+        self.lines.join("\n")
+    }
+
+    fn close_projection_blocks(&mut self, next_depth: usize, next_label: Option<&str>) -> bool {
+        while self
+            .open_depths
+            .last()
+            .is_some_and(|open_depth| *open_depth >= next_depth)
+        {
+            let open_depth = self.open_depths.pop().expect("checked open depth");
+            let indent = "    ".repeat(open_depth);
+            if open_depth == next_depth
+                && let Some(label) = next_label
+                && label.starts_with("else")
+            {
+                self.lines.push(format!("{indent}}} {label}"));
+                return true;
+            }
+            self.lines.push(format!("{indent}}}"));
+        }
+        false
+    }
+}
+
 fn assert_compact_code_rejected_as_preimage(
     name: &str,
     root: &Path,
@@ -841,7 +899,16 @@ fn assert_saved_compact_apply_patch_passes(name: &str, scenario_dir: &Path, fixt
         .unwrap_or_else(|error| panic!("{name}: failed to create tempdir: {error}"));
     copy_dir_recursive(&scenario_dir.join("input"), input.path());
 
-    let input_compact = run_query_code(input.path(), path, query);
+    let query_packet = run_query_json(input.path(), path, query);
+    let match_value = select_query_match(
+        name,
+        "saved compact input",
+        &query_packet,
+        save_patch.get("targetKind").and_then(Value::as_str),
+        save_patch.get("targetName").and_then(Value::as_str),
+    );
+    let input_compact = compact_code_from_projection(&match_value["projection"])
+        .unwrap_or_else(|| panic!("{name}: saved compact input projection did not render"));
     let input_fixture = save_patch["inputCompactFixture"]
         .as_str()
         .unwrap_or_else(|| panic!("{name}: inputCompactFixture must be a string"));
@@ -851,14 +918,6 @@ fn assert_saved_compact_apply_patch_passes(name: &str, scenario_dir: &Path, fixt
         "{name}: input compact fixture should match"
     );
 
-    let query_packet = run_query_json(input.path(), path, query);
-    let match_value = select_query_match(
-        name,
-        "saved compact input",
-        &query_packet,
-        save_patch.get("targetKind").and_then(Value::as_str),
-        save_patch.get("targetName").and_then(Value::as_str),
-    );
     assert_eq!(
         match_value["patchSafety"]["level"], "ast-patch-safe",
         "{name}: saved compact query target should be ast-patch-safe"
@@ -917,7 +976,16 @@ fn assert_saved_compact_apply_patch_passes(name: &str, scenario_dir: &Path, fixt
         "{name}: saved compact patch should match expected tree"
     );
 
-    let expected_compact = run_query_code(input.path(), path, query);
+    let expected_query_packet = run_query_json(input.path(), path, query);
+    let expected_match_value = select_query_match(
+        name,
+        "saved compact expected",
+        &expected_query_packet,
+        save_patch.get("targetKind").and_then(Value::as_str),
+        save_patch.get("targetName").and_then(Value::as_str),
+    );
+    let expected_compact = compact_code_from_projection(&expected_match_value["projection"])
+        .unwrap_or_else(|| panic!("{name}: saved compact expected projection did not render"));
     let expected_fixture = save_patch["expectedCompactFixture"]
         .as_str()
         .unwrap_or_else(|| panic!("{name}: expectedCompactFixture must be a string"));
@@ -927,14 +995,6 @@ fn assert_saved_compact_apply_patch_passes(name: &str, scenario_dir: &Path, fixt
         "{name}: expected compact fixture should match"
     );
     if let Some(minimum) = save_patch.get("expectedMinimumFunctionalComplexity") {
-        let expected_query_packet = run_query_json(input.path(), path, query);
-        let expected_match_value = select_query_match(
-            name,
-            "saved compact expected",
-            &expected_query_packet,
-            save_patch.get("targetKind").and_then(Value::as_str),
-            save_patch.get("targetName").and_then(Value::as_str),
-        );
         assert_query_packet_functional_complexity(
             name,
             "saved compact expected",
@@ -994,19 +1054,6 @@ fn select_query_match<'a>(
                 "{name}: {label} query packet did not contain match kind={kind:?} name={item_name:?}: {query_packet}"
             )
         })
-}
-
-fn run_query_code(root: &Path, path: &str, query: &str) -> String {
-    let output = run_cli([
-        "query".as_ref(),
-        path.as_ref(),
-        "--query".as_ref(),
-        query.as_ref(),
-        "--code".as_ref(),
-        root.as_os_str(),
-    ]);
-    assert!(output.status.success(), "{output:?}");
-    String::from_utf8(output.stdout).expect("query code stdout utf8")
 }
 
 fn run_query_json(root: &Path, path: &str, query: &str) -> Value {

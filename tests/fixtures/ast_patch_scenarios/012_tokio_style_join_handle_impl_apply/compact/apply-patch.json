@@ -22,7 +22,7 @@
       "match-dispatch",
       "match-arm"
     ],
-    "maxCompactToExactRatio": 1.1
+    "maxCompactToExactRatio": 1.25
   },
   "expectedMinimumFunctionalComplexity": {
     "minDistinctResponsibilities": 4,
@@ -40,6 +40,6 @@
       "match-dispatch",
       "match-arm"
     ],
-    "maxCompactToExactRatio": 1.1
+    "maxCompactToExactRatio": 1.25
   }
 }

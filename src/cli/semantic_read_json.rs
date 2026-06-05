@@ -3,6 +3,9 @@ use std::path::Path;
 use serde_json::{Map, Value, json};
 
 use super::semantic_search_json_fields::{display_path, parse_fields, string_field};
+use super::semantic_syntax_refs::{
+    attach_syntax_refs_to_source_windows, syntax_refs_from_read_plan_symbols,
+};
 
 const SCHEMA_ID: &str = "agent.semantic-protocols.semantic-read-packet";
 const SCHEMA_VERSION: &str = "1";
@@ -27,7 +30,6 @@ fn build_packet(project_root: &Path, options: &SemanticReadJsonOptions, rendered
     let read_plan = read_plan_from_rendered(rendered);
     let selector_range = parse_read_locator(&options.selector).map(|(_, start, end)| (start, end));
     let mut last_window_accepts_code = false;
-
     for line in rendered.lines().filter(|line| line.starts_with('|')) {
         if let Some(rest) = line.strip_prefix("|owner ") {
             owner_path = rest.split_whitespace().next().map(ToOwned::to_owned);
@@ -35,14 +37,13 @@ fn build_packet(project_root: &Path, options: &SemanticReadJsonOptions, rendered
             if let Some(window) = source_window_from_item_line(rest, owner_path.as_deref()) {
                 last_window_accepts_code = window_overlaps_selector(&window, selector_range);
                 if last_window_accepts_code {
-                    source_windows.push(window);
+                    source_windows.push(window)
                 }
             }
         } else if last_window_accepts_code && let Some(rest) = line.strip_prefix("|code ") {
-            attach_text_to_last_window(rest, &mut source_windows);
+            attach_text_to_last_window(rest, &mut source_windows)
         }
     }
-
     let mut packet = json!({
         "schemaId": SCHEMA_ID,
         "schemaVersion": SCHEMA_VERSION,
@@ -60,12 +61,41 @@ fn build_packet(project_root: &Path, options: &SemanticReadJsonOptions, rendered
         "truncated": false,
         "notes": [],
     });
-    if let Some(read_plan) = read_plan {
+    let syntax_refs = if let Some(read_plan) = read_plan {
+        let syntax_refs = syntax_refs_from_read_plan_symbols(&read_plan);
         packet["readPlan"] = read_plan;
+        syntax_refs
     } else {
+        if source_windows.is_empty() {
+            if let Some((path, start_line, end_line)) = parse_read_locator(&options.selector) {
+                let text = rendered.trim_end_matches('\n').to_string();
+                if !text.trim().is_empty() {
+                    let line_range = format!("{start_line}:{end_line}");
+                    let lines = text
+                        .lines()
+                        .enumerate()
+                        .map(
+                            |(offset, text)| json!({ "number": start_line + offset, "text": text }),
+                        )
+                        .collect::<Vec<_>>();
+                    let line_count = lines.len();
+                    source_windows.push(json!({
+                        "ownerPath": path.clone(),
+                        "location": { "path": path.clone(), "lineRange": line_range },
+                        "read": format!("{path}:{line_range}"),
+                        "lineCount": line_count,
+                        "reason": "direct-selector",
+                        "text": text,
+                        "lines": lines,
+                        "truncated": false,
+                    }));
+                }
+            }
+        }
+        let syntax_refs = attach_syntax_refs_to_source_windows(&mut source_windows);
         packet["sourceWindows"] = json!(source_windows);
-    }
-
+        syntax_refs
+    };
     if let Some(owner_path) = owner_path {
         packet["ownerPath"] = json!(owner_path);
     }
@@ -73,7 +103,14 @@ fn build_packet(project_root: &Path, options: &SemanticReadJsonOptions, rendered
         packet["query"] = json!(query);
         packet["queryTerms"] = json!(query_terms(query));
     }
-
+    if let Some(syntax_refs) = syntax_refs {
+        packet["syntaxQueryRef"] = json!(syntax_refs.query_ref);
+        packet["syntaxMatchRefs"] = json!(syntax_refs.match_refs);
+        packet["syntaxCaptureRefs"] = json!(syntax_refs.capture_refs);
+        if let Some(anchor) = syntax_refs.anchor {
+            packet["syntaxAnchor"] = anchor;
+        }
+    }
     packet
 }
 
@@ -82,13 +119,71 @@ fn read_plan_from_rendered(rendered: &str) -> Option<Value> {
         .lines()
         .find_map(|line| line.strip_prefix("[read-plan] "))?;
     let header_fields = parse_fields(header.split_whitespace());
-    let mut ranges = Vec::new();
-    let mut symbols = Vec::new();
-    let mut windows = Vec::new();
-    for line in rendered.lines().filter(|line| line.starts_with('|')) {
+    let rows = ReadPlanRows::collect(rendered);
+    if rows.windows.is_empty() && rows.symbols.is_empty() {
+        return None;
+    }
+    let frontier = read_plan_frontier(&rows)?;
+    let mut read_plan = json!({
+            "mode": string_field(&header_fields, "mode").unwrap_or_else(|| "range-frontier".to_string()),
+    "code": false,
+    "reason": string_field(&header_fields, "reason").unwrap_or_else(|| "wide-selector".to_string()),
+    "frontier": frontier,
+    "avoid": ["repeat-wide-read", "manual-window-scan", "raw-read"],
+    "omit": ["code"],
+    });
+    if !rows.windows.is_empty() {
+        read_plan["windows"] = json!(rows.windows);
+    }
+    if !rows.symbols.is_empty() {
+        read_plan["symbols"] = json!(rows.symbols);
+    }
+    if !rows.ranges.is_empty() {
+        read_plan["ranges"] = json!(rows.ranges);
+    }
+    if let Some(max_window_lines) = usize_field(&header_fields, "maxWindow") {
+        read_plan["maxWindowLines"] = json!(max_window_lines);
+    }
+    if let Some(algorithm) = string_field(&header_fields, "alg") {
+        read_plan["algorithm"] = json!(algorithm);
+    }
+    if let Some(syn) = string_field(&header_fields, "syn") {
+        read_plan["syn"] = json!(syn);
+    }
+    Some(read_plan)
+}
+
+#[derive(Default)]
+struct ReadPlanRows {
+    ranges: Vec<Value>,
+    symbols: Vec<Value>,
+    windows: Vec<Value>,
+}
+
+impl ReadPlanRows {
+    fn collect(rendered: &str) -> Self {
+        rendered.lines().fold(Self::default(), |mut rows, line| {
+            rows.record_graph_line(line);
+            rows.record_legacy_line(line);
+            rows
+        })
+    }
+
+    fn record_graph_line(&mut self, line: &str) {
+        line.split(';').for_each(|fragment| {
+            let _ = push_read_plan_graph_fragment(
+                fragment,
+                &mut self.ranges,
+                &mut self.symbols,
+                &mut self.windows,
+            );
+        });
+    }
+
+    fn record_legacy_line(&mut self, line: &str) -> Option<()> {
         if let Some(rest) = line.strip_prefix("|range ") {
             let fields = parse_fields(rest.split_whitespace());
-            ranges.push(json!({
+            self.ranges.push(json!({
                 "path": string_field(&fields, "path")?,
                 "requested": string_field(&fields, "requested")?,
                 "selected": string_field(&fields, "selected")?,
@@ -98,85 +193,132 @@ fn read_plan_from_rendered(rendered: &str) -> Option<Value> {
             }));
         } else if let Some(rest) = line.strip_prefix("|window ") {
             let fields = parse_fields(rest.split_whitespace());
-            windows.push(json!({
-            "path": string_field(&fields, "path")?,
-            "lineRange": string_field(&fields, "lineRange")?,
-                            "read": string_field(&fields, "read")?,
-                            "lineCount": usize_field(&fields, "lineCount")?,
-            "reason": string_field(&fields, "reason").unwrap_or_else(|| "split".to_string()),
+            self.windows.push(json!({
+                "path": string_field(&fields, "path")?,
+                "lineRange": string_field(&fields, "lineRange")?,
+                "read": string_field(&fields, "read")?,
+                "lineCount": usize_field(&fields, "lineCount")?,
+                "reason": string_field(&fields, "reason").unwrap_or_else(|| "split".to_string()),
             }));
         } else if let Some(rest) = line.strip_prefix("|symbol ") {
             let fields = parse_fields(rest.split_whitespace());
-            symbols.push(json!({
-            "itemName": string_field(&fields, "item")?,
-            "itemKind": string_field(&fields, "kind")?,
-            "lineRange": string_field(&fields, "lineRange")?,
-            "read": string_field(&fields, "read")?,
+            self.symbols.push(json!({
+                "itemName": string_field(&fields, "item")?,
+                "itemKind": string_field(&fields, "kind")?,
+                "lineRange": string_field(&fields, "lineRange")?,
+                "read": string_field(&fields, "read")?,
             }));
         }
+        Some(())
     }
-    if windows.is_empty() && symbols.is_empty() {
-        return None;
-    }
-    let frontier_source = if symbols.is_empty() {
-        ("window", &windows)
+}
+
+fn read_plan_frontier(rows: &ReadPlanRows) -> Option<Vec<Value>> {
+    let frontier_source = if rows.symbols.is_empty() {
+        ("window", &rows.windows)
     } else {
-        ("symbol", &symbols)
+        ("symbol", &rows.symbols)
     };
-    let frontier = frontier_source
+    frontier_source
         .1
         .iter()
         .enumerate()
-        .map(|(index, target)| {
-            let id = if index == 0 {
-                if frontier_source.0 == "symbol" {
-                    "S".to_string()
-                } else {
-                    "W".to_string()
-                }
-            } else if frontier_source.0 == "symbol" {
-                format!("S{}", index + 1)
-            } else {
-                format!("W{}", index + 1)
-            };
-            let read = target.get("read")?.as_str()?;
-            let (path, start_line, end_line) = parse_read_locator(read)?;
-            let line_range = format!("{start_line}:{end_line}");
-            Some(json!({
-            "id": id,
-            "kind": frontier_source.0,
-            "target": format!("{path}@{line_range}"),
-            "read": read,
-            "action": "code",
-            "rank": index + 1,
-            "reason": if frontier_source.0 == "symbol" { "parser-item" } else { "split" },
-            }))
-        })
-        .collect::<Option<Vec<_>>>()?;
-    let mut read_plan = json!({
-            "mode": string_field(&header_fields, "mode").unwrap_or_else(|| "range-frontier".to_string()),
-    "code": false,
-    "reason": string_field(&header_fields, "reason").unwrap_or_else(|| "wide-selector".to_string()),
-    "frontier": frontier,
-    "avoid": ["repeat-wide-read", "manual-window-scan", "raw-read"],
-    "omit": ["code"],
-    });
-    if !windows.is_empty() {
-        read_plan["windows"] = json!(windows);
+        .map(|(index, target)| read_plan_frontier_entry(frontier_source.0, index, target))
+        .collect()
+}
+
+fn read_plan_frontier_entry(kind: &str, index: usize, target: &Value) -> Option<Value> {
+    let read = target.get("read")?.as_str()?;
+    let (path, start_line, end_line) = parse_read_locator(read)?;
+    let line_range = format!("{start_line}:{end_line}");
+    Some(json!({
+        "id": read_plan_frontier_id(kind, index),
+        "kind": kind,
+        "target": format!("{path}@{line_range}"),
+        "read": read,
+        "action": "code",
+        "rank": index + 1,
+        "reason": if kind == "symbol" { "parser-item" } else { "split" },
+    }))
+}
+
+fn read_plan_frontier_id(kind: &str, index: usize) -> String {
+    match (kind, index) {
+        ("symbol", 0) => "S".to_string(),
+        ("window", 0) => "W".to_string(),
+        ("symbol", _) => format!("S{}", index + 1),
+        _ => format!("W{}", index + 1),
     }
-    if !symbols.is_empty() {
-        read_plan["symbols"] = json!(symbols);
+}
+
+fn push_read_plan_graph_fragment(
+    fragment: &str,
+    ranges: &mut Vec<Value>,
+    symbols: &mut Vec<Value>,
+    windows: &mut Vec<Value>,
+) -> Option<()> {
+    let fragment = fragment.trim();
+    let (_id, payload) = fragment.split_once('=')?;
+    let (typed_target, action) = payload.rsplit_once('!')?;
+    let (kind, role_target) = typed_target.split_once(':')?;
+    let (role, target, locator) = graph_alias_role_target(role_target)?;
+    match (kind, role, action) {
+        ("range", "requested", "outline") => {
+            let (path, line_range, _read, _line_count) = graph_target_read(target)?;
+            ranges.push(json!({
+                "path": path,
+                "requested": line_range,
+                "selected": line_range,
+                "matched": line_range,
+                "coverage": "full",
+                "density": "unknown",
+            }));
+        }
+        ("window", "range", "code") => {
+            let (path, line_range, read, line_count) = graph_target_read(target)?;
+            windows.push(json!({
+                "path": path,
+                "lineRange": line_range,
+                "read": read,
+                "lineCount": line_count,
+                "reason": "split",
+            }));
+        }
+        ("symbol", item_kind, "code") => {
+            let read = locator?;
+            let (_path, start_line, end_line) = parse_read_locator(read)?;
+            symbols.push(json!({
+                "itemName": target,
+                "itemKind": item_kind,
+                "lineRange": format!("{start_line}:{end_line}"),
+                "read": read,
+            }));
+        }
+        _ => {}
     }
-    if !ranges.is_empty() {
-        read_plan["ranges"] = json!(ranges);
-    }
-    if let Some(max_window_lines) = usize_field(&header_fields, "maxWindow") {
-        read_plan["maxWindowLines"] = json!(max_window_lines);
-    }
-    if let Some(algorithm) = string_field(&header_fields, "alg") {
-        read_plan["algorithm"] = json!(algorithm);
-    }
-    Some(read_plan)
+    Some(())
+}
+
+fn graph_alias_role_target(value: &str) -> Option<(&str, &str, Option<&str>)> {
+    let open = value.find('(')?;
+    let role = &value[..open];
+    let rest = &value[open + 1..];
+    let close = rest.find(')')?;
+    let target = &rest[..close];
+    let locator = rest[close + 1..].strip_prefix('@');
+    Some((role, target, locator))
+}
+
+fn graph_target_read(target: &str) -> Option<(String, String, String, usize)> {
+    let (path, line_range) = target.rsplit_once('@')?;
+    let read = format!("{path}:{line_range}");
+    let (_path, start_line, end_line) = parse_read_locator(&read)?;
+    Some((
+        path.to_string(),
+        line_range.to_string(),
+        read,
+        end_line.saturating_sub(start_line).saturating_add(1),
+    ))
 }
 
 fn source_window_from_item_line(line: &str, owner_path: Option<&str>) -> Option<Value> {
@@ -264,9 +406,24 @@ fn split_code_text(line: &str) -> (&str, Option<String>) {
 }
 
 fn parse_read_locator(value: &str) -> Option<(String, usize, usize)> {
-    let (path_and_start, end_line) = value.rsplit_once(':')?;
-    let (path, line) = path_and_start.rsplit_once(':')?;
-    Some((path.to_string(), line.parse().ok()?, end_line.parse().ok()?))
+    let value = ["owner:", "read:", "path:"]
+        .into_iter()
+        .find_map(|prefix| value.strip_prefix(prefix))
+        .unwrap_or(value);
+    let (path_and_start, end_part) = value.rsplit_once(':')?;
+    if let Some((start, end)) = end_part.split_once('-') {
+        let start_line = start.parse().ok()?;
+        let end_line = end.parse().ok()?;
+        return (start_line != 0 && end_line >= start_line).then_some((
+            path_and_start.to_string(),
+            start_line,
+            end_line,
+        ));
+    }
+    let (path, start) = path_and_start.rsplit_once(':')?;
+    let start_line = start.parse().ok()?;
+    let end_line = end_part.parse().ok()?;
+    (start_line != 0 && end_line >= start_line).then_some((path.to_string(), start_line, end_line))
 }
 
 fn query_terms(query: &str) -> Vec<&str> {

@@ -188,6 +188,26 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
             }),
         "{policy}"
     );
+    let syntax_query = method_descriptor(methods, "query");
+    assert_eq!(syntax_query["command"], "query");
+    assert_eq!(syntax_query["input"], "catalog-id");
+    assert_eq!(syntax_query["grammarId"], "tree-sitter-rust");
+    assert_eq!(
+        syntax_query["grammarProfileSchema"],
+        "semantic-tree-sitter-grammar-profile.v1"
+    );
+    assert_eq!(
+        syntax_query["grammarProfilePath"],
+        "tree-sitter/tree-sitter-rust/grammar-profile.json"
+    );
+    assert!(
+        syntax_query["queryCatalogs"]
+            .as_array()
+            .expect("query catalogs")
+            .iter()
+            .all(|catalog| catalog["sourceDelivery"] == "provider-binary-embedded"),
+        "{syntax_query}"
+    );
     let query_owner_items = method_descriptor(methods, "query/owner-items");
     assert_eq!(query_owner_items["command"], "query");
     assert_eq!(query_owner_items["input"], "owner-path");

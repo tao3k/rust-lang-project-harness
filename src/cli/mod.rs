@@ -9,6 +9,8 @@ mod evidence_graph;
 mod execution_receipt;
 mod formal_proof_pilot;
 mod query;
+mod query_options;
+mod query_window;
 mod review_packet;
 mod runner;
 #[cfg(feature = "search")]
@@ -23,6 +25,7 @@ mod semantic_query_json;
 mod semantic_query_projection;
 #[cfg(feature = "search")]
 mod semantic_read_json;
+#[cfg(feature = "search")]
 mod semantic_search_finder_json;
 #[cfg(feature = "search")]
 mod semantic_search_json;
@@ -32,5 +35,11 @@ mod semantic_search_json_canonical;
 mod semantic_search_json_fields;
 #[cfg(feature = "search")]
 mod semantic_search_synthesis_json;
+#[cfg(feature = "search")]
+mod semantic_syntax_refs;
+mod tree_sitter_query;
+mod tree_sitter_query_locator;
+mod tree_sitter_query_packet;
+mod tree_sitter_query_projection;
 
 pub use runner::run_cli_from_env;

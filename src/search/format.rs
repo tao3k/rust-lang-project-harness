@@ -104,8 +104,43 @@ fn dependency_kind_label(kind: CargoDependencyKind) -> &'static str {
 }
 
 pub(super) fn render_item_line(item: &RustTopLevelItemSyntax) -> String {
+    format!(
+        "{} syn={}",
+        render_item_core_line(item),
+        item_syntax_atom(item.kind)
+    )
+}
+
+fn render_item_core_line(item: &RustTopLevelItemSyntax) -> String {
+    fn push_responsibility(responsibilities: &mut Vec<&str>, kind: &'static str) {
+        if !responsibilities.iter().any(|existing| *existing == kind) {
+            responsibilities.push(kind);
+        }
+    }
+
     let name = item_display_name(item);
     let mut fields = vec![format!("|item {name}"), format!("kind={}", item.kind)];
+    let mut responsibilities = item.projection_responsibilities.clone();
+    for node in &item.projection_nodes {
+        match node.role {
+            "mutation" => push_responsibility(&mut responsibilities, "state-mutation"),
+            "terminal" => push_responsibility(&mut responsibilities, "early-return"),
+            "call" => push_responsibility(&mut responsibilities, "call-dispatch"),
+            "effect" => push_responsibility(&mut responsibilities, "effect-boundary"),
+            "field" => push_responsibility(&mut responsibilities, "data-shape"),
+            "control-flow" => match node.kind {
+                "if" => push_responsibility(&mut responsibilities, "guard-branch"),
+                "match" => push_responsibility(&mut responsibilities, "match-dispatch"),
+                "case" => push_responsibility(&mut responsibilities, "match-arm"),
+                "for" => push_responsibility(&mut responsibilities, "bounded-loop"),
+                _ => push_responsibility(&mut responsibilities, "loop-control"),
+            },
+            _ => {}
+        }
+    }
+    if !responsibilities.is_empty() {
+        fields.push(format!("responsibilities={}", responsibilities.join(",")));
+    }
     if item.is_public {
         fields.push("public=true".to_string());
     }
@@ -116,6 +151,24 @@ pub(super) fn render_item_line(item: &RustTopLevelItemSyntax) -> String {
     fields.join(" ")
 }
 
+fn item_syntax_atom(kind: &str) -> &'static str {
+    match kind {
+        "const" => "const_item/name",
+        "enum" => "enum_item/name",
+        "extern_crate" => "extern_crate_declaration/name",
+        "fn" => "function_item/name",
+        "impl" => "impl_item/name",
+        "macro" => "macro_definition/name",
+        "mod" => "mod_item/name",
+        "static" => "static_item/name",
+        "struct" => "struct_item/name",
+        "trait" | "trait_alias" => "trait_item/name",
+        "type" => "type_item/name",
+        "use" => "use_declaration/name",
+        _ => "item/name",
+    }
+}
+
 fn item_display_name(item: &RustTopLevelItemSyntax) -> &str {
     item.name
         .as_deref()
@@ -123,18 +176,19 @@ fn item_display_name(item: &RustTopLevelItemSyntax) -> &str {
         .unwrap_or("-")
 }
 
-pub(super) fn render_item_line_with_read(
+pub(super) fn render_item_locator_line_with_read(
     package_root: &Path,
     path: &Path,
     item: &RustTopLevelItemSyntax,
 ) -> String {
     let read_path = display_project_path(package_root, path);
     format!(
-        "{} read={}:{}:{}",
-        render_item_line(item),
+        "{} read={}:{}:{} syn={}",
+        render_item_core_line(item),
         read_path,
         item.line,
-        item.end_line
+        item.end_line,
+        item_syntax_atom(item.kind)
     )
 }
 

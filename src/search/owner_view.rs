@@ -118,6 +118,7 @@ fn render_exact_path_owner_query_set(
             include_items,
             options.item_query.as_deref(),
             options.item_names_only,
+            options.item_projection_metadata,
         );
         append_unique_lines(
             &mut block,
@@ -167,6 +168,7 @@ fn render_exact_path_owner(
             options.item_query.as_deref(),
             options.item_names_only,
             options.item_code,
+            options.item_projection_metadata,
             test_lines,
             synthesis_lines,
         ));
@@ -184,6 +186,7 @@ fn render_exact_path_owner_block(
     item_query: Option<&str>,
     item_names_only: bool,
     item_code: bool,
+    item_projection_metadata: bool,
     test_lines: Vec<String>,
     synthesis_lines: Vec<String>,
 ) -> String {
@@ -216,6 +219,7 @@ fn render_exact_path_owner_block(
         include_items,
         item_query,
         item_names_only,
+        item_projection_metadata,
     );
     if include_tests {
         append_unique_lines(&mut block, test_lines);
@@ -273,6 +277,7 @@ fn render_search_owner_block(
         include_items,
         options.item_query.as_deref(),
         options.item_names_only,
+        options.item_projection_metadata,
     );
     if include_tests {
         append_unique_lines(
@@ -304,7 +309,15 @@ fn render_search_owner_query_set_block(
     let include_tests = options.pipes.iter().any(|pipe| pipe == "tests");
     let details = query_terms
         .iter()
-        .map(|term| owner_query_details(context, term, include_items, include_tests))
+        .map(|term| {
+            owner_query_details(
+                context,
+                term,
+                include_items,
+                include_tests,
+                options.item_projection_metadata,
+            )
+        })
         .collect::<Vec<_>>();
     let mut block = format!(
         "[search-owner] q={} querySet={} selector=exact-set pkg={} own={} item={}\n",
@@ -332,6 +345,7 @@ fn owner_query_details(
     query: &str,
     include_items: bool,
     include_tests: bool,
+    item_projection_metadata: bool,
 ) -> OwnerQueryDetails {
     let matching_branches = matching_owner_branches(context, query);
     let matching_modules = matching_owner_modules(context, query);
@@ -359,6 +373,7 @@ fn owner_query_details(
         include_items,
         None,
         false,
+        item_projection_metadata,
     );
     if include_tests {
         append_unique_lines(
@@ -593,14 +608,20 @@ fn append_owner_item_lines(
     include_items: bool,
     item_query: Option<&str>,
     item_names_only: bool,
+    item_projection_metadata: bool,
 ) {
     let item_names_only =
         item_names_only || broad_item_query_should_use_names_only(matching_modules, item_query);
     if !include_items {
         return;
     }
-    for line in render_owner_item_lines(package_root, matching_modules, item_query, item_names_only)
-    {
+    for line in render_owner_item_lines(
+        package_root,
+        matching_modules,
+        item_query,
+        item_names_only,
+        item_projection_metadata,
+    ) {
         let _ = writeln!(block, "{line}");
     }
 }

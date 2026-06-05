@@ -41,11 +41,12 @@ pub(super) fn replace_item_patch_safety(
         "preimageSource": "exact-read",
         "sourceFingerprint": source_fingerprint,
         "parserVersion": "rust:rs-harness",
-        "allowedOperations": ["replace_item"],
+        "allowedOperations": ["replace_item", "split_owner_items"],
         "losslessStructure": true,
         "notes": [
             "compact code is a save-token rustfmt-style projection; ast-patch apply must use exactRead",
-            "Rust provider validates replacement with syn, reparses the file, runs rustfmt, then reparses formatted output"
+            "Rust provider validates replacement with syn, reparses the file, runs rustfmt, then reparses formatted output",
+            "Rust provider can split parser-selected top-level items into a submodule without agent-authored source hunks"
         ],
     }))
 }
@@ -74,11 +75,28 @@ pub(super) fn projection_semantic_responsibilities(
 ) -> Vec<Value> {
     let mut responsibilities = BTreeMap::<String, Value>::new();
     for kind in string_list_field(fields, "responsibilities") {
+        let source = if matches!(
+            kind.as_str(),
+            "state-mutation"
+                | "guard-branch"
+                | "match-dispatch"
+                | "match-arm"
+                | "bounded-loop"
+                | "loop-control"
+                | "early-return"
+                | "call-dispatch"
+                | "effect-boundary"
+                | "data-shape"
+        ) {
+            "projection-node"
+        } else {
+            "native-parser"
+        };
         insert_projection_responsibility(
             &mut responsibilities,
             kind,
             json!({
-                "source": "native-parser",
+                "source": source,
                 "read": exact_read,
             }),
         );

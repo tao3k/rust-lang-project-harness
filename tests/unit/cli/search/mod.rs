@@ -7,4 +7,5 @@ mod guide;
 mod json_trace;
 mod owner_items_graph;
 mod prime;
+mod syntax_refs;
 mod views;

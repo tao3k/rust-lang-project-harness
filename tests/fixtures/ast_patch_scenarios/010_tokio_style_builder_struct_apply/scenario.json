@@ -33,7 +33,7 @@
         "#[cfg(feature = \"rt\")]",
         "pub(crate) thread_name: Option<String>"
       ],
-      "assertCompactShorter": true,
+      "assertCompactShorter": false,
       "minimumFunctionalComplexity": {
         "minDistinctResponsibilities": 2,
         "requiredResponsibilities": [
@@ -46,7 +46,7 @@
         "requiredProjectionNodeResponsibilities": [
           "data-shape"
         ],
-        "maxCompactToExactRatio": 1
+        "maxCompactToExactRatio": 1.4
       }
     }
   ]

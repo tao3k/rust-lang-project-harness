@@ -12,13 +12,13 @@ fn cli_query_hook_line_range_code_outputs_local_window() {
     fs::create_dir_all(root.join("src")).expect("create src");
     fs::write(
         root.join("Cargo.toml"),
-        "[package]\nname = \"query-range\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        "[package]\nname = \"line-range-window\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
     )
     .expect("write manifest");
     fs::write(
         root.join("src/lib.rs"),
-        r#"fn run_facade(language: &str) -> Output {
-    todo!()
+        r#"fn run_facade() -> std::process::Output {
+    unimplemented!()
 }
 
 mod language {
@@ -26,13 +26,14 @@ mod language {
 
     #[test]
     fn rust_facade_invokes_provider_query() {
-        let output = run_facade("rust");
+        let output = run_facade();
         assert!(output.status.success());
     }
 }
 "#,
     )
     .expect("write lib");
+
     let output = run_cli([
         "query".as_ref(),
         "--from-hook".as_ref(),
@@ -46,18 +47,79 @@ mod language {
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
     assert!(!stdout.contains("[search-owner]"), "{stdout}");
     assert!(!stdout.contains("[read-plan]"), "{stdout}");
-    assert!(stdout.contains("mod language {"), "{stdout}");
-    assert!(stdout.contains("    use super::run_facade;"), "{stdout}");
+    assert!(stdout.starts_with("mod language {\n"), "{stdout}");
     assert!(
-        stdout.contains("    fn rust_facade_invokes_provider_query() {"),
+        stdout.contains("    use super::run_facade;\n\n    #[test]\n"),
         "{stdout}"
     );
     assert!(
-        stdout.contains("        assert!(output.status.success());"),
+        stdout.contains("        let output = run_facade();\n"),
         "{stdout}"
     );
-    assert!(stdout.lines().any(|line| line == "}"), "{stdout}");
-    assert!(stdout.lines().count() > 1, "{stdout}");
+    assert!(
+        stdout.contains("        assert!(output.status.success());\n"),
+        "{stdout}"
+    );
+    assert!(!stdout.lines().any(|line| line == "}"), "{stdout}");
+
+    let json_output = run_cli([
+        "query".as_ref(),
+        "--from-hook".as_ref(),
+        "direct-source-read".as_ref(),
+        "--selector".as_ref(),
+        "src/lib.rs:5:11".as_ref(),
+        "--code".as_ref(),
+        "--view".as_ref(),
+        "read-packet".as_ref(),
+        "--json".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(json_output.status.success(), "{json_output:?}");
+    let value = serde_json::from_slice::<Value>(&json_output.stdout).expect("read packet");
+    assert!(value.get("readPlan").is_none(), "{value}");
+    let windows = value["sourceWindows"].as_array().expect("source windows");
+    assert_eq!(windows.len(), 1, "{value}");
+    let window = &windows[0];
+    assert_eq!(window["read"], "src/lib.rs:5:11");
+    assert_eq!(window["lineCount"], 7);
+    assert_eq!(window["lines"][0]["number"], 5);
+    assert_eq!(window["lines"][0]["text"], "mod language {");
+    assert!(
+        window["text"]
+            .as_str()
+            .expect("window text")
+            .contains("    use super::run_facade;\n\n    #[test]\n"),
+        "{value}"
+    );
+}
+
+#[test]
+fn cli_query_hook_read_packet_does_not_guess_syntax_refs_for_direct_source_slice() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_search_fixture(root);
+
+    let output = run_cli([
+        "query".as_ref(),
+        "--from-hook".as_ref(),
+        "direct-source-read".as_ref(),
+        "--selector".as_ref(),
+        "src/lib.rs:6:6".as_ref(),
+        "--code".as_ref(),
+        "--view".as_ref(),
+        "read-packet".as_ref(),
+        "--json".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(output.status.success(), "{output:?}");
+    let value = serde_json::from_slice::<Value>(&output.stdout).expect("read json");
+
+    assert!(value.get("syntaxQueryRef").is_none(), "{value}");
+    assert!(value.get("syntaxAnchor").is_none(), "{value}");
+    let window = &value["sourceWindows"][0];
+    assert_eq!(window["read"], "src/lib.rs:6:6");
+    assert_eq!(window["location"]["lineRange"], "6:6");
+    assert!(window.get("fields").is_none(), "{value}");
 }
 
 #[test]
@@ -67,12 +129,14 @@ fn cli_query_hook_line_range_code_uses_projection_rows_for_nested_impl() {
     fs::create_dir_all(root.join("src")).expect("create src");
     fs::write(
         root.join("Cargo.toml"),
-        "[package]\nname = \"query-range-impl\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        "[package]\nname = \"nested-impl-window\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
     )
     .expect("write manifest");
     fs::write(
         root.join("src/lib.rs"),
-        r#"struct LocalNativeCliBackend;
+        r#"pub struct LocalNativeCliBackend;
+
+#[derive(Clone)]
 struct LocalNativeCommand {
     program: String,
     args: Vec<String>,
@@ -92,12 +156,13 @@ impl LocalNativeCommand {
 "#,
     )
     .expect("write lib");
+
     let output = run_cli([
         "query".as_ref(),
         "--from-hook".as_ref(),
         "direct-source-read".as_ref(),
         "--selector".as_ref(),
-        "src/lib.rs:7:18".as_ref(),
+        "src/lib.rs:9:18".as_ref(),
         "--code".as_ref(),
         root.as_os_str(),
     ]);
@@ -106,22 +171,27 @@ impl LocalNativeCommand {
     assert!(!stdout.contains("[search-owner]"), "{stdout}");
     assert!(!stdout.contains("[read-plan]"), "{stdout}");
     assert_no_punctuation_only_lines(&stdout);
-    insta::assert_snapshot!(stdout.trim_end(), @r#"
-impl LocalNativeCliBackend {
-}
-impl LocalNativeCommand {
-    fn argv(&self) -> Vec<String> {
-        let mut argv = Vec::with_capacity(self.args.len() + 1);
-        argv.push(self.program.clone())
-        argv.extend(self.args.clone())
-        argv
-    }
-}
-"#);
+    assert!(
+        stdout.starts_with("impl LocalNativeCliBackend {\n}"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("impl LocalNativeCommand {\n"), "{stdout}");
+    assert!(
+        stdout.contains("        argv.push(self.program.clone());\n"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("        argv.extend(self.args.clone());\n"),
+        "{stdout}"
+    );
+    assert!(
+        !stdout.contains("argv.push(self.program.clone())\n"),
+        "{stdout}"
+    );
 }
 
 #[test]
-fn cli_query_hook_wide_line_range_code_returns_read_plan_without_source() {
+fn cli_query_hook_wide_line_range_code_outputs_source_slice() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_search_fixture(root);
@@ -136,36 +206,28 @@ fn cli_query_hook_wide_line_range_code_returns_read_plan_without_source() {
     ]);
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert!(stdout.starts_with("[read-plan] "), "{stdout}");
-    assert!(stdout.contains("mode=range-frontier"), "{stdout}");
-    assert!(stdout.contains("code=false"), "{stdout}");
-    assert!(stdout.contains("reason=wide-selector"), "{stdout}");
-    assert!(stdout.contains("maxWindow=40"), "{stdout}");
-    assert!(stdout.contains("alg=symbol-frontier"), "{stdout}");
-    assert!(stdout.contains("requested=1:80"), "{stdout}");
-    assert!(
-        stdout.contains("S=symbol:mod(domain)@src/lib.rs:2:2!code"),
-        "{stdout}"
-    );
-    assert!(
-        stdout.contains("S2=symbol:fn(load)@src/lib.rs:6:6!code"),
-        "{stdout}"
-    );
-    assert!(stdout.contains("rank=S,S2"), "{stdout}");
-    assert!(stdout.contains("frontier=S.code,S2.code"), "{stdout}");
-    assert!(
-        stdout.contains("avoid=repeat-wide-read,manual-window-scan,raw-read"),
-        "{stdout}"
-    );
-    assert!(stdout.contains("|symbol item=domain kind=mod lineRange=2:2 read=src/lib.rs:2:2 lineCount=1 reason=parser-item"), "{stdout}");
-    assert!(stdout.contains("|symbol item=load kind=fn lineRange=6:6 read=src/lib.rs:6:6 lineCount=1 reason=parser-item"), "{stdout}");
-    assert!(!stdout.contains("|symbol item=local-window"), "{stdout}");
-    assert!(!stdout.contains("pub fn load()"), "{stdout}");
+    assert!(!stdout.starts_with("[read-plan] "), "{stdout}");
+    assert!(!stdout.contains("code=false"), "{stdout}");
+    assert!(!stdout.contains("|range "), "{stdout}");
+    assert!(!stdout.contains("|symbol "), "{stdout}");
+    assert!(!stdout.contains("|window "), "{stdout}");
     assert!(!stdout.contains("[search-owner]"), "{stdout}");
+    assert!(stdout.starts_with("//! Test crate.\n"), "{stdout}");
+    assert!(stdout.contains("mod domain;\n"), "{stdout}");
+    assert!(
+        stdout.contains("pub fn load() -> Thing { domain::make_thing() }\n"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "impl WireApi for PublicWire { fn wire(&self) -> anyhow::Result<Thing> { todo!() } }\n"
+        ),
+        "{stdout}"
+    );
 }
 
 #[test]
-fn cli_query_hook_wide_line_range_json_returns_symbol_read_plan_packet() {
+fn cli_query_hook_wide_line_range_json_returns_source_window_packet() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_search_fixture(root);
@@ -187,43 +249,25 @@ fn cli_query_hook_wide_line_range_json_returns_symbol_read_plan_packet() {
     let value = serde_json::from_slice::<Value>(&output.stdout).expect("read json");
     assert_eq!(value["schemaVersion"], "1");
     assert_eq!(value["selector"], "src/lib.rs:1:80");
-    assert!(value.get("sourceWindows").is_none(), "{value}");
+    assert!(value.get("readPlan").is_none(), "{value}");
 
-    let plan = &value["readPlan"];
-    assert_eq!(plan["mode"], "range-frontier");
-    assert_eq!(plan["code"], false);
-    assert_eq!(plan["reason"], "wide-selector");
-    assert_eq!(plan["algorithm"], "symbol-frontier");
-    assert_eq!(plan["maxWindowLines"], 40);
-    assert!(plan["windows"].as_array().is_none(), "{value}");
-
-    let symbols = plan["symbols"].as_array().expect("symbols");
+    let windows = value["sourceWindows"].as_array().expect("source windows");
+    assert_eq!(windows.len(), 1, "{value}");
+    let window = &windows[0];
+    assert_eq!(window["read"], "src/lib.rs:1:80");
+    assert_eq!(window["lines"][0]["number"], 1);
+    assert_eq!(window["lines"][0]["text"], "//! Test crate.");
     assert!(
-        symbols.iter().any(|symbol| symbol["itemName"] == "domain"
-            && symbol["itemKind"] == "mod"
-            && symbol["read"] == "src/lib.rs:2:2"),
+        window["text"]
+            .as_str()
+            .expect("window text")
+            .contains("pub fn load() -> Thing { domain::make_thing() }\n"),
         "{value}"
     );
-    assert!(
-        symbols.iter().any(|symbol| symbol["itemName"] == "load"
-            && symbol["itemKind"] == "fn"
-            && symbol["read"] == "src/lib.rs:6:6"),
-        "{value}"
-    );
-
-    let frontier = plan["frontier"].as_array().expect("frontier");
-    assert_eq!(frontier[0]["id"], "S");
-    assert_eq!(frontier[0]["kind"], "symbol");
-    assert_eq!(frontier[0]["action"], "code");
-    assert_eq!(frontier[0]["read"], "src/lib.rs:2:2");
-    assert_eq!(frontier[1]["id"], "S2");
-    assert_eq!(frontier[1]["kind"], "symbol");
-    assert_eq!(frontier[1]["action"], "code");
-    assert_eq!(frontier[1]["read"], "src/lib.rs:6:6");
 }
 
 #[test]
-fn cli_query_hook_wide_line_range_without_parser_items_returns_window_frontier() {
+fn cli_query_hook_wide_line_range_without_parser_items_outputs_source_slice() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     fs::create_dir_all(root.join("src")).expect("create src");
@@ -249,30 +293,17 @@ fn cli_query_hook_wide_line_range_without_parser_items_returns_window_frontier()
     ]);
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert!(stdout.starts_with("[read-plan] "), "{stdout}");
-    assert!(stdout.contains("alg=range-split"), "{stdout}");
-    assert!(
-        stdout.contains("W=window:range(src/lib.rs@1:40)!code"),
-        "{stdout}"
-    );
-    assert!(
-        stdout.contains("W2=window:range(src/lib.rs@41:80)!code"),
-        "{stdout}"
-    );
-    assert!(stdout.contains("rank=W,W2"), "{stdout}");
-    assert!(stdout.contains("frontier=W.code,W2.code"), "{stdout}");
-    assert!(
-        stdout.contains(
-            "|window path=src/lib.rs lineRange=1:40 read=src/lib.rs:1:40 lineCount=40 reason=split"
-        ),
-        "{stdout}"
-    );
-    assert!(stdout.contains("|window path=src/lib.rs lineRange=41:80 read=src/lib.rs:41:80 lineCount=40 reason=split"), "{stdout}");
-    assert!(!stdout.contains("|symbol item=local-window"), "{stdout}");
+    assert!(!stdout.starts_with("[read-plan] "), "{stdout}");
+    assert!(stdout.starts_with("pub fn broken(\n"), "{stdout}");
+    assert!(stdout.contains("// line 40\n"), "{stdout}");
+    assert!(stdout.contains("// line 80\n"), "{stdout}");
+    assert!(!stdout.contains("|range "), "{stdout}");
+    assert!(!stdout.contains("|symbol "), "{stdout}");
+    assert!(!stdout.contains("|window "), "{stdout}");
 }
 
 #[test]
-fn cli_query_hook_wide_line_range_json_falls_back_to_window_read_plan_packet() {
+fn cli_query_hook_wide_line_range_json_without_parser_items_returns_source_window_packet() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     fs::create_dir_all(root.join("src")).expect("create src");
@@ -304,25 +335,22 @@ fn cli_query_hook_wide_line_range_json_falls_back_to_window_read_plan_packet() {
     let value = serde_json::from_slice::<Value>(&output.stdout).expect("read json");
     assert_eq!(value["schemaVersion"], "1");
     assert_eq!(value["selector"], "src/lib.rs:1:80");
-    assert!(value.get("sourceWindows").is_none(), "{value}");
+    assert!(value.get("readPlan").is_none(), "{value}");
 
-    let plan = &value["readPlan"];
-    assert_eq!(plan["mode"], "range-frontier");
-    assert_eq!(plan["algorithm"], "range-split");
-    assert!(plan["symbols"].as_array().is_none(), "{value}");
-
-    let windows = plan["windows"].as_array().expect("windows");
-    assert_eq!(windows.len(), 2, "{value}");
-    assert_eq!(windows[0]["read"], "src/lib.rs:1:40");
-    assert_eq!(windows[1]["read"], "src/lib.rs:41:80");
-
-    let frontier = plan["frontier"].as_array().expect("frontier");
-    assert_eq!(frontier[0]["id"], "W");
-    assert_eq!(frontier[0]["kind"], "window");
-    assert_eq!(frontier[0]["read"], "src/lib.rs:1:40");
-    assert_eq!(frontier[1]["id"], "W2");
-    assert_eq!(frontier[1]["kind"], "window");
-    assert_eq!(frontier[1]["read"], "src/lib.rs:41:80");
+    let windows = value["sourceWindows"].as_array().expect("source windows");
+    assert_eq!(windows.len(), 1, "{value}");
+    let window = &windows[0];
+    assert_eq!(window["read"], "src/lib.rs:1:80");
+    assert_eq!(window["lineCount"], 80);
+    assert_eq!(window["lines"][0]["text"], "pub fn broken(");
+    assert_eq!(window["lines"][79]["text"], "// line 80");
+    assert!(
+        window["text"]
+            .as_str()
+            .expect("window text")
+            .contains("// line 40\n"),
+        "{value}"
+    );
 }
 
 fn assert_no_punctuation_only_lines(stdout: &str) {

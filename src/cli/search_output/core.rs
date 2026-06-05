@@ -442,29 +442,33 @@ impl SearchSeedAccumulator {
 
     fn record_graph_line(&mut self, line: &str) -> bool {
         if line.starts_with("[search-graph]") {
+            self.record_graph_fact(line);
             return true;
         }
-        if let Some(frontier) = graph_frontier_field(line) {
-            for entry in frontier
-                .split(',')
-                .map(str::trim)
-                .filter(|entry| !entry.is_empty())
-            {
-                let id = entry.split_once('.').map_or(entry, |(id, _)| id);
-                if let Some(seed) = self.graph_nodes.get(id) {
-                    record_seed(seed, &mut self.seen, &mut self.seeds);
-                }
-            }
+        if graph_frontier_field(line).is_some() {
+            self.record_graph_fact(line);
             return true;
         }
         if line.starts_with("rank=") {
+            self.record_graph_fact(line);
             return true;
         }
         if let Some((id, seed)) = graph_seed_definition(line) {
             self.graph_nodes.insert(id.to_string(), seed);
+            self.record_graph_fact(line);
+            return true;
+        }
+        if is_compact_graph_fact_line(line) {
+            self.record_graph_fact(line);
             return true;
         }
         false
+    }
+
+    fn record_graph_fact(&mut self, line: &str) {
+        if self.seen.insert(format!("graph:{line}")) {
+            self.facts.push(line.to_string());
+        }
     }
 
     fn finish(self) -> SearchSeeds {
@@ -476,6 +480,14 @@ impl SearchSeedAccumulator {
             notes: self.notes,
         }
     }
+}
+
+fn is_compact_graph_fact_line(line: &str) -> bool {
+    line.starts_with("legend: ")
+        || line.starts_with("alias: graph:")
+        || line.starts_with("entries=")
+        || line.starts_with("avoid=")
+        || line.contains(">{")
 }
 
 fn graph_frontier_field(line: &str) -> Option<&str> {

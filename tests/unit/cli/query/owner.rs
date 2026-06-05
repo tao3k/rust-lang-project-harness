@@ -1,6 +1,6 @@
 use tempfile::TempDir;
 
-use crate::cli::support::{normalize_temp_root, run_cli, write_search_fixture};
+use crate::cli::support::{normalize_temp_root, run_cli, write_manifest, write_search_fixture};
 
 #[test]
 fn cli_help_advertises_code_flag() {
@@ -61,13 +61,13 @@ fn cli_query_owner_selector_extracts_parser_item_code() {
     );
     assert!(
         stdout.contains(
-            "|query itemQuery=load status=hit match=exact item=1 reason=parser-item-exact next=code"
+            "|query itemQuery=load status=hit match=exact item=1 reason=parser-item-exact next=query-code"
         ),
         "{stdout}"
     );
     assert!(stdout.contains("|item load kind=fn"), "{stdout}");
     assert!(stdout.contains("read=src/lib.rs:"), "{stdout}");
-    assert!(stdout.contains("|code path=src/lib.rs"), "{stdout}");
+    assert!(!stdout.contains("|code path=src/lib.rs"), "{stdout}");
     let query_code = run_cli([
         "query".as_ref(),
         "src/lib.rs".as_ref(),
@@ -119,12 +119,36 @@ fn cli_query_owner_selector_extracts_parser_item_code() {
     );
     assert!(
         stdout.contains(
-            "|query itemQuery=loa status=hit match=fallback-contains item=1 reason=parser-item-fallback output=names next=code"
+            "|query itemQuery=loa status=hit match=fallback-contains item=1 reason=parser-item-fallback output=names next=query-code"
         ),
         "{stdout}"
     );
     assert!(stdout.contains("|item load kind=fn"), "{stdout}");
     assert!(!stdout.contains("|code path=src/lib.rs"), "{stdout}");
+}
+
+#[test]
+fn cli_query_owner_code_preserves_original_source_slice() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "cli-query-code-raw");
+    std::fs::create_dir_all(root.join("src")).expect("src dir");
+    let source = "pub fn keep_spacing( input : String )->String{\n    input.clone()\n}\n";
+    std::fs::write(root.join("src/lib.rs"), source).expect("write source");
+
+    let output = run_cli([
+        "query".as_ref(),
+        "src/lib.rs".as_ref(),
+        "--query".as_ref(),
+        "keep_spacing".as_ref(),
+        "--code".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(output.status.success(), "{output:?}");
+
+    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
+    assert_eq!(stdout, source);
+    assert!(!stdout.contains("keep_spacing(input: String) -> String"));
 }
 
 #[test]
@@ -146,7 +170,7 @@ fn cli_query_owner_selector_reports_fallback_and_miss_accuracy() {
     );
     assert!(
         stdout.contains(
-            "|query itemQuery=loa status=hit match=fallback-contains item=1 reason=parser-item-fallback next=code"
+            "|query itemQuery=loa status=hit match=fallback-contains item=1 reason=parser-item-fallback next=query-code"
         ),
         "{stdout}"
     );
@@ -236,12 +260,33 @@ fn cli_query_owner_selector_json_marks_compact_projection() {
     assert!(output.status.success(), "{output:?}");
     let value = serde_json::from_slice::<serde_json::Value>(&output.stdout).expect("query json");
     assert_eq!(value["outputMode"], "code");
-    assert!(
-        value["matches"][0]["code"]
-            .as_str()
-            .expect("compact code")
-            .contains("fn load() -> Thing {\n    domain::make_thing()"),
-        "{value}"
+    assert_eq!(
+        value["syntaxQueryRef"],
+        "semantic-tree-sitter-query/rust-owner-items.v1"
+    );
+    assert_eq!(value["syntaxMatchRefs"], serde_json::json!(["match.1"]));
+    assert_eq!(value["syntaxCaptureRefs"], serde_json::json!(["capture.1"]));
+    assert_eq!(value["syntaxAnchor"]["nodeType"], "function_item");
+    assert_eq!(value["syntaxAnchor"]["field"], "name");
+    assert_eq!(value["syntaxAnchor"]["capture"], "function.name");
+    assert_eq!(value["syntaxAnchor"]["location"]["path"], "src/lib.rs");
+    assert!(value["matches"][0]["code"].is_null(), "{value}");
+    assert_eq!(
+        value["matches"][0]["fields"]["syntaxQueryRef"],
+        "semantic-tree-sitter-query/rust-owner-items.v1"
+    );
+    assert_eq!(value["matches"][0]["fields"]["syntaxMatchRef"], "match.1");
+    assert_eq!(
+        value["matches"][0]["fields"]["syntaxCaptureRef"],
+        "capture.1"
+    );
+    assert_eq!(
+        value["matches"][0]["fields"]["syntaxNodeType"],
+        "function_item"
+    );
+    assert_eq!(
+        value["matches"][0]["fields"]["syntaxCapture"],
+        "function.name"
     );
     assert_eq!(value["matches"][0]["projection"]["mode"], "compact");
     assert_eq!(
@@ -258,33 +303,6 @@ fn cli_query_owner_selector_json_marks_compact_projection() {
             .as_str()
             .expect("exact read")
             .starts_with("src/lib.rs:"),
-        "{value}"
-    );
-    let nodes = value["matches"][0]["projection"]["nodes"]
-        .as_array()
-        .expect("projection nodes");
-    assert!(
-        nodes.iter().any(|node| {
-            node["role"] == "declaration"
-                && node["kind"] == "fn"
-                && node["label"]
-                    .as_str()
-                    .is_some_and(|label| label.contains("fn load"))
-        }),
-        "{value}"
-    );
-    assert!(
-        nodes.iter().any(|node| {
-            node["role"] == "terminal"
-                && node["kind"] == "return"
-                && node["label"] == "domain::make_thing()"
-        }),
-        "{value}"
-    );
-    assert!(
-        nodes.iter().all(|node| node["read"]
-            .as_str()
-            .is_some_and(|read| read.starts_with("src/lib.rs:"))),
         "{value}"
     );
 }

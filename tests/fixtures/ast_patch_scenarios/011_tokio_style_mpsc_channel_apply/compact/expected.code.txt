@@ -1,6 +1,6 @@
 fn channel<T>(buffer: usize) -> (Sender<T>, Receiver<T>) where T: Send + 'static, {
     assert!(buffer > 0, string[lines=1,bytes=38,hash=86752a88]);
-    let sender = Sender { value: None };
-    let receiver = Receiver { value: None };
-    (sender, receiver)
+    let sender = Sender value=None;
+    let receiver = Receiver value=None;
+    tuple[2] items=sender,receiver
 }

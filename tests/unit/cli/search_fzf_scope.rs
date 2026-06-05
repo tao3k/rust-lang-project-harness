@@ -32,7 +32,7 @@ fn cli_search_fzf_accepts_workspace_relative_scope_paths() {
 
     assert!(
         output.starts_with(
-            "[search-fzf] q=runCodexAgentHook scope=crates/demo/tests alg=change-frontier-query-set"
+            "[search-fzf] q=runCodexAgentHook scope=crates/demo/tests alg=seed-frontier"
         ),
         "{output}"
     );

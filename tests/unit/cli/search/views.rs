@@ -251,6 +251,7 @@ fn cli_search_views_render_rfc_line_protocol() {
         owner.contains("|item WireApi kind=trait public=true"),
         "{owner}"
     );
+    assert!(owner.contains("syn=trait_item/name"), "{owner}");
     assert!(!owner.contains("|synthesis"), "{owner}");
 
     let owner_json = run_cli([
@@ -277,23 +278,15 @@ fn cli_search_views_render_rfc_line_protocol() {
     );
     assert!(
         owner_item_query
-            .contains("|item load kind=fn public=true next=symbol:load read=src/lib.rs:6:6"),
+            .contains("|item load kind=fn responsibilities=early-return public=true next=symbol:load read=src/lib.rs:6:6"),
         "{owner_item_query}"
     );
     assert!(
-        owner_item_query.contains(
-            "|code path=src/lib.rs lineRange=6:6 reason=item-query truncated=false nodes=fn-6-6-"
-        ),
+        owner_item_query.contains("syn=function_item/name"),
         "{owner_item_query}"
     );
-    assert!(
-        owner_item_query.contains(",return-6-6-"),
-        "{owner_item_query}"
-    );
-    assert!(
-        owner_item_query.contains(" text=\"fn load() -> Thing {\\n    domain::make_thing()\\n}\""),
-        "{owner_item_query}"
-    );
+    assert!(!owner_item_query.contains("|code "), "{owner_item_query}");
+    assert!(!owner_item_query.contains(" text="), "{owner_item_query}");
     assert!(
         !owner_item_query.contains("clone_value"),
         "{owner_item_query}"
@@ -311,7 +304,7 @@ fn cli_search_views_render_rfc_line_protocol() {
     );
     assert!(
         owner_names_only.contains(
-            "|query itemQuery=loa status=hit match=fallback-contains item=1 reason=parser-item-fallback output=names next=code"
+            "|query itemQuery=loa status=hit match=fallback-contains item=1 reason=parser-item-fallback output=names next=query-code"
         ),
         "{owner_names_only}"
     );
@@ -340,18 +333,19 @@ fn cli_search_views_render_rfc_line_protocol() {
         "{owner_multi_query}"
     );
     assert!(
-        owner_multi_query.contains("|item load kind=fn public=true"),
-        "{owner_multi_query}"
-    );
-    assert!(
-        owner_multi_query.contains("|item clone_value kind=fn public=true"),
+        owner_multi_query.contains("|item load kind=fn responsibilities=early-return public=true"),
         "{owner_multi_query}"
     );
     assert!(
         owner_multi_query
-            .contains("text=\"fn clone_value(input: String) -> String {\\n    input.clone()\\n}\""),
+            .contains("|item clone_value kind=fn responsibilities=early-return public=true"),
         "{owner_multi_query}"
     );
+    assert!(
+        owner_multi_query.contains("syn=function_item/name"),
+        "{owner_multi_query}"
+    );
+    assert!(!owner_multi_query.contains(" text="), "{owner_multi_query}");
     let owner_set = run_search(root, &["owner", "src/lib.rs,src/domain/mod.rs", "items"]);
     assert!(
         owner_set.starts_with(
@@ -520,7 +514,11 @@ fn cli_search_views_render_rfc_line_protocol() {
 
     let owner_with_tests = run_search(root, &["owner", "src/lib.rs", "items", "tests"]);
     assert!(
-        owner_with_tests.contains("|item load kind=fn public=true"),
+        owner_with_tests.contains("|item load kind=fn responsibilities=early-return public=true"),
+        "{owner_with_tests}"
+    );
+    assert!(
+        owner_with_tests.contains("syn=function_item/name"),
         "{owner_with_tests}"
     );
     assert!(

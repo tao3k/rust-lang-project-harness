@@ -13,6 +13,7 @@ use super::semantic_query_projection::{
     replace_item_patch_safety, string_field_value,
 };
 use super::semantic_search_json_fields::{display_path, parse_fields, string_field};
+use super::semantic_syntax_refs::attach_syntax_refs_to_matches;
 
 const SCHEMA_ID: &str = "agent.semantic-protocols.semantic-query-packet";
 const SCHEMA_VERSION: &str = "1";
@@ -84,6 +85,7 @@ fn build_packet(project_root: &Path, options: &SemanticQueryJsonOptions, rendere
     if matches_truncated {
         matches.truncate(MAX_QUERY_PACKET_MATCHES);
     }
+    let syntax_refs = attach_syntax_refs_to_matches(&mut matches);
     let mut packet = json!({
             "schemaId": SCHEMA_ID,
             "schemaVersion": SCHEMA_VERSION,
@@ -120,6 +122,14 @@ fn build_packet(project_root: &Path, options: &SemanticQueryJsonOptions, rendere
     }
     if !candidate_items.is_empty() {
         packet["candidateItems"] = json!(candidate_items);
+    }
+    if let Some(syntax_refs) = syntax_refs {
+        packet["syntaxQueryRef"] = json!(syntax_refs.query_ref);
+        packet["syntaxMatchRefs"] = json!(syntax_refs.match_refs);
+        packet["syntaxCaptureRefs"] = json!(syntax_refs.capture_refs);
+        if let Some(anchor) = syntax_refs.anchor {
+            packet["syntaxAnchor"] = anchor;
+        }
     }
     packet
 }
@@ -171,25 +181,89 @@ fn item_match_from_line(line: &str, owner_path: Option<&str>) -> Option<Value> {
     } else {
         "private"
     };
+    let item_kind = string_field(&fields, "kind").unwrap_or_else(|| "item".to_string());
+    let line_range = format!("{line}:{end_line}");
+    let exact_read = read.unwrap_or_else(|| format!("{path}:{line}:{end_line}"));
+    let source_fingerprint = projection_source_fingerprint(&exact_read, None);
+    let mut nodes =
+        projection_nodes_from_parser_fields(&fields, &exact_read, None).unwrap_or_default();
+    let node_count = nodes.len();
+    let semantic_responsibilities =
+        projection_semantic_responsibilities(&fields, &nodes, &exact_read);
+    let mut projection = json!({
+        "mode": "compact",
+        "syntax": "save-token-rustfmt",
+        "sourceAuthority": "native-parser",
+        "sourceFingerprint": source_fingerprint,
+        "compactSafety": {
+            "literalPolicy": "summarize",
+            "whitespacePolicy": "formatter-structural",
+            "normalization": "none",
+            "alignment": "parser-roundtrip",
+            "exactReadRequired": true,
+        },
+        "losslessStructure": true,
+        "exactRead": exact_read,
+    });
+    if !nodes.is_empty() {
+        let nodes_truncated = node_count > MAX_QUERY_PACKET_PROJECTION_NODES;
+        if nodes_truncated {
+            nodes.truncate(MAX_QUERY_PACKET_PROJECTION_NODES);
+            projection["losslessStructure"] = json!(false);
+        }
+        let mut expand_actions = projection_expand_actions(&nodes);
+        let expand_action_count = expand_actions.len();
+        let expand_actions_truncated = expand_action_count > MAX_QUERY_PACKET_EXPAND_ACTIONS;
+        if expand_actions_truncated {
+            expand_actions.truncate(MAX_QUERY_PACKET_EXPAND_ACTIONS);
+            projection["losslessStructure"] = json!(false);
+            projection["expandActionCount"] = json!(expand_action_count);
+            projection["expandActionLimit"] = json!(MAX_QUERY_PACKET_EXPAND_ACTIONS);
+            projection["expandActionsTruncated"] = json!(true);
+        }
+        projection["nodeCount"] = json!(node_count);
+        projection["nodeLimit"] = json!(MAX_QUERY_PACKET_PROJECTION_NODES);
+        projection["nodesTruncated"] = json!(nodes_truncated);
+        let rendered_ids = rendered_node_ids(&nodes);
+        projection["renderedRows"] = json!(rendered_rows(&nodes, &rendered_ids));
+        projection["renderedNodeIds"] = json!(rendered_ids);
+        if let Some(root_node_id) = nodes
+            .first()
+            .and_then(|node| string_field_value(node, "id"))
+        {
+            projection["omitted"] = json!([{
+                "kind": "source-formatting",
+                "reason": "compact projection removes original whitespace and comments",
+                "nodeId": root_node_id,
+                "read": exact_read,
+            }]);
+        }
+        projection["expandActions"] = json!(expand_actions);
+        projection["nodes"] = json!(nodes);
+    }
+    if !semantic_responsibilities.is_empty() {
+        projection["semanticResponsibilities"] = json!(semantic_responsibilities);
+    }
     let mut item = json!({
         "name": name,
-        "kind": string_field(&fields, "kind").unwrap_or_else(|| "item".to_string()),
+        "kind": item_kind,
         "visibility": visibility,
         "doc": bool_field(&fields, "doc").unwrap_or(false),
         "location": {
             "path": path,
-            "lineRange": format!("{line}:{end_line}"),
+            "lineRange": line_range,
         },
-        "read": read.clone().unwrap_or_else(|| format!("{path}:{line}:{end_line}")),
+        "read": exact_read,
         "patchSafety": {
             "level": "read-safe",
             "reason": "read exact source locator before editing this compact match",
-            "exactRead": read.clone().unwrap_or_else(|| format!("{path}:{line}:{end_line}")),
+            "exactRead": exact_read,
         },
+        "projection": projection,
         "truncated": false,
     });
-    if let Some(read) = read {
-        item["read"] = json!(read);
+    if let Some(patch_safety) = replace_item_patch_safety(&item, &exact_read, &source_fingerprint) {
+        item["patchSafety"] = patch_safety;
     }
     Some(item)
 }
@@ -280,9 +354,7 @@ fn attach_code_to_last_match(line: &str, matches: &mut [Value]) {
             if !semantic_responsibilities.is_empty() {
                 projection["semanticResponsibilities"] = json!(semantic_responsibilities);
             }
-            if !expand_actions.is_empty() {
-                projection["expandActions"] = json!(expand_actions);
-            }
+            projection["expandActions"] = json!(expand_actions);
             if !nodes_truncated
                 && let Some(patch_safety) =
                     replace_item_patch_safety(item, &exact_read, &source_fingerprint)
@@ -385,6 +457,10 @@ fn projection_node_from_parser_token(
     let end_line = parts.next()?.parse::<usize>().ok()?;
     let native_id = parts.next()?.to_string();
     let structural_fingerprint = parts.next()?.to_string();
+    let explicit_label = match parts.next() {
+        Some(encoded) => Some(decode_projection_node_label(encoded)?),
+        None => None,
+    };
     if parts.next().is_some() || line == 0 || end_line < line {
         return None;
     }
@@ -405,7 +481,7 @@ fn projection_node_from_parser_token(
         "structuralFingerprint": structural_fingerprint,
         "kind": kind,
         "role": role,
-        "label": parser_projection_label(&kind, &role, compact_label),
+        "label": explicit_label.unwrap_or_else(|| parser_projection_label(&kind, &role, compact_label)),
         "depth": depth,
         "read": format!("{path}:{line}:{end_line}"),
     });
@@ -417,6 +493,28 @@ fn projection_node_from_parser_token(
         node["flags"] = json!(flags);
     }
     Some(node)
+}
+
+fn decode_projection_node_label(encoded: &str) -> Option<String> {
+    if encoded.len() % 2 != 0 {
+        return None;
+    }
+    let mut bytes = Vec::with_capacity(encoded.len() / 2);
+    for pair in encoded.as_bytes().chunks_exact(2) {
+        let high = hex_value(pair[0])?;
+        let low = hex_value(pair[1])?;
+        bytes.push((high << 4) | low);
+    }
+    String::from_utf8(bytes).ok()
+}
+
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
 }
 
 fn rendered_node_ids(nodes: &[Value]) -> Vec<String> {

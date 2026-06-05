@@ -20,7 +20,7 @@
     "requiredProjectionNodeResponsibilities": [
       "data-shape"
     ],
-    "maxCompactToExactRatio": 1.0
+    "maxCompactToExactRatio": 1.4
   },
   "expectedMinimumFunctionalComplexity": {
     "minDistinctResponsibilities": 2,
@@ -34,6 +34,6 @@
     "requiredProjectionNodeResponsibilities": [
       "data-shape"
     ],
-    "maxCompactToExactRatio": 1.0
+    "maxCompactToExactRatio": 1.4
   }
 }

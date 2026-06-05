@@ -112,6 +112,20 @@ fn cli_agent_provider_surface_delegates_hook_runtime_to_root_tool() {
         "{stdout}"
     );
     assert!(
+        stdout.contains(
+            "|catalog reasoningProfiles=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg entries=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg routes=read-frontier"
+        ),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("|entry finding-frontier selectors=F:finding,O:owner?"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("|entry feature-cfg selectors=F2:feature"),
+        "{stdout}"
+    );
+    assert!(
         stdout.contains("asp rust search prime --view seeds ."),
         "{stdout}"
     );
@@ -135,7 +149,7 @@ fn cli_agent_provider_surface_delegates_hook_runtime_to_root_tool() {
     assert!(
         String::from_utf8(install.stderr)
             .expect("stderr")
-            .contains("rs-harness agent install moved to semantic-agent-hook")
+            .contains("rs-harness agent install moved to asp hook")
     );
     let hook = run_cli([
         "agent".as_ref(),
@@ -149,7 +163,7 @@ fn cli_agent_provider_surface_delegates_hook_runtime_to_root_tool() {
     assert!(
         String::from_utf8(hook.stderr)
             .expect("stderr")
-            .contains("rs-harness agent hook moved to semantic-agent-hook")
+            .contains("rs-harness agent hook moved to asp hook")
     );
     let guard = run_cli([
         "agent".as_ref(),
@@ -166,7 +180,7 @@ fn cli_agent_provider_surface_delegates_hook_runtime_to_root_tool() {
     assert!(
         String::from_utf8(guard.stderr)
             .expect("stderr")
-            .contains("rs-harness agent guard moved to semantic-agent-hook")
+            .contains("rs-harness agent guard moved to asp hook")
     );
 
     let doctor = run_cli([

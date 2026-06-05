@@ -90,7 +90,6 @@
       "additionalProperties": false,
       "required": [
         "defaultExtensions",
-        "defaultSourceSelectorGlobs",
         "defaultConfigFiles",
         "defaultSourceRoots",
         "defaultIgnoredPathPrefixes"
@@ -101,13 +100,6 @@
           "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/sourceExtension"
-          }
-        },
-        "defaultSourceSelectorGlobs": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": {
-            "$ref": "#/$defs/pathPattern"
           }
         },
         "defaultConfigFiles": {

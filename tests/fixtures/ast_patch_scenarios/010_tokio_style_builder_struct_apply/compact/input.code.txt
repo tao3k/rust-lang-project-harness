@@ -2,8 +2,3 @@ pub(crate) struct Builder {
     pub(crate) worker_threads: usize,
     pub(crate) enable_io: bool,
 }
-impl Builder {
-    fn new() -> Self {
-        Self { worker_threads: 1, enable_io: false, }
-    }
-}

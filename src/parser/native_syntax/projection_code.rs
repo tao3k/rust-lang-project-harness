@@ -36,7 +36,10 @@ impl CompactCodeRenderState {
 
     fn finish(mut self) -> String {
         self.close_projection_blocks(0, None);
-        self.lines.join("\n")
+        self.lines.join(
+            "
+",
+        )
     }
 
     fn close_projection_blocks(&mut self, next_depth: usize, next_label: Option<&str>) -> bool {
@@ -46,15 +49,15 @@ impl CompactCodeRenderState {
             .is_some_and(|open_depth| *open_depth >= next_depth)
         {
             let open_depth = self.open_depths.pop().expect("checked open depth");
+            let indent = "    ".repeat(open_depth);
             if open_depth == next_depth
                 && let Some(label) = next_label
                 && label.starts_with("else")
             {
-                self.lines
-                    .push(format!("{}}} {}", "    ".repeat(open_depth), label));
+                self.lines.push(format!("{indent}}} {label}"));
                 return true;
             }
-            self.lines.push(format!("{}}}", "    ".repeat(open_depth)));
+            self.lines.push(format!("{indent}}}"));
         }
         false
     }

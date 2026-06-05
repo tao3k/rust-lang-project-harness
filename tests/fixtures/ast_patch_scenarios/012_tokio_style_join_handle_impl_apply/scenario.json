@@ -50,7 +50,7 @@
           "match-dispatch",
           "match-arm"
         ],
-        "maxCompactToExactRatio": 1.1
+        "maxCompactToExactRatio": 1.25
       }
     }
   ]

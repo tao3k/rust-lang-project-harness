@@ -34,12 +34,28 @@ fn cli_query_terms_route_to_fzf_query_set_seeds() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("|seed owner:src/http/client.rs,src/lib.rs"),
+        stdout.contains("Q=query:term(RuntimeClient,send_bytes)!query"),
         "{stdout}"
     );
-    assert!(stdout.contains("|seed tests:tests/flow.rs"), "{stdout}");
+    assert!(
+        stdout.contains("owner:path(src/http/client.rs)!owner"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("owner:path(src/lib.rs)!owner"), "{stdout}");
+    assert!(
+        stdout.contains("T=test:path(tests/flow.rs)!tests"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("rank=Q,O,O2,T frontier=O.owner,O2.owner,T.tests"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("avoid=broad-fzf,raw-read,repeat-glob"),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("|seed "), "{stdout}");
     assert!(!stdout.contains("[search-graph]"), "{stdout}");
-    assert!(!stdout.contains("frontier="), "{stdout}");
 }
 
 #[test]
