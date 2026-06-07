@@ -211,3 +211,42 @@ fn verification_performance_skill_binding_uses_rust_native_descriptor_snapshot()
         format!("{rendered}\n{contracts}")
     );
 }
+
+#[test]
+fn verification_performance_convenience_config_uses_library_api() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_api_project(root);
+    let config = default_rust_harness_config()
+        .with_criterion_performance_verification()
+        .with_latency_sensitive_performance_owner(
+            "src/api.rs",
+            "API dispatch is a latency-sensitive owner",
+        );
+
+    let plan = plan_rust_project_verification_with_config(root, &config).expect("plan");
+    let task = plan.active_tasks()[0];
+
+    assert_eq!(task.kind, RustVerificationTaskKind::Performance);
+    assert_eq!(
+        task.skill_binding
+            .as_ref()
+            .and_then(|binding| binding.adapter.as_deref()),
+        Some("criterion")
+    );
+    assert_eq!(
+        task.skill_contract_ref.as_deref(),
+        Some("rust-verification-performance@criterion")
+    );
+    assert!(
+        task.evidence
+            .iter()
+            .any(|evidence| evidence.label == "rationale"
+                && evidence.value == "API dispatch is a latency-sensitive owner")
+    );
+    assert!(
+        plan.report_obligations
+            .iter()
+            .any(|obligation| obligation.key == "performance_index_json")
+    );
+}

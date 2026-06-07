@@ -1,10 +1,12 @@
 //! Verification policy integration checks backed by Cargo manifest facts.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
 use std::path::Path;
 
 use crate::parser::{
-    CargoManifestFacts, ParsedRustModule, RustReasoningTreeFacts, file_location,
+    CargoBenchTargetFacts, CargoDependencyFacts, CargoDependencyKind, CargoManifestFacts,
+    ParsedRustModule, RustReasoningTreeFacts, file_location, parse_cargo_dependency_facts,
     path_line_location, source_line,
 };
 use crate::verification::{
@@ -55,14 +57,11 @@ pub(super) fn verification_integration_findings(
         modules,
         rules,
     ));
-    if !configured_rust_native_performance_is_active(project_root, config) {
+    let performance_adapters = active_rust_native_performance_adapters(project_root, config);
+    if performance_adapters.is_empty() {
         return findings;
     }
-    if cargo_manifest
-        .bench_targets
-        .iter()
-        .any(|target| !target.harness && target.path.exists())
-    {
+    if has_rust_native_performance_bench(project_root, cargo_manifest, &performance_adapters) {
         return findings;
     }
 
@@ -70,12 +69,12 @@ pub(super) fn verification_integration_findings(
     findings.push(RustHarnessFinding::from_rule(
         rule,
         format!(
-            "{} configures a Rust-native performance verification skill, but Cargo.toml does not expose a runnable harness=false [[bench]] target.",
+            "{} configures a Rust-native performance verification skill, but Cargo.toml does not expose a runnable Criterion, Divan, or iai-callgrind harness=false [[bench]] target.",
             display_project_path(project_root, &project_root.join("Cargo.toml"))
         ),
         file_location(project_root.join("Cargo.toml")),
         None,
-        "add a Criterion, Divan, or iai-callgrind [[bench]] target and keep the verification contract command pointed at it",
+        "add a Criterion, Divan, or iai-callgrind [[bench]] target, declare the matching benchmark framework dependency, and keep the verification contract command pointed at it",
     ));
     findings
 }
@@ -233,23 +232,27 @@ fn source_modules<'a>(
     })
 }
 
-fn configured_rust_native_performance_is_active(
+fn active_rust_native_performance_adapters(
     project_root: &Path,
     config: &RustHarnessConfig,
-) -> bool {
+) -> BTreeSet<String> {
     plan_rust_project_verification_with_config(project_root, config)
-        .is_ok_and(|plan| plan_contains_active_rust_native_performance_task(&plan))
+        .map(|plan| rust_native_performance_adapters(&plan))
+        .unwrap_or_default()
 }
 
-fn plan_contains_active_rust_native_performance_task(plan: &RustVerificationPlan) -> bool {
-    plan.active_tasks().into_iter().any(|task| {
-        task.kind == RustVerificationTaskKind::Performance
-            && task
-                .skill_binding
+fn rust_native_performance_adapters(plan: &RustVerificationPlan) -> BTreeSet<String> {
+    plan.active_tasks()
+        .into_iter()
+        .filter(|task| task.kind == RustVerificationTaskKind::Performance)
+        .filter_map(|task| {
+            task.skill_binding
                 .as_ref()
                 .and_then(|binding| binding.adapter.as_deref())
-                .is_some_and(is_rust_native_performance_adapter)
-    })
+        })
+        .filter(|adapter| is_rust_native_performance_adapter(adapter))
+        .map(ToOwned::to_owned)
+        .collect()
 }
 
 fn is_rust_native_performance_adapter(adapter: &str) -> bool {
@@ -257,4 +260,64 @@ fn is_rust_native_performance_adapter(adapter: &str) -> bool {
         adapter,
         "criterion" | "divan" | "iai-callgrind" | "iai_callgrind"
     )
+}
+
+fn has_rust_native_performance_bench(
+    project_root: &Path,
+    cargo_manifest: &CargoManifestFacts,
+    adapters: &BTreeSet<String>,
+) -> bool {
+    let dependencies = parse_cargo_dependency_facts(project_root);
+    cargo_manifest
+        .bench_targets
+        .iter()
+        .any(|target| target_matches_rust_native_performance(target, adapters, &dependencies))
+}
+
+fn target_matches_rust_native_performance(
+    target: &CargoBenchTargetFacts,
+    adapters: &BTreeSet<String>,
+    dependencies: &[CargoDependencyFacts],
+) -> bool {
+    !target.harness
+        && target.path.exists()
+        && adapters.iter().any(|adapter| {
+            manifest_has_adapter_dependency(dependencies, adapter)
+                && bench_target_uses_adapter(target, adapter)
+        })
+}
+
+fn manifest_has_adapter_dependency(dependencies: &[CargoDependencyFacts], adapter: &str) -> bool {
+    let package = adapter_package_name(adapter);
+    dependencies.iter().any(|dependency| {
+        matches!(
+            dependency.kind,
+            CargoDependencyKind::Normal | CargoDependencyKind::Dev
+        ) && dependency.package_name == package
+    })
+}
+
+fn adapter_package_name(adapter: &str) -> &'static str {
+    match adapter {
+        "criterion" => "criterion",
+        "divan" => "divan",
+        "iai-callgrind" | "iai_callgrind" => "iai-callgrind",
+        _ => "",
+    }
+}
+
+fn bench_target_uses_adapter(target: &CargoBenchTargetFacts, adapter: &str) -> bool {
+    let Ok(source) = fs::read_to_string(&target.path) else {
+        return false;
+    };
+    match adapter {
+        "criterion" => source.contains("criterion_group!") && source.contains("criterion_main!"),
+        "divan" => source.contains("divan::main") || source.contains("#[divan::bench]"),
+        "iai-callgrind" | "iai_callgrind" => {
+            source.contains("iai_callgrind::")
+                || source.contains("library_benchmark_group!")
+                || source.contains("main!(")
+        }
+        _ => false,
+    }
 }

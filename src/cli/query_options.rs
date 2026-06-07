@@ -18,6 +18,7 @@ pub(super) struct QuerySearchOptions {
     pub(super) item_names_only: bool,
     pub(super) item_code: bool,
     pub(super) source_version: QuerySourceVersion,
+    pub(super) workspace: bool,
     pub(super) paths: Vec<PathBuf>,
 }
 
@@ -30,6 +31,7 @@ pub(super) struct QueryOptions {
     pub(super) from_hook: Option<String>,
     pub(super) names_only: bool,
     pub(super) code: bool,
+    pub(super) workspace: bool,
     pub(super) json: bool,
     pub(super) help: bool,
     pub(super) output_view: Option<String>,
@@ -80,6 +82,7 @@ impl QueryOptions {
                 "--help" | "-h" => options.help = true,
                 "--names-only" => options.names_only = true,
                 "--code" => options.code = true,
+                "--workspace" => options.workspace = true,
                 "--selector" | "--query" | "--term" | "--surface" | "--pipe" | "--from-hook"
                 | "--package" | "--view" | "--seeds" | "--source" => {
                     pending_option = Some(value.to_string());
@@ -188,6 +191,7 @@ impl QueryOptions {
             item_names_only: self.names_only,
             item_code: self.code,
             source_version: self.source_version,
+            workspace: self.workspace,
             ..QuerySearchOptions::default()
         };
         options.paths.push(self.project_root()?);
@@ -223,7 +227,7 @@ impl QueryOptions {
                 .output_view
                 .get_or_insert_with(|| "seeds".to_string());
         }
-        if self.from_hook.as_deref() == Some("direct-source-read") {
+        if self.from_hook.as_deref() == Some("direct-source-read") || self.code {
             options.read_selector = self.normalized_selector_preserving_range();
         }
         Ok(options)

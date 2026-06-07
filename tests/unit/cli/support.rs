@@ -70,21 +70,27 @@ pub(crate) fn configure_shared_asp_renderer(command: &mut Command) {
 
 fn shared_asp_renderer_binary() -> Option<std::path::PathBuf> {
     let current_dir = std::env::current_dir().ok()?;
-    current_dir.ancestors().find_map(|ancestor| {
-        [
+    current_dir
+        .ancestors()
+        .map(|ancestor| {
             ancestor
                 .join("target")
                 .join("debug")
-                .join(format!("asp{}", std::env::consts::EXE_SUFFIX)),
-            ancestor
-                .join("tests")
-                .join("fixtures")
-                .join("bin")
-                .join(if cfg!(windows) { "asp.cmd" } else { "asp" }),
-        ]
-        .into_iter()
+                .join(format!("asp{}", std::env::consts::EXE_SUFFIX))
+        })
         .find(|candidate| candidate.is_file())
-    })
+        .or_else(|| {
+            current_dir
+                .ancestors()
+                .map(|ancestor| {
+                    ancestor
+                        .join("tests")
+                        .join("fixtures")
+                        .join("bin")
+                        .join(if cfg!(windows) { "asp.cmd" } else { "asp" })
+                })
+                .find(|candidate| candidate.is_file())
+        })
 }
 
 #[cfg(feature = "search")]

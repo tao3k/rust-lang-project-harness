@@ -17,7 +17,8 @@ use super::format::{
     query_set_terms, render_owner_line,
 };
 use super::item_query::{
-    owner_item_count, render_item_query_line, render_owner_item_hot_lines, render_owner_item_lines,
+    owner_item_count, render_item_query_line, render_owner_item_frontier_lines,
+    render_owner_item_hot_lines, render_owner_item_lines,
 };
 use super::limits::SEARCH_OWNER_LIMIT;
 use super::owner as owner_search;
@@ -237,6 +238,12 @@ fn render_exact_path_owner_block(input: ExactPathOwnerBlock<'_>) -> String {
         input.include_items,
         input.item_query,
     );
+    append_owner_item_frontier_lines(
+        &mut block,
+        input.package_root,
+        &[input.module],
+        input.include_items,
+    );
     append_owner_item_lines(
         &mut block,
         input.package_root,
@@ -301,6 +308,12 @@ fn render_search_owner_block(
         &matching_modules,
         include_items,
         options.item_query.as_deref(),
+    );
+    append_owner_item_frontier_lines(
+        &mut block,
+        &context.package_root,
+        &matching_modules,
+        include_items,
     );
     append_owner_item_lines(
         &mut block,
@@ -406,6 +419,12 @@ fn owner_query_details(
         None,
         false,
         item_projection_metadata,
+    );
+    append_owner_item_frontier_lines(
+        &mut lines,
+        &context.package_root,
+        &matching_modules,
+        include_items,
     );
     if include_tests {
         append_unique_lines(
@@ -693,6 +712,20 @@ fn append_owner_item_hot_lines(
         return;
     }
     for line in render_owner_item_hot_lines(package_root, matching_modules, item_query) {
+        let _ = writeln!(block, "{line}");
+    }
+}
+
+fn append_owner_item_frontier_lines(
+    block: &mut String,
+    package_root: &Path,
+    matching_modules: &[&ParsedRustModule],
+    include_items: bool,
+) {
+    if include_items {
+        return;
+    }
+    for line in render_owner_item_frontier_lines(package_root, matching_modules) {
         let _ = writeln!(block, "{line}");
     }
 }

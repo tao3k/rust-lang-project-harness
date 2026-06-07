@@ -302,8 +302,8 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
             "[search-ingest] src=rg-json in=2 own=1",
             "|owner src/tool.rs role=source hit_kind=text locations=6:",
             "13:",
-            "|item command_action kind=fn responsibilities=match-dispatch,match-arm,early-return public=true next=symbol:command_action",
-            "|item run_command kind=fn responsibilities=early-return public=true next=symbol:run_command",
+            "|item command_action kind=fn responsibilities=match-dispatch,match-arm,early-return public=true next=syntax:command_action",
+            "|item run_command kind=fn responsibilities=early-return public=true next=syntax:run_command",
             "|test tests/web_search.rs functions=1 owner=src/tool.rs",
         ],
         FORBIDDEN_FLOW_PATTERNS,
@@ -342,9 +342,9 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
         10,
         &[
             "[search-owner] q=ext/web-search/src/tool.rs pkg=ext/web-search selector=items alg=item-frontier",
-            "O=owner:path(ext/web-search/src/tool.rs)!owner;I=item:symbol(WebSearchTool)@ext/web-search/src/tool.rs:4:4!code",
+            "O=owner:path(ext/web-search/src/tool.rs)!owner;I=item:symbol(WebSearchTool)@ext/web-search/src/tool.rs:4:4!syntax",
             "O>{I:contains,I2:contains,I3:contains}",
-            "rank=I,I2,I3,O frontier=I.code,I2.code,I3.code",
+            "rank=I,I2,I3,O frontier=I.syntax,I2.syntax,I3.syntax",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );
@@ -390,7 +390,7 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
         &[
             "[search-ingest] src=rg-n in=1 own=1",
             "|owner src/tool.rs role=source hit_kind=text locations=6:1 next=owner",
-            "|item command_action kind=fn responsibilities=match-dispatch,match-arm,early-return public=true next=symbol:command_action",
+            "|item command_action kind=fn responsibilities=match-dispatch,match-arm,early-return public=true next=syntax:command_action",
             "|test tests/web_search.rs functions=1 owner=src/tool.rs",
         ],
         FORBIDDEN_FLOW_PATTERNS,

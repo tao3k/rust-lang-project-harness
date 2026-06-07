@@ -7,6 +7,7 @@ mod behavior;
 mod determinism;
 mod dev_command_log;
 mod evidence;
+mod failure_frontier;
 mod flow_drill {
     include!("flow_drill.rs");
 
@@ -78,6 +79,7 @@ mod proof;
 #[cfg(feature = "search")]
 mod query;
 mod receipt;
+mod registry_codeql;
 mod review;
 mod schema;
 #[cfg(feature = "search")]

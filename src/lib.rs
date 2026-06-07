@@ -1,3 +1,5 @@
+#![deny(dead_code)]
+
 //! Project-level Rust language harness for policy gates and agent advice.
 //!
 //! The crate provides library APIs for scanning Rust projects, returning
@@ -160,6 +162,7 @@ pub use build_gate::{
     assert_rust_project_harness_cargo_check_clean_from_env,
     assert_rust_project_harness_cargo_check_clean_from_env_with_config,
     assert_rust_project_harness_cargo_check_clean_with_config,
+    assert_rust_project_harness_performance_verification_from_env,
 };
 #[cfg(feature = "cli")]
 pub use cli::run_cli_from_env;
@@ -173,7 +176,8 @@ pub use model::{
 };
 pub use render::{
     render_rust_project_harness, render_rust_project_harness_advice,
-    render_rust_project_harness_json, render_rust_project_harness_with_options,
+    render_rust_project_harness_failure_frontier, render_rust_project_harness_json,
+    render_rust_project_harness_with_options,
 };
 pub use rules::{
     rust_agent_policy_rules, rust_modularity_rules, rust_project_policy_rules,

@@ -1,3 +1,5 @@
+#![deny(dead_code)]
+
 #[cfg(feature = "cli")]
 #[path = "unit/cli/mod.rs"]
 mod cli;

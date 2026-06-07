@@ -1,5 +1,6 @@
 //! Shared compact-code rendering from parser projection nodes.
 
+#[allow(dead_code)]
 pub(crate) fn compact_code_from_projection_nodes<'a, N: 'a>(
     nodes: impl IntoIterator<Item = &'a N>,
     node_parts: impl FnMut(&N) -> Option<(usize, String)>,

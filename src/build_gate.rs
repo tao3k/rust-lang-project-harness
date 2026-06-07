@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use crate::discovery::{discover_rust_files, rust_project_harness_scope};
 use crate::model::{RustHarnessConfig, RustHarnessReport};
 use crate::runner::run_rust_project_harness_with_config;
+use crate::verification::{RustVerificationTaskKind, plan_rust_project_verification_with_config};
 
 /// Assert a project harness run from a Cargo build script.
 ///
@@ -122,6 +123,34 @@ pub fn assert_rust_project_harness_cargo_check_clean_from_env_with_config(
     config: &RustHarnessConfig,
 ) -> RustHarnessReport {
     assert_rust_project_harness_build_clean_from_env_with_config(config)
+}
+
+/// Assert that a cargo-check build gate has an active performance verification task.
+///
+/// # Panics
+///
+/// Panics when `CARGO_MANIFEST_DIR` is missing, the verification plan cannot be
+/// built, or the configured plan lacks an active performance task/report.
+#[track_caller]
+pub fn assert_rust_project_harness_performance_verification_from_env(
+    config: &RustHarnessConfig,
+    gate_label: &str,
+) {
+    let root = cargo_manifest_dir();
+    let plan = plan_rust_project_verification_with_config(&root, config)
+        .unwrap_or_else(|error| panic!("{gate_label} verification plan: {error}"));
+    assert!(
+        plan.tasks
+            .iter()
+            .any(|task| task.kind == RustVerificationTaskKind::Performance && task.is_active()),
+        "{gate_label} build gate must configure active performance verification tasks"
+    );
+    assert!(
+        plan.report_obligations
+            .iter()
+            .any(|obligation| obligation.key == "performance_index_json"),
+        "{gate_label} build gate must require a performance index report"
+    );
 }
 
 fn cargo_manifest_dir() -> PathBuf {

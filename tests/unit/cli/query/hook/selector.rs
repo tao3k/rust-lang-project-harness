@@ -35,7 +35,7 @@ fn cli_query_hook_selector_strips_owner_prefix_and_line_suffix() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("|item load kind=fn responsibilities=early-return public=true next=symbol:load read=src/lib.rs:6:6"),
+        stdout.contains("|item load kind=fn responsibilities=early-return public=true next=syntax:load read=src/lib.rs:6:6"),
         "{stdout}"
     );
     assert!(!stdout.contains("|code path=src/lib.rs"), "{stdout}");

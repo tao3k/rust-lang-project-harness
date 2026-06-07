@@ -42,6 +42,10 @@ fn performance_index_keeps_satisfied_receipt_searchable_snapshot() {
         Some("main@b0a8a7a")
     );
     assert_eq!(
+        record.receipt_evidence_value("benchmark_command"),
+        Some("cargo bench --bench query_search_microbench")
+    );
+    assert_eq!(
         record.receipt_evidence_value("latency_or_throughput"),
         Some("-1.4% latency")
     );
@@ -243,7 +247,10 @@ fn rust_native_performance_config() -> rust_lang_project_harness::RustHarnessCon
 
 fn performance_receipt(fingerprint: &str) -> RustVerificationReceipt {
     RustVerificationReceipt::passed(fingerprint, RustVerificationTaskKind::Performance)
-        .with_evidence("benchmark_command", "cargo bench --bench parser_hot_path")
+        .with_evidence(
+            "benchmark_command",
+            "cargo bench --bench query_search_microbench",
+        )
         .with_evidence("baseline", "main@b0a8a7a")
         .with_evidence("regression_threshold", "5%")
         .with_evidence("latency_or_throughput", "-1.4% latency")

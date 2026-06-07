@@ -3,9 +3,9 @@
 
 use serde_json::{Value, json};
 
-use crate::parser::syntax_abi::{RustSyntaxAbi, rust_syntax_abi_for_kind};
-
-pub(super) use crate::parser::syntax_abi::RUST_OWNER_ITEMS_QUERY_REF;
+use crate::parser::syntax_abi::{
+    RUST_OWNER_ITEMS_QUERY_REF, RustSyntaxAbi, rust_syntax_abi_for_kind,
+};
 
 pub(super) struct SemanticSyntaxRefs {
     pub(super) query_ref: String,

@@ -3,7 +3,7 @@
 use std::ffi::OsString;
 
 use super::query_options::{QueryOptions, QuerySearchOptions};
-pub(super) use super::query_window::render_query_local_window;
+pub(super) use super::query_window::{render_query_local_item_code, render_query_local_window};
 
 pub(super) enum QueryCommand {
     Help,
@@ -76,10 +76,12 @@ pub(super) fn print_query_guide() {
 |mode frontier command="query <owner-path> --query <symbol>" output=item-frontier code=false
 |mode code command="query <owner-path> --query <symbol> --code" output=pure-code requires=unique-match
 |mode exact-range command="query --from-hook direct-source-read --selector <path:start-end> --code" output=pure-code maxWindow=40
+|mode workspace-range command="query --from-hook direct-source-read --workspace --selector <workspace-path:start-end> --code <workspace-root>" output=pure-code
 |mode read-plan trigger="wide-selector|low-signal-window|broad-selector" output=read-frontier code=false
 
 |action item.code mapsTo="query <owner-path> --query <item-name> --code <root>"
 |action window.code mapsTo="query --from-hook direct-source-read --selector <path:start-end> --code <root>"
+|action workspace-window.code mapsTo="query --from-hook direct-source-read --workspace --selector <workspace-path:start-end> --code <workspace-root>"
 |action item.outline mapsTo="query <owner-path> --query <item-name> --view outline <root>"
 |action exact-read mapsTo="query --from-hook direct-source-read --selector <exactRead> --code <root>"
 
@@ -134,16 +136,19 @@ pub(super) fn print_tree_sitter_query_guide() {
 pub(super) fn print_query_help() {
     println!(
         "rs-harness query <owner-path[:start:end]> [items tests] [--query SYMBOL] [--names-only | --code] [PROJECT_ROOT]\n\
+rs-harness query --catalog flow-lite --where 'source.call=NAME sink.constructs=TYPE scope.fn=FUNCTION' [--json] [PROJECT_ROOT]\n\
 rs-harness query --catalog <declarations|imports|calls|macros|cfg> [--json] [PROJECT_ROOT]\n\
 rs-harness query --treesitter-query '<s-expression>' [--selector <path[:line|:start:end]>] [--term TERM...] [--code] [--json] [PROJECT_ROOT]\n\
-rs-harness query --from-hook direct-source-read --selector <path[:line-range]> [--source worktree|index|head] --code [PROJECT_ROOT]\n\
+rs-harness query --from-hook direct-source-read [--workspace] --selector <path[:line-range]> [--source worktree|index|head] --code [PROJECT_ROOT]\n\
 rs-harness query --from-hook KIND --selector SELECTOR [--query SYMBOL | --term TERM] [--names-only | --code] [PROJECT_ROOT]\n\
 rs-harness query --term TERM [--term TERM...] [--surface PIPE] [--view seeds] [PROJECT_ROOT]\n\n\
 Maps hook-denied raw reads and broad searches into parser-owned search output.\n\
 Concrete Rust owner selectors route to search owner items/tests; multi-term queries route to search fzf query-set.\n\
 Tree-sitter-compatible syntax catalog and inline queries emit semantic-tree-sitter-query.v1 packets through the normal query command.\n\
+Flow-lite native relation queries emit compact locator/provenance frontiers or semantic-flow-lite.v1 JSON without running CodeQL.\n\
 Glob or broad selectors without terms route to search prime --view seeds.\n\
 Owner item queries emit |query status=hit|miss match=exact|fallback-contains|none.\n\
+Use --workspace when the selector is workspace-relative; use --source only to choose worktree, index, or head content.\n\
 Use --code after selecting an owner/symbol or hook path/range to emit compact parser-owned code."
     );
 }

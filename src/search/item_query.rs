@@ -103,6 +103,26 @@ pub(super) fn render_owner_item_hot_lines(
         .collect()
 }
 
+pub(super) fn render_owner_item_frontier_lines(
+    package_root: &Path,
+    matching_modules: &[&ParsedRustModule],
+) -> Vec<String> {
+    matching_modules
+        .iter()
+        .take(SEARCH_OWNER_LIMIT)
+        .flat_map(|module| {
+            named_module_items(module)
+                .into_iter()
+                .take(SEARCH_ITEM_LIMIT)
+                .map(|item| {
+                    render_item_locator_line_with_read(package_root, &module.report.path, item)
+                        .replacen("|item ", "|hot ", 1)
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
 pub(super) fn render_owner_item_code_lines(
     _package_root: &Path,
     matching_modules: &[&ParsedRustModule],

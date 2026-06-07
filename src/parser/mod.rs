@@ -14,11 +14,13 @@ mod source_path;
 pub(crate) mod syntax_abi;
 mod use_tree;
 
+#[cfg(feature = "cli")]
+pub(crate) use cargo_manifest::cargo_project_root_for_path;
 #[cfg(any(feature = "search", test))]
 pub(crate) use cargo_manifest::parse_cargo_cfg_facts;
 pub(crate) use cargo_manifest::{
-    CargoDependencyFacts, CargoDependencyKind, CargoManifestFacts, parse_cargo_dependency_facts,
-    parse_cargo_manifest,
+    CargoBenchTargetFacts, CargoDependencyFacts, CargoDependencyKind, CargoManifestFacts,
+    parse_cargo_dependency_facts, parse_cargo_manifest,
 };
 pub(crate) use cargo_test_targets::parse_cargo_test_targets;
 pub(crate) use location::{file_location, path_line_location, source_line, span_location};

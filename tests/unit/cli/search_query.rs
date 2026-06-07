@@ -81,6 +81,20 @@ fn cli_search_query_json_embeds_native_syntax_facts() {
                 && fact["source"] == "native-parser"
                 && fact["ownerPath"] == "src/lib.rs"
                 && fact["name"] == "Thing"
+                && fact["relations"].as_array().is_some_and(|relations| {
+                    relations.iter().any(|relation| {
+                        relation["kind"] == "reexports" && relation["target"] == "domain::Thing"
+                    })
+                })
+        }),
+        "{value}"
+    );
+    let edges = value["edges"].as_array().expect("search packet edges");
+    assert!(
+        edges.iter().any(|edge| {
+            edge["kind"] == "reexports"
+                && edge["to"] == "domain::Thing"
+                && edge["fields"]["source"] == "nativeSyntaxFacts.relations"
         }),
         "{value}"
     );

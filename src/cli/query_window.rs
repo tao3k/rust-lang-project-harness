@@ -1,9 +1,91 @@
 use std::path::Path;
 
 use super::query_source::{QuerySourceVersion, query_source_path, read_query_source_text};
-use crate::parser::{RustTopLevelItemSyntax, parse_rust_file, syntax_abi::syntax_atom_for_kind};
+use crate::parser::{
+    RustTopLevelItemSyntax, parse_rust_file,
+    syntax_abi::{RUST_OWNER_ITEMS_QUERY_REF, syntax_atom_for_kind},
+};
 
 const MAX_EXACT_DIRECT_READ_LINES: usize = 40;
+
+pub(super) fn render_query_local_item_code(
+    project_root: &Path,
+    selector: &str,
+    item_query: &str,
+    source_version: QuerySourceVersion,
+) -> Result<Option<String>, String> {
+    if source_version != QuerySourceVersion::Worktree || item_query.contains('|') {
+        return Ok(None);
+    }
+    let path = strip_query_local_window_selector_prefix(selector.trim());
+    if path.is_empty() || parse_query_local_window_selector(path).is_some() {
+        return Ok(None);
+    }
+    let source_path = query_source_path(project_root, path);
+    if !source_path.is_file() {
+        return Ok(None);
+    }
+    let parsed = parse_rust_file(&source_path);
+    let Some(item) = parsed
+        .syntax_facts
+        .top_level_items
+        .iter()
+        .find(|item| query_local_item_matches(item, item_query))
+    else {
+        return Ok(None);
+    };
+    let source = read_query_source_text(project_root, path, &source_path, source_version)?;
+    let rendered = source_line_window(&source, item.line, item.end_line);
+    if rendered.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(rendered))
+    }
+}
+
+pub(super) fn render_query_local_item_frontier(
+    project_root: &Path,
+    selector: &str,
+    item_query: &str,
+    source_version: QuerySourceVersion,
+) -> Result<Option<String>, String> {
+    if source_version != QuerySourceVersion::Worktree || item_query.contains('|') {
+        return Ok(None);
+    }
+    let path = strip_query_local_window_selector_prefix(selector.trim());
+    if path.is_empty() || parse_query_local_window_selector(path).is_some() {
+        return Ok(None);
+    }
+    let source_path = query_source_path(project_root, path);
+    if !source_path.is_file() {
+        return Ok(None);
+    }
+    let parsed = parse_rust_file(&source_path);
+    let Some(item) = parsed
+        .syntax_facts
+        .top_level_items
+        .iter()
+        .find(|item| query_local_item_matches(item, item_query))
+    else {
+        return Ok(None);
+    };
+    let source = read_query_source_text(project_root, path, &source_path, source_version)?;
+    let line_count = source.lines().count();
+    let Some(item_name) = query_local_item_name(item) else {
+        return Ok(None);
+    };
+    Ok(Some(format!(
+        "[search-owner] q={path} pkg=. own=1 item=1 itemQuery={item_query}\n\
+|owner {path} role=source source=parser-visible-module lines={line_count} imports=0\n\
+|query itemQuery={item_query} status=hit match=exact item=1 reason=parser-item-exact next=query-code\n\
+|item {item_name} kind={} next=syntax:{item_name} read={path}:{}:{} syn={} tsqRef={}\n",
+        item.kind,
+        item.line,
+        item.end_line,
+        syntax_atom_for_kind(item.kind),
+        RUST_OWNER_ITEMS_QUERY_REF
+    )))
+}
 
 pub(super) fn render_query_local_window(
     project_root: &Path,
@@ -159,6 +241,18 @@ fn compact_query_local_window_line(line: &str) -> String {
 
 fn is_low_signal_query_local_window(text: &str) -> bool {
     !text.chars().any(|ch| ch.is_alphanumeric() || ch == '_')
+}
+
+fn query_local_item_matches(item: &RustTopLevelItemSyntax, item_query: &str) -> bool {
+    query_local_item_name(item).is_some_and(|name| name == item_query)
+}
+
+fn query_local_item_name(item: &RustTopLevelItemSyntax) -> Option<&str> {
+    item.name
+        .as_deref()
+        .or(item.impl_target_name.as_deref())
+        .or(item.function_name.as_deref())
+        .or(item.macro_name.as_deref())
 }
 
 struct QueryLocalWindowRange {

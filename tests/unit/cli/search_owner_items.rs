@@ -20,3 +20,40 @@ fn owner_items_inventory_omits_flow_lines() {
     assert!(!rendered.contains("|synthesis "), "{rendered}");
     assert!(!rendered.contains("|next "), "{rendered}");
 }
+
+#[test]
+fn owner_item_query_seeds_render_code_frontier() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let root = temp.path();
+    write_search_fixture(root);
+
+    let rendered = run_search(
+        root,
+        &[
+            "owner",
+            "src/lib.rs",
+            "items",
+            "--query",
+            "load",
+            "--view",
+            "seeds",
+        ],
+    );
+
+    assert!(rendered.starts_with("[search-owner]"), "{rendered}");
+    assert!(
+        rendered.contains("I=item:symbol(load)@src/lib.rs:"),
+        "{rendered}"
+    );
+    assert!(rendered.contains("!syntax"), "{rendered}");
+    assert!(
+        rendered.contains("syntax I selector=src/lib.rs:"),
+        "{rendered}"
+    );
+    assert!(rendered.contains("frontier=I.syntax"), "{rendered}");
+    assert!(
+        rendered.contains("avoid=inline-code-in-search"),
+        "{rendered}"
+    );
+    assert!(!rendered.contains("fn load"), "{rendered}");
+}

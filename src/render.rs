@@ -6,6 +6,8 @@ use std::path::Path;
 
 use crate::{RustDiagnosticSeverity, RustHarnessFinding, RustHarnessReport};
 
+const FAILURE_FRONTIER_CONTEXT_LINES: usize = 12;
+
 /// Render a compact diagnostic report with advice enabled.
 #[must_use]
 pub fn render_rust_project_harness(report: &RustHarnessReport) -> String {
@@ -23,6 +25,52 @@ pub fn render_rust_project_harness_json(
     report: &RustHarnessReport,
 ) -> Result<String, serde_json::Error> {
     serde_json::to_string(report)
+}
+
+/// Render a compact failure frontier for the next exact source reads.
+#[must_use]
+pub fn render_rust_project_harness_failure_frontier(
+    report: &RustHarnessReport,
+    project_root: &Path,
+    max_hot_blocks: usize,
+) -> String {
+    let hot_blocks = failure_frontier_hot_blocks(report, project_root, max_hot_blocks);
+    if hot_blocks.is_empty() {
+        return String::new();
+    }
+
+    let mut rendered = String::new();
+    let blocking_findings = report.blocking_findings(None);
+    let advisory_findings = report.advisory_findings();
+    let _ = writeln!(
+        rendered,
+        "[fail] rust blockingFindings={} advisoryFindings={} changedInvariants={} hotBlocks={}",
+        blocking_findings.len(),
+        advisory_findings.len(),
+        report.invariant_candidates.len(),
+        hot_blocks.len()
+    );
+    let _ = writeln!(
+        rendered,
+        "|failureFrontier status=ready source=rust-check hotBlocks={} directSourceReadCode<={} changedInvariants={} findings={}",
+        hot_blocks.len(),
+        hot_blocks.len(),
+        report.invariant_candidates.len(),
+        report.findings.len()
+    );
+    for hot_block in hot_blocks {
+        let _ = writeln!(
+            rendered,
+            "|hotBlock selector={} source={} rule={} line={}",
+            hot_block.selector, hot_block.source, hot_block.rule_id, hot_block.line
+        );
+        let _ = writeln!(
+            rendered,
+            "|next asp rust query --from-hook direct-source-read --selector {} --code .",
+            shell_single_quote(&hot_block.selector)
+        );
+    }
+    rendered
 }
 
 /// Render only non-blocking agent advice.
@@ -117,6 +165,114 @@ fn render_finding_list(findings: &[&RustHarnessFinding]) -> String {
         .map(|finding| render_finding(finding))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FailureFrontierHotBlock {
+    selector: String,
+    source: &'static str,
+    rule_id: String,
+    line: usize,
+}
+
+fn failure_frontier_hot_blocks(
+    report: &RustHarnessReport,
+    project_root: &Path,
+    max_hot_blocks: usize,
+) -> Vec<FailureFrontierHotBlock> {
+    if max_hot_blocks == 0 {
+        return Vec::new();
+    }
+
+    let mut hot_blocks = Vec::new();
+    let mut seen_paths = BTreeSet::new();
+    for candidate in &report.invariant_candidates {
+        push_failure_frontier_hot_block(
+            &mut hot_blocks,
+            &mut seen_paths,
+            project_root,
+            candidate.location.path.as_deref(),
+            candidate.location.line,
+            candidate.source_rule_id.as_str(),
+            "invariant",
+        );
+        if hot_blocks.len() >= max_hot_blocks {
+            return hot_blocks;
+        }
+    }
+    if !hot_blocks.is_empty() {
+        return hot_blocks;
+    }
+    for finding in report.blocking_findings(None) {
+        push_failure_frontier_hot_block(
+            &mut hot_blocks,
+            &mut seen_paths,
+            project_root,
+            finding.location.path.as_deref(),
+            finding.location.line,
+            &finding.rule_id,
+            "finding",
+        );
+        if hot_blocks.len() >= max_hot_blocks {
+            return hot_blocks;
+        }
+    }
+    for finding in report.advisory_findings() {
+        push_failure_frontier_hot_block(
+            &mut hot_blocks,
+            &mut seen_paths,
+            project_root,
+            finding.location.path.as_deref(),
+            finding.location.line,
+            &finding.rule_id,
+            "advice",
+        );
+        if hot_blocks.len() >= max_hot_blocks {
+            return hot_blocks;
+        }
+    }
+    hot_blocks
+}
+
+fn push_failure_frontier_hot_block(
+    hot_blocks: &mut Vec<FailureFrontierHotBlock>,
+    seen_paths: &mut BTreeSet<String>,
+    project_root: &Path,
+    path: Option<&Path>,
+    line: usize,
+    rule_id: &str,
+    source: &'static str,
+) {
+    let Some(path) = path else {
+        return;
+    };
+    let display_path = project_relative_display_path(project_root, path);
+    if !seen_paths.insert(display_path.clone()) {
+        return;
+    }
+    let line = line.max(1);
+    let start_line = line.saturating_sub(FAILURE_FRONTIER_CONTEXT_LINES).max(1);
+    let end_line = line + FAILURE_FRONTIER_CONTEXT_LINES;
+    hot_blocks.push(FailureFrontierHotBlock {
+        selector: format!("{display_path}:{start_line}-{end_line}"),
+        source,
+        rule_id: rule_id.to_string(),
+        line,
+    });
+}
+
+fn project_relative_display_path(project_root: &Path, path: &Path) -> String {
+    if path.is_absolute()
+        && let Ok(relative) = path.strip_prefix(project_root)
+        && !relative.as_os_str().is_empty()
+    {
+        return display_path(relative);
+    }
+    display_path(path)
+}
+
+fn shell_single_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
 }
 
 fn title_case(value: &str) -> String {

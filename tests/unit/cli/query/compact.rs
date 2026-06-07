@@ -143,8 +143,8 @@ fn cli_query_parser_compact_line_protocol_snapshot() {
 [search-owner] q=src/lib.rs pkg=. own=1 item=2 itemQuery=branch_and_write|match_and_loop
 |owner src/lib.rs role=source source=parser-visible-module lines=21 imports=1
 |query itemQuery=branch_and_write|match_and_loop status=hit match=exact item=2 reason=parser-item-exact next=query-code
-|item branch_and_write kind=fn responsibilities=guard-branch,call-dispatch,early-return public=true next=symbol:branch_and_write read=src/lib.rs:3:10 syn=function_item/name
-|item match_and_loop kind=fn responsibilities=state-mutation,bounded-loop,match-dispatch,match-arm,early-return public=true next=symbol:match_and_loop read=src/lib.rs:12:21 syn=function_item/name
+|item branch_and_write kind=fn responsibilities=guard-branch,call-dispatch,early-return public=true next=syntax:branch_and_write read=src/lib.rs:3:10 syn=function_item/name tsqRef=semantic-tree-sitter-query/rust-owner-items.v1
+|item match_and_loop kind=fn responsibilities=state-mutation,bounded-loop,match-dispatch,match-arm,early-return public=true next=syntax:match_and_loop read=src/lib.rs:12:21 syn=function_item/name tsqRef=semantic-tree-sitter-query/rust-owner-items.v1
 "###
     );
 }

@@ -415,7 +415,7 @@ fn cli_rust_flow_drill_reduces_search_rounds_with_seeds_and_recipe_plan() {
         "{ingest}"
     );
     assert!(
-        ingest.contains("|item load kind=fn responsibilities=early-return public=true next=symbol:load"),
+        ingest.contains("|item load kind=fn responsibilities=early-return public=true next=syntax:load"),
         "{ingest}"
     );
     assert!(

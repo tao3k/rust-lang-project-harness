@@ -7,6 +7,7 @@ mod determinism_readiness;
 mod dev_command_log;
 mod evidence_graph;
 mod execution_receipt;
+mod flow_lite_query;
 mod formal_proof_pilot;
 mod query;
 mod query_options;
@@ -14,6 +15,7 @@ mod query_source;
 mod query_window;
 mod review_packet;
 mod runner;
+mod runner_support;
 #[cfg(feature = "search")]
 mod search_output;
 #[cfg(feature = "search")]

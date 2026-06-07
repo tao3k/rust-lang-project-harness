@@ -24,6 +24,15 @@ struct SyntaxFactHit {
     exposed_name: Option<String>,
 }
 
+impl SyntaxFactHit {
+    fn relation_kind(&self) -> &'static str {
+        match self.fact_kind {
+            "reexport" => "reexports",
+            _ => "imports",
+        }
+    }
+}
+
 pub(super) fn is_rust_syntax_query(query: &str) -> bool {
     parse_rust_syntax_query(query).is_some()
 }
@@ -73,7 +82,7 @@ pub(super) fn render_search_query(
             );
             let _ = writeln!(
                 block,
-                "|fact {} kind={} source=native-parser owner={} line={} visibility={} name={} qualifiedName={} languageKind=use exported={} query={}",
+                "|fact {} kind={} source=native-parser owner={} line={} visibility={} name={} qualifiedName={} languageKind=use exported={} relation={} relationTarget={} query={}",
                 compact_field(&fact_id),
                 hit.fact_kind,
                 owner,
@@ -82,6 +91,8 @@ pub(super) fn render_search_query(
                 compact_field(fact_name),
                 compact_field(&hit.source_path),
                 hit.visibility == "public",
+                hit.relation_kind(),
+                compact_field(&hit.source_path),
                 compact_field(syntax_query.term()),
             );
         }

@@ -7,8 +7,8 @@ use serde_json::Value;
 use tempfile::TempDir;
 
 use crate::cli::support::{
-    normalize_temp_root, run_cli, run_search, run_search_with_stdin, write_manifest,
-    write_search_fixture,
+    configure_shared_asp_renderer, normalize_temp_root, run_cli, run_search, run_search_with_stdin,
+    write_manifest, write_search_fixture,
 };
 
 #[test]
@@ -300,7 +300,7 @@ fn cli_search_views_render_rfc_line_protocol() {
     );
     assert!(
         owner_item_query
-            .contains("|item load kind=fn responsibilities=early-return public=true next=symbol:load read=src/lib.rs:6:6"),
+            .contains("|item load kind=fn responsibilities=early-return public=true next=syntax:load read=src/lib.rs:6:6"),
         "{owner_item_query}"
     );
     assert!(
@@ -552,6 +552,18 @@ fn cli_search_views_render_rfc_line_protocol() {
             .any(|seed| seed["kind"] == "owner" && seed["target"] == "src/lib.rs"),
         "{value}"
     );
+
+    let owner_frontier = run_search(root, &["owner", "src/lib.rs"]);
+    assert!(
+        owner_frontier.contains("|hot load kind=fn responsibilities=early-return public=true"),
+        "{owner_frontier}"
+    );
+    assert!(
+        owner_frontier
+            .contains("|test tests/domain.rs functions=1 owner=src/lib.rs reason=symbol:load"),
+        "{owner_frontier}"
+    );
+    assert!(!owner_frontier.contains("|item load "), "{owner_frontier}");
 
     let owner_with_tests = run_search(root, &["owner", "src/lib.rs", "items", "tests"]);
     assert!(
@@ -912,5 +924,139 @@ fn cli_search_views_render_rfc_line_protocol() {
     assert!(
         !ingest_seeds.contains("|owner src/lib.rs"),
         "{ingest_seeds}"
+    );
+}
+
+#[test]
+fn cli_search_from_workspace_member_uses_workspace_root() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"crates/member\"]\nresolver = \"2\"\n",
+    )
+    .expect("write workspace manifest");
+    fs::create_dir_all(root.join("crates/member/src")).expect("create member src");
+    fs::write(
+        root.join("crates/member/Cargo.toml"),
+        "[package]\nname = \"member\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write member manifest");
+    fs::write(
+        root.join("crates/member/src/lib.rs"),
+        "pub fn member() {}\n",
+    )
+    .expect("write member source");
+
+    let mut command = Command::new(env!("CARGO_BIN_EXE_rs-harness"));
+    configure_shared_asp_renderer(&mut command);
+    let output = command
+        .current_dir(root.join("crates/member"))
+        .args(["search", "workspace"])
+        .output()
+        .expect("run search workspace");
+    assert!(output.status.success(), "{output:?}");
+    let rendered = normalize_temp_root(&String::from_utf8(output.stdout).expect("stdout"), root);
+
+    assert!(
+        rendered.starts_with("[search-workspace] root=. pkg=1"),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains(
+            "|package crates/member root=crates/member manifest=crates/member/Cargo.toml"
+        ),
+        "{rendered}"
+    );
+}
+
+#[test]
+fn cli_search_does_not_use_parent_workspace_when_member_is_excluded() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    let nested = root.join("languages/orgize");
+    fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"languages/*\"]\nexclude = [\"languages/orgize\"]\nresolver = \"2\"\n",
+    )
+    .expect("write parent workspace manifest");
+    fs::create_dir_all(nested.join("src")).expect("create nested src");
+    fs::write(
+        nested.join("Cargo.toml"),
+        "[package]\nname = \"orgize\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write nested manifest");
+    fs::write(nested.join("src/lib.rs"), "pub fn orgize() {}\n").expect("write nested source");
+
+    let mut command = Command::new(env!("CARGO_BIN_EXE_rs-harness"));
+    configure_shared_asp_renderer(&mut command);
+    let output = command
+        .current_dir(&nested)
+        .args(["search", "workspace"])
+        .output()
+        .expect("run search workspace");
+    assert!(output.status.success(), "{output:?}");
+    let rendered = normalize_temp_root(&String::from_utf8(output.stdout).expect("stdout"), &nested);
+
+    assert!(
+        rendered.starts_with("[search-workspace] root=. pkg=1"),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains("|package . root=. manifest=Cargo.toml"),
+        "{rendered}"
+    );
+    assert!(!rendered.contains("languages/orgize"), "{rendered}");
+}
+
+#[test]
+fn cli_search_owner_with_dot_project_root_is_not_duplicated() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_search_fixture(root);
+
+    let mut command = Command::new(env!("CARGO_BIN_EXE_rs-harness"));
+    configure_shared_asp_renderer(&mut command);
+    let output = command
+        .current_dir(root)
+        .args([
+            "search",
+            "owner",
+            "src/lib.rs",
+            "items",
+            "--query",
+            "fixture",
+            ".",
+        ])
+        .output()
+        .expect("run search owner");
+    assert!(output.status.success(), "{output:?}");
+    let rendered = normalize_temp_root(&String::from_utf8(output.stdout).expect("stdout"), root);
+
+    assert_eq!(rendered.matches("[search-owner]").count(), 1, "{rendered}");
+}
+
+#[test]
+fn cli_search_ingest_rejects_extra_project_root_argument() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path().join("fixture");
+    fs::create_dir_all(&root).expect("create fixture root");
+    write_search_fixture(&root);
+
+    let mut command = Command::new(env!("CARGO_BIN_EXE_rs-harness"));
+    configure_shared_asp_renderer(&mut command);
+    let output = command
+        .current_dir(temp.path())
+        .args(["search", "ingest", "items", "tests", "--view", "seeds"])
+        .arg(&root)
+        .arg(".")
+        .output()
+        .expect("run search ingest");
+
+    assert!(!output.status.success(), "{output:?}");
+    let stderr = String::from_utf8(output.stderr).expect("stderr");
+    assert!(
+        stderr.contains("expected at most one PROJECT_ROOT argument"),
+        "{stderr}"
     );
 }

@@ -801,6 +801,37 @@ impl RustHarnessConfig {
         self
     }
 
+    /// Return a config with the built-in Criterion performance adapter enabled.
+    #[must_use]
+    pub fn with_criterion_performance_verification(self) -> Self {
+        let descriptor = RustVerificationSkillDescriptor::criterion_performance();
+        let binding = RustVerificationSkillBinding::new(descriptor.skill_id.clone()).with_adapter(
+            descriptor
+                .adapter
+                .clone()
+                .unwrap_or_else(|| "criterion".to_string()),
+        );
+        self.with_verification_skill_binding(RustVerificationTaskKind::Performance, binding)
+            .with_verification_skill_descriptor(descriptor)
+    }
+
+    /// Return a config that marks one owner as latency-sensitive performance work.
+    #[must_use]
+    pub fn with_latency_sensitive_performance_owner(
+        self,
+        owner_path: impl Into<PathBuf>,
+        rationale: impl Into<String>,
+    ) -> Self {
+        self.with_verification_profile_hint(
+            RustVerificationProfileHint::new(
+                owner_path,
+                [RustOwnerResponsibility::LatencySensitive],
+            )
+            .with_task_kinds([RustVerificationTaskKind::Performance])
+            .with_rationale(rationale),
+        )
+    }
+
     /// Return a config with one responsibility mapped to explicit task kinds.
     #[must_use]
     pub fn with_verification_responsibility_task_kinds<I>(

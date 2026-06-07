@@ -1,6 +1,5 @@
 //! Rust tree-sitter-compatible syntax ABI atoms.
 
-#[allow(dead_code)]
 pub(crate) const RUST_OWNER_ITEMS_QUERY_REF: &str =
     "semantic-tree-sitter-query/rust-owner-items.v1";
 

@@ -17,6 +17,11 @@ name = "rs-harness"
 path = "src/bin/rs-harness.rs"
 required-features = ["cli"]
 
+[[bench]]
+name = "query_search_microbench"
+harness = false
+required-features = ["search"]
+
 [dependencies]
 cargo_toml = "0.22.3"
 proc-macro2 = { version = "1", features = ["span-locations"] }

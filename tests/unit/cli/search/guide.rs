@@ -29,15 +29,54 @@ fn cli_search_guide_renders_typed_reasoning_profiles() {
         "{stdout}"
     );
     assert!(
+        stdout.contains(
+            "|catalog reasoningProfiles=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg entries=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg routes=path,read-frontier"
+        ),
+        "{stdout}"
+    );
+    assert!(
         stdout.contains("  overview-prime:\n    command=search prime --view seeds"),
         "{stdout}"
     );
     assert!(
-        stdout.contains("  owner-items:\n    args=owner:path query:term"),
+        stdout.contains("  owner-query:\n    args=owner:path query:term"),
         "{stdout}"
     );
     assert!(
+        stdout.contains(
+            "    command=search reasoning owner-query --owner <owner-path> --query <term> --view seeds"
+        ),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("owner-items"), "{stdout}");
+    assert!(
         stdout.contains("  query-deps:\n    args=query:term dependency:pkg"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "    command=search reasoning query-deps --query <term> --dependency <pkg> --view seeds"
+        ),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("  finding-frontier:\n    args=finding:term owner:path"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "    command=search reasoning finding-frontier --query <finding-term> --owner <owner-path> --view seeds"
+        ),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("  feature-cfg:\n    args=feature:name"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "    command=search reasoning feature-cfg --query <feature-name> --view seeds"
+        ),
         "{stdout}"
     );
     assert!(

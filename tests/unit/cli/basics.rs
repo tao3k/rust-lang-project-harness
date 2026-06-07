@@ -116,6 +116,19 @@ fn cli_agent_provider_surface_delegates_hook_runtime_to_root_tool() {
         "{stdout}"
     );
     assert!(
+        stdout.contains(
+            "|catalog reasoningProfiles=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg entries=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg routes=path,read-frontier"
+        ),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            r#"next="use search-guide command=search reasoning <profile> --owner/--query/--dependency ... --view seeds""#
+        ),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("<typed-selectors>"), "{stdout}");
+    assert!(
         stdout.contains(r#"|refer search-guide="search guide ." use=low-frequency-tool-map"#),
         "{stdout}"
     );
@@ -131,6 +144,8 @@ fn cli_agent_provider_surface_delegates_hook_runtime_to_root_tool() {
         !stdout.contains("|entry finding-frontier selectors=F:finding,O:owner?"),
         "{stdout}"
     );
+    assert!(!stdout.contains("owner-items"), "{stdout}");
+    assert!(!stdout.contains("profiles="), "{stdout}");
 
     let install = run_cli([
         "agent".as_ref(),

@@ -1126,6 +1126,9 @@ enum Entry {
     File(Vec<u8>),
 }
 
+const SYNTHETIC_AST_PATCH_SCENARIO_MANIFEST: &str =
+    "[package]\nname = \"ast-patch-scenario\"\nversion = \"0.0.0\"\nedition = \"2021\"\n";
+
 fn snapshot_dir(root: &Path) -> BTreeMap<PathBuf, Entry> {
     let mut entries = BTreeMap::new();
     if root.is_dir() {
@@ -1141,7 +1144,7 @@ fn snapshot_dir_recursive(base: &Path, dir: &Path, entries: &mut BTreeMap<PathBu
         .collect::<Vec<_>>();
     children.sort();
     for path in children {
-        if is_generated_fixture_artifact(&path) {
+        if is_generated_fixture_artifact(&path) || is_synthetic_ast_patch_scenario_manifest(&path) {
             continue;
         }
         let rel = path
@@ -1188,12 +1191,26 @@ fn copy_dir_recursive(src: &Path, dst: &Path) {
             });
         }
     }
+    if dst.join("src").is_dir() && !dst.join("Cargo.toml").exists() {
+        fs::write(
+            dst.join("Cargo.toml"),
+            SYNTHETIC_AST_PATCH_SCENARIO_MANIFEST,
+        )
+        .unwrap_or_else(|error| panic!("write fixture Cargo.toml in {}: {error}", dst.display()));
+    }
 }
 
 fn is_generated_fixture_artifact(path: &Path) -> bool {
     path.file_name()
         .and_then(|name| name.to_str())
         .is_some_and(|name| name == "target" || name == "Cargo.lock")
+}
+
+fn is_synthetic_ast_patch_scenario_manifest(path: &Path) -> bool {
+    if path.file_name().and_then(|name| name.to_str()) != Some("Cargo.toml") {
+        return false;
+    }
+    fs::read_to_string(path).is_ok_and(|content| content == SYNTHETIC_AST_PATCH_SCENARIO_MANIFEST)
 }
 
 fn read_json(path: &Path) -> Value {

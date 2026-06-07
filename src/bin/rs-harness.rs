@@ -1,3 +1,5 @@
+#![deny(dead_code)]
+
 //! Command-line entry point for `rs-harness`.
 
 use std::process::ExitCode;

@@ -4,7 +4,8 @@ use crate::RustHarnessConfig;
 use crate::discovery::discover_cargo_package_roots;
 use crate::parser::{
     CargoDependencyFacts, CargoDependencyKind, ParsedRustModule, RustReasoningOwnerBranchFacts,
-    RustReasoningOwnerBranchRole, RustTopLevelItemSyntax, syntax_abi::syntax_atom_for_kind,
+    RustReasoningOwnerBranchRole, RustTopLevelItemSyntax,
+    syntax_abi::{RUST_OWNER_ITEMS_QUERY_REF, syntax_atom_for_kind},
 };
 use crate::path::normalize_lexical_path;
 
@@ -147,7 +148,7 @@ fn render_item_core_line(item: &RustTopLevelItemSyntax) -> String {
     if item.has_doc {
         fields.push("doc=true".to_string());
     }
-    fields.push(format!("next=symbol:{name}"));
+    fields.push(format!("next=syntax:{name}"));
     fields.join(" ")
 }
 
@@ -165,12 +166,13 @@ pub(super) fn render_item_locator_line_with_read(
 ) -> String {
     let read_path = display_project_path(package_root, path);
     format!(
-        "{} read={}:{}:{} syn={}",
+        "{} read={}:{}:{} syn={} tsqRef={}",
         render_item_core_line(item),
         read_path,
         item.line,
         item.end_line,
-        syntax_atom_for_kind(item.kind)
+        syntax_atom_for_kind(item.kind),
+        RUST_OWNER_ITEMS_QUERY_REF
     )
 }
 

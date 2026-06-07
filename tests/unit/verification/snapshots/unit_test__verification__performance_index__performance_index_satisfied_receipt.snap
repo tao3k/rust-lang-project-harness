@@ -8,5 +8,5 @@ expression: rendered
    |state: satisfied phase=after_unit_tests_pass fingerprint=rustv:07c5fef10ad0d802 skill=rust-verification-performance@criterion contract_ref=rust-verification-performance@criterion
    |receipt: passed (target/criterion/parser_hot_path/report/index.html)
    |observed_at: 2026-05-01T20:00:00Z
-   |evidence: benchmark_command=cargo bench --bench parser_hot_path,baseline=main@b0a8a7a,regression_threshold=5%,latency_or_throughput=-1.4% latency,allocation_profile=allocs/op unchanged,profile_artifact=target/criterion/parser_hot_path/report/index.html
+   |evidence: benchmark_command=cargo bench --bench query_search_microbench,baseline=main@b0a8a7a,regression_threshold=5%,latency_or_throughput=-1.4% latency,allocation_profile=allocs/op unchanged,profile_artifact=target/criterion/parser_hot_path/report/index.html
    |artifact: target/criterion/parser_hot_path/report/index.html

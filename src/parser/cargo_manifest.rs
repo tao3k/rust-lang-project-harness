@@ -98,6 +98,141 @@ pub(crate) fn parse_cargo_manifest(project_root: &Path) -> CargoManifestFacts {
     }
 }
 
+#[cfg(feature = "cli")]
+pub(crate) fn cargo_project_root_for_path(path: &Path) -> Result<PathBuf, String> {
+    let canonical = fs::canonicalize(path).map_err(|error| {
+        format!(
+            "failed to resolve Rust project path {}: {error}",
+            path.display()
+        )
+    })?;
+    let mut current = if canonical.is_file() {
+        canonical
+            .parent()
+            .ok_or_else(|| format!("failed to resolve parent for {}", canonical.display()))?
+            .to_path_buf()
+    } else {
+        canonical
+    };
+    loop {
+        if current.join("Cargo.toml").is_file() {
+            return Ok(cargo_project_root_for_manifest_dir(&current));
+        }
+        if !current.pop() {
+            break;
+        }
+    }
+    Err("failed to find Rust project root: Cargo.toml not found".to_string())
+}
+
+#[cfg(feature = "cli")]
+fn cargo_project_root_for_manifest_dir(manifest_dir: &Path) -> PathBuf {
+    let manifest = read_manifest(manifest_dir);
+    if manifest
+        .as_ref()
+        .is_some_and(|manifest| manifest.workspace.is_some())
+    {
+        return manifest_dir.to_path_buf();
+    }
+    if let Some(workspace_root) = manifest
+        .as_ref()
+        .and_then(|manifest| manifest.package.as_ref())
+        .and_then(|package| package.workspace.as_deref())
+        .map(|workspace| manifest_dir.join(workspace))
+    {
+        return fs::canonicalize(&workspace_root).unwrap_or(workspace_root);
+    }
+    cargo_parent_workspace_root(manifest_dir).unwrap_or_else(|| manifest_dir.to_path_buf())
+}
+
+#[cfg(feature = "cli")]
+fn cargo_parent_workspace_root(manifest_dir: &Path) -> Option<PathBuf> {
+    let mut current = manifest_dir.parent();
+    while let Some(candidate) = current {
+        if read_manifest(candidate).as_ref().is_some_and(|manifest| {
+            workspace_contains_manifest_dir(candidate, manifest, manifest_dir)
+        }) {
+            return Some(candidate.to_path_buf());
+        }
+        current = candidate.parent();
+    }
+    None
+}
+
+#[cfg(feature = "cli")]
+fn workspace_contains_manifest_dir(
+    workspace_root: &Path,
+    manifest: &Manifest,
+    manifest_dir: &Path,
+) -> bool {
+    let Some(workspace) = manifest.workspace.as_ref() else {
+        return false;
+    };
+    let Ok(relative) = manifest_dir.strip_prefix(workspace_root) else {
+        return false;
+    };
+    let relative = relative.to_string_lossy().replace('\\', "/");
+    if workspace
+        .exclude
+        .iter()
+        .any(|pattern| workspace_member_pattern_matches(pattern, &relative))
+    {
+        return false;
+    }
+    workspace
+        .members
+        .iter()
+        .any(|pattern| workspace_member_pattern_matches(pattern, &relative))
+}
+
+#[cfg(feature = "cli")]
+fn workspace_member_pattern_matches(pattern: &str, relative: &str) -> bool {
+    if !pattern.contains('*') {
+        return pattern == relative;
+    }
+    let pattern_components = pattern.replace('\\', "/");
+    let pattern_components = pattern_components.split('/').collect::<Vec<_>>();
+    let relative_components = relative.split('/').collect::<Vec<_>>();
+    pattern_components.len() == relative_components.len()
+        && pattern_components.iter().zip(relative_components).all(
+            |(pattern_component, relative_component)| {
+                workspace_member_component_matches(pattern_component, relative_component)
+            },
+        )
+}
+
+#[cfg(feature = "cli")]
+fn workspace_member_component_matches(pattern: &str, value: &str) -> bool {
+    if pattern == "*" {
+        return true;
+    }
+    if !pattern.contains('*') {
+        return pattern == value;
+    }
+    let mut remaining = value;
+    let mut parts = pattern.split('*').peekable();
+    let Some(first) = parts.next() else {
+        return pattern == value;
+    };
+    if !remaining.starts_with(first) {
+        return false;
+    }
+    remaining = &remaining[first.len()..];
+    while let Some(part) = parts.next() {
+        if part.is_empty() {
+            continue;
+        }
+        let Some(index) = remaining.find(part) else {
+            return false;
+        };
+        remaining = &remaining[index + part.len()..];
+        if parts.peek().is_none() && !remaining.is_empty() {
+            return false;
+        }
+    }
+    pattern.ends_with('*') || remaining.is_empty()
+}
+
 fn manifest_example_targets(
     project_root: &Path,
     example_targets: &[Product],

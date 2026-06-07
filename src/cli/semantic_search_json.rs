@@ -1,5 +1,6 @@
 //! Shared semantic-search JSON envelope for CLI search output.
 
+use std::collections::BTreeSet;
 use std::path::Path;
 
 use serde_json::{Map, Value, json};
@@ -232,6 +233,7 @@ fn base_packet(
         &header_fields,
     );
     let syntax_refs = attach_syntax_refs_to_search_items(&mut collections.items);
+    append_native_syntax_relation_edges(&collections.native_syntax_facts, &mut collections.edges);
     let mut packet = json!({
         "schemaId": SCHEMA_ID,
         "schemaVersion": SCHEMA_VERSION,
@@ -351,6 +353,50 @@ fn base_packet(
         packet["packageName"] = json!(package_name);
     }
     packet
+}
+
+fn append_native_syntax_relation_edges(native_syntax_facts: &[Value], edges: &mut Vec<Value>) {
+    let mut seen = edges
+        .iter()
+        .filter_map(|edge| {
+            Some((
+                edge["from"].as_str()?.to_string(),
+                edge["kind"].as_str()?.to_string(),
+                edge["to"].as_str()?.to_string(),
+            ))
+        })
+        .collect::<BTreeSet<_>>();
+    for fact in native_syntax_facts {
+        let Some(source_id) = fact["id"].as_str() else {
+            continue;
+        };
+        let Some(relations) = fact["relations"].as_array() else {
+            continue;
+        };
+        for relation in relations {
+            let (Some(kind), Some(target)) =
+                (relation["kind"].as_str(), relation["target"].as_str())
+            else {
+                continue;
+            };
+            if !seen.insert((source_id.to_string(), kind.to_string(), target.to_string())) {
+                continue;
+            }
+            let mut edge = json!({
+                "from": source_id,
+                "kind": kind,
+                "to": target,
+                "fields": {
+                    "source": "nativeSyntaxFacts.relations",
+                    "sourceAuthority": fact["source"].as_str().unwrap_or("native-parser"),
+                }
+            });
+            if let Some(location) = fact.get("location") {
+                edge["location"] = location.clone();
+            }
+            edges.push(edge);
+        }
+    }
 }
 
 fn reasoning_profiles_enabled(options: &SemanticSearchJsonOptions) -> bool {
@@ -743,12 +789,21 @@ fn push_native_syntax_fact(tokens: &[&str], native_syntax_facts: &mut Vec<Value>
     if let Some(query) = string_field(&fields, "query") {
         fact["queryKeys"] = json!([query]);
     }
+    if let (Some(relation), Some(target)) = (
+        string_field(&fields, "relation"),
+        string_field(&fields, "relationTarget"),
+    ) {
+        fact["relations"] = json!([{
+            "kind": relation,
+            "target": target,
+        }]);
+    }
     if let Some(owner_path) = string_field(&fields, "owner")
         && let Some(line) = fields.get("line").and_then(Value::as_u64)
     {
         fact["location"] = json!({
         "path": owner_path,
-        "line": line,
+        "lineRange": format!("{line}:{line}"),
         });
     }
     native_syntax_facts.push(fact);

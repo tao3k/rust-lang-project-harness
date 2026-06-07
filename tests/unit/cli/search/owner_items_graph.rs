@@ -37,14 +37,18 @@ fn cli_search_owner_items_graph_prioritizes_symbol_code_frontier() {
     );
     assert!(
         output.contains(
-            "O=owner:path(src/domain/mod.rs)!owner;Q=query:term(Thing)!query;I=item:symbol(Thing)@src/domain/mod.rs:4:5!code"
+            "O=owner:path(src/domain/mod.rs)!owner;Q=query:term(Thing)!query;I=item:symbol(Thing)@src/domain/mod.rs:4:5!syntax"
         ),
+        "{output}"
+    );
+    assert!(
+        output.contains("syntax I selector=src/domain/mod.rs:4:5 pattern='((struct_item name: (_) @type.name) (#eq? @type.name \"Thing\"))'"),
         "{output}"
     );
     assert!(output.contains("G>{O:selects,Q:matches}"), "{output}");
     assert!(output.contains("O>{I:contains}"), "{output}");
     assert!(output.contains("Q>{I:matches}"), "{output}");
-    assert!(output.contains("rank=I,O frontier=I.code"), "{output}");
+    assert!(output.contains("rank=I,O frontier=I.syntax"), "{output}");
     assert!(
         output.contains("omit=code,projection-nodes,large-item-text"),
         "{output}"

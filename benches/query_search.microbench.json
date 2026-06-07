@@ -1,0 +1,16 @@
+{
+  "schemaId": "agent.semantic-protocols.rust.microbench-budget",
+  "schemaVersion": "1",
+  "cases": {
+    "rust.query.owner-item-frontier-render": {
+      "warmupIterations": 5,
+      "measureIterations": 20,
+      "p95MaxMs": 120
+    },
+    "rust.search.prime-seed-render": {
+      "warmupIterations": 5,
+      "measureIterations": 20,
+      "p95MaxMs": 120
+    }
+  }
+}
