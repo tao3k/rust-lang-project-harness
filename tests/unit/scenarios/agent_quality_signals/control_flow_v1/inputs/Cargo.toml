@@ -1,0 +1,4 @@
+[package]
+name = "agent-quality-signals"
+version = "0.1.0"
+edition = "2024"

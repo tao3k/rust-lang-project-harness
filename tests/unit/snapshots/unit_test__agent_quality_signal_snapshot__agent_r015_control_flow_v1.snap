@@ -1,0 +1,36 @@
+---
+source: tests/unit/agent_quality_signal_snapshot.rs
+assertion_line: 24
+expression: "rule_snapshot(\"AGENT-R015\")"
+---
+[
+  {
+    "ruleId": "AGENT-R015",
+    "summary": "$TEMP/src/api.rs public function `classify` hides algorithm shape. Signals: agent-coding-quality/control-flow.decision-stack.",
+    "line": 4,
+    "label": "make this public algorithm shape explicit",
+    "agentQualitySignals": "control-flow.decision-stack"
+  },
+  {
+    "ruleId": "AGENT-R015",
+    "summary": "$TEMP/src/api.rs public function `route` hides algorithm shape. Signals: agent-coding-quality/control-flow.literal-dispatch-chain.",
+    "line": 19,
+    "label": "make this public algorithm shape explicit",
+    "agentQualitySignals": "control-flow.literal-dispatch-chain"
+  }
+]
+
+--- rendered ---
+[AGENT-R015] Info: Public function hides algorithm behind nested control flow
+@ $TEMP/src/api.rs:4:1
+fix: make this public algorithm shape explicit
+line: 4 | pub fn classify(rows: &[usize], enabled: bool) -> usize {
+Help: $TEMP/src/api.rs public function `classify` hides algorithm shape. Signals: agent-coding-quality/control-flow.decision-stack.
+Contract: Expose public Rust algorithm shape through guard clauses, `match`, typed dispatch, or small named pipeline steps so agents can reason about the branch structure before editing.
+
+[AGENT-R015] Info: Public function hides algorithm behind nested control flow
+@ $TEMP/src/api.rs:19:1
+fix: make this public algorithm shape explicit
+line: 19 | pub fn route(kind: &str) -> usize {
+Help: $TEMP/src/api.rs public function `route` hides algorithm shape. Signals: agent-coding-quality/control-flow.literal-dispatch-chain.
+Contract: Expose public Rust algorithm shape through guard clauses, `match`, typed dispatch, or small named pipeline steps so agents can reason about the branch structure before editing.

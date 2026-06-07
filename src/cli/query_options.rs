@@ -39,6 +39,7 @@ pub(super) struct QueryOptions {
     pub(super) seeds: Option<usize>,
     pub(super) source_version: QuerySourceVersion,
     pub(super) paths: Vec<PathBuf>,
+    pub(super) workspace_root: Option<PathBuf>,
 }
 
 impl QueryOptions {
@@ -64,6 +65,13 @@ impl QueryOptions {
                     "--view" => options.output_view = Some(value.to_string()),
                     "--seeds" => options.seeds = Some(parse_usize_option(&option, value)?),
                     "--source" => options.source_version = parse_query_source_version(value)?,
+                    "--workspace" => {
+                        if value.starts_with('-') {
+                            return Err("--workspace requires a project root".to_string());
+                        }
+                        options.workspace = true;
+                        options.workspace_root = Some(PathBuf::from(value));
+                    }
                     _ => unreachable!("known pending query option"),
                 }
                 continue;
@@ -82,9 +90,8 @@ impl QueryOptions {
                 "--help" | "-h" => options.help = true,
                 "--names-only" => options.names_only = true,
                 "--code" => options.code = true,
-                "--workspace" => options.workspace = true,
                 "--selector" | "--query" | "--term" | "--surface" | "--pipe" | "--from-hook"
-                | "--package" | "--view" | "--seeds" | "--source" => {
+                | "--package" | "--view" | "--seeds" | "--source" | "--workspace" => {
                     pending_option = Some(value.to_string());
                 }
                 value if is_search_pipe(value) => options.surfaces.push(value.to_string()),
@@ -104,6 +111,18 @@ impl QueryOptions {
             return Err("query --names-only and --code cannot be combined".to_string());
         }
         options.apply_positionals(positionals)?;
+        if options.workspace_root.is_some() && !options.paths.is_empty() {
+            return Err(
+                "query accepts project root via --workspace or positional PROJECT_ROOT, not both"
+                    .to_string(),
+            );
+        }
+        if options.code && !options.paths.is_empty() {
+            return Err(
+                "query --code does not accept a trailing PROJECT_ROOT; use --workspace PROJECT_ROOT"
+                    .to_string(),
+            );
+        }
         if options.paths.len() > 1 {
             return Err("expected at most one PROJECT_ROOT argument".to_string());
         }
@@ -313,6 +332,9 @@ impl QueryOptions {
     }
 
     fn project_root(&self) -> Result<PathBuf, String> {
+        if let Some(path) = self.workspace_root.as_ref() {
+            return Ok(path.clone());
+        }
         match self.paths.as_slice() {
             [path] => Ok(path.clone()),
             [] => {

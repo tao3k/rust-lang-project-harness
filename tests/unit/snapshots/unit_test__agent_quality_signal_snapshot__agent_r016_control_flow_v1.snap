@@ -1,0 +1,22 @@
+---
+source: tests/unit/agent_quality_signal_snapshot.rs
+assertion_line: 29
+expression: "rule_snapshot(\"AGENT-R016\")"
+---
+[
+  {
+    "ruleId": "AGENT-R016",
+    "summary": "$TEMP/src/api.rs public function `summarize` spans 33 lines with 16 statements and a 16-statement block. Signals: agent-coding-quality/control-flow.broad-linear-phase.",
+    "line": 32,
+    "label": "split this broad function into named algorithm steps",
+    "agentQualitySignals": "control-flow.broad-linear-phase"
+  }
+]
+
+--- rendered ---
+[AGENT-R016] Info: Public function owns a broad linear algorithm surface
+@ $TEMP/src/api.rs:32:1
+fix: split this broad function into named algorithm steps
+line: 32 | pub fn summarize(value: usize) -> usize {
+Help: $TEMP/src/api.rs public function `summarize` spans 33 lines with 16 statements and a 16-statement block. Signals: agent-coding-quality/control-flow.broad-linear-phase.
+Contract: Split broad public Rust functions into small named helpers or pipeline steps so agents can edit one algorithm responsibility at a time.

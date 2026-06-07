@@ -6,5 +6,5 @@ expression: rendered
 @ $TEMP/src/receipt.rs:3:1
 fix: extract this loop into Rust iterator adapters or a named helper
 line: 3 | fn failed_query_names(queries: &[QueryReceipt]) -> Vec<String> {
-Help: $TEMP/src/receipt.rs implementation function `failed_query_names` manually spells iterator boilerplate. Signals: manual collection accumulator loop.
+Help: $TEMP/src/receipt.rs implementation function `failed_query_names` manually spells iterator boilerplate. Signals: native-idiom.manual-transform-loop.
 Contract: Use Rust iterator adapters or a named iterator helper when internal loops only map, filter, collect, count, sum, answer a predicate, or repeatedly scan the same iterator source.

@@ -74,16 +74,16 @@ pub(super) fn print_query_guide() {
 
 |mode names command="query <owner-path> --query <symbol> --names-only" output=item-names
 |mode frontier command="query <owner-path> --query <symbol>" output=item-frontier code=false
-|mode code command="query <owner-path> --query <symbol> --code" output=pure-code requires=unique-match
+|mode code command="query <owner-path> --query <symbol> --workspace <workspace-root> --code" output=pure-code requires=unique-match
 |mode exact-range command="query --from-hook direct-source-read --selector <path:start-end> --code" output=pure-code maxWindow=40
-|mode workspace-range command="query --from-hook direct-source-read --workspace --selector <workspace-path:start-end> --code <workspace-root>" output=pure-code
+|mode workspace-range command="query --from-hook direct-source-read --selector <workspace-path:start-end> --workspace <workspace-root> --code" output=pure-code
 |mode read-plan trigger="wide-selector|low-signal-window|broad-selector" output=read-frontier code=false
 
-|action item.code mapsTo="query <owner-path> --query <item-name> --code <root>"
-|action window.code mapsTo="query --from-hook direct-source-read --selector <path:start-end> --code <root>"
-|action workspace-window.code mapsTo="query --from-hook direct-source-read --workspace --selector <workspace-path:start-end> --code <workspace-root>"
+|action item.code mapsTo="query <owner-path> --query <item-name> --workspace <workspace-root> --code"
+|action window.code mapsTo="query --from-hook direct-source-read --selector <path:start-end> --code"
+|action workspace-window.code mapsTo="query --from-hook direct-source-read --selector <workspace-path:start-end> --workspace <workspace-root> --code"
 |action item.outline mapsTo="query <owner-path> --query <item-name> --view outline <root>"
-|action exact-read mapsTo="query --from-hook direct-source-read --selector <exactRead> --code <root>"
+|action exact-read mapsTo="query --from-hook direct-source-read --selector <exactRead> --workspace <workspace-root> --code"
 
 |read-plan nodeKinds=range,window,symbol,hot
 |read-plan relations=contains,split,remainder,matches,repairs
@@ -101,7 +101,7 @@ pub(super) fn print_tree_sitter_query_guide() {
         r#"[treesitter-query-guide] lang=rust engine=tree-sitter protocol=treesitter-query-guide.v1 root=.
 |contract base=tree-sitter native-extension=rs-harness
 |contract no-code-default=true output=capture-frontier
-|contract pure-code when="--treesitter-query + --code + exact-selector|unique-match"
+|contract code-output=true requires="exact --selector" output=pure-code reason="syntax query locates; exact selector extracts"
 |contract codeTargetDefault=enclosing-item fallback=pattern-root captureText=false
 
 |syntax pattern=s-expression captures=@name fields=name:,type:,value: predicates=#eq?,#match?,#any-of?
@@ -119,16 +119,17 @@ pub(super) fn print_tree_sitter_query_guide() {
 
 |mode frontier command="query --treesitter-query <pattern> <root>" output=capture-frontier code=false
 |mode scoped-frontier command="query --selector <path-or-range> --treesitter-query <pattern> <root>" output=capture-frontier code=false
-|mode pure-code command="query --selector <path-or-range> --treesitter-query <pattern> --code <root>" output=pure-code
+|mode exact-code command="query --selector <path-or-range> --treesitter-query <pattern> --workspace <workspace-root> --code" output=pure-code
 |mode strict command="... --strict-treesitter" noMatch=fail stdout=empty
 
 |rule multiMatchWithoutCode ok=true cap=12 output=frontier
-|rule multiMatchWithCode default=fail require=--limit|--first|unique-predicate
-|rule noMatchWithCode default=fallback-selector strict=false
-|rule noMatchWithCodeStrict exit=nonzero stdout=empty
+|rule codeWithTreeSitterWithoutSelector exit=nonzero reason="exact selector required before pure code"
+|rule codeWithTreeSitterMultiMatch exit=nonzero reason="narrow selector, predicate, or pattern before pure code"
+|rule noMatch default=frontier-empty strict=false
+|rule noMatchStrict exit=nonzero stdout=empty
 
 |example frontier="query --treesitter-query '(function_item name: (identifier) @function.name)' ."
-|example pureCode="query --selector src/cli/query.rs --treesitter-query '(function_item name: (identifier) @function.name (#eq? @function.name \"parse_query\"))' --code ."
+|example exactCode="query --selector src/cli/query.rs --treesitter-query '(function_item name: (identifier) @function.name (#eq? @function.name \"parse_query\"))' --workspace <workspace-root> --code"
 |avoid broad-code-output,capture-name-only-by-default,inline-metadata-in-code-stdout"#
     );
 }
@@ -138,8 +139,8 @@ pub(super) fn print_query_help() {
         "rs-harness query <owner-path[:start:end]> [items tests] [--query SYMBOL] [--names-only | --code] [PROJECT_ROOT]\n\
 rs-harness query --catalog flow-lite --where 'source.call=NAME sink.constructs=TYPE scope.fn=FUNCTION' [--json] [PROJECT_ROOT]\n\
 rs-harness query --catalog <declarations|imports|calls|macros|cfg> [--json] [PROJECT_ROOT]\n\
-rs-harness query --treesitter-query '<s-expression>' [--selector <path[:line|:start:end]>] [--term TERM...] [--code] [--json] [PROJECT_ROOT]\n\
-rs-harness query --from-hook direct-source-read [--workspace] --selector <path[:line-range]> [--source worktree|index|head] --code [PROJECT_ROOT]\n\
+rs-harness query --treesitter-query '<s-expression>' [--selector <path[:line|:start:end]>] [--term TERM...] [--workspace PROJECT_ROOT] [--code] [--json]\n\
+rs-harness query --from-hook direct-source-read --selector <path[:line-range]> [--workspace PROJECT_ROOT] [--source worktree|index|head] --code\n\
 rs-harness query --from-hook KIND --selector SELECTOR [--query SYMBOL | --term TERM] [--names-only | --code] [PROJECT_ROOT]\n\
 rs-harness query --term TERM [--term TERM...] [--surface PIPE] [--view seeds] [PROJECT_ROOT]\n\n\
 Maps hook-denied raw reads and broad searches into parser-owned search output.\n\
@@ -148,7 +149,8 @@ Tree-sitter-compatible syntax catalog and inline queries emit semantic-tree-sitt
 Flow-lite native relation queries emit compact locator/provenance frontiers or semantic-flow-lite.v1 JSON without running CodeQL.\n\
 Glob or broad selectors without terms route to search prime --view seeds.\n\
 Owner item queries emit |query status=hit|miss match=exact|fallback-contains|none.\n\
-Use --workspace when the selector is workspace-relative; use --source only to choose worktree, index, or head content.\n\
+Use --workspace PROJECT_ROOT when the selector is workspace-relative; query --code never accepts a trailing project root.\n\
+Use --source only to choose worktree, index, or head content.\n\
 Use --code after selecting an owner/symbol or hook path/range to emit compact parser-owned code."
     );
 }

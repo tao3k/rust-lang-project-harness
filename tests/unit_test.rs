@@ -31,6 +31,9 @@ mod mod_policy_snapshot;
 #[path = "unit/agent_policy_snapshot.rs"]
 mod agent_policy_snapshot;
 
+#[path = "unit/agent_quality_signal_snapshot.rs"]
+mod agent_quality_signal_snapshot;
+
 #[path = "unit/agent_reasoning_snapshot.rs"]
 mod agent_reasoning_snapshot;
 
@@ -42,3 +45,6 @@ mod runner_config;
 
 #[path = "unit/sample_project.rs"]
 mod sample_project;
+
+#[path = "unit/search.rs"]
+mod search;

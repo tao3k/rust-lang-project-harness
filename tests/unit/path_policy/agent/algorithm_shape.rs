@@ -36,7 +36,14 @@ fn public_nested_algorithm_shape_is_agent_advice() {
 
     let findings = findings_for_rule(&report, "AGENT-R015");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
-    assert!(findings[0].summary.contains("deep control-flow nesting"));
+    assert!(findings[0].summary.contains("control-flow.decision-stack"));
+    assert_eq!(
+        findings[0]
+            .labels
+            .get("agentQualitySignals")
+            .map(String::as_str),
+        Some("control-flow.decision-stack")
+    );
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -53,7 +60,18 @@ fn public_broad_linear_algorithm_surface_is_agent_advice() {
 
     let findings = findings_for_rule(&report, "AGENT-R016");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
-    assert!(findings[0].summary.contains("large linear statement block"));
+    assert!(
+        findings[0]
+            .summary
+            .contains("control-flow.broad-linear-phase")
+    );
+    assert_eq!(
+        findings[0]
+            .labels
+            .get("agentQualitySignals")
+            .map(String::as_str),
+        Some("control-flow.broad-linear-phase")
+    );
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -106,7 +124,14 @@ fn public_literal_dispatch_chain_is_agent_advice() {
     assert!(
         findings[0]
             .summary
-            .contains("literal dispatch chain without match")
+            .contains("control-flow.literal-dispatch-chain")
+    );
+    assert_eq!(
+        findings[0]
+            .labels
+            .get("agentQualitySignals")
+            .map(String::as_str),
+        Some("control-flow.literal-dispatch-chain")
     );
     assert!(report.is_clean(), "{:?}", report.findings);
 }
@@ -127,19 +152,14 @@ fn public_manual_iterator_boilerplate_is_agent_advice() {
     assert!(
         findings[0]
             .summary
-            .contains("manual collection accumulator loop")
+            .contains("native-idiom.manual-transform-loop")
     );
-    assert!(findings[0].summary.contains("manual predicate loop"));
-    assert!(findings[0].summary.contains("manual count loop"));
-    assert!(
+    assert_eq!(
         findings[0]
-            .summary
-            .contains("manual numeric accumulator loop")
-    );
-    assert!(
-        findings[0]
-            .summary
-            .contains("repeated pass over the same iterator source")
+            .labels
+            .get("agentQualitySignals")
+            .map(String::as_str),
+        Some("native-idiom.manual-transform-loop")
     );
     assert!(report.is_clean(), "{:?}", report.findings);
 }

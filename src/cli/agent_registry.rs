@@ -37,6 +37,7 @@ fn agent_registry_json(project_root: &Path) -> Value {
         "api",
         "public-external-types",
         "policy",
+        "semantic-facts",
         "ingest",
     ];
     let mut methods = search_methods
@@ -76,7 +77,7 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "method": "query",
             "adapterModes": ["native-projection"],
             "executionBackends": ["native-parser"],
-            "outputModes": ["compact", "json"],
+            "outputModes": ["frontier", "json"],
             "outputSchemaIds": ["agent.semantic-protocols.semantic-tree-sitter-query"],
             "packetSchemas": ["semantic-tree-sitter-query.v1"],
             "queryCatalogs": [
@@ -109,7 +110,7 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "method": "query/owner-items",
             "adapterModes": ["native-projection"],
             "executionBackends": ["native-parser"],
-            "outputModes": ["compact", "json", "code", "names"],
+            "outputModes": ["frontier", "json", "code", "names"],
             "outputSchemaIds": ["agent.semantic-protocols.semantic-query-packet"],
             "packetSchemas": ["semantic-query-packet.v1", "semantic-tree-sitter-query.v1"],
             "queryInputForms": ["selector", "code-shaped"],
@@ -134,7 +135,7 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "method": "query/direct-source-read",
             "adapterModes": ["native-projection"],
             "executionBackends": ["native-parser"],
-            "outputModes": ["compact", "json", "code", "names", "read-packet"],
+            "outputModes": ["frontier", "json", "code", "names", "read-packet"],
             "outputSchemaIds": [
                 "agent.semantic-protocols.semantic-query-packet",
                 "agent.semantic-protocols.semantic-read-packet"
@@ -253,6 +254,8 @@ fn agent_registry_json(project_root: &Path) -> Value {
                 { "path": "schemas/semantic-tree-sitter-provenance.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-tree-sitter-provenance", "schemaVersion": "1" },
                 { "path": "schemas/semantic-read-packet.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-read-packet", "schemaVersion": "1" },
                 { "path": "schemas/semantic-graph.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-graph", "schemaVersion": "1" },
+                { "path": "schemas/semantic-fact-graph.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-fact-graph", "schemaVersion": "1" },
+                { "path": "schemas/semantic-fact-ontology.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-fact-ontology", "schemaVersion": "1" },
                 { "path": "schemas/semantic-type-surface.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-type-surface", "schemaVersion": "1" },
                 { "path": "schemas/semantic-invariant-candidate.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-invariant-candidate", "schemaVersion": "1" },
                 { "path": "schemas/semantic-verification-receipt.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-verification-receipt", "schemaVersion": "1" },
@@ -322,6 +325,20 @@ fn search_method_descriptor(view: &str) -> Value {
             json!(["semantic-search-packet.v1", "semantic-tree-sitter-query.v1"]),
         );
     }
+    if view == "semantic-facts" {
+        fields.insert("acceptsStdin".to_string(), json!(true));
+        fields.insert("supportsCompact".to_string(), json!(false));
+        fields.insert(
+            "outputSchemaIds".to_string(),
+            json!(["agent.semantic-protocols.semantic-fact-graph"]),
+        );
+        fields.insert(
+            "packetSchemas".to_string(),
+            json!(["semantic-fact-graph.v1", "semantic-fact-ontology.v1"]),
+        );
+        fields.insert("outputModes".to_string(), json!(["json"]));
+        fields.insert("input".to_string(), json!("search semantic-facts <query>"));
+    }
     let ingest_required_for = search_ingest_required_for(view);
     if !ingest_required_for.is_empty() {
         fields.insert("ingestRequiredFor".to_string(), json!(ingest_required_for));
@@ -360,6 +377,7 @@ fn search_view_requires_query(view: &str) -> bool {
             | "docs"
             | "docs-use"
             | "api"
+            | "semantic-facts"
     )
 }
 
@@ -441,6 +459,10 @@ fn search_capabilities(view: &str) -> Vec<Value> {
             semantic_capability("policy-rule-handle-search"),
             rust_capability("rust-project-policy-rule-handle-search"),
             rust_capability("rust-agent-policy-rule-handle-search"),
+        ],
+        "semantic-facts" => vec![
+            semantic_capability("graph-turbo-provider-facts"),
+            rust_capability("rust-syn-field-type-collection-facts"),
         ],
         "ingest" => vec![
             semantic_capability("external-candidate-ingest"),

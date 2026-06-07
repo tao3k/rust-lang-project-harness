@@ -95,7 +95,7 @@ pub(super) fn print_guide(_project_root: &Path) {
 |catalog reasoningProfiles=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg entries=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg routes=path,read-frontier
 
 |flow bootstrap start="search guide ." then="search prime --view seeds ." next="use search-guide command=search reasoning <profile> --owner/--query/--dependency ... --view seeds"
-|flow code-shaped-read start="refer:treesitter-query-guide" then="query --treesitter-query <pattern>" then="query --selector <path:range> --treesitter-query <pattern> --code"
+|flow code-shaped-read start="refer:treesitter-query-guide" then="query --treesitter-query <pattern>" then="query --selector <path:range> --treesitter-query <pattern> --workspace <workspace-root> --code"
 |flow wide-read-protection trigger="query --from-hook direct-source-read --selector <wide-range> --code" output=read-frontier code=false
 
 |refer search-guide="search guide ." use=low-frequency-tool-map

@@ -18,10 +18,13 @@ fn private_nested_receipt_traversal_is_agent_advice() {
 
     let findings = findings_for_rule(&report, "AGENT-R025");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
-    assert!(
+    assert!(findings[0].summary.contains("control-flow.traversal-knot"));
+    assert_eq!(
         findings[0]
-            .summary
-            .contains("nested loops guarded by branches")
+            .labels
+            .get("agentQualitySignals")
+            .map(String::as_str),
+        Some("control-flow.traversal-knot")
     );
     assert!(report.is_clean(), "{:?}", report.findings);
 }
@@ -61,7 +64,14 @@ fn private_manual_iterator_boilerplate_is_agent_advice() {
     assert!(
         findings[0]
             .summary
-            .contains("manual collection accumulator loop")
+            .contains("native-idiom.manual-transform-loop")
+    );
+    assert_eq!(
+        findings[0]
+            .labels
+            .get("agentQualitySignals")
+            .map(String::as_str),
+        Some("native-idiom.manual-transform-loop")
     );
     assert!(findings_for_rule(&report, "AGENT-R025").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);

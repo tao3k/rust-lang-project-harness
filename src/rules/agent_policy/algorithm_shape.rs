@@ -19,6 +19,28 @@ const MIN_LINEAR_BLOCK_STATEMENTS: usize = 14;
 const MIN_INTERNAL_TRAVERSAL_NESTING_DEPTH: usize = 4;
 const MIN_INTERNAL_TRAVERSAL_LOOP_NESTING_DEPTH: usize = 2;
 const MIN_INTERNAL_TRAVERSAL_BRANCH_COUNT: usize = 2;
+const AGENT_QUALITY_SIGNALS_LABEL: &str = "agentQualitySignals";
+const AGENT_QUALITY_SIGNAL_COMPACT_PREFIX: &str = "agent-coding-quality/";
+const CONTROL_FLOW_BROAD_LINEAR_PHASE: &str = "control-flow.broad-linear-phase";
+const CONTROL_FLOW_DECISION_STACK: &str = "control-flow.decision-stack";
+const CONTROL_FLOW_LITERAL_DISPATCH_CHAIN: &str = "control-flow.literal-dispatch-chain";
+const CONTROL_FLOW_TRAVERSAL_KNOT: &str = "control-flow.traversal-knot";
+const NATIVE_IDIOM_MANUAL_TRANSFORM_LOOP: &str = "native-idiom.manual-transform-loop";
+
+fn compact_agent_quality_signals(signal_ids: &[&'static str]) -> String {
+    signal_ids
+        .iter()
+        .map(|signal_id| compact_agent_quality_signal(signal_id))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn compact_agent_quality_signal(signal_id: &str) -> String {
+    if signal_id.starts_with(AGENT_QUALITY_SIGNAL_COMPACT_PREFIX) {
+        return signal_id.to_string();
+    }
+    format!("{AGENT_QUALITY_SIGNAL_COMPACT_PREFIX}{signal_id}")
+}
 
 pub(super) fn algorithm_shape_findings(
     modules: &[&ParsedRustModule],
@@ -51,21 +73,24 @@ pub(super) fn native_iterator_idiom_findings(
                 .iter()
                 .filter(|control_flow| !control_flow.is_test_context)
                 .filter_map(|control_flow| {
-                    let profile = native_iterator_idiom_profile(control_flow);
-                    if profile.is_empty() {
-                        return None;
-                    }
-                    Some(RustHarnessFinding::from_rule(
-                        rule,
-                        format!(
-                            "{} public function `{}` manually spells iterator boilerplate. Signals: {}.",
-                            display_path(&module.report.path),
-                            control_flow.function_name,
-                            profile.join(", ")
+            let profile = native_iterator_idiom_profile(control_flow);
+            if profile.is_empty() {
+                return None;
+            }
+                    Some(with_agent_quality_signals(
+                        RustHarnessFinding::from_rule(
+                            rule,
+                            format!(
+                                "{} public function `{}` manually spells iterator boilerplate. Signals: {}.",
+                                display_path(&module.report.path),
+                                control_flow.function_name,
+                                NATIVE_IDIOM_MANUAL_TRANSFORM_LOOP
+                            ),
+                            path_line_location(&module.report.path, control_flow.line),
+                            source_line(&module.source, control_flow.line),
+                            "replace this boilerplate loop with a Rust iterator idiom",
                         ),
-                        path_line_location(&module.report.path, control_flow.line),
-                        source_line(&module.source, control_flow.line),
-                        "replace this boilerplate loop with a Rust iterator idiom",
+                        &[NATIVE_IDIOM_MANUAL_TRANSFORM_LOOP],
                     ))
                 })
                 .collect::<Vec<_>>()
@@ -88,17 +113,21 @@ fn nested_algorithm_findings(
             if profile.is_empty() {
                 return None;
             }
-            Some(RustHarnessFinding::from_rule(
-                rule,
-                format!(
-                    "{} public function `{}` hides algorithm shape. Signals: {}.",
-                    display_path(&module.report.path),
-                    control_flow.function_name,
-                    profile.join(", ")
+            let signal_ids = nested_algorithm_quality_signals(&profile);
+            Some(with_agent_quality_signals(
+                RustHarnessFinding::from_rule(
+                    rule,
+                    format!(
+                        "{} public function `{}` hides algorithm shape. Signals: {}.",
+                        display_path(&module.report.path),
+                        control_flow.function_name,
+                        compact_agent_quality_signals(&signal_ids)
+                    ),
+                    path_line_location(&module.report.path, control_flow.line),
+                    source_line(&module.source, control_flow.line),
+                    "make this public algorithm shape explicit",
                 ),
-                path_line_location(&module.report.path, control_flow.line),
-                source_line(&module.source, control_flow.line),
-                "make this public algorithm shape explicit",
+                &signal_ids,
             ))
         })
         .collect()
@@ -119,20 +148,23 @@ fn broad_linear_algorithm_findings(
             if profile.is_empty() {
                 return None;
             }
-            Some(RustHarnessFinding::from_rule(
-                rule,
-                format!(
-                    "{} public function `{}` spans {} lines with {} statements and a {}-statement block. Signals: {}.",
-                    display_path(&module.report.path),
-                    control_flow.function_name,
-                    control_flow.line_span,
-                    control_flow.statement_count,
-                    control_flow.max_block_statement_count,
-                    profile.join(", ")
+            Some(with_agent_quality_signals(
+                RustHarnessFinding::from_rule(
+                    rule,
+                    format!(
+                        "{} public function `{}` spans {} lines with {} statements and a {}-statement block. Signals: {}.",
+                        display_path(&module.report.path),
+                        control_flow.function_name,
+                        control_flow.line_span,
+                        control_flow.statement_count,
+                        control_flow.max_block_statement_count,
+                        compact_agent_quality_signal(CONTROL_FLOW_BROAD_LINEAR_PHASE)
+                    ),
+                    path_line_location(&module.report.path, control_flow.line),
+                    source_line(&module.source, control_flow.line),
+                    "split this broad function into named algorithm steps",
                 ),
-                path_line_location(&module.report.path, control_flow.line),
-                source_line(&module.source, control_flow.line),
-                "split this broad function into named algorithm steps",
+                &[CONTROL_FLOW_BROAD_LINEAR_PHASE],
             ))
         })
         .collect()
@@ -154,17 +186,20 @@ fn implementation_traversal_findings(
             if profile.is_empty() {
                 return None;
             }
-            Some(RustHarnessFinding::from_rule(
-                rule,
-                format!(
-                    "{} implementation function `{}` nests traversal scaffolding. Signals: {}.",
-                    display_path(&module.report.path),
-                    control_flow.function_name,
-                    profile.join(", ")
+            Some(with_agent_quality_signals(
+                RustHarnessFinding::from_rule(
+                    rule,
+                    format!(
+                        "{} implementation function `{}` nests traversal scaffolding. Signals: {}.",
+                        display_path(&module.report.path),
+                        control_flow.function_name,
+                        compact_agent_quality_signal(CONTROL_FLOW_TRAVERSAL_KNOT)
+                    ),
+                    path_line_location(&module.report.path, control_flow.line),
+                    source_line(&module.source, control_flow.line),
+                    "extract this traversal into named iterator, predicate, or receipt-processing helpers",
                 ),
-                path_line_location(&module.report.path, control_flow.line),
-                source_line(&module.source, control_flow.line),
-                "extract this traversal into named iterator, predicate, or receipt-processing helpers",
+                &[CONTROL_FLOW_TRAVERSAL_KNOT],
             ))
         })
         .collect()
@@ -187,20 +222,59 @@ fn implementation_iterator_idiom_findings(
             if profile.is_empty() {
                 return None;
             }
-            Some(RustHarnessFinding::from_rule(
-                rule,
-                format!(
-                    "{} implementation function `{}` manually spells iterator boilerplate. Signals: {}.",
-                    display_path(&module.report.path),
-                    control_flow.function_name,
-                    profile.join(", ")
+            Some(with_agent_quality_signals(
+                RustHarnessFinding::from_rule(
+                    rule,
+                    format!(
+                        "{} implementation function `{}` manually spells iterator boilerplate. Signals: {}.",
+                        display_path(&module.report.path),
+                        control_flow.function_name,
+                        compact_agent_quality_signal(NATIVE_IDIOM_MANUAL_TRANSFORM_LOOP)
+                    ),
+                    path_line_location(&module.report.path, control_flow.line),
+                    source_line(&module.source, control_flow.line),
+                    "extract this loop into Rust iterator adapters or a named helper",
                 ),
-                path_line_location(&module.report.path, control_flow.line),
-                source_line(&module.source, control_flow.line),
-                "extract this loop into Rust iterator adapters or a named helper",
+                &[NATIVE_IDIOM_MANUAL_TRANSFORM_LOOP],
             ))
         })
         .collect()
+}
+
+fn with_agent_quality_signals(
+    mut finding: RustHarnessFinding,
+    signal_ids: &[&'static str],
+) -> RustHarnessFinding {
+    finding.labels.insert(
+        AGENT_QUALITY_SIGNALS_LABEL.to_string(),
+        signal_ids.join(","),
+    );
+    finding
+}
+
+fn nested_algorithm_quality_signals(profile: &[&str]) -> Vec<&'static str> {
+    let mut signals = Vec::new();
+    for indicator in profile {
+        match *indicator {
+            "deep control-flow nesting" | "large branch surface without match" => {
+                push_signal(&mut signals, CONTROL_FLOW_DECISION_STACK);
+            }
+            "nested loops mixed with branches" => {
+                push_signal(&mut signals, CONTROL_FLOW_TRAVERSAL_KNOT);
+            }
+            "literal dispatch chain without match" => {
+                push_signal(&mut signals, CONTROL_FLOW_LITERAL_DISPATCH_CHAIN);
+            }
+            _ => {}
+        }
+    }
+    signals
+}
+
+fn push_signal(signals: &mut Vec<&'static str>, signal: &'static str) {
+    if !signals.contains(&signal) {
+        signals.push(signal);
+    }
 }
 
 fn nested_algorithm_profile(control_flow: &RustFunctionControlFlowSyntax) -> Vec<&'static str> {

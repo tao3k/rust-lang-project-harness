@@ -6,5 +6,5 @@ expression: rendered
 @ $TEMP/src/receipt.rs:9:1
 fix: extract this traversal into named iterator, predicate, or receipt-processing helpers
 line: 9 | fn collect_failed_queries(receipt: &ContractReceipt) -> Vec<String> {
-Help: $TEMP/src/receipt.rs implementation function `collect_failed_queries` nests traversal scaffolding. Signals: nested loops guarded by branches.
+Help: $TEMP/src/receipt.rs implementation function `collect_failed_queries` nests traversal scaffolding. Signals: control-flow.traversal-knot.
 Contract: Extract nested internal traversals into named iterator, predicate, or receipt-processing helpers so agents can see the algorithm boundary instead of extending raw loop and guard scaffolding.
