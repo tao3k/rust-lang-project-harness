@@ -262,8 +262,7 @@ fn push_failure_frontier_hot_block(
 }
 
 fn project_relative_display_path(project_root: &Path, path: &Path) -> String {
-    if path.is_absolute()
-        && let Ok(relative) = path.strip_prefix(project_root)
+    if let Ok(relative) = path.strip_prefix(project_root)
         && !relative.as_os_str().is_empty()
     {
         return display_path(relative);

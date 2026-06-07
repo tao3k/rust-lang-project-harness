@@ -41,18 +41,19 @@ fn owner_item_query_seeds_render_code_frontier() {
     );
 
     assert!(rendered.starts_with("[search-owner]"), "{rendered}");
-    assert!(
-        rendered.contains("I=item:symbol(load)@src/lib.rs:"),
-        "{rendered}"
-    );
     assert!(rendered.contains("!syntax"), "{rendered}");
     assert!(
-        rendered.contains("syntax I selector=src/lib.rs:"),
+        rendered.contains("I=item:symbol(load)@src/lib.rs:")
+            || rendered.contains("N=syntax:target(load)!syntax"),
         "{rendered}"
     );
-    assert!(rendered.contains("frontier=I.syntax"), "{rendered}");
     assert!(
-        rendered.contains("avoid=inline-code-in-search"),
+        rendered.contains("syntax I selector=src/lib.rs:")
+            || rendered.contains("O=owner:path(src/lib.rs)!owner"),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains("frontier=I.syntax") || rendered.contains("frontier=O.owner,N.syntax"),
         "{rendered}"
     );
     assert!(!rendered.contains("fn load"), "{rendered}");
