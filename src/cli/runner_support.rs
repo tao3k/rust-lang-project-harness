@@ -134,6 +134,7 @@ pub(super) fn search_view_requires_query(view: &str) -> bool {
             | "docs-use"
             | "api"
             | "reasoning"
+            | "semantic-facts"
     )
 }
 
@@ -171,6 +172,7 @@ pub(super) fn is_known_search_view(view: &str) -> bool {
             | "api"
             | "public-external-types"
             | "reasoning"
+            | "semantic-facts"
             | "ingest"
     )
 }

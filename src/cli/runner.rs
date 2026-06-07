@@ -42,6 +42,7 @@ use super::tree_sitter_query::run_tree_sitter_query_catalog;
 use crate::{
     RustHarnessConfig, RustSearchOptions, RustSearchViewRequest,
     render_rust_project_harness_search_ingest_with_config,
+    render_rust_project_harness_search_semantic_facts_json,
     render_rust_project_harness_search_view_with_config,
 };
 use crate::{
@@ -246,6 +247,24 @@ fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
     let project_root = options.project_root()?;
     let render_options = options.render_options();
     let config = rust_harness_config_for_project(&project_root);
+    if options.view == "semantic-facts" {
+        if !options.json {
+            return Err("search semantic-facts requires --json".to_string());
+        }
+        let query = options
+            .query
+            .as_deref()
+            .ok_or_else(|| "search semantic-facts requires a query".to_string())?;
+        let mut input = String::new();
+        io::stdin()
+            .read_to_string(&mut input)
+            .map_err(|error| format!("failed to read search semantic-facts stdin: {error}"))?;
+        print!(
+            "{}",
+            render_rust_project_harness_search_semantic_facts_json(&project_root, query, &input)?
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
     let raw_rendered = if let Some(rendered) =
         render_search_owner_item_frontier_fast_path(&project_root, options)?
     {
