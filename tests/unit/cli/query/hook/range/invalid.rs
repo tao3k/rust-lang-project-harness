@@ -28,6 +28,7 @@ fn cli_query_hook_wide_line_range_without_parser_items_outputs_source_slice() {
         "--selector".as_ref(),
         "src/lib.rs:1:80".as_ref(),
         "--code".as_ref(),
+        "--workspace".as_ref(),
         root.as_os_str(),
     ]);
     assert!(output.status.success(), "{output:?}");
@@ -67,6 +68,7 @@ fn cli_query_hook_wide_line_range_json_without_parser_items_returns_source_windo
         "--view".as_ref(),
         "read-packet".as_ref(),
         "--json".as_ref(),
+        "--workspace".as_ref(),
         root.as_os_str(),
     ]);
 

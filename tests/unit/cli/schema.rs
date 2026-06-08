@@ -265,7 +265,7 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
     );
     assert_eq!(
         query_owner_items["outputModes"],
-        serde_json::json!(["compact", "json", "code", "names"])
+        serde_json::json!(["frontier", "json", "code", "names"])
     );
     assert_eq!(query_owner_items["supportsQuerySet"], true);
     assert_eq!(
@@ -309,7 +309,7 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
     );
     assert_eq!(
         direct_source_read["outputModes"],
-        serde_json::json!(["compact", "json", "code", "names", "read-packet"])
+        serde_json::json!(["frontier", "json", "code", "names", "read-packet"])
     );
     let fzf = method_descriptor(methods, "search/fzf");
     assert_eq!(fzf["supportsQuerySet"], true);

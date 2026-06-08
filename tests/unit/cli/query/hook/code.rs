@@ -13,6 +13,7 @@ fn cli_query_code_output_is_source_slice() {
         "--query".as_ref(),
         "load".as_ref(),
         "--code".as_ref(),
+        "--workspace".as_ref(),
         root.as_os_str(),
     ]);
     assert!(output.status.success(), "{output:?}");

@@ -350,9 +350,9 @@ fn cli_rust_flow_drill_reduces_search_rounds_with_seeds_and_recipe_plan() {
     assert!(seeds.lines().count() < full.lines().count(), "{seeds}");
     assert!(seeds.contains("D=dependency:pkg(serde)!deps"), "{seeds}");
     assert!(seeds.contains("T=test:path(.)!tests"), "{seeds}");
-    assert!(seeds.contains("rank=D,T"), "{seeds}");
-    assert!(seeds.contains("S=symbol:symbol(Thing)!symbol"), "{seeds}");
-    assert!(seeds.contains("frontier=D.deps,T.tests"), "{seeds}");
+    assert!(seeds.contains("rank=D,T,O,I"), "{seeds}");
+    assert!(seeds.contains("I2=item:symbol(Thing)!syntax"), "{seeds}");
+    assert!(seeds.contains("frontier=D.deps,T.tests,O.owner,I.import"), "{seeds}");
     assert!(!seeds.contains("|owner src/lib.rs"), "{seeds}");
     assert!(!seeds.contains("|item load"), "{seeds}");
     assert!(!seeds.contains("|api src/domain/mod.rs"), "{seeds}");

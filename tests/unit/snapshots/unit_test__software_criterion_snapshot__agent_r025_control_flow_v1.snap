@@ -1,15 +1,15 @@
 ---
-source: tests/unit/agent_quality_signal_snapshot.rs
+source: tests/unit/software_criterion_snapshot.rs
 assertion_line: 39
 expression: "rule_snapshot(\"AGENT-R025\")"
 ---
 [
   {
     "ruleId": "AGENT-R025",
-    "summary": "$TEMP/src/receipt.rs implementation function `collect_failed_queries` nests traversal scaffolding. Signals: agent-coding-quality/control-flow.traversal-knot.",
+    "summary": "$TEMP/src/receipt.rs implementation function `collect_failed_queries` nests traversal scaffolding. Criteria: software-criterion/control-flow.traversal-knot.",
     "line": 21,
     "label": "extract this traversal into named iterator, predicate, or receipt-processing helpers",
-    "agentQualitySignals": "control-flow.traversal-knot"
+    "softwareCriteria": "control-flow.traversal-knot"
   }
 ]
 
@@ -18,5 +18,5 @@ expression: "rule_snapshot(\"AGENT-R025\")"
 @ $TEMP/src/receipt.rs:21:1
 fix: extract this traversal into named iterator, predicate, or receipt-processing helpers
 line: 21 | fn collect_failed_queries(receipt: &ContractReceipt) -> Vec<String> {
-Help: $TEMP/src/receipt.rs implementation function `collect_failed_queries` nests traversal scaffolding. Signals: agent-coding-quality/control-flow.traversal-knot.
+Help: $TEMP/src/receipt.rs implementation function `collect_failed_queries` nests traversal scaffolding. Criteria: software-criterion/control-flow.traversal-knot.
 Contract: Extract nested internal traversals into named iterator, predicate, or receipt-processing helpers so agents can see the algorithm boundary instead of extending raw loop and guard scaffolding.

@@ -102,6 +102,7 @@ fn second() {
         "--selector".as_ref(),
         "src/lib.rs:7:14".as_ref(),
         "--code".as_ref(),
+        "--workspace".as_ref(),
         root.as_os_str(),
     ]);
 
@@ -185,6 +186,7 @@ fn cli_query_hook_source_option_reads_worktree_index_and_head() {
         "--view".as_ref(),
         "read-packet".as_ref(),
         "--json".as_ref(),
+        "--workspace".as_ref(),
         root.as_os_str(),
     ]);
     assert!(output.status.success(), "{output:?}");
@@ -271,6 +273,7 @@ fn query_source_stdout(root: &Path, source_args: &[&str]) -> String {
     ];
     args.extend(source_args);
     args.push("--code");
+    args.push("--workspace");
     let output = run_cli(
         args.into_iter()
             .map(std::ffi::OsString::from)
@@ -302,6 +305,7 @@ fn cli_query_code_output_strips_workspace_prefixed_selector_for_package_root() {
         "--query".as_ref(),
         "run_search".as_ref(),
         "--code".as_ref(),
+        "--workspace".as_ref(),
         root.as_os_str(),
     ]);
     assert!(output.status.success(), "{output:?}");
@@ -320,6 +324,7 @@ fn cli_query_code_output_strips_workspace_prefixed_selector_for_package_root() {
         "--query",
         "run_search",
         "--code",
+        "--workspace",
         ".",
     ]);
     assert!(
@@ -373,6 +378,7 @@ fn run_search() -> String {
         "--query".as_ref(),
         "run_search".as_ref(),
         "--code".as_ref(),
+        "--workspace".as_ref(),
         package_root.as_os_str(),
     ]);
     assert!(standalone_output.status.success(), "{standalone_output:?}");

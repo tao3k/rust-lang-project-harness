@@ -15,7 +15,10 @@ fn function_name_query_args(root: &Path, extra_args: &[&str]) -> Vec<OsString> {
         OsString::from(FUNCTION_NAME_QUERY),
     ];
     args.extend(extra_args.iter().map(OsString::from));
-    args.push(root.as_os_str().to_os_string());
+    args.extend([
+        OsString::from("--workspace"),
+        root.as_os_str().to_os_string(),
+    ]);
     args.extend([
         OsString::from("--asp-syntax-query-captures"),
         OsString::from("function.name"),

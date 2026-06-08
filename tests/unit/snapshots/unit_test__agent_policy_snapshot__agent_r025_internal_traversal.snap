@@ -1,10 +1,11 @@
 ---
 source: tests/unit/agent_policy_snapshot.rs
+assertion_line: 190
 expression: rendered
 ---
 [AGENT-R025] Info: Implementation function nests traversal scaffolding
 @ $TEMP/src/receipt.rs:9:1
 fix: extract this traversal into named iterator, predicate, or receipt-processing helpers
 line: 9 | fn collect_failed_queries(receipt: &ContractReceipt) -> Vec<String> {
-Help: $TEMP/src/receipt.rs implementation function `collect_failed_queries` nests traversal scaffolding. Signals: control-flow.traversal-knot.
+Help: $TEMP/src/receipt.rs implementation function `collect_failed_queries` nests traversal scaffolding. Criteria: software-criterion/control-flow.traversal-knot.
 Contract: Extract nested internal traversals into named iterator, predicate, or receipt-processing helpers so agents can see the algorithm boundary instead of extending raw loop and guard scaffolding.

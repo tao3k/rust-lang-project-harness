@@ -74,6 +74,7 @@ fn cli_query_owner_selector_extracts_parser_item_code() {
         "--query".as_ref(),
         "load".as_ref(),
         "--code".as_ref(),
+        "--workspace".as_ref(),
         root.as_os_str(),
     ]);
     assert!(query_code.status.success(), "{query_code:?}");
@@ -142,6 +143,7 @@ fn cli_query_owner_code_preserves_original_source_slice() {
         "--query".as_ref(),
         "keep_spacing".as_ref(),
         "--code".as_ref(),
+        "--workspace".as_ref(),
         root.as_os_str(),
     ]);
     assert!(output.status.success(), "{output:?}");
@@ -165,6 +167,7 @@ fn cli_query_selector_range_code_uses_local_window() {
         "--selector".as_ref(),
         "src/lib.rs:1:2".as_ref(),
         "--code".as_ref(),
+        "--workspace".as_ref(),
         root.as_os_str(),
     ]);
     assert!(output.status.success(), "{output:?}");

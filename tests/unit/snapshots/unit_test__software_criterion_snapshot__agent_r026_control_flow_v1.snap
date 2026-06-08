@@ -1,15 +1,15 @@
 ---
-source: tests/unit/agent_quality_signal_snapshot.rs
+source: tests/unit/software_criterion_snapshot.rs
 assertion_line: 44
 expression: "rule_snapshot(\"AGENT-R026\")"
 ---
 [
   {
     "ruleId": "AGENT-R026",
-    "summary": "$TEMP/src/receipt.rs implementation function `failed_query_names` manually spells iterator boilerplate. Signals: agent-coding-quality/native-idiom.manual-transform-loop.",
+    "summary": "$TEMP/src/receipt.rs implementation function `failed_query_names` manually spells iterator boilerplate. Criteria: software-criterion/native-idiom.manual-transform-loop.",
     "line": 35,
     "label": "extract this loop into Rust iterator adapters or a named helper",
-    "agentQualitySignals": "native-idiom.manual-transform-loop"
+    "softwareCriteria": "native-idiom.manual-transform-loop"
   }
 ]
 
@@ -18,5 +18,5 @@ expression: "rule_snapshot(\"AGENT-R026\")"
 @ $TEMP/src/receipt.rs:35:1
 fix: extract this loop into Rust iterator adapters or a named helper
 line: 35 | fn failed_query_names(queries: &[QueryReceipt]) -> Vec<String> {
-Help: $TEMP/src/receipt.rs implementation function `failed_query_names` manually spells iterator boilerplate. Signals: agent-coding-quality/native-idiom.manual-transform-loop.
+Help: $TEMP/src/receipt.rs implementation function `failed_query_names` manually spells iterator boilerplate. Criteria: software-criterion/native-idiom.manual-transform-loop.
 Contract: Use Rust iterator adapters or a named iterator helper when internal loops only map, filter, collect, count, sum, answer a predicate, or repeatedly scan the same iterator source.

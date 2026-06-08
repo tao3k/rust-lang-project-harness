@@ -27,6 +27,7 @@ fn cli_query_hook_line_range_code_preserves_exact_line_bytes() {
         "--selector".as_ref(),
         "src/lib.rs:2:5".as_ref(),
         "--code".as_ref(),
+        "--workspace".as_ref(),
         root.as_os_str(),
     ]);
 

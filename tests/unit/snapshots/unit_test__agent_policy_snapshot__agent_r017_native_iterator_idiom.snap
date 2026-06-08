@@ -6,5 +6,5 @@ expression: rendered
 @ $TEMP/src/api.rs:3:1
 fix: replace this boilerplate loop with a Rust iterator idiom
 line: 3 | pub fn summarize(values: &[usize]) -> bool {
-Help: $TEMP/src/api.rs public function `summarize` manually spells iterator boilerplate. Signals: native-idiom.manual-transform-loop.
+Help: $TEMP/src/api.rs public function `summarize` manually spells iterator boilerplate. Criteria: native-idiom.manual-transform-loop.
 Contract: Use Rust iterator adapters and consumers such as `map`, `filter`, `filter_map`, `collect`, `sum`, `count`, `any`, `all`, or a named iterator pipeline helper when loops only map, filter, collect, count, sum, answer a predicate, or repeatedly scan the same iterator source.

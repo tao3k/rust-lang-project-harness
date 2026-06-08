@@ -46,6 +46,7 @@ impl LocalNativeCommand {
         "--selector".as_ref(),
         "src/lib.rs:9:18".as_ref(),
         "--code".as_ref(),
+        "--workspace".as_ref(),
         root.as_os_str(),
     ]);
     assert!(output.status.success(), "{output:?}");

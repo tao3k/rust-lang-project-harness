@@ -13,7 +13,7 @@ const HARNESS_PACKAGE_NAME: &str = "rust-lang-project-harness";
 #[derive(Debug, Clone, Default)]
 pub(crate) struct CargoManifestFacts {
     pub(crate) has_package: bool,
-    #[cfg(any(feature = "search", test))]
+    #[cfg(feature = "cli")]
     pub(crate) package_name: Option<String>,
     pub(crate) workspace_members: Vec<String>,
     pub(crate) workspace_excludes: Vec<String>,
@@ -94,7 +94,7 @@ pub(crate) fn parse_cargo_manifest(project_root: &Path) -> CargoManifestFacts {
     let path_dependency_roots = manifest_path_dependency_roots(project_root, &manifest);
     CargoManifestFacts {
         has_package,
-        #[cfg(any(feature = "search", test))]
+        #[cfg(feature = "cli")]
         package_name,
         workspace_members,
         workspace_excludes,

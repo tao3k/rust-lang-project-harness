@@ -90,7 +90,7 @@ fn cli_query_guide_treesitter_prints_syntax_contract() {
         "{stdout}"
     );
     assert!(
-        stdout.contains(r#"|mode pure-code command="query --selector <path-or-range> --treesitter-query <pattern> --code <root>" output=pure-code"#),
+        stdout.contains(r#"|mode exact-code command="query --selector <path-or-range> --treesitter-query <pattern> --workspace <workspace-root> --code" output=pure-code"#),
         "{stdout}"
     );
 }

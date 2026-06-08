@@ -1,14 +1,14 @@
 ---
-source: tests/unit/agent_quality_signal_snapshot.rs
+source: tests/unit/software_criterion_snapshot.rs
 expression: "rule_snapshot(\"AGENT-R017\")"
 ---
 [
   {
     "ruleId": "AGENT-R017",
-    "summary": "$TEMP/src/api.rs public function `summarize_loop` manually spells iterator boilerplate. Signals: native-idiom.manual-transform-loop.",
+    "summary": "$TEMP/src/api.rs public function `summarize_loop` manually spells iterator boilerplate. Criteria: native-idiom.manual-transform-loop.",
     "line": 66,
     "label": "replace this boilerplate loop with a Rust iterator idiom",
-    "agentQualitySignals": "native-idiom.manual-transform-loop"
+    "softwareCriteria": "native-idiom.manual-transform-loop"
   }
 ]
 
@@ -17,5 +17,5 @@ expression: "rule_snapshot(\"AGENT-R017\")"
 @ $TEMP/src/api.rs:66:1
 fix: replace this boilerplate loop with a Rust iterator idiom
 line: 66 | pub fn summarize_loop(values: &[usize]) -> bool {
-Help: $TEMP/src/api.rs public function `summarize_loop` manually spells iterator boilerplate. Signals: native-idiom.manual-transform-loop.
+Help: $TEMP/src/api.rs public function `summarize_loop` manually spells iterator boilerplate. Criteria: native-idiom.manual-transform-loop.
 Contract: Use Rust iterator adapters and consumers such as `map`, `filter`, `filter_map`, `collect`, `sum`, `count`, `any`, `all`, or a named iterator pipeline helper when loops only map, filter, collect, count, sum, answer a predicate, or repeatedly scan the same iterator source.

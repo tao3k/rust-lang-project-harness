@@ -19,27 +19,27 @@ const MIN_LINEAR_BLOCK_STATEMENTS: usize = 14;
 const MIN_INTERNAL_TRAVERSAL_NESTING_DEPTH: usize = 4;
 const MIN_INTERNAL_TRAVERSAL_LOOP_NESTING_DEPTH: usize = 2;
 const MIN_INTERNAL_TRAVERSAL_BRANCH_COUNT: usize = 2;
-const AGENT_QUALITY_SIGNALS_LABEL: &str = "agentQualitySignals";
-const AGENT_QUALITY_SIGNAL_COMPACT_PREFIX: &str = "agent-coding-quality/";
+const SOFTWARE_CRITERIA_LABEL: &str = "softwareCriteria";
+const SOFTWARE_CRITERION_COMPACT_PREFIX: &str = "software-criterion/";
 const CONTROL_FLOW_BROAD_LINEAR_PHASE: &str = "control-flow.broad-linear-phase";
 const CONTROL_FLOW_DECISION_STACK: &str = "control-flow.decision-stack";
 const CONTROL_FLOW_LITERAL_DISPATCH_CHAIN: &str = "control-flow.literal-dispatch-chain";
 const CONTROL_FLOW_TRAVERSAL_KNOT: &str = "control-flow.traversal-knot";
 const NATIVE_IDIOM_MANUAL_TRANSFORM_LOOP: &str = "native-idiom.manual-transform-loop";
 
-fn compact_agent_quality_signals(signal_ids: &[&'static str]) -> String {
-    signal_ids
+fn compact_software_criteria(criterion_ids: &[&'static str]) -> String {
+    criterion_ids
         .iter()
-        .map(|signal_id| compact_agent_quality_signal(signal_id))
+        .map(|criterion_id| compact_software_criterion(criterion_id))
         .collect::<Vec<_>>()
         .join(", ")
 }
 
-fn compact_agent_quality_signal(signal_id: &str) -> String {
-    if signal_id.starts_with(AGENT_QUALITY_SIGNAL_COMPACT_PREFIX) {
-        return signal_id.to_string();
+fn compact_software_criterion(criterion_id: &str) -> String {
+    if criterion_id.starts_with(SOFTWARE_CRITERION_COMPACT_PREFIX) {
+        return criterion_id.to_string();
     }
-    format!("{AGENT_QUALITY_SIGNAL_COMPACT_PREFIX}{signal_id}")
+    format!("{SOFTWARE_CRITERION_COMPACT_PREFIX}{criterion_id}")
 }
 
 pub(super) fn algorithm_shape_findings(
@@ -77,11 +77,11 @@ pub(super) fn native_iterator_idiom_findings(
             if profile.is_empty() {
                 return None;
             }
-                    Some(with_agent_quality_signals(
+                    Some(with_software_criteria(
                         RustHarnessFinding::from_rule(
                             rule,
                             format!(
-                                "{} public function `{}` manually spells iterator boilerplate. Signals: {}.",
+                                "{} public function `{}` manually spells iterator boilerplate. Criteria: {}.",
                                 display_path(&module.report.path),
                                 control_flow.function_name,
                                 NATIVE_IDIOM_MANUAL_TRANSFORM_LOOP
@@ -113,21 +113,21 @@ fn nested_algorithm_findings(
             if profile.is_empty() {
                 return None;
             }
-            let signal_ids = nested_algorithm_quality_signals(&profile);
-            Some(with_agent_quality_signals(
+            let criterion_ids = nested_algorithm_software_criteria(&profile);
+            Some(with_software_criteria(
                 RustHarnessFinding::from_rule(
                     rule,
                     format!(
-                        "{} public function `{}` hides algorithm shape. Signals: {}.",
+                        "{} public function `{}` hides algorithm shape. Criteria: {}.",
                         display_path(&module.report.path),
                         control_flow.function_name,
-                        compact_agent_quality_signals(&signal_ids)
+                        compact_software_criteria(&criterion_ids)
                     ),
                     path_line_location(&module.report.path, control_flow.line),
                     source_line(&module.source, control_flow.line),
                     "make this public algorithm shape explicit",
                 ),
-                &signal_ids,
+                &criterion_ids,
             ))
         })
         .collect()
@@ -148,17 +148,17 @@ fn broad_linear_algorithm_findings(
             if profile.is_empty() {
                 return None;
             }
-            Some(with_agent_quality_signals(
+            Some(with_software_criteria(
                 RustHarnessFinding::from_rule(
                     rule,
                     format!(
-                        "{} public function `{}` spans {} lines with {} statements and a {}-statement block. Signals: {}.",
+                        "{} public function `{}` spans {} lines with {} statements and a {}-statement block. Criteria: {}.",
                         display_path(&module.report.path),
                         control_flow.function_name,
                         control_flow.line_span,
                         control_flow.statement_count,
                         control_flow.max_block_statement_count,
-                        compact_agent_quality_signal(CONTROL_FLOW_BROAD_LINEAR_PHASE)
+                        compact_software_criterion(CONTROL_FLOW_BROAD_LINEAR_PHASE)
                     ),
                     path_line_location(&module.report.path, control_flow.line),
                     source_line(&module.source, control_flow.line),
@@ -186,14 +186,14 @@ fn implementation_traversal_findings(
             if profile.is_empty() {
                 return None;
             }
-            Some(with_agent_quality_signals(
+            Some(with_software_criteria(
                 RustHarnessFinding::from_rule(
                     rule,
                     format!(
-                        "{} implementation function `{}` nests traversal scaffolding. Signals: {}.",
+                        "{} implementation function `{}` nests traversal scaffolding. Criteria: {}.",
                         display_path(&module.report.path),
                         control_flow.function_name,
-                        compact_agent_quality_signal(CONTROL_FLOW_TRAVERSAL_KNOT)
+                        compact_software_criterion(CONTROL_FLOW_TRAVERSAL_KNOT)
                     ),
                     path_line_location(&module.report.path, control_flow.line),
                     source_line(&module.source, control_flow.line),
@@ -222,14 +222,14 @@ fn implementation_iterator_idiom_findings(
             if profile.is_empty() {
                 return None;
             }
-            Some(with_agent_quality_signals(
+            Some(with_software_criteria(
                 RustHarnessFinding::from_rule(
                     rule,
                     format!(
-                        "{} implementation function `{}` manually spells iterator boilerplate. Signals: {}.",
+                        "{} implementation function `{}` manually spells iterator boilerplate. Criteria: {}.",
                         display_path(&module.report.path),
                         control_flow.function_name,
-                        compact_agent_quality_signal(NATIVE_IDIOM_MANUAL_TRANSFORM_LOOP)
+                        compact_software_criterion(NATIVE_IDIOM_MANUAL_TRANSFORM_LOOP)
                     ),
                     path_line_location(&module.report.path, control_flow.line),
                     source_line(&module.source, control_flow.line),
@@ -241,89 +241,88 @@ fn implementation_iterator_idiom_findings(
         .collect()
 }
 
-fn with_agent_quality_signals(
+fn with_software_criteria(
     mut finding: RustHarnessFinding,
-    signal_ids: &[&'static str],
+    criterion_ids: &[&'static str],
 ) -> RustHarnessFinding {
-    finding.labels.insert(
-        AGENT_QUALITY_SIGNALS_LABEL.to_string(),
-        signal_ids.join(","),
-    );
+    finding
+        .labels
+        .insert(SOFTWARE_CRITERIA_LABEL.to_string(), criterion_ids.join(","));
     finding
 }
 
-fn nested_algorithm_quality_signals(profile: &[&str]) -> Vec<&'static str> {
-    let mut signals = Vec::new();
+fn nested_algorithm_software_criteria(profile: &[&str]) -> Vec<&'static str> {
+    let mut criteria = Vec::new();
     for indicator in profile {
         match *indicator {
             "deep control-flow nesting" | "large branch surface without match" => {
-                push_signal(&mut signals, CONTROL_FLOW_DECISION_STACK);
+                push_signal(&mut criteria, CONTROL_FLOW_DECISION_STACK);
             }
             "nested loops mixed with branches" => {
-                push_signal(&mut signals, CONTROL_FLOW_TRAVERSAL_KNOT);
+                push_signal(&mut criteria, CONTROL_FLOW_TRAVERSAL_KNOT);
             }
             "literal dispatch chain without match" => {
-                push_signal(&mut signals, CONTROL_FLOW_LITERAL_DISPATCH_CHAIN);
+                push_signal(&mut criteria, CONTROL_FLOW_LITERAL_DISPATCH_CHAIN);
             }
             _ => {}
         }
     }
-    signals
+    criteria
 }
 
-fn push_signal(signals: &mut Vec<&'static str>, signal: &'static str) {
-    if !signals.contains(&signal) {
-        signals.push(signal);
+fn push_signal(criteria: &mut Vec<&'static str>, signal: &'static str) {
+    if !criteria.contains(&signal) {
+        criteria.push(signal);
     }
 }
 
 fn nested_algorithm_profile(control_flow: &RustFunctionControlFlowSyntax) -> Vec<&'static str> {
-    let mut signals = Vec::new();
+    let mut criteria = Vec::new();
     if control_flow.max_nesting_depth >= 4 {
-        signals.push("deep control-flow nesting");
+        criteria.push("deep control-flow nesting");
     }
     if control_flow.max_loop_nesting_depth >= 2 && control_flow.branch_count >= 3 {
-        signals.push("nested loops mixed with branches");
+        criteria.push("nested loops mixed with branches");
     }
     if control_flow.literal_dispatch_chain_count > 0 {
-        signals.push("literal dispatch chain without match");
+        criteria.push("literal dispatch chain without match");
     }
     if control_flow.branch_count >= 8 && control_flow.match_count == 0 {
-        signals.push("large branch surface without match");
+        criteria.push("large branch surface without match");
     }
-    signals
+    criteria
 }
 
 fn implementation_traversal_profile(
     control_flow: &RustFunctionControlFlowSyntax,
 ) -> Vec<&'static str> {
-    let mut signals = Vec::new();
+    let mut criteria = Vec::new();
     if control_flow.max_nesting_depth >= MIN_INTERNAL_TRAVERSAL_NESTING_DEPTH
         && control_flow.max_loop_nesting_depth >= MIN_INTERNAL_TRAVERSAL_LOOP_NESTING_DEPTH
         && control_flow.branch_count >= MIN_INTERNAL_TRAVERSAL_BRANCH_COUNT
     {
-        signals.push("nested loops guarded by branches");
+        criteria.push("nested loops guarded by branches");
     }
     if control_flow.repeated_iterator_source_loop_count > 0 && control_flow.branch_count >= 2 {
-        signals.push("repeated guarded scans over one source");
+        criteria.push("repeated guarded scans over one source");
     }
-    signals
+    criteria
 }
 
 fn broad_linear_profile(control_flow: &RustFunctionControlFlowSyntax) -> Vec<&'static str> {
     if control_flow.max_nesting_depth > MAX_LINEAR_NESTING_DEPTH {
         return Vec::new();
     }
-    let mut signals = Vec::new();
+    let mut criteria = Vec::new();
     if control_flow.line_span >= MIN_BROAD_FUNCTION_LINES
         && control_flow.statement_count >= MIN_BROAD_FUNCTION_STATEMENTS
     {
-        signals.push("long public function body");
+        criteria.push("long public function body");
     }
     if control_flow.max_block_statement_count >= MIN_LINEAR_BLOCK_STATEMENTS {
-        signals.push("large linear statement block");
+        criteria.push("large linear statement block");
     }
-    signals
+    criteria
 }
 
 fn native_iterator_idiom_profile(
@@ -332,21 +331,21 @@ fn native_iterator_idiom_profile(
     if control_flow.max_nesting_depth > MAX_NATIVE_IDIOM_NESTING_DEPTH {
         return Vec::new();
     }
-    let mut signals = Vec::new();
+    let mut criteria = Vec::new();
     if control_flow.manual_collection_loop_count > 0 {
-        signals.push("manual collection accumulator loop");
+        criteria.push("manual collection accumulator loop");
     }
     if control_flow.manual_predicate_loop_count > 0 {
-        signals.push("manual predicate loop");
+        criteria.push("manual predicate loop");
     }
     if control_flow.manual_count_loop_count > 0 {
-        signals.push("manual count loop");
+        criteria.push("manual count loop");
     }
     if control_flow.manual_numeric_accumulator_loop_count > 0 {
-        signals.push("manual numeric accumulator loop");
+        criteria.push("manual numeric accumulator loop");
     }
     if control_flow.repeated_iterator_source_loop_count > 0 {
-        signals.push("repeated pass over the same iterator source");
+        criteria.push("repeated pass over the same iterator source");
     }
-    signals
+    criteria
 }

@@ -71,6 +71,8 @@
             "policy-rule-handle-search",
             "rust-project-policy-rule-handle-search",
             "rust-agent-policy-rule-handle-search",
+            "graph-turbo-provider-facts",
+            "rust-syn-field-type-collection-facts",
             "code-shaped-query-routing",
             "rust-native-syntax-query",
             "pattern-recipe-search",

@@ -100,7 +100,7 @@ fn search_lab_multi_pipe_dependency_flow_compresses_to_final_packet() {
     assert_lab_packet(
         "dependency_multi_pipe_tight_seed_packet",
         &tight_seeds,
-        6,
+        7,
         &[
             "[search-dependency] q=serde alg=seed-frontier",
             "aliases: graph:{G=search,D=dependency",

@@ -40,7 +40,7 @@ fn public_nested_algorithm_shape_is_agent_advice() {
     assert_eq!(
         findings[0]
             .labels
-            .get("agentQualitySignals")
+            .get("softwareCriteria")
             .map(String::as_str),
         Some("control-flow.decision-stack")
     );
@@ -68,7 +68,7 @@ fn public_broad_linear_algorithm_surface_is_agent_advice() {
     assert_eq!(
         findings[0]
             .labels
-            .get("agentQualitySignals")
+            .get("softwareCriteria")
             .map(String::as_str),
         Some("control-flow.broad-linear-phase")
     );
@@ -129,7 +129,7 @@ fn public_literal_dispatch_chain_is_agent_advice() {
     assert_eq!(
         findings[0]
             .labels
-            .get("agentQualitySignals")
+            .get("softwareCriteria")
             .map(String::as_str),
         Some("control-flow.literal-dispatch-chain")
     );
@@ -157,7 +157,7 @@ fn public_manual_iterator_boilerplate_is_agent_advice() {
     assert_eq!(
         findings[0]
             .labels
-            .get("agentQualitySignals")
+            .get("softwareCriteria")
             .map(String::as_str),
         Some("native-idiom.manual-transform-loop")
     );

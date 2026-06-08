@@ -31,8 +31,8 @@ mod mod_policy_snapshot;
 #[path = "unit/agent_policy_snapshot.rs"]
 mod agent_policy_snapshot;
 
-#[path = "unit/agent_quality_signal_snapshot.rs"]
-mod agent_quality_signal_snapshot;
+#[path = "unit/software_criterion_snapshot.rs"]
+mod software_criterion_snapshot;
 
 #[path = "unit/agent_reasoning_snapshot.rs"]
 mod agent_reasoning_snapshot;
@@ -48,3 +48,6 @@ mod sample_project;
 
 #[path = "unit/search.rs"]
 mod search;
+
+#[path = "unit/query_workspace_contract.rs"]
+mod query_workspace_contract;

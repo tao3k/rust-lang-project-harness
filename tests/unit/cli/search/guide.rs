@@ -39,7 +39,9 @@ fn cli_search_guide_renders_typed_reasoning_profiles() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("  owner-query:\n    args=owner:path query:term"),
+        stdout.contains(
+            "  owner-query:\n    command=search reasoning owner-query --owner <owner-path> --query <term> --view seeds\n    args=owner:path query:term"
+        ),
         "{stdout}"
     );
     assert!(
@@ -50,7 +52,9 @@ fn cli_search_guide_renders_typed_reasoning_profiles() {
     );
     assert!(!stdout.contains("owner-items"), "{stdout}");
     assert!(
-        stdout.contains("  query-deps:\n    args=query:term dependency:pkg"),
+        stdout.contains(
+            "  query-deps:\n    command=search reasoning query-deps --query <term> --dependency <pkg> --view seeds\n    args=query:term dependency:pkg"
+        ),
         "{stdout}"
     );
     assert!(
@@ -60,7 +64,9 @@ fn cli_search_guide_renders_typed_reasoning_profiles() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("  finding-frontier:\n    args=finding:term owner:path"),
+        stdout.contains(
+            "  finding-frontier:\n    command=search reasoning finding-frontier --query <finding-term> --owner <owner-path> --view seeds\n    args=finding:term owner:path"
+        ),
         "{stdout}"
     );
     assert!(
@@ -70,7 +76,9 @@ fn cli_search_guide_renders_typed_reasoning_profiles() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("  feature-cfg:\n    args=feature:name"),
+        stdout.contains(
+            "  feature-cfg:\n    command=search reasoning feature-cfg --query <feature-name> --view seeds\n    args=feature:name"
+        ),
         "{stdout}"
     );
     assert!(

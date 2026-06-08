@@ -41,6 +41,7 @@ mod language {
         "--selector".as_ref(),
         "src/lib.rs:5:11".as_ref(),
         "--code".as_ref(),
+        "--workspace".as_ref(),
         root.as_os_str(),
     ]);
     assert!(output.status.success(), "{output:?}");
@@ -72,6 +73,7 @@ mod language {
         "--view".as_ref(),
         "read-packet".as_ref(),
         "--json".as_ref(),
+        "--workspace".as_ref(),
         root.as_os_str(),
     ]);
     assert!(json_output.status.success(), "{json_output:?}");
@@ -109,6 +111,7 @@ fn cli_query_hook_read_packet_does_not_guess_syntax_refs_for_direct_source_slice
         "--view".as_ref(),
         "read-packet".as_ref(),
         "--json".as_ref(),
+        "--workspace".as_ref(),
         root.as_os_str(),
     ]);
     assert!(output.status.success(), "{output:?}");

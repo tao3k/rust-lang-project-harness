@@ -339,7 +339,7 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
     assert_lab_packet(
         "public_codex_web_search_workspace_prefixed_owner_seed_flow",
         &workspace_prefixed_owner_seeds,
-        10,
+        13,
         &[
             "[search-owner] q=ext/web-search/src/tool.rs pkg=ext/web-search selector=items alg=item-frontier",
             "O=owner:path(ext/web-search/src/tool.rs)!owner;I=item:symbol(WebSearchTool)@ext/web-search/src/tool.rs:4:4!syntax",

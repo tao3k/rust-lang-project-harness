@@ -22,7 +22,7 @@ fn private_nested_receipt_traversal_is_agent_advice() {
     assert_eq!(
         findings[0]
             .labels
-            .get("agentQualitySignals")
+            .get("softwareCriteria")
             .map(String::as_str),
         Some("control-flow.traversal-knot")
     );
@@ -69,7 +69,7 @@ fn private_manual_iterator_boilerplate_is_agent_advice() {
     assert_eq!(
         findings[0]
             .labels
-            .get("agentQualitySignals")
+            .get("softwareCriteria")
             .map(String::as_str),
         Some("native-idiom.manual-transform-loop")
     );

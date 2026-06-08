@@ -7,7 +7,7 @@ use rust_lang_project_harness::{
 use serde::Serialize;
 use tempfile::TempDir;
 
-const SCENARIO: &str = "tests/unit/scenarios/agent_quality_signals/control_flow_v1";
+const SCENARIO: &str = "tests/unit/scenarios/software_criteria/control_flow_v1";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -16,7 +16,7 @@ struct FindingSnapshot {
     summary: String,
     line: usize,
     label: String,
-    agent_quality_signals: Option<String>,
+    software_criteria: Option<String>,
 }
 
 #[test]
@@ -73,7 +73,7 @@ fn finding_snapshot(finding: &RustHarnessFinding, root: &Path) -> FindingSnapsho
         summary: normalize_temp_root(&finding.summary, root),
         line: finding.location.line,
         label: finding.label.clone(),
-        agent_quality_signals: finding.labels.get("agentQualitySignals").cloned(),
+        software_criteria: finding.labels.get("softwareCriteria").cloned(),
     }
 }
 
