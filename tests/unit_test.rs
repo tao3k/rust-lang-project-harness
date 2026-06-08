@@ -10,6 +10,9 @@ mod public_api;
 #[path = "unit/policy_contract.rs"]
 mod policy_contract;
 
+#[path = "unit/harness_rules.rs"]
+mod harness_rules;
+
 #[path = "unit/policy_config.rs"]
 mod policy_config;
 

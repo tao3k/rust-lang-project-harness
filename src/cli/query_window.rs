@@ -48,6 +48,7 @@ pub(super) fn render_query_local_item_frontier(
     selector: &str,
     item_query: &str,
     source_version: QuerySourceVersion,
+    names_only: bool,
 ) -> Result<Option<String>, String> {
     if source_version != QuerySourceVersion::Worktree || item_query.contains('|') {
         return Ok(None);
@@ -74,10 +75,11 @@ pub(super) fn render_query_local_item_frontier(
     let Some(item_name) = query_local_item_name(item) else {
         return Ok(None);
     };
+    let output_field = if names_only { " output=names" } else { "" };
     Ok(Some(format!(
-        "[search-owner] q={path} pkg=. own=1 item=1 itemQuery={item_query}\n\
+        "[search-owner] q={path} pkg=. own=1 item=1 itemQuery={item_query}{output_field}\n\
 |owner {path} role=source source=parser-visible-module lines={line_count} imports=0\n\
-|query itemQuery={item_query} status=hit match=exact item=1 reason=parser-item-exact next=query-code\n\
+|query itemQuery={item_query} status=hit match=exact item=1 reason=parser-item-exact{output_field} next=query-code\n\
 |item {item_name} kind={} next=syntax:{item_name} read={path}:{}:{} syn={} tsqRef={}\n",
         item.kind,
         item.line,

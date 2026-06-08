@@ -11,6 +11,7 @@ mod build_gate;
 #[cfg(feature = "cli")]
 mod cli;
 mod discovery;
+mod harness_rules;
 mod invariant_catalog;
 mod macros;
 mod model;
@@ -24,6 +25,10 @@ mod search;
 mod self_policy;
 mod verification;
 
+pub use harness_rules::{
+    RUST_HARNESS_RULES_MD, render_rust_harness_rules_markdown, rust_harness_rules_markdown,
+    write_rust_harness_rules_to_unit_tests,
+};
 pub use verification::{
     RUST_BEHAVIOR_SNAPSHOT_PROTOCOL_ID, RUST_BEHAVIOR_SNAPSHOT_PROTOCOL_VERSION,
     RUST_BEHAVIOR_SNAPSHOT_SCHEMA_ID, RUST_BEHAVIOR_SNAPSHOT_SCHEMA_VERSION, RustBehaviorSnapshot,

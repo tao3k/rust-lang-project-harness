@@ -342,7 +342,13 @@ fn render_search_owner_item_frontier_fast_path(
     else {
         return Ok(None);
     };
-    render_query_local_item_frontier(project_root, selector, item_query, options.source_version)
+    render_query_local_item_frontier(
+        project_root,
+        selector,
+        item_query,
+        options.source_version,
+        false,
+    )
 }
 
 #[cfg(not(feature = "search"))]
@@ -364,6 +370,30 @@ fn run_query_view(options: &SearchOptions) -> Result<ExitCode, String> {
             options.source_version,
         )? {
             print!("{rendered}");
+            return Ok(ExitCode::SUCCESS);
+        }
+    }
+    if options.item_names_only
+        && let (Some(selector), Some(item_query)) =
+            (options.query.as_deref(), options.item_query.as_deref())
+    {
+        let project_root = options.project_root()?;
+        if let Some(rendered) = render_query_local_item_frontier(
+            &project_root,
+            selector,
+            item_query,
+            options.source_version,
+            true,
+        )? {
+            if options.json {
+                let json_options = options.semantic_query_json_options()?;
+                println!(
+                    "{}",
+                    render_query_json(&project_root, &json_options, &rendered)?
+                );
+            } else {
+                print!("{rendered}");
+            }
             return Ok(ExitCode::SUCCESS);
         }
     }

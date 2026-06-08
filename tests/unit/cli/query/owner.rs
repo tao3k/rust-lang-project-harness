@@ -68,6 +68,42 @@ fn cli_query_owner_selector_extracts_parser_item_code() {
     assert!(stdout.contains("|item load kind=fn"), "{stdout}");
     assert!(stdout.contains("read=src/lib.rs:"), "{stdout}");
     assert!(!stdout.contains("|code path=src/lib.rs"), "{stdout}");
+    let exact_names_only = run_cli([
+        "query".as_ref(),
+        "src/lib.rs".as_ref(),
+        "--query".as_ref(),
+        "load".as_ref(),
+        "--names-only".as_ref(),
+        "--workspace".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(exact_names_only.status.success(), "{exact_names_only:?}");
+    let stdout = normalize_temp_root(
+        &String::from_utf8(exact_names_only.stdout).expect("utf8 stdout"),
+        root,
+    );
+    assert!(
+        stdout.starts_with(
+            "[search-owner] q=src/lib.rs pkg=. own=1 item=1 itemQuery=load output=names"
+        ),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "|query itemQuery=load status=hit match=exact item=1 reason=parser-item-exact output=names next=query-code"
+        ),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("|item load kind=fn next=syntax:load read=src/lib.rs:"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("syn=function_item/name"), "{stdout}");
+    assert!(
+        !stdout.contains("responsibilities="),
+        "exact names-only query should stay on the local locator fast path: {stdout}"
+    );
+    assert!(!stdout.contains("|code path=src/lib.rs"), "{stdout}");
     let query_code = run_cli([
         "query".as_ref(),
         "src/lib.rs".as_ref(),
@@ -268,6 +304,36 @@ fn cli_query_owner_selector_json_uses_query_packet() {
     assert!(
         value["matches"].as_array().expect("matches").is_empty(),
         "{value}"
+    );
+
+    let exact = run_cli([
+        "query".as_ref(),
+        "src/lib.rs".as_ref(),
+        "--query".as_ref(),
+        "load".as_ref(),
+        "--names-only".as_ref(),
+        "--json".as_ref(),
+        "--workspace".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(exact.status.success(), "{exact:?}");
+    let value = serde_json::from_slice::<serde_json::Value>(&exact.stdout).expect("query json");
+    assert_eq!(value["method"], "query/owner-items");
+    assert_eq!(value["ownerPath"], "src/lib.rs");
+    assert_eq!(value["outputMode"], "names");
+    assert_eq!(value["queryCoverage"][0]["value"], "load");
+    assert_eq!(value["queryCoverage"][0]["status"], "hit");
+    assert_eq!(value["queryCoverage"][0]["match"], "exact");
+    assert_eq!(value["matches"][0]["name"], "load");
+    assert_eq!(value["matches"][0]["kind"], "fn");
+    assert_eq!(value["matches"][0]["code"], serde_json::Value::Null);
+    assert_eq!(
+        value["matches"][0]["fields"]["syntaxNodeType"],
+        "function_item"
+    );
+    assert_eq!(
+        value["syntaxQueryRef"],
+        "semantic-tree-sitter-query/rust-owner-items.v1"
     );
 }
 

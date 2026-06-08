@@ -1,0 +1,55 @@
+- AGENT-R001: Requires public Rust modules to declare concise module intent docs for agent search and repair.
+- AGENT-R002: Requires public Rust items to document their boundary so agents can infer intent from native syntax.
+- AGENT-R003: Detects repeated namespace path segments that obscure Rust ownership paths.
+- AGENT-R004: Detects public item name conflicts that make cross-namespace intent ambiguous.
+- AGENT-R005: Keeps facade exports grouped by owner so agents can locate the repair surface.
+- AGENT-R006: Rejects generic public module names that hide domain ownership.
+- AGENT-R007: Rejects generic source path segments that hide owner responsibility.
+- AGENT-R008: Requires branch modules with multiple resolved child edges to document reasoning-tree intent.
+- AGENT-R009: Detects owner dependency cycles that block acyclic reasoning-tree traversal.
+- AGENT-R010: Requires owner branches to depend on another owner through its branch boundary instead of leaf internals.
+- AGENT-R011: Requires owner fan-out modules to document their coordination intent.
+- AGENT-R012: Requires public semantic identifiers to use named domain types instead of primitives.
+- AGENT-R013: Keeps public library error boundaries typed so recovery does not depend on application context.
+- AGENT-R014: Keeps test support facades narrow by re-exporting only names consumed through that surface.
+- AGENT-R015: Requires public Rust algorithms to expose branch shape through guards, matches, dispatch, or named steps.
+- AGENT-R016: Splits broad public Rust functions into named helpers or pipeline steps.
+- AGENT-R017: Replaces manual public iterator transforms with iterator adapters or named iterator helpers.
+- AGENT-R018: Replaces multiple public flag parameters with named enums, newtypes, or config structs.
+- AGENT-R019: Replaces broad public positional parameters with named config, request, or builder surfaces.
+- AGENT-R020: Wraps repeated public primitive data fields in named domain types.
+- AGENT-R021: Moves broad public enum payloads into named domain types or payload structs.
+- AGENT-R022: Moves duplicated derivable bounds off public data type definitions.
+- AGENT-R023: Replaces anonymous public primitive tuples with named structs, enums, or newtypes.
+- AGENT-R024: Replaces public enum tuple variants that bundle primitives with named payload shapes.
+- AGENT-R025: Extracts nested internal traversals into named helpers with visible algorithm boundaries.
+- AGENT-R026: Replaces internal manual iterator transforms with iterator adapters or named helpers.
+- AGENT-R027: Replaces public primitive type aliases for semantic values with public newtypes or structs.
+- AGENT-R028: Replaces public stringly state fields with enums, newtypes, or typed catalog boundaries.
+- RUST-MOD-R001: Keeps module interface files free of implementation.
+- RUST-MOD-R002: Splits oversized source files into smaller owner modules with clear public boundaries.
+- RUST-MOD-R003: Replaces deep relative imports with explicit owner or facade imports.
+- RUST-MOD-R004: Keeps crate facade files free of implementation.
+- RUST-MOD-R005: Keeps binary entrypoints as thin adapters.
+- RUST-MOD-R006: Keeps build script entrypoints as thin adapters.
+- RUST-MOD-R007: Prevents duplicate file and directory forms for the same module owner.
+- RUST-MOD-R008: Moves inline source modules into external module files.
+- RUST-MOD-R009: Requires every scanned source file to be reachable from a crate or binary root.
+- RUST-MOD-R010: Replaces glob imports with explicit owner imports.
+- RUST-MOD-R011: Prevents sibling file and directory owners from sharing the same name.
+- RUST-PROJ-R001: Moves root-level test files under standard suites or requires an explicit harness entry explanation.
+- RUST-PROJ-R002: Keeps only standard suite directories directly under tests or requires documented exceptions.
+- RUST-PROJ-R003: Keeps test bodies out of source files by mounting source-backed unit tests externally.
+- RUST-PROJ-R004: Requires external source-backed tests to resolve to existing files under tests unit.
+- RUST-PROJ-R005: Splits oversized test leaves into folder-first suites with focused modules.
+- RUST-PROJ-R006: Migrates legacy root cargo-test harness gates toward cargo-check build gates.
+- RUST-PROJ-R007: Keeps root Cargo test targets as thin aggregates with external module mounts only.
+- RUST-PROJ-R008: Requires root Cargo test targets to mount external modules with explicit path attributes.
+- RUST-PROJ-R009: Migrates legacy source cargo-test harness gates toward cargo-check build gates.
+- RUST-PROJ-R010: Requires Rust-native performance skills to expose runnable bench targets.
+- RUST-PROJ-R011: Requires cargo-check harness gates to declare verification hints, suppressions, or skill bindings.
+- RUST-PROJ-R012: Requires harness-enabled packages to mount the build-time harness gate.
+- RUST-PROJ-R013: Requires custom harness scope paths to carry explicit explanations.
+- RUST-PROJ-R014: Requires cargo-backed scope reductions to be explained or removed from coverage.
+- RUST-PROJ-R015: Requires legacy cargo-test advice allowances to include explicit explanations.
+- RUST-PROJ-R016: Requires remaining source cargo-test gates to declare verification hints, suppressions, or skill bindings.

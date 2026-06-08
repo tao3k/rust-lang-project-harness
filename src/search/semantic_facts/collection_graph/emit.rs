@@ -14,6 +14,13 @@ use super::owner_scan::CandidateOwner;
 
 const FIELD_LIMIT: usize = 24;
 
+struct GraphSink<'a> {
+    nodes: &'a mut Vec<Value>,
+    edges: &'a mut Vec<Value>,
+    seen_nodes: &'a mut BTreeSet<String>,
+    seen_edges: &'a mut BTreeSet<(String, String, String)>,
+}
+
 pub(in crate::search::semantic_facts) fn emit_collection_field_graph_facts(
     query: &str,
     owners: Vec<CandidateOwner>,
@@ -22,15 +29,19 @@ pub(in crate::search::semantic_facts) fn emit_collection_field_graph_facts(
     seen_nodes: &mut BTreeSet<String>,
     seen_edges: &mut BTreeSet<(String, String, String)>,
 ) {
+    let mut sink = GraphSink {
+        nodes,
+        edges,
+        seen_nodes,
+        seen_edges,
+    };
     let _ = owners
         .into_iter()
         .try_fold(FIELD_LIMIT, |remaining, owner| {
             if remaining == 0 {
                 return ControlFlow::Break(());
             }
-            let emitted = emit_owner_collection_fields(
-                query, &owner, remaining, nodes, edges, seen_nodes, seen_edges,
-            );
+            let emitted = emit_owner_collection_fields(query, &owner, remaining, &mut sink);
             let next_remaining = remaining.saturating_sub(emitted);
             if next_remaining == 0 {
                 ControlFlow::Break(())
@@ -44,10 +55,7 @@ fn emit_owner_collection_fields(
     query: &str,
     owner: &CandidateOwner,
     limit: usize,
-    nodes: &mut Vec<Value>,
-    edges: &mut Vec<Value>,
-    seen_nodes: &mut BTreeSet<String>,
-    seen_edges: &mut BTreeSet<(String, String, String)>,
+    sink: &mut GraphSink<'_>,
 ) -> usize {
     let Ok(source) = fs::read_to_string(&owner.absolute) else {
         return 0;
@@ -55,9 +63,7 @@ fn emit_owner_collection_fields(
     let Ok(syntax) = parse_rust_source_syntax(&source) else {
         return 0;
     };
-    emit_collection_fields_from_syntax(
-        query, owner, &syntax, limit, nodes, edges, seen_nodes, seen_edges,
-    )
+    emit_collection_fields_from_syntax(query, owner, &syntax, limit, sink)
 }
 
 fn emit_collection_fields_from_syntax(
@@ -65,10 +71,7 @@ fn emit_collection_fields_from_syntax(
     owner: &CandidateOwner,
     syntax: &syn::File,
     limit: usize,
-    nodes: &mut Vec<Value>,
-    edges: &mut Vec<Value>,
-    seen_nodes: &mut BTreeSet<String>,
-    seen_edges: &mut BTreeSet<(String, String, String)>,
+    sink: &mut GraphSink<'_>,
 ) -> usize {
     let fields = collection_fields(&owner.display, syntax)
         .into_iter()
@@ -76,7 +79,14 @@ fn emit_collection_fields_from_syntax(
         .take(limit)
         .collect::<Vec<_>>();
     fields.iter().for_each(|field| {
-        push_field_graph_facts(query, field, nodes, edges, seen_nodes, seen_edges);
+        push_field_graph_facts(
+            query,
+            field,
+            sink.nodes,
+            sink.edges,
+            sink.seen_nodes,
+            sink.seen_edges,
+        );
     });
     fields.len()
 }

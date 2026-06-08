@@ -20,7 +20,7 @@ fn candidate_owners(project_root: &Path, input: &str) -> Vec<CandidateOwner> {
         .filter_map(|line| line.split_once(':').map(|(path, _)| path))
         .filter(|path| !path.trim().is_empty())
         .filter_map(|path| {
-            let display = path.to_string();
+            let display = owner_display_path(path);
             let absolute = if Path::new(path).is_absolute() {
                 PathBuf::from(path)
             } else {
@@ -54,11 +54,15 @@ fn project_collection_field_owners(project_root: &Path) -> Vec<CandidateOwner> {
         .filter_map(|absolute| {
             let display = absolute.strip_prefix(project_root).ok()?.to_string_lossy();
             Some(CandidateOwner {
-                display: display.to_string(),
+                display: owner_display_path(&display),
                 absolute,
             })
         })
         .collect()
+}
+
+fn owner_display_path(path: &str) -> String {
+    path.replace('\\', "/")
 }
 
 fn project_scan_rust_files(project_root: &Path) -> Vec<PathBuf> {
