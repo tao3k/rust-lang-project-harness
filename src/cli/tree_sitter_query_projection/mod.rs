@@ -3,6 +3,7 @@
 mod calls;
 mod capture;
 mod core;
+mod prefilter;
 
 pub(super) use core::{
     SUPPORTED_TREE_SITTER_QUERY_NODES, SyntaxQueryPredicate, SyntaxQueryPredicateOp,

@@ -37,6 +37,7 @@ const RUST_TREE_SITTER_GRAMMAR_PROFILE_PATH: &str =
 const RUST_TREE_SITTER_GRAMMAR_PROFILE_SOURCE: &str =
     include_str!("../../tree-sitter/tree-sitter-rust/grammar-profile.json");
 const MAX_SYNTAX_QUERY_GRAPH_ROWS: usize = 12;
+const TREE_SITTER_QUERY_WORKER_STACK_BYTES: usize = 64 * 1024 * 1024;
 pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<ExitCode>, String> {
     if !args
         .iter()
@@ -234,15 +235,38 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
     let request_fingerprint = format!(
         "semantic-tree-sitter-query.v1:rust:{RUST_TREE_SITTER_GRAMMAR_ID}:{query_identity}:{catalog_fingerprint}:{grammar_profile_fingerprint}",
     );
-    let projection = project_tree_sitter_query(
-        &project_root,
-        &query_plan.node_types,
-        &query_plan.fields,
-        &query_plan.captures,
-        &terms,
-        &query_plan.predicates,
-        selector.as_ref(),
-    )?;
+    let projection_root = project_root.clone();
+    let projection_node_types = query_plan.node_types.clone();
+    let projection_fields = query_plan.fields.clone();
+    let projection_captures = query_plan.captures.clone();
+    let projection_terms = terms.clone();
+    let projection_predicates = query_plan.predicates.clone();
+    let projection_selector = selector.clone();
+    let projection = std::thread::Builder::new()
+        .name("rs-harness-tree-sitter-query".to_string())
+        .stack_size(TREE_SITTER_QUERY_WORKER_STACK_BYTES)
+        .spawn(move || {
+            project_tree_sitter_query(
+                &projection_root,
+                &projection_node_types,
+                &projection_fields,
+                &projection_captures,
+                &projection_terms,
+                &projection_predicates,
+                projection_selector.as_ref(),
+            )
+        })
+        .map_err(|error| format!("failed to start tree-sitter query worker: {error}"))?
+        .join()
+        .map_err(|panic| {
+            if let Some(message) = panic.downcast_ref::<&str>() {
+                format!("tree-sitter query worker panicked: {message}")
+            } else if let Some(message) = panic.downcast_ref::<String>() {
+                format!("tree-sitter query worker panicked: {message}")
+            } else {
+                "tree-sitter query worker panicked".to_string()
+            }
+        })??;
 
     if json_output {
         let predicates = query_plan

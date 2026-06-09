@@ -11,6 +11,7 @@ use crate::parser::parse_rust_source_syntax;
 use super::capture::{
     capture_field_for_projection, capture_line_range_for_item, capture_node_for_item,
 };
+use super::prefilter::source_may_match_query;
 use crate::cli::tree_sitter_query_locator::{SyntaxQuerySelector, syntax_selector_matches};
 use crate::cli::tree_sitter_query_packet::SyntaxQueryRow;
 
@@ -147,6 +148,9 @@ pub(in crate::cli) fn project_tree_sitter_query(
             Ok(source) => source,
             Err(_) => continue,
         };
+        if !source_may_match_query(&source, terms, &prepared_predicates) {
+            continue;
+        }
         let syntax = match parse_rust_source_syntax(&source) {
             Ok(syntax) => syntax,
             Err(_) => continue,
@@ -265,8 +269,8 @@ fn collect_projected_items(items: &[syn::Item], context: &mut ProjectedItemsCont
 }
 
 pub(super) struct PreparedSyntaxQueryPredicate<'a> {
-    predicate: &'a SyntaxQueryPredicate,
-    regexes: Vec<regex::Regex>,
+    pub(super) predicate: &'a SyntaxQueryPredicate,
+    pub(super) regexes: Vec<regex::Regex>,
 }
 
 fn prepare_syntax_query_predicates(

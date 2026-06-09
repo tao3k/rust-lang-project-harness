@@ -1,5 +1,6 @@
 //! Line locator grammar for tree-sitter-compatible query captures.
 
+#[derive(Clone)]
 pub(super) struct SyntaxQuerySelector {
     pub(super) path: String,
     pub(super) start_line: Option<usize>,

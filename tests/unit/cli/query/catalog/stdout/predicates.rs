@@ -41,6 +41,49 @@ fn tree_sitter_query_predicate_filters_capture_text() {
 }
 
 #[test]
+fn tree_sitter_query_predicate_prefilter_skips_deep_irrelevant_sources() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    std::fs::create_dir_all(root.join("src")).expect("src dir");
+    std::fs::write(root.join("src/lib.rs"), "pub fn needle_target() {}\n").expect("target fixture");
+
+    let mut deep_irrelevant = String::new();
+    for index in 0..4096 {
+        deep_irrelevant.push_str(&format!("mod irrelevant_{index} {{\n"));
+    }
+    deep_irrelevant.push_str("pub fn unrelated() {}\n");
+    for _ in 0..4096 {
+        deep_irrelevant.push_str("}\n");
+    }
+    std::fs::write(root.join("src/deep_irrelevant.rs"), deep_irrelevant).expect("deep fixture");
+
+    let output = run_cli([
+        "query".as_ref(),
+        "--treesitter-query".as_ref(),
+        r#"(function_item name: (identifier) @function.name (#eq? @function.name "needle_target"))"#
+            .as_ref(),
+        root.as_os_str(),
+        "--asp-syntax-query-captures".as_ref(),
+        "function.name".as_ref(),
+        "--asp-syntax-query-node-types".as_ref(),
+        "function_item,identifier".as_ref(),
+        "--asp-syntax-query-fields".as_ref(),
+        "name".as_ref(),
+        "--asp-syntax-query-predicates-json".as_ref(),
+        r#"[{"op":"eq","capture":"function.name","values":[{"kind":"string","value":"needle_target"}]}]"#
+            .as_ref(),
+    ]);
+    assert!(output.status.success(), "{output:?}");
+
+    let stdout = String::from_utf8(output.stdout).expect("compact output is UTF-8");
+    assert!(
+        stdout.contains("I=item:fn(needle_target)@src/lib.rs:1!code ts=function_item"),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("deep_irrelevant"), "{stdout}");
+}
+
+#[test]
 fn tree_sitter_query_match_predicate_filters_capture_text() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
