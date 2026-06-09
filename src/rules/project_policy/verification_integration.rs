@@ -311,7 +311,9 @@ fn bench_target_uses_adapter(target: &CargoBenchTargetFacts, adapter: &str) -> b
         return false;
     };
     match adapter {
-        "criterion" => source.contains("criterion_group!") && source.contains("criterion_main!"),
+        "criterion" => {
+            source_uses_criterion_macros(&source) || source_uses_manual_criterion_main(&source)
+        }
         "divan" => source.contains("divan::main") || source.contains("#[divan::bench]"),
         "iai-callgrind" | "iai_callgrind" => {
             source.contains("iai_callgrind::")
@@ -320,4 +322,14 @@ fn bench_target_uses_adapter(target: &CargoBenchTargetFacts, adapter: &str) -> b
         }
         _ => false,
     }
+}
+
+fn source_uses_criterion_macros(source: &str) -> bool {
+    source.contains("criterion_group!") && source.contains("criterion_main!")
+}
+
+fn source_uses_manual_criterion_main(source: &str) -> bool {
+    source.contains("Criterion::")
+        && source.contains(".final_summary()")
+        && (source.contains(".bench_function(") || source.contains(".benchmark_group("))
 }
