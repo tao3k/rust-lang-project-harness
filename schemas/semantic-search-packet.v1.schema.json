@@ -1299,7 +1299,7 @@
         "suggestedFacade": {
           "type": "string",
           "minLength": 1,
-          "description": "Present only when the requested facade maps to one active language facade without ambiguity."
+          "description": "Present only when the requested facade has a protocol-owned or configuration-owned explicit mapping to one active language facade. Do not derive this from substrings, suffixes, or hyphen components."
         },
         "recoveryCommands": {
           "type": "array",
