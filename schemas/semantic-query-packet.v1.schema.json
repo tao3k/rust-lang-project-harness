@@ -920,6 +920,7 @@
           "pattern": "^(?:\\.|(?!/)(?![A-Za-z]:)(?![0-9]+:)(?!\\.\\.?($|/))(?!.*(^|/)\\.\\.?($|/))(?!.*//)[^\\s:\\\\]+(?:/[^\\s:\\\\]+)*):[1-9][0-9]*:[1-9][0-9]*$"
         },
         "argv": {
+          "description": "Legacy materialized provider route for compatibility. New consumers should treat typed action fields as authority and build argv through a trusted materializer rather than deriving commands from projection text or ARI rows.",
           "type": "array",
           "minItems": 1,
           "items": {
