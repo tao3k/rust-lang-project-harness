@@ -12,6 +12,7 @@ use tempfile::TempDir;
 fn main() {
     microbench_query_owner_item_frontier_follows_git_owned_p95_budget();
     microbench_search_prime_seed_follows_git_owned_p95_budget();
+    microbench_search_dependency_api_follows_git_owned_p95_budget();
 }
 
 fn microbench_query_owner_item_frontier_follows_git_owned_p95_budget() {
@@ -82,12 +83,77 @@ fn microbench_search_prime_seed_follows_git_owned_p95_budget() {
     assert_microbench_within_budget("rust.search.prime-seed-render", &stats, &budget);
 }
 
+fn microbench_search_dependency_api_follows_git_owned_p95_budget() {
+    let budget = microbench_budget("rust.search.dependency-api-render");
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_dependency_manifest(root);
+    write_dependency_sources(root, 64);
+    let config = RustHarnessConfig::default();
+    let options = RustSearchOptions::default();
+
+    let stats = measure_microbench(&budget, || {
+        let stdout = render_rust_project_harness_search_view_with_config(&RustSearchViewRequest {
+            project_root: root,
+            config: &config,
+            view: "deps",
+            query: Some("serde@1::Serialize"),
+            options: &options,
+        })
+        .expect("render dependency API search");
+        assert!(stdout.contains("[search-deps]"), "{stdout}");
+        assert!(stdout.contains("versionScope=current"), "{stdout}");
+        assert!(stdout.contains("hit_kind=dependency-api"), "{stdout}");
+    });
+
+    assert_microbench_within_budget("rust.search.dependency-api-render", &stats, &budget);
+}
+
 fn write_manifest(root: &Path, name: &str) {
     fs::write(
         root.join("Cargo.toml"),
         format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n"),
     )
     .expect("write manifest");
+}
+
+fn write_dependency_manifest(root: &Path) {
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\n\
+         name = \"bench-search-deps\"\n\
+         version = \"0.1.0\"\n\
+         edition = \"2024\"\n\n\
+         [dependencies]\n\
+         serde = { version = \"1\", features = [\"derive\"] }\n",
+    )
+    .expect("write dependency manifest");
+}
+
+fn write_dependency_sources(root: &Path, module_count: usize) {
+    let src = root.join("src");
+    fs::create_dir_all(&src).expect("src dir");
+    let modules = (0..module_count)
+        .map(|index| {
+            fs::write(
+                src.join(format!("module_{index}.rs")),
+                format!(
+                    "use serde::Serialize;\n\
+                     #[derive(Serialize)]\n\
+                     pub struct Thing{index} {{\n\
+                         pub value: usize,\n\
+                     }}\n\
+                     pub fn encode_{index}(value: Thing{index}) -> String {{\n\
+                         format!(\"{{:?}}\", value.value)\n\
+                     }}\n"
+                ),
+            )
+            .expect("write dependency source");
+            format!("pub mod module_{index};")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(src.join("lib.rs"), modules).expect("write lib modules");
 }
 
 #[derive(Debug, Deserialize)]

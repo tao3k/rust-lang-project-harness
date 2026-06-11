@@ -11,6 +11,11 @@
       "warmupIterations": 5,
       "measureIterations": 20,
       "p95MaxMs": 120
+    },
+    "rust.search.dependency-api-render": {
+      "warmupIterations": 3,
+      "measureIterations": 12,
+      "p95MaxMs": 350
     }
   }
 }
