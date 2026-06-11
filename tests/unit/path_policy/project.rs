@@ -9,7 +9,7 @@ use super::support::{findings_for_rule, has_rule, write_manifest};
 mod build_gate;
 #[path = "project/legacy_gate.rs"]
 mod legacy_gate;
-#[path = "project/verification_integration.rs"]
+#[path = "project/verification_integration/mod.rs"]
 mod verification_integration;
 
 #[test]

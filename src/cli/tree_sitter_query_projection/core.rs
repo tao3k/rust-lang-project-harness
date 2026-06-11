@@ -3,13 +3,16 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
 use syn::spanned::Spanned;
 
 use crate::parser::parse_rust_source_syntax;
 
 use super::capture::{
     capture_field_for_projection, capture_line_range_for_item, capture_node_for_item,
+};
+use super::predicate::{
+    PreparedSyntaxQueryPredicate, SyntaxQueryPredicate, SyntaxQueryPredicateOp,
+    SyntaxQueryPredicateValue,
 };
 use super::prefilter::source_may_match_query;
 use crate::cli::tree_sitter_query_locator::{SyntaxQuerySelector, syntax_selector_matches};
@@ -32,46 +35,6 @@ pub(in crate::cli) const SUPPORTED_TREE_SITTER_QUERY_NODES: &[&str] = &[
     "type_item",
     "use_declaration",
 ];
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
-#[serde(rename_all = "kebab-case")]
-pub(in crate::cli) enum SyntaxQueryPredicateOp {
-    Eq,
-    AnyEq,
-    AnyOf,
-    Match,
-    AnyMatch,
-    NotEq,
-    NotMatch,
-}
-
-impl SyntaxQueryPredicateOp {
-    fn as_str(&self) -> &'static str {
-        match self {
-            Self::Eq => "eq",
-            Self::AnyEq => "any-eq",
-            Self::AnyOf => "any-of",
-            Self::Match => "match",
-            Self::AnyMatch => "any-match",
-            Self::NotEq => "not-eq",
-            Self::NotMatch => "not-match",
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
-#[serde(tag = "kind", content = "value", rename_all = "kebab-case")]
-pub(in crate::cli) enum SyntaxQueryPredicateValue {
-    String(String),
-    Capture(String),
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
-pub(in crate::cli) struct SyntaxQueryPredicate {
-    pub(in crate::cli) op: SyntaxQueryPredicateOp,
-    pub(in crate::cli) capture: String,
-    pub(in crate::cli) values: Vec<SyntaxQueryPredicateValue>,
-}
 
 pub(in crate::cli) struct SyntaxQueryProjection {
     pub(in crate::cli) rows: Vec<SyntaxQueryRow>,
@@ -266,11 +229,6 @@ fn collect_projected_items(items: &[syn::Item], context: &mut ProjectedItemsCont
             collect_projected_items(nested_items, context);
         }
     }
-}
-
-pub(super) struct PreparedSyntaxQueryPredicate<'a> {
-    pub(super) predicate: &'a SyntaxQueryPredicate,
-    pub(super) regexes: Vec<regex::Regex>,
 }
 
 fn prepare_syntax_query_predicates(

@@ -41,6 +41,33 @@ fn cli_search_prime_renders_line_protocol() {
         "{stdout}"
     );
     assert!(stdout.contains("|package ."), "{stdout}");
+    assert!(
+        stdout.contains("|decision purpose=decision-primer"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "capabilities=pipe,fzf,fd-query,rg-query,owner-items,selector-code,treesitter-query"
+        ),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("ladder=pipe>fzf>fd-query|rg-query>owner-items>selector-code"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("history=asp-artifacts:directReadRisk,repeatedPrime,repeatedPipe,bestPath"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("risk=broad-direct-read,manual-window-scan,repeat-prime"),
+        "{stdout}"
+    );
+    assert!(
+        stdout
+            .contains("next=\"asp rust search pipe '<question-or-feature-term>' --view seeds .\""),
+        "{stdout}"
+    );
     assert!(stdout.contains("|owner src/lib.rs"), "{stdout}");
     assert!(
         stdout.contains("|edge O:src/lib.rs -mod-> O:src/domain/mod.rs"),

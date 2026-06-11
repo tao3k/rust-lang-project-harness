@@ -36,7 +36,7 @@ fn public_large_tokio_bytes_flow_connects_prime_to_dependency_api_and_docs_axes(
     assert_lab_packet(
         "public_tokio_bytes_prime_seeds",
         &prime_seeds,
-        8,
+        9,
         &[
             "[search-prime] root=.",
             "F=feature:feature(io-util)!features",

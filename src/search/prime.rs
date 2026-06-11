@@ -223,6 +223,7 @@ fn render_package_prime(
         target_labels(&scope),
         dependency_labels(&cargo_dependencies)
     );
+    append_decision_primer_lines(&mut rendered, "rust");
     for dependency in cargo_dependencies.iter().take(6) {
         let _ = writeln!(rendered, "{}", render_cargo_dependency_line(dependency));
     }
@@ -326,6 +327,7 @@ fn render_package_prime_seed_source(
     let _ = write!(rendered, "edge={} ", graph_edge_count(&reasoning_tree));
     let _ = write!(rendered, "dep={}", cargo_dependencies.len());
     rendered.push('\n');
+    append_decision_primer_lines(&mut rendered, "rust");
     let feature_names = feature_seed_names(&features, seed_limit.max(1));
     if !feature_names.is_empty() {
         let _ = writeln!(rendered, "|seed features:{}", feature_names.join(","));
@@ -379,6 +381,13 @@ fn render_package_prime_seed_source(
         );
     }
     rendered
+}
+
+fn append_decision_primer_lines(rendered: &mut String, language_id: &str) {
+    let _ = writeln!(
+        rendered,
+        "|decision purpose=decision-primer answer=false code=false capabilities=pipe,fzf,fd-query,rg-query,owner-items,selector-code,treesitter-query ladder=pipe>fzf>fd-query|rg-query>owner-items>selector-code history=asp-artifacts:directReadRisk,repeatedPrime,repeatedPipe,bestPath risk=broad-direct-read,manual-window-scan,repeat-prime next=\"asp {language_id} search pipe '<question-or-feature-term>' --view seeds .\""
+    );
 }
 
 fn append_prime_graph_synthesis_line(

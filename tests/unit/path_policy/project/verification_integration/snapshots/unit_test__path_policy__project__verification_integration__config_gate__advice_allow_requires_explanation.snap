@@ -1,6 +1,6 @@
 ---
-source: tests/unit/path_policy/project/verification_integration.rs
-assertion_line: 144
+source: tests/unit/path_policy/project/verification_integration/config_gate.rs
+assertion_line: 143
 expression: rendered
 ---
 [RUST-PROJ-R015] Warning: Legacy cargo-test advice allowance lacks explanation

@@ -27,6 +27,7 @@ fn prime_search_lab_exposes_complex_feature_cfg_dependency_axes() {
         max_lines: 36,
         required: &[
             "[search-prime] mode=package package=.",
+            "|decision purpose=decision-primer",
             "|feature io-uring dep=dep:io-uring,libc,mio/os-poll,mio/os-ext,dep:slab next=features:io-uring",
             "|cfg tokio_unstable",
             "target=cfg(all(tokio_unstable,target_os=\"linux\"))",
@@ -61,6 +62,7 @@ fn prime_search_lab_routes_large_workspaces_before_package_prime() {
         max_lines: 28,
         required: &[
             "[search-prime] mode=package package=compiler/rustc_middle",
+            "|decision purpose=decision-primer",
             "|package compiler/rustc_middle t=lib dep=rustc_type_ir,smallvec,tracing",
             "|dep smallvec import=smallvec pkg=smallvec version=1 kind=normal opt=false source=manifest manager=cargo feat=may_dangle,union",
             "|api-candidate TyCtxt reason=public-item owner=src/ty.rs",
@@ -79,6 +81,7 @@ fn prime_search_lab_marks_source_large_dependency_owners() {
         max_lines: 24,
         required: &[
             "[search-prime] mode=package package=.",
+            "|decision purpose=decision-primer",
             "|dep ignore import=ignore pkg=ignore version=0.4 kind=normal opt=false source=manifest manager=cargo",
             "|api-candidate build_walker reason=public-item owner=src/lib.rs",
             "|owner src/lib.rs role=root,facade owner=src imports=external:1 source_large=true next=items",
@@ -93,9 +96,10 @@ fn prime_search_lab_bounds_tokio_ignore_bytes_dependency_mesh() {
         name: "tokio_ignore_bytes_dependency_mesh",
         write_fixture: write_complex_dependency_fixture,
         args: &["prime"],
-        max_lines: 38,
+        max_lines: 39,
         required: &[
             "[search-prime] mode=package package=.",
+            "|decision purpose=decision-primer",
             "|package . t=lib,test dep=bytes,ignore,tokio",
             "|feature runtime dep=dep:tokio,tokio/rt-multi-thread,tokio/sync,dep:bytes",
             "|feature walk dep=dep:ignore",
@@ -120,6 +124,7 @@ fn prime_search_lab_exposes_feature_bound_examples_and_benches() {
         max_lines: 26,
         required: &[
             "[search-prime] mode=package package=.",
+            "|decision purpose=decision-primer",
             "|package . t=lib,example,bench dep=tracing",
             "|feature tracing dep=dep:tracing next=features:tracing",
             "|target example:parse path=examples/parse.rs required_features=tracing source=manifest manager=cargo next=owner:examples/parse.rs",

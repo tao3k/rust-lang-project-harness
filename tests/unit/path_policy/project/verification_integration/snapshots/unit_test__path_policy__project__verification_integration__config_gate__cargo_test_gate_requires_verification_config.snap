@@ -1,6 +1,6 @@
 ---
-source: tests/unit/path_policy/project/verification_integration.rs
-assertion_line: 46
+source: tests/unit/path_policy/project/verification_integration/config_gate.rs
+assertion_line: 45
 expression: rendered
 ---
 [RUST-PROJ-R016] Warning: Legacy cargo-test gate uses empty verification config
