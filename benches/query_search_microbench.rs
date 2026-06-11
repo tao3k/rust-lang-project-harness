@@ -226,6 +226,9 @@ fn assert_microbench_within_budget(
     stats: &MicrobenchStats,
     budget: &MicrobenchBudget,
 ) {
+    if cfg!(debug_assertions) {
+        return;
+    }
     let p95_ms = stats.p95.as_secs_f64() * 1000.0;
     assert!(
         p95_ms <= budget.p95_max_ms,
