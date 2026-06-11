@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use crate::discovery::{discover_rust_files, rust_project_harness_scope};
@@ -32,7 +32,10 @@ pub(super) struct PackageSearchContext {
     pub(super) parsed_modules: Vec<ParsedRustModule>,
     pub(super) reasoning_tree: RustReasoningTreeFacts,
     pub(super) cargo_dependencies: Vec<CargoDependencyFacts>,
+    pub(super) source_symbol_index: SourceSymbolIndex,
 }
+
+pub(super) type SourceSymbolIndex = BTreeMap<String, BTreeMap<PathBuf, Vec<String>>>;
 
 pub(super) fn search_contexts(
     project_root: &Path,
@@ -289,11 +292,60 @@ fn package_search_context(package_root: &Path, config: &RustHarnessConfig) -> Pa
     let parsed_modules = parse_scope(&scope, config);
     let reasoning_tree = rust_reasoning_tree_facts(&scope, &parsed_modules);
     let cargo_dependencies = parse_cargo_dependency_facts(package_root);
+    let source_symbol_index = source_symbol_index(&parsed_modules);
     PackageSearchContext {
         package_root: package_root.to_path_buf(),
         scope,
         parsed_modules,
         reasoning_tree,
         cargo_dependencies,
+        source_symbol_index,
     }
+}
+
+fn source_symbol_index(parsed_modules: &[ParsedRustModule]) -> SourceSymbolIndex {
+    let mut index = SourceSymbolIndex::new();
+    for module in parsed_modules {
+        for (line_index, line) in module.source.lines().enumerate() {
+            let location = format!("{}:1", line_index + 1);
+            for symbol in structural_symbols(line) {
+                index
+                    .entry(symbol)
+                    .or_default()
+                    .entry(module.report.path.clone())
+                    .or_default()
+                    .push(location.clone());
+            }
+        }
+    }
+    for owner_locations in index.values_mut() {
+        for locations in owner_locations.values_mut() {
+            locations.sort();
+            locations.dedup();
+        }
+    }
+    index
+}
+
+fn structural_symbols(line: &str) -> BTreeSet<String> {
+    let mut symbols = BTreeSet::new();
+    for identifier in line
+        .split(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_'))
+        .filter(|part| !part.is_empty())
+    {
+        symbols.insert(identifier.to_string());
+    }
+    for path_segment in line
+        .split(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == ':'))
+        .filter(|part| part.contains("::"))
+    {
+        let parts = path_segment
+            .split("::")
+            .filter(|part| !part.is_empty())
+            .collect::<Vec<_>>();
+        for end in 2..=parts.len() {
+            symbols.insert(parts[..end].join("::"));
+        }
+    }
+    symbols
 }

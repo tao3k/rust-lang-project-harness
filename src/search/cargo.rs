@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::fmt::Write;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -360,30 +360,7 @@ fn dependency_api_usage(
         .iter()
         .map(|hit| hit.path.clone())
         .collect::<BTreeSet<_>>();
-    let mut grouped = BTreeMap::<PathBuf, Vec<String>>::new();
-    for module in &context.parsed_modules {
-        if !dependency_owner_paths.contains(&module.report.path) {
-            continue;
-        }
-        for (index, line) in module.source.lines().enumerate() {
-            if line.contains(api) {
-                grouped
-                    .entry(module.report.path.clone())
-                    .or_default()
-                    .push(format!("{}:1", index + 1));
-            }
-        }
-    }
-    let mut hits = grouped
-        .into_iter()
-        .map(|(path, mut locations)| {
-            sort_locations(&mut locations);
-            locations.dedup();
-            OwnerHit { path, locations }
-        })
-        .collect::<Vec<_>>();
-    sort_owner_hits_by_recency(&context.package_root, &mut hits);
-    hits
+    dependency_index_hits(context, &dependency_owner_paths, api)
 }
 
 fn dependency_subpath_usage(
@@ -397,28 +374,32 @@ fn dependency_subpath_usage(
         .map(|hit| hit.path.clone())
         .collect::<BTreeSet<_>>();
     let rust_path = format!("{dependency}::{}", subpath.replace('/', "::"));
-    let mut grouped = BTreeMap::<PathBuf, Vec<String>>::new();
-    for module in &context.parsed_modules {
-        if !dependency_owner_paths.contains(&module.report.path) {
-            continue;
-        }
-        for (index, line) in module.source.lines().enumerate() {
-            if line.contains(&rust_path) {
-                grouped
-                    .entry(module.report.path.clone())
-                    .or_default()
-                    .push(format!("{}:1", index + 1));
-            }
-        }
-    }
-    let mut hits = grouped
-        .into_iter()
-        .map(|(path, mut locations)| {
-            sort_locations(&mut locations);
-            locations.dedup();
-            OwnerHit { path, locations }
+    dependency_index_hits(context, &dependency_owner_paths, &rust_path)
+}
+
+fn dependency_index_hits(
+    context: &PackageSearchContext,
+    dependency_owner_paths: &BTreeSet<PathBuf>,
+    symbol: &str,
+) -> Vec<OwnerHit> {
+    let mut hits = context
+        .source_symbol_index
+        .get(symbol)
+        .map(|owners| {
+            owners
+                .iter()
+                .filter(|(path, _)| dependency_owner_paths.contains(*path))
+                .map(|(path, locations)| OwnerHit {
+                    path: path.clone(),
+                    locations: locations.clone(),
+                })
+                .collect::<Vec<_>>()
         })
-        .collect::<Vec<_>>();
+        .unwrap_or_default();
+    for hit in &mut hits {
+        sort_locations(&mut hit.locations);
+        hit.locations.dedup();
+    }
     sort_owner_hits_by_recency(&context.package_root, &mut hits);
     hits
 }
