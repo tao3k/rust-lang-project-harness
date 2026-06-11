@@ -2,6 +2,12 @@ use tempfile::TempDir;
 
 use crate::cli::support::run_cli;
 
+fn compact_stdout(stdout: Vec<u8>) -> String {
+    String::from_utf8(stdout)
+        .expect("compact output is UTF-8")
+        .replace('\\', "/")
+}
+
 #[test]
 fn tree_sitter_query_predicate_filters_capture_text() {
     let temp = TempDir::new().expect("temp dir");
@@ -31,7 +37,7 @@ fn tree_sitter_query_predicate_filters_capture_text() {
     ]);
     assert!(output.status.success(), "{output:?}");
 
-    let stdout = String::from_utf8(output.stdout).expect("compact output is UTF-8");
+    let stdout = compact_stdout(output.stdout);
     assert!(
         stdout.contains("I=item:fn(beta_target)@src/lib.rs:5:7!code ts=function_item"),
         "{stdout}"
@@ -75,7 +81,7 @@ fn tree_sitter_query_predicate_prefilter_skips_deep_irrelevant_sources() {
     ]);
     assert!(output.status.success(), "{output:?}");
 
-    let stdout = String::from_utf8(output.stdout).expect("compact output is UTF-8");
+    let stdout = compact_stdout(output.stdout);
     assert!(
         stdout.contains("I=item:fn(needle_target)@src/lib.rs:1!code ts=function_item"),
         "{stdout}"
@@ -112,7 +118,7 @@ fn tree_sitter_query_match_predicate_filters_capture_text() {
     ]);
     assert!(output.status.success(), "{output:?}");
 
-    let stdout = String::from_utf8(output.stdout).expect("compact output is UTF-8");
+    let stdout = compact_stdout(output.stdout);
     assert!(
         stdout.contains("I=item:fn(beta_target)@src/lib.rs:3!code ts=function_item"),
         "{stdout}"
@@ -150,7 +156,7 @@ fn tree_sitter_query_any_eq_predicate_filters_capture_text() {
     ]);
     assert!(output.status.success(), "{output:?}");
 
-    let stdout = String::from_utf8(output.stdout).expect("compact output is UTF-8");
+    let stdout = compact_stdout(output.stdout);
     assert!(
         stdout.contains("I=item:fn(beta_target)@src/lib.rs:3!code ts=function_item"),
         "{stdout}"
@@ -188,7 +194,7 @@ fn tree_sitter_query_any_match_predicate_filters_capture_text() {
     ]);
     assert!(output.status.success(), "{output:?}");
 
-    let stdout = String::from_utf8(output.stdout).expect("compact output is UTF-8");
+    let stdout = compact_stdout(output.stdout);
     assert!(
         stdout.contains("I=item:fn(beta_target)@src/lib.rs:3!code ts=function_item"),
         "{stdout}"
@@ -226,7 +232,7 @@ fn tree_sitter_query_not_predicate_filters_capture_text() {
     ]);
     assert!(output.status.success(), "{output:?}");
 
-    let stdout = String::from_utf8(output.stdout).expect("compact output is UTF-8");
+    let stdout = compact_stdout(output.stdout);
     assert!(
         stdout.contains("I=item:fn(beta_target)@src/lib.rs:3!code ts=function_item"),
         "{stdout}"
