@@ -24,4 +24,5 @@ pub(crate) fn display_project_path(project_root: &Path, path: &Path) -> String {
         .unwrap_or(&normalized_path)
         .display()
         .to_string()
+        .replace('\\', "/")
 }
