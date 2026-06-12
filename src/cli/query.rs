@@ -137,9 +137,9 @@ pub(super) fn print_tree_sitter_query_guide() {
 pub(super) fn print_query_help() {
     println!(
         "rs-harness query <owner-path[:start:end]> [items tests] [--query SYMBOL] [--names-only | --code] [--workspace WORKSPACE]\n\
-rs-harness query --catalog flow-lite --where 'source.call=NAME sink.constructs=TYPE scope.fn=FUNCTION' [--json] [--workspace WORKSPACE]\n\
-rs-harness query --catalog <declarations|imports|calls|macros|cfg> [--json] [--workspace WORKSPACE]\n\
-rs-harness query --treesitter-query '<s-expression>' [--selector <path[:line|:start:end]>] [--term TERM...] [--workspace WORKSPACE] [--code] [--json]\n\
+rs-harness query --catalog flow-lite --where 'source.call=NAME sink.constructs=TYPE scope.fn=FUNCTION' [<workspace-root>] [--json] [--workspace WORKSPACE]\n\
+rs-harness query --catalog <declarations|imports|calls|macros|cfg> [<workspace-root>] [--json] [--workspace WORKSPACE]\n\
+rs-harness query --treesitter-query '<s-expression>' [<workspace-root>] [--selector <path[:line|:start:end]>] [--term TERM...] [--workspace WORKSPACE] [--code] [--json]\n\
 rs-harness query --from-hook direct-source-read --selector <path[:line-range]> [--workspace WORKSPACE] [--source worktree|index|head] --code\n\
 rs-harness query --from-hook KIND --selector SELECTOR [--query SYMBOL | --term TERM] [--names-only | --code] [--workspace WORKSPACE]\n\
 rs-harness search fzf TERM owner [--view seeds] [--workspace WORKSPACE]\n\n\
@@ -149,7 +149,8 @@ Tree-sitter-compatible syntax catalog and inline queries emit semantic-tree-sitt
 Flow-lite native relation queries emit compact locator/provenance frontiers or semantic-flow-lite.v1 JSON without running CodeQL.\n\
 Glob or broad selectors without terms route to search prime --view seeds.\n\
 Owner item queries emit |query status=hit|miss match=exact|fallback-contains|none.\n\
-Use --workspace WORKSPACE when the selector is workspace-relative; query never accepts a trailing workspace root.\n\
+Use --workspace WORKSPACE when the selector is workspace-relative; owner and direct-source query forms never accept a trailing workspace root.\n\
+Catalog, tree-sitter, and flow-lite query forms also accept one positional workspace root for ABI corpus compatibility.\n\
 Use --source only to choose worktree, index, or head content.\n\
 Use --code after selecting an owner/symbol or hook path/range to emit compact parser-owned code."
     );

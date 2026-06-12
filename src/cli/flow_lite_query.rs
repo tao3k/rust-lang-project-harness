@@ -103,18 +103,24 @@ pub(super) fn run_flow_lite_query_catalog(args: &[OsString]) -> Result<Option<Ex
     if catalog_id.as_deref() != Some(FLOW_LITE_CATALOG_ID) {
         return Err("query flow-lite dispatch requires --catalog flow-lite".to_string());
     }
-    if !positionals.is_empty() {
-        return Err(
-            "query does not accept positional WORKSPACE; use --workspace <WORKSPACE>".to_string(),
-        );
-    }
 
     let where_expr = where_expr
         .as_deref()
         .ok_or_else(|| "query --catalog flow-lite requires --where".to_string())?;
     let constraints = parse_flow_lite_where(where_expr)?;
-    let project_root =
-        absolute_project_root(workspace_root.as_deref().unwrap_or_else(|| Path::new(".")));
+    let project_root = match (workspace_root, positionals.as_slice()) {
+        (Some(root), []) => root,
+        (None, []) => PathBuf::from("."),
+        (None, [root]) => root.clone(),
+        (Some(_), [_]) => {
+            return Err(
+                "query accepts either --workspace <WORKSPACE> or one positional WORKSPACE, not both"
+                    .to_string(),
+            );
+        }
+        (_, _) => return Err("query accepts at most one positional WORKSPACE".to_string()),
+    };
+    let project_root = absolute_project_root(&project_root);
     let result = evaluate_flow_lite_query(&project_root, &constraints)?;
     if json_output {
         print_flow_lite_json(&project_root, &constraints, &result)?;

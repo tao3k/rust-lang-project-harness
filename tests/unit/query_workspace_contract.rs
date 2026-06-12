@@ -2,7 +2,7 @@ use std::fs;
 use std::process::Command;
 
 #[test]
-fn query_code_uses_workspace_option_and_rejects_trailing_root() {
+fn query_code_rejects_trailing_root_and_catalog_accepts_positional_workspace() {
     let Some(bin) = option_env!("CARGO_BIN_EXE_rs-harness") else {
         return;
     };
@@ -87,7 +87,7 @@ fn query_code_uses_workspace_option_and_rejects_trailing_root() {
         "pub fn target() {}\n"
     );
 
-    let tree_sitter_stale = Command::new(bin)
+    let tree_sitter_positional = Command::new(bin)
         .args([
             "query",
             "--catalog",
@@ -99,17 +99,17 @@ fn query_code_uses_workspace_option_and_rejects_trailing_root() {
         .arg(root.path())
         .current_dir(root.path())
         .output()
-        .expect("run stale tree-sitter query command");
+        .expect("run positional tree-sitter query command");
 
     assert!(
-        !tree_sitter_stale.status.success(),
-        "stale tree-sitter command unexpectedly succeeded"
+        tree_sitter_positional.status.success(),
+        "positional tree-sitter command failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&tree_sitter_positional.stdout),
+        String::from_utf8_lossy(&tree_sitter_positional.stderr)
     );
-    assert!(
-        String::from_utf8_lossy(&tree_sitter_stale.stderr)
-            .contains("query does not accept positional WORKSPACE"),
-        "stderr={}",
-        String::from_utf8_lossy(&tree_sitter_stale.stderr)
+    assert_eq!(
+        String::from_utf8_lossy(&tree_sitter_positional.stdout),
+        "pub fn target() {}\n"
     );
 }
 

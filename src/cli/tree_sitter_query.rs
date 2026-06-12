@@ -151,16 +151,22 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
     if let Some(option) = pending_option {
         return Err(format!("missing value for query catalog option {option}"));
     }
-    if !positionals.is_empty() {
-        return Err(
-            "query does not accept positional WORKSPACE; use --workspace <WORKSPACE>".to_string(),
-        );
-    }
     if catalog_id.is_some() && tree_sitter_query.is_some() {
         return Err("query accepts only one of --catalog or --treesitter-query".to_string());
     }
 
-    let project_root = workspace_root.unwrap_or_else(|| PathBuf::from("."));
+    let project_root = match (workspace_root, positionals.as_slice()) {
+        (Some(root), []) => root,
+        (None, []) => PathBuf::from("."),
+        (None, [root]) => root.clone(),
+        (Some(_), [_]) => {
+            return Err(
+                "query accepts either --workspace <WORKSPACE> or one positional WORKSPACE, not both"
+                    .to_string(),
+            );
+        }
+        (_, _) => return Err("query accepts at most one positional WORKSPACE".to_string()),
+    };
 
     let (
         input,
