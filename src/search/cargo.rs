@@ -268,13 +268,13 @@ impl DependencySearchQuery {
         let docs_dependency = self.docs_dependency(version_scope);
         if let Some(api) = self.api.as_deref() {
             format!(
-                "dependency:{},docs:{}::{},text:{},tests:{}",
-                self.dependency, docs_dependency, api, api, api
+                "dependency:{},docs-use:{}::{},crate-source:{},import:{},tests:{}",
+                self.dependency, docs_dependency, api, self.dependency, self.dependency, api
             )
         } else {
             format!(
-                "dependency:{},docs:{},import:{},tests",
-                self.dependency, docs_dependency, self.dependency
+                "dependency:{},docs-use:{},crate-source:{},import:{},tests",
+                self.dependency, docs_dependency, self.dependency, self.dependency
             )
         }
     }

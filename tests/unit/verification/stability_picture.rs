@@ -1,9 +1,10 @@
 use rust_lang_project_harness::{
-    RustOwnerResponsibility, RustVerificationProfileHint, RustVerificationReceipt,
-    RustVerificationStabilityPictureConfig, RustVerificationTaskKind,
-    build_rust_verification_stability_picture, default_rust_harness_config,
-    plan_rust_project_verification_with_config, render_rust_verification_stability_picture,
-    render_rust_verification_stability_picture_json,
+    RustOwnerResponsibility, RustVerificationApiPathBaseline, RustVerificationProfileHint,
+    RustVerificationReceipt, RustVerificationStabilityPictureConfig,
+    RustVerificationStabilityRunReceipt, RustVerificationTaskKind,
+    build_rust_verification_stability_picture, compare_rust_verification_stability_runs,
+    default_rust_harness_config, plan_rust_project_verification_with_config,
+    render_rust_verification_stability_picture, render_rust_verification_stability_picture_json,
 };
 use tempfile::TempDir;
 
@@ -123,6 +124,119 @@ fn stability_picture_json_is_deterministic_for_same_plan() {
 
     assert_eq!(first_json, second_json);
     assert!(first_json.contains("\"min_iterations\":5000"));
+}
+
+#[test]
+fn stability_picture_surfaces_configuration_warnings() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_api_project(root);
+    let picture_config = RustVerificationStabilityPictureConfig::new()
+        .with_long_running_simulation_required(false)
+        .with_performance_interface_required(false)
+        .with_resource_delta_required(false)
+        .with_state_growth_required(false)
+        .with_determinism_required(false)
+        .with_stability_artifact_required(false)
+        .with_min_iterations(100);
+    let config =
+        availability_critical_config().with_verification_stability_picture(picture_config.clone());
+    let plan = plan_rust_project_verification_with_config(root, &config).expect("plan");
+
+    let picture = build_rust_verification_stability_picture(&plan, &picture_config);
+    let rendered = render_rust_verification_stability_picture(&picture);
+    let record = picture.records.first().expect("picture record");
+
+    assert!(record.required_evidence_keys.is_empty());
+    assert_eq!(record.config_warnings.len(), 2);
+    assert!(
+        rendered.contains("config_warnings: no_required_axes,min_iterations_without_long_run"),
+        "{rendered}"
+    );
+}
+
+#[test]
+fn stability_picture_uses_owner_and_api_path_local_overrides() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_api_project(root);
+    let owner_picture = RustVerificationStabilityPictureConfig::new()
+        .with_performance_interface_required(false)
+        .with_resource_delta_required(false)
+        .with_state_growth_required(false);
+    let api_picture = RustVerificationStabilityPictureConfig::new()
+        .with_long_running_simulation_required(false)
+        .with_performance_interface_required(false)
+        .with_resource_delta_required(false)
+        .with_state_growth_required(false)
+        .with_stability_artifact_required(false);
+    let config = default_rust_harness_config()
+        .with_verification_profile_hint(
+            RustVerificationProfileHint::new(
+                "src/api.rs",
+                [RustOwnerResponsibility::AvailabilityCritical],
+            )
+            .with_stability_picture(owner_picture),
+        )
+        .with_verification_api_path_baseline(
+            RustVerificationApiPathBaseline::new("src/api.rs", "GET", "/health")
+                .with_responsibility(RustOwnerResponsibility::AvailabilityCritical)
+                .with_task_kinds([RustVerificationTaskKind::Stability])
+                .with_stability_picture(api_picture),
+        )
+        .with_verification_stability_picture(RustVerificationStabilityPictureConfig::new());
+    let plan = plan_rust_project_verification_with_config(root, &config).expect("plan");
+    let picture_config = config
+        .verification_policy
+        .stability_picture
+        .as_ref()
+        .expect("picture config");
+
+    let picture = rust_lang_project_harness::build_rust_verification_stability_picture_with_policy(
+        &plan,
+        &config.verification_policy,
+        picture_config,
+    );
+    let api_record = picture
+        .records
+        .iter()
+        .find(|record| {
+            record
+                .required_evidence_keys
+                .contains(&"determinism".to_string())
+                && !record
+                    .required_evidence_keys
+                    .contains(&"stability_artifact".to_string())
+        })
+        .expect("api-local picture record");
+
+    assert_eq!(api_record.required_evidence_keys, ["determinism"]);
+}
+
+#[test]
+fn stability_run_receipt_compares_against_baseline() {
+    let baseline =
+        RustVerificationStabilityRunReceipt::new("cargo run --bin api-long-run", 1000, 60)
+            .with_resource_deltas(1024, 1, 0)
+            .with_state_delta_bytes(2048)
+            .with_determinism_hash("abc");
+    let current =
+        RustVerificationStabilityRunReceipt::new("cargo run --bin api-long-run", 1200, 75)
+            .with_resource_deltas(4096, 2, 1)
+            .with_state_delta_bytes(4096)
+            .with_determinism_hash("def");
+
+    let evidence = current.receipt_evidence();
+    let delta = compare_rust_verification_stability_runs(&baseline, &current);
+
+    assert!(evidence.iter().any(|(key, _)| *key == "iteration_window"));
+    assert_eq!(delta.iteration_delta.as_i64(), 200);
+    assert_eq!(delta.duration_delta_seconds.as_i64(), 15);
+    assert_eq!(delta.rss_delta_bytes.expect("rss delta").as_i64(), 3072);
+    assert_eq!(delta.fd_delta.expect("fd delta").as_i64(), 1);
+    assert_eq!(delta.thread_delta.expect("thread delta").as_i64(), 1);
+    assert_eq!(delta.state_delta_bytes.expect("state delta").as_i64(), 2048);
+    assert!(delta.determinism_changed);
 }
 
 fn availability_critical_config() -> rust_lang_project_harness::RustHarnessConfig {

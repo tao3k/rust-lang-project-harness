@@ -263,7 +263,9 @@ fn reasoning_block(
 
     let profile_entry = match profile {
         "owner-query" => "entries=owner-query(O,Q=>items+tests+dependency-usage)",
-        "query-deps" => "entries=query-deps(Q,D=>owners+imports+usage-tests)",
+        "query-deps" => {
+            "entries=query-deps(Q,D=>owners+imports+local-docs+crate-source+usage-tests)"
+        }
         "owner-tests" => "entries=owner-tests(O=>covering-tests+test-entrypoints+fixtures)",
         "finding-frontier" => {
             "entries=finding-frontier(F,O=>affected-owners+tests+verification-actions)"

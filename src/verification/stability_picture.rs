@@ -8,9 +8,13 @@ use serde::{Deserialize, Serialize};
 use crate::path::display_project_path;
 
 use super::model::{
-    RustVerificationPlan, RustVerificationStabilityPictureConfig, RustVerificationTaskState,
+    RustVerificationApiPathBaseline, RustVerificationPlan, RustVerificationPolicy,
+    RustVerificationProfileHint, RustVerificationTaskState,
 };
 use super::stability::{RustVerificationStabilityIndex, build_rust_verification_stability_index};
+use super::stability_config::{
+    RustVerificationStabilityPictureConfig, RustVerificationStabilityPictureConfigWarning,
+};
 
 /// Configured stability picture for agent planning.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -56,6 +60,9 @@ pub struct RustVerificationStabilityPictureRecord {
     pub required_evidence_keys: Vec<String>,
     /// Missing configured evidence keys for this owner.
     pub missing_evidence_keys: Vec<String>,
+    /// Non-fatal warnings for the effective stability picture config.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub config_warnings: Vec<RustVerificationStabilityPictureConfigWarning>,
     /// Agent-facing next actions derived from the configured picture.
     pub next_actions: Vec<String>,
 }
@@ -70,21 +77,63 @@ pub fn build_rust_verification_stability_picture(
     build_rust_verification_stability_picture_from_index(&index, config)
 }
 
+/// Build a configured stability picture using policy-local owner/API overrides.
+#[must_use]
+pub fn build_rust_verification_stability_picture_with_policy(
+    plan: &RustVerificationPlan,
+    policy: &RustVerificationPolicy,
+    default_config: &RustVerificationStabilityPictureConfig,
+) -> RustVerificationStabilityPicture {
+    let index = build_rust_verification_stability_index(plan);
+    build_rust_verification_stability_picture_from_index_with_policy(&index, policy, default_config)
+}
+
 /// Build a configured stability picture from an existing stability index.
 #[must_use]
 pub fn build_rust_verification_stability_picture_from_index(
     index: &RustVerificationStabilityIndex,
     config: &RustVerificationStabilityPictureConfig,
 ) -> RustVerificationStabilityPicture {
-    let required_keys = config
-        .required_receipt_evidence_keys()
-        .into_iter()
-        .map(str::to_string)
-        .collect::<Vec<_>>();
+    build_rust_verification_stability_picture_from_index_with_config(index, |_| config.clone())
+}
+
+/// Build a configured stability picture from an index using policy-local overrides.
+#[must_use]
+pub fn build_rust_verification_stability_picture_from_index_with_policy(
+    index: &RustVerificationStabilityIndex,
+    policy: &RustVerificationPolicy,
+    default_config: &RustVerificationStabilityPictureConfig,
+) -> RustVerificationStabilityPicture {
+    build_rust_verification_stability_picture_from_index_with_config(index, |record| {
+        stability_picture_config_for_record(record, policy, default_config)
+    })
+}
+
+fn build_rust_verification_stability_picture_from_index_with_config<F>(
+    index: &RustVerificationStabilityIndex,
+    config_for_record: F,
+) -> RustVerificationStabilityPicture
+where
+    F: Fn(
+        &super::stability::RustVerificationStabilityRecord,
+    ) -> RustVerificationStabilityPictureConfig,
+{
+    let first_config = index
+        .records
+        .first()
+        .map(&config_for_record)
+        .unwrap_or_default();
     let records = index
         .records
         .iter()
         .map(|record| {
+            let config = config_for_record(record);
+            let config_review = config.review();
+            let required_keys = config
+                .required_receipt_evidence_keys()
+                .into_iter()
+                .map(str::to_string)
+                .collect::<Vec<_>>();
             let missing_evidence_keys = required_keys
                 .iter()
                 .filter(|key| record.receipt_evidence_value(key).is_none())
@@ -96,14 +145,15 @@ pub fn build_rust_verification_stability_picture_from_index(
                 package_root: record.package_root.clone(),
                 owner_path: record.owner_path.clone(),
                 required_evidence_keys: required_keys.clone(),
-                next_actions: stability_picture_next_actions(config, &missing_evidence_keys),
+                config_warnings: config_review.warnings,
+                next_actions: stability_picture_next_actions(&config, &missing_evidence_keys),
                 missing_evidence_keys,
             }
         })
         .collect();
     RustVerificationStabilityPicture {
         project_root: index.project_root.clone(),
-        config: config.clone(),
+        config: first_config,
         records,
     }
 }
@@ -169,9 +219,64 @@ fn render_stability_picture_record(
             record.missing_evidence_keys.join(",")
         );
     }
+    if !record.config_warnings.is_empty() {
+        let warnings = record
+            .config_warnings
+            .iter()
+            .map(|warning| warning.key.as_str())
+            .collect::<Vec<_>>()
+            .join(",");
+        let _ = writeln!(rendered, "   |config_warnings: {warnings}");
+    }
     if !record.next_actions.is_empty() {
         let _ = writeln!(rendered, "   |next: {}", record.next_actions.join(";"));
     }
+}
+
+fn stability_picture_config_for_record(
+    record: &super::stability::RustVerificationStabilityRecord,
+    policy: &RustVerificationPolicy,
+    default_config: &RustVerificationStabilityPictureConfig,
+) -> RustVerificationStabilityPictureConfig {
+    policy
+        .api_path_baselines
+        .iter()
+        .find(|baseline| api_path_baseline_matches_record(baseline, record))
+        .and_then(|baseline| baseline.stability_picture.clone())
+        .or_else(|| {
+            policy
+                .profile_hints
+                .iter()
+                .find(|hint| profile_hint_matches_record(hint, record))
+                .and_then(|hint| hint.stability_picture.clone())
+        })
+        .unwrap_or_else(|| default_config.clone())
+}
+
+fn profile_hint_matches_record(
+    hint: &RustVerificationProfileHint,
+    record: &super::stability::RustVerificationStabilityRecord,
+) -> bool {
+    record.owner_path == hint.owner_path
+        || record
+            .owner_path
+            .strip_prefix(&record.package_root)
+            .is_ok_and(|relative| relative == hint.owner_path)
+}
+
+fn api_path_baseline_matches_record(
+    baseline: &RustVerificationApiPathBaseline,
+    record: &super::stability::RustVerificationStabilityRecord,
+) -> bool {
+    profile_hint_matches_record(
+        &RustVerificationProfileHint::new(
+            baseline.owner_path.clone(),
+            baseline.responsibilities.clone(),
+        ),
+        record,
+    ) && record.task_evidence.iter().any(|evidence| {
+        evidence.label == "api_path" && evidence.value == baseline.api_evidence_value()
+    })
 }
 
 fn stability_picture_next_actions(

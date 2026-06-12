@@ -20,6 +20,7 @@ use super::profile::{
     task_contract_for_profile, task_kind_labels, task_kinds_for_profile,
     task_kinds_for_responsibilities,
 };
+use super::report_options::STABILITY_PICTURE_ARTIFACT_KEY;
 use super::task_builder::{
     ProfileReviewTaskSpec, VerificationTaskSpec, new_profile_review_task, new_skill_task,
     push_task, skill_descriptors_for_tasks,
@@ -253,6 +254,14 @@ fn report_obligations_for_tasks(
             "persist Rust stability state for long-run drift, resource growth, and missing-evidence metrics",
             [RustVerificationTaskKind::Stability],
             stability_fingerprints,
+        ));
+        obligations.push(RustVerificationReportObligation::new(
+            STABILITY_PICTURE_ARTIFACT_KEY,
+            "build_rust_verification_stability_picture_with_policy + render_rust_verification_stability_picture_json",
+            "stability_picture.json",
+            "persist Agent-facing stability action picture with project and owner-local configuration",
+            [RustVerificationTaskKind::Stability],
+            ReportObligationFacts::from_tasks(tasks).stability_fingerprints,
         ));
     }
 

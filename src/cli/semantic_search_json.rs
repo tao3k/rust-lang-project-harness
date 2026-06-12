@@ -285,13 +285,33 @@ fn base_packet(
         ]);
     }
     if options.view == "reasoning" {
-        packet["avoidNextActions"] = json!([
-            {
-                "kind": "raw-read",
-                "target": "source",
-                "reason": "reasoning-profile"
-            }
-        ]);
+        packet["avoidNextActions"] = if options.dependency.is_some() {
+            json!([
+                {
+                    "kind": "web-search",
+                    "target": "external-docs",
+                    "reason": "dependency-profile-local-first"
+                },
+                {
+                    "kind": "docs.rs-search",
+                    "target": "external-docs",
+                    "reason": "dependency-profile-local-first"
+                },
+                {
+                    "kind": "raw-read",
+                    "target": "source",
+                    "reason": "reasoning-profile"
+                }
+            ])
+        } else {
+            json!([
+                {
+                    "kind": "raw-read",
+                    "target": "source",
+                    "reason": "reasoning-profile"
+                }
+            ])
+        };
     }
     if let Some(search_synthesis) = collections.search_synthesis {
         packet["searchSynthesis"] = search_synthesis;

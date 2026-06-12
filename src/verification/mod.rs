@@ -26,7 +26,9 @@ mod report_write;
 mod review_packet;
 mod skill_descriptor;
 mod stability;
+mod stability_config;
 mod stability_picture;
+mod stability_runtime;
 mod task_builder;
 mod task_index;
 
@@ -127,9 +129,8 @@ pub use model::{
     RustVerificationEvidence, RustVerificationPhase, RustVerificationPlan, RustVerificationPolicy,
     RustVerificationProfileHint, RustVerificationReceipt, RustVerificationReceiptStatus,
     RustVerificationReportObligation, RustVerificationRequirement, RustVerificationResolutionNote,
-    RustVerificationSkillBinding, RustVerificationStabilityPictureConfig, RustVerificationTask,
-    RustVerificationTaskContract, RustVerificationTaskKind, RustVerificationTaskState,
-    RustVerificationWaiver,
+    RustVerificationSkillBinding, RustVerificationTask, RustVerificationTaskContract,
+    RustVerificationTaskKind, RustVerificationTaskState, RustVerificationWaiver,
 };
 pub use performance::{
     RustVerificationPerformanceIndex, RustVerificationPerformanceRecord,
@@ -209,11 +210,22 @@ pub use stability::{
     build_rust_verification_stability_index, render_rust_verification_stability_index,
     render_rust_verification_stability_index_json,
 };
+pub use stability_config::{
+    RustVerificationStabilityPictureConfig, RustVerificationStabilityPictureConfigReview,
+    RustVerificationStabilityPictureConfigWarning,
+};
 pub use stability_picture::{
     RustVerificationStabilityPicture, RustVerificationStabilityPictureRecord,
     build_rust_verification_stability_picture,
     build_rust_verification_stability_picture_from_index,
+    build_rust_verification_stability_picture_from_index_with_policy,
+    build_rust_verification_stability_picture_with_policy,
     render_rust_verification_stability_picture, render_rust_verification_stability_picture_json,
+};
+pub use stability_runtime::{
+    RustVerificationStabilityBaselineDelta, RustVerificationStabilityDurationSeconds,
+    RustVerificationStabilityIterationCount, RustVerificationStabilityMetricDelta,
+    RustVerificationStabilityRunReceipt, compare_rust_verification_stability_runs,
 };
 pub use task_index::{
     RustVerificationTaskIndex, RustVerificationTaskRecord, build_rust_verification_task_index,

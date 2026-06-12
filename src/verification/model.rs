@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use super::skill_descriptor::RustVerificationSkillDescriptor;
+use super::stability_config::RustVerificationStabilityPictureConfig;
 
 /// Verification skill family requested by the harness.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -519,6 +520,9 @@ pub struct RustVerificationProfileHint {
     /// Owner-local contract overrides. These win over global policy overrides.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub task_contract_overrides: BTreeMap<RustVerificationTaskKind, RustVerificationTaskContract>,
+    /// Owner-local stability picture requirements.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stability_picture: Option<RustVerificationStabilityPictureConfig>,
     /// Optional compact rationale.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rationale: Option<String>,
@@ -536,6 +540,7 @@ impl RustVerificationProfileHint {
             responsibilities: responsibilities.into_iter().collect(),
             task_kinds: None,
             task_contract_overrides: BTreeMap::new(),
+            stability_picture: None,
             rationale: None,
         }
     }
@@ -571,6 +576,16 @@ impl RustVerificationProfileHint {
         self
     }
 
+    /// Attach owner-local stability picture requirements.
+    #[must_use]
+    pub fn with_stability_picture(
+        mut self,
+        config: RustVerificationStabilityPictureConfig,
+    ) -> Self {
+        self.stability_picture = Some(config);
+        self
+    }
+
     /// Attach a compact rationale.
     #[must_use]
     pub fn with_rationale(mut self, rationale: impl Into<String>) -> Self {
@@ -603,6 +618,9 @@ pub struct RustVerificationApiPathBaseline {
     /// API-path-local contract overrides. These win over global policy overrides.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub task_contract_overrides: BTreeMap<RustVerificationTaskKind, RustVerificationTaskContract>,
+    /// API-path-local stability picture requirements.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stability_picture: Option<RustVerificationStabilityPictureConfig>,
     /// Optional compact rationale.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rationale: Option<String>,
@@ -628,6 +646,7 @@ impl RustVerificationApiPathBaseline {
             responsibilities: BTreeSet::from([RustOwnerResponsibility::PublicApi]),
             task_kinds: None,
             task_contract_overrides: BTreeMap::new(),
+            stability_picture: None,
             rationale: None,
         }
     }
@@ -680,6 +699,16 @@ impl RustVerificationApiPathBaseline {
         self
     }
 
+    /// Attach API-path-local stability picture requirements.
+    #[must_use]
+    pub fn with_stability_picture(
+        mut self,
+        config: RustVerificationStabilityPictureConfig,
+    ) -> Self {
+        self.stability_picture = Some(config);
+        self
+    }
+
     /// Attach a compact rationale.
     #[must_use]
     pub fn with_rationale(mut self, rationale: impl Into<String>) -> Self {
@@ -729,133 +758,6 @@ impl RustVerificationDependencySignal {
             dependency: dependency.into(),
             responsibilities: responsibilities.into_iter().collect(),
         }
-    }
-}
-
-/// Project-owned stability picture requirements for agent planning.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RustVerificationStabilityPictureConfig {
-    /// Require a long-running command and iteration window.
-    pub require_long_running_simulation: bool,
-    /// Require latency distribution or a project-owned performance interface.
-    pub require_performance_interface: bool,
-    /// Require resource-growth evidence such as RSS, file descriptors, or threads.
-    pub require_resource_delta: bool,
-    /// Require cache, queue, database, or artifact growth evidence.
-    pub require_state_growth: bool,
-    /// Require repeated-run determinism or a bounded nondeterminism statement.
-    pub require_determinism: bool,
-    /// Require a durable stability report artifact.
-    pub require_stability_artifact: bool,
-    /// Optional minimum long-run iteration count expected by this project.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub min_iterations: Option<u64>,
-    /// Optional minimum long-run duration expected by this project.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub min_duration_seconds: Option<u64>,
-}
-
-impl Default for RustVerificationStabilityPictureConfig {
-    fn default() -> Self {
-        Self {
-            require_long_running_simulation: true,
-            require_performance_interface: true,
-            require_resource_delta: true,
-            require_state_growth: true,
-            require_determinism: true,
-            require_stability_artifact: true,
-            min_iterations: None,
-            min_duration_seconds: None,
-        }
-    }
-}
-
-impl RustVerificationStabilityPictureConfig {
-    /// Build the default stability picture configuration.
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Configure whether long-running simulation evidence is required.
-    #[must_use]
-    pub const fn with_long_running_simulation_required(mut self, required: bool) -> Self {
-        self.require_long_running_simulation = required;
-        self
-    }
-
-    /// Configure whether performance-interface evidence is required.
-    #[must_use]
-    pub const fn with_performance_interface_required(mut self, required: bool) -> Self {
-        self.require_performance_interface = required;
-        self
-    }
-
-    /// Configure whether resource-growth evidence is required.
-    #[must_use]
-    pub const fn with_resource_delta_required(mut self, required: bool) -> Self {
-        self.require_resource_delta = required;
-        self
-    }
-
-    /// Configure whether state-growth evidence is required.
-    #[must_use]
-    pub const fn with_state_growth_required(mut self, required: bool) -> Self {
-        self.require_state_growth = required;
-        self
-    }
-
-    /// Configure whether determinism evidence is required.
-    #[must_use]
-    pub const fn with_determinism_required(mut self, required: bool) -> Self {
-        self.require_determinism = required;
-        self
-    }
-
-    /// Configure whether a durable stability artifact is required.
-    #[must_use]
-    pub const fn with_stability_artifact_required(mut self, required: bool) -> Self {
-        self.require_stability_artifact = required;
-        self
-    }
-
-    /// Configure the minimum expected long-run iteration count.
-    #[must_use]
-    pub const fn with_min_iterations(mut self, iterations: u64) -> Self {
-        self.min_iterations = Some(iterations);
-        self
-    }
-
-    /// Configure the minimum expected long-run duration in seconds.
-    #[must_use]
-    pub const fn with_min_duration_seconds(mut self, seconds: u64) -> Self {
-        self.min_duration_seconds = Some(seconds);
-        self
-    }
-
-    /// Return the receipt evidence keys required by this stability picture.
-    #[must_use]
-    pub fn required_receipt_evidence_keys(&self) -> Vec<&'static str> {
-        let mut keys = Vec::new();
-        if self.require_long_running_simulation {
-            keys.extend(["stability_command", "iteration_window"]);
-        }
-        if self.require_performance_interface {
-            keys.push("latency_distribution");
-        }
-        if self.require_resource_delta {
-            keys.push("resource_delta");
-        }
-        if self.require_state_growth {
-            keys.push("state_growth");
-        }
-        if self.require_determinism {
-            keys.push("determinism");
-        }
-        if self.require_stability_artifact {
-            keys.push("stability_artifact");
-        }
-        keys
     }
 }
 

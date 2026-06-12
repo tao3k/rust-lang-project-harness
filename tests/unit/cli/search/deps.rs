@@ -22,6 +22,7 @@ fn cli_search_deps_distinguishes_external_version_queries() {
          version = \"0.1.0\"\n\
          edition = \"2024\"\n\n\
          [dependencies]\n\
+         process-wrap = \"8\"\n\
          serde = { version = \"1\", features = [\"derive\"] }\n",
     )
     .expect("write manifest");
@@ -31,6 +32,50 @@ fn cli_search_deps_distinguishes_external_version_queries() {
         "use serde::de::DeserializeOwned;\nuse serde::Serialize;\n#[derive(Serialize)]\npub struct Thing;\npub fn decode<T: DeserializeOwned>() {}\n",
     )
     .expect("write lib");
+
+    let query_deps_seeds = run_search(
+        root,
+        &[
+            "reasoning",
+            "query-deps",
+            "--query",
+            "Job Object",
+            "--dependency",
+            "process-wrap",
+            "--view",
+            "seeds",
+        ],
+    );
+    assert!(
+        query_deps_seeds.starts_with("[search-reasoning] q=query-deps selector=query=Job"),
+        "{query_deps_seeds}"
+    );
+    assert!(
+        query_deps_seeds.contains("D=dependency:pkg(process-wrap)!dependency"),
+        "{query_deps_seeds}"
+    );
+    assert!(
+        query_deps_seeds.contains("U=doc-use:path(process-wrap::Job Object)!docs-use"),
+        "{query_deps_seeds}"
+    );
+    assert!(
+        query_deps_seeds.contains("C=crate-source:pkg(process-wrap)!crate-source"),
+        "{query_deps_seeds}"
+    );
+    assert!(
+        query_deps_seeds
+            .contains("frontier=Q.query,D.dependency,U.docs-use,C.crate-source,I.import,T.tests"),
+        "{query_deps_seeds}"
+    );
+    assert!(
+        query_deps_seeds.contains("avoid=web-search,docs.rs-search,raw-read"),
+        "{query_deps_seeds}"
+    );
+    assert!(
+        !query_deps_seeds.contains("D2=doc:path(process-wrap::Job Object)!docs"),
+        "{query_deps_seeds}"
+    );
+    assert!(!query_deps_seeds.contains("D2.docs"), "{query_deps_seeds}");
 
     let current = run_search(root, &["deps", "serde@1"]);
     assert!(
@@ -70,7 +115,9 @@ fn cli_search_deps_distinguishes_external_version_queries() {
         "{current_subpath_api}"
     );
     assert!(
-        current_subpath_api.contains("|next dependency:serde,docs:serde/de::DeserializeOwned"),
+        current_subpath_api.contains(
+            "|next dependency:serde,docs-use:serde/de::DeserializeOwned,crate-source:serde,import:serde,tests:DeserializeOwned"
+        ),
         "{current_subpath_api}"
     );
 
@@ -92,7 +139,7 @@ fn cli_search_deps_distinguishes_external_version_queries() {
     );
     assert!(
         external.contains(
-            "|next dependency:serde,docs:serde::Serialize,text:Serialize,tests:Serialize"
+            "|next dependency:serde,docs-use:serde::Serialize,crate-source:serde,import:serde,tests:Serialize"
         ),
         "{external}"
     );
@@ -144,7 +191,9 @@ fn cli_search_deps_distinguishes_external_version_queries() {
         "{external_subpath_api}"
     );
     assert!(
-        external_subpath_api.contains("|next dependency:serde,docs:serde/de::DeserializeOwned"),
+        external_subpath_api.contains(
+            "|next dependency:serde,docs-use:serde/de::DeserializeOwned,crate-source:serde,import:serde,tests:DeserializeOwned"
+        ),
         "{external_subpath_api}"
     );
     assert!(

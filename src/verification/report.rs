@@ -10,7 +10,9 @@ use super::model::{
     RustVerificationPlan, RustVerificationReportObligation, RustVerificationTaskKind,
 };
 use super::report_manifest::RustVerificationReportManifestSchema;
-use super::report_options::{ANALYSIS_PROFILE_ARTIFACT_KEY, SELECTION_ADVICE_SIDECAR_KEY};
+use super::report_options::{
+    ANALYSIS_PROFILE_ARTIFACT_KEY, SELECTION_ADVICE_SIDECAR_KEY, STABILITY_PICTURE_ARTIFACT_KEY,
+};
 pub use super::report_options::{
     RustVerificationReportArtifactRole, RustVerificationReportOptions,
     RustVerificationReportPersistence, RustVerificationReportSidecarRole,
@@ -384,6 +386,7 @@ fn report_artifact_role(key: &str) -> RustVerificationReportArtifactRole {
         "task_index_json" => RustVerificationReportArtifactRole::SkillDispatchIndex,
         "performance_index_json" => RustVerificationReportArtifactRole::BaselineEvidence,
         "stability_index_json" => RustVerificationReportArtifactRole::BaselineEvidence,
+        STABILITY_PICTURE_ARTIFACT_KEY => RustVerificationReportArtifactRole::PromptState,
         ANALYSIS_PROFILE_ARTIFACT_KEY => RustVerificationReportArtifactRole::AnalysisProfile,
         _ => RustVerificationReportArtifactRole::Custom,
     }

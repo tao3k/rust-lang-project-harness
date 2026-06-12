@@ -10,8 +10,12 @@ use super::analysis::{
 };
 use super::model::RustVerificationPlan;
 use super::performance::build_rust_verification_performance_index;
-use super::report_options::ANALYSIS_PROFILE_ARTIFACT_KEY;
+use super::report_options::{ANALYSIS_PROFILE_ARTIFACT_KEY, STABILITY_PICTURE_ARTIFACT_KEY};
 use super::stability::build_rust_verification_stability_index;
+use super::stability_picture::{
+    build_rust_verification_stability_picture_with_policy,
+    render_rust_verification_stability_picture_json,
+};
 use super::task_index::build_rust_verification_task_index;
 
 /// Error raised while rendering one modular verification report artifact.
@@ -89,6 +93,21 @@ pub fn render_rust_verification_report_artifact_json_with_config(
         )
         .map_err(RustVerificationReportArtifactRenderError::Analysis)?;
         return render_rust_verification_analysis_profile_json(&profile)
+            .map(Some)
+            .map_err(Into::into);
+    }
+    if key == STABILITY_PICTURE_ARTIFACT_KEY {
+        let config = harness_config
+            .verification_policy
+            .stability_picture
+            .clone()
+            .unwrap_or_default();
+        let picture = build_rust_verification_stability_picture_with_policy(
+            plan,
+            &harness_config.verification_policy,
+            &config,
+        );
+        return render_rust_verification_stability_picture_json(&picture)
             .map(Some)
             .map_err(Into::into);
     }

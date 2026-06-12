@@ -54,3 +54,6 @@ mod search;
 
 #[path = "unit/query_workspace_contract.rs"]
 mod query_workspace_contract;
+
+#[path = "unit/rs_harness_attribute.rs"]
+mod rs_harness_attribute;

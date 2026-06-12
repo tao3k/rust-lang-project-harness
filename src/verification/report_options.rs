@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 pub(super) const ANALYSIS_PROFILE_ARTIFACT_KEY: &str = "analysis_profile_json";
 pub(super) const SELECTION_ADVICE_SIDECAR_KEY: &str = "selection_advice_json";
+pub(super) const STABILITY_PICTURE_ARTIFACT_KEY: &str = "stability_picture_json";
 
 /// Recommended persistence target for one report artifact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -319,6 +320,12 @@ fn default_artifact_traces() -> BTreeMap<String, RustVerificationReportTraceConf
                 .with_raw_traces(),
         ),
         (
+            STABILITY_PICTURE_ARTIFACT_KEY.to_string(),
+            RustVerificationReportTraceConfig::new("stability-picture")
+                .with_max_seconds(60)
+                .with_sample_interval_ms(1000),
+        ),
+        (
             ANALYSIS_PROFILE_ARTIFACT_KEY.to_string(),
             RustVerificationReportTraceConfig::new("analysis")
                 .with_max_seconds(60)
@@ -382,6 +389,21 @@ fn default_artifact_templates() -> BTreeMap<String, RustVerificationReportTempla
             ),
         ),
         (
+            STABILITY_PICTURE_ARTIFACT_KEY.to_string(),
+            RustVerificationReportTemplate::new(
+                "stability-picture",
+                "1",
+                [
+                    "configured_axes",
+                    "owner_overrides",
+                    "api_path_overrides",
+                    "missing_evidence",
+                    "next_actions",
+                    "config_warnings",
+                ],
+            ),
+        ),
+        (
             ANALYSIS_PROFILE_ARTIFACT_KEY.to_string(),
             RustVerificationReportTemplate::new(
                 "verification-analysis-profile",
@@ -416,6 +438,10 @@ fn default_artifact_persistence() -> BTreeMap<String, RustVerificationReportPers
         (
             "stability_index_json".to_string(),
             RustVerificationReportPersistence::SourceBaseline,
+        ),
+        (
+            STABILITY_PICTURE_ARTIFACT_KEY.to_string(),
+            RustVerificationReportPersistence::RuntimeCache,
         ),
         (
             ANALYSIS_PROFILE_ARTIFACT_KEY.to_string(),

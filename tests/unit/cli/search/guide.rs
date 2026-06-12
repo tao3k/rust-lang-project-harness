@@ -169,7 +169,11 @@ fn cli_search_guide_renders_typed_reasoning_profiles() {
         "{deps_stdout}"
     );
     assert!(
-        deps_stdout.contains("query-deps(Q,D=>owners+imports+usage-tests)"),
+        deps_stdout.contains("query-deps(Q,D=>owners+imports+local-docs+crate-source+usage-tests)"),
+        "{deps_stdout}"
+    );
+    assert!(
+        deps_stdout.contains("avoid=web-search,docs.rs-search,raw-read"),
         "{deps_stdout}"
     );
 

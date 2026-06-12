@@ -3,10 +3,11 @@ use rust_lang_project_harness::{
     RustOwnerResponsibility, RustVerificationProfileHint, RustVerificationReportArtifactRole,
     RustVerificationReportOptions, RustVerificationReportPersistence,
     RustVerificationReportSidecarRole, RustVerificationReportTraceConfig,
-    RustVerificationSkillBinding, RustVerificationTaskKind, RustVerificationTraceMaxSeconds,
-    build_rust_verification_report_bundle, build_rust_verification_report_bundle_with_options,
-    default_rust_harness_config, plan_rust_project_verification_with_config,
-    render_rust_verification_plan, render_rust_verification_report_artifact_json,
+    RustVerificationSkillBinding, RustVerificationStabilityPictureConfig, RustVerificationTaskKind,
+    RustVerificationTraceMaxSeconds, build_rust_verification_report_bundle,
+    build_rust_verification_report_bundle_with_options, default_rust_harness_config,
+    plan_rust_project_verification_with_config, render_rust_verification_plan,
+    render_rust_verification_report_artifact_json,
     render_rust_verification_report_artifact_json_with_config,
     render_rust_verification_report_bundle, render_rust_verification_report_bundle_json,
 };
@@ -210,6 +211,56 @@ fn verification_report_bundle_can_include_analysis_profile_artifact_explicitly()
     assert_eq!(analysis.trace.as_ref().expect("trace").profile, "analysis");
     assert_eq!(value["package_count"], 1);
     assert_eq!(value["rust_file_count"], 2);
+}
+
+#[test]
+fn verification_report_bundle_materializes_stability_picture_artifact() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_api_project(root);
+    let config = default_rust_harness_config()
+        .with_verification_profile_hint(RustVerificationProfileHint::new(
+            "src/api.rs",
+            [RustOwnerResponsibility::AvailabilityCritical],
+        ))
+        .with_verification_stability_picture(
+            RustVerificationStabilityPictureConfig::new().with_min_iterations(5000),
+        );
+    let plan = plan_rust_project_verification_with_config(root, &config).expect("plan");
+
+    let bundle = build_rust_verification_report_bundle(&plan);
+    let compact_bundle = render_rust_verification_report_bundle(&bundle);
+    let picture = bundle
+        .artifact("stability_picture_json")
+        .expect("stability picture artifact");
+    let picture_json = render_rust_verification_report_artifact_json_with_config(
+        &plan,
+        &config,
+        "stability_picture_json",
+    )
+    .expect("render stability picture")
+    .expect("stability picture");
+    let value: serde_json::Value = serde_json::from_str(&picture_json).expect("parse picture");
+
+    assert_eq!(bundle.artifacts.len(), 3);
+    assert!(bundle.artifact("stability_index_json").is_some());
+    assert_eq!(picture.artifact_name, "stability_picture.json");
+    assert_eq!(
+        picture.role,
+        RustVerificationReportArtifactRole::PromptState
+    );
+    assert_eq!(
+        picture.persistence,
+        RustVerificationReportPersistence::RuntimeCache
+    );
+    assert!(compact_bundle.contains(
+        "|artifact: role=prompt_state key=stability_picture_json persistence=runtime_cache file=stability_picture.json tasks=1 trace=stability-picture max_s=60 sample_ms=1000 template=stability-picture"
+    ));
+    assert_eq!(value["config"]["min_iterations"], 5000);
+    assert_eq!(
+        value["records"][0]["required_evidence_keys"][0],
+        "stability_command"
+    );
 }
 
 #[test]
