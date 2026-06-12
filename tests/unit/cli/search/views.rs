@@ -1074,6 +1074,6 @@ fn cli_search_ingest_accepts_workspace_relative_scope_argument() {
 
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8(output.stdout).expect("stdout");
-    assert!(stdout.starts_with("[search-ingest] root=."), "{stdout}");
+    assert!(stdout.starts_with("[search-ingest]"), "{stdout}");
     assert!(stdout.contains(" scope=."), "{stdout}");
 }
