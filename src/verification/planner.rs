@@ -50,6 +50,7 @@ struct ReportObligationFacts {
     configured_skill_task_kinds: BTreeSet<RustVerificationTaskKind>,
     configured_skill_task_fingerprints: Vec<String>,
     performance_fingerprints: Vec<String>,
+    stability_fingerprints: Vec<String>,
 }
 
 impl ReportObligationFacts {
@@ -73,6 +74,9 @@ impl ReportObligationFacts {
         }
         if task.kind == RustVerificationTaskKind::Performance {
             self.performance_fingerprints.push(task.fingerprint.clone());
+        }
+        if task.kind == RustVerificationTaskKind::Stability {
+            self.stability_fingerprints.push(task.fingerprint.clone());
         }
     }
 }
@@ -205,6 +209,7 @@ fn report_obligations_for_tasks(
         configured_skill_task_kinds,
         configured_skill_task_fingerprints,
         performance_fingerprints,
+        stability_fingerprints,
     } = ReportObligationFacts::from_tasks(tasks);
     if task_fingerprints.is_empty() {
         return Vec::new();
@@ -237,6 +242,17 @@ fn report_obligations_for_tasks(
             "persist Rust performance state for benchmark, receipt, and missing-evidence metrics",
             [RustVerificationTaskKind::Performance],
             performance_fingerprints,
+        ));
+    }
+
+    if !stability_fingerprints.is_empty() {
+        obligations.push(RustVerificationReportObligation::new(
+            "stability_index_json",
+            "build_rust_verification_stability_index + render_rust_verification_stability_index_json",
+            "stability_index.json",
+            "persist Rust stability state for long-run drift, resource growth, and missing-evidence metrics",
+            [RustVerificationTaskKind::Stability],
+            stability_fingerprints,
         ));
     }
 

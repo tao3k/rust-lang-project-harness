@@ -16,5 +16,6 @@ mod report_projection_contract;
 mod report_select;
 mod report_writer;
 mod review_packet;
+mod stability_index;
 mod support;
 mod workspace;

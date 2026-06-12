@@ -15,6 +15,8 @@ pub enum RustVerificationTaskKind {
     Stress,
     /// Rust-native benchmark and allocation-regression validation.
     Performance,
+    /// Long-running drift, resource growth, and deterministic replay validation.
+    Stability,
     /// Dependency failure and recovery validation.
     Chaos,
     /// Common vulnerability and authorization-boundary probing.
@@ -32,6 +34,7 @@ impl RustVerificationTaskKind {
         match self {
             Self::Stress => "stress",
             Self::Performance => "performance",
+            Self::Stability => "stability",
             Self::Chaos => "chaos",
             Self::Security => "security",
             Self::Regression => "regression",

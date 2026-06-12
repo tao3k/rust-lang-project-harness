@@ -13,14 +13,18 @@ use super::analysis::{
 };
 use super::model::RustVerificationPlan;
 use super::report::{
-    RustVerificationReportArtifact, RustVerificationReportArtifactRenderError,
-    RustVerificationReportArtifactRole, RustVerificationReportBundle,
-    RustVerificationReportOptions, RustVerificationReportPersistence,
-    RustVerificationReportSidecar, RustVerificationReportSidecarRole,
+    RustVerificationReportArtifact, RustVerificationReportBundle, RustVerificationReportSidecar,
     build_rust_verification_report_bundle_with_options,
+};
+use super::report_artifact::{
+    RustVerificationReportArtifactRenderError,
     render_rust_verification_report_artifact_json_with_config,
 };
 use super::report_manifest::RustVerificationReportManifestSchema;
+use super::report_options::{
+    RustVerificationReportArtifactRole, RustVerificationReportOptions,
+    RustVerificationReportPersistence, RustVerificationReportSidecarRole,
+};
 use super::report_select::{
     build_rust_verification_report_selection_advice,
     render_rust_verification_report_selection_advice_json,

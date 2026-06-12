@@ -1,5 +1,6 @@
 ---
 source: tests/unit/verification/profile_index/candidates.rs
+assertion_line: 32
 expression: rendered
 ---
 [verify-profile] profile_hints
@@ -10,7 +11,7 @@ expression: rendered
    |owner: src/api
    |state: missing_profile
    |suggest: public_api,external_dependency,availability_critical
-   |tasks: stress,chaos
+   |tasks: stress,stability,chaos
    |fact: public_items=1
    |fact: public_fns=1
    |fact: configured_dependency_roots=axum

@@ -126,11 +126,13 @@ fn default_task_kinds_for_responsibility(
         RustOwnerResponsibility::LatencySensitive => {
             BTreeSet::from([RustVerificationTaskKind::Performance])
         }
-        RustOwnerResponsibility::ExternalDependency
-        | RustOwnerResponsibility::Persistence
-        | RustOwnerResponsibility::AvailabilityCritical => {
+        RustOwnerResponsibility::ExternalDependency | RustOwnerResponsibility::Persistence => {
             BTreeSet::from([RustVerificationTaskKind::Chaos])
         }
+        RustOwnerResponsibility::AvailabilityCritical => BTreeSet::from([
+            RustVerificationTaskKind::Chaos,
+            RustVerificationTaskKind::Stability,
+        ]),
         RustOwnerResponsibility::SecurityBoundary => {
             BTreeSet::from([RustVerificationTaskKind::Security])
         }
@@ -193,6 +195,7 @@ fn default_profile_task_reason(kind: RustVerificationTaskKind) -> &'static str {
     match kind {
         RustVerificationTaskKind::Stress => "profile declares public API or integration surface",
         RustVerificationTaskKind::Performance => "profile declares latency-sensitive Rust owner",
+        RustVerificationTaskKind::Stability => "profile declares availability-critical Rust owner",
         RustVerificationTaskKind::Chaos => {
             "profile declares dependency, persistence, or availability responsibility"
         }
@@ -246,6 +249,11 @@ fn default_task_contract(kind: RustVerificationTaskKind) -> RustVerificationTask
             RustVerificationPhase::AfterUnitTestsPass,
             "performance skill must report benchmark command, baseline, regression threshold, latency or throughput, allocation profile, and profiling artifact for this fingerprint",
             performance_requirements(),
+        ),
+        RustVerificationTaskKind::Stability => RustVerificationTaskContract::new(
+            RustVerificationPhase::ScheduledRegression,
+            "stability skill must report long-run command, iteration window, latency distribution, resource delta, state growth, determinism, and artifact for this fingerprint",
+            stability_requirements(),
         ),
         RustVerificationTaskKind::Chaos => RustVerificationTaskContract::new(
             RustVerificationPhase::BeforeRelease,
@@ -311,6 +319,39 @@ fn performance_requirements() -> Vec<RustVerificationRequirement> {
         (
             "profile_artifact",
             "criterion, divan, iai-callgrind, flamegraph, or equivalent artifact",
+        ),
+    ])
+}
+
+fn stability_requirements() -> Vec<RustVerificationRequirement> {
+    requirements([
+        (
+            "stability_command",
+            "long-running verification command or project-owned replay scenario",
+        ),
+        (
+            "iteration_window",
+            "iterations, duration, warmup, and sample window used for the run",
+        ),
+        (
+            "latency_distribution",
+            "p50/p95/p99/max latency or explicit unsupported result",
+        ),
+        (
+            "resource_delta",
+            "RSS, heap, file descriptor, thread, or handle growth over the run",
+        ),
+        (
+            "state_growth",
+            "cache, index, queue, database, or artifact growth over the run",
+        ),
+        (
+            "determinism",
+            "repeated-run drift, replay consistency, or explicit nondeterminism bound",
+        ),
+        (
+            "stability_artifact",
+            "machine-readable report, trace, profile, or log bundle artifact",
         ),
     ])
 }

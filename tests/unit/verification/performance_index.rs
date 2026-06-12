@@ -127,6 +127,7 @@ fn performance_policy_requires_plan_and_performance_report_obligations() {
     assert_eq!(plan.report_obligations[1].key, "task_index_json");
     assert_eq!(plan.report_obligations[1].task_count(), 1);
     assert_eq!(plan.report_obligations[2].key, "performance_index_json");
+    assert_eq!(plan.report_obligations[2].task_count(), 1);
     assert_eq!(
         plan.report_obligations[2].renderer,
         "build_rust_verification_performance_index + render_rust_verification_performance_index_json"

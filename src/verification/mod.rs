@@ -17,12 +17,15 @@ mod profile;
 mod profile_index;
 mod render;
 mod report;
+mod report_artifact;
 mod report_entry;
 mod report_manifest;
+mod report_options;
 mod report_select;
 mod report_write;
 mod review_packet;
 mod skill_descriptor;
+mod stability;
 mod task_builder;
 mod task_index;
 
@@ -147,16 +150,13 @@ pub use render::{
     render_rust_verification_skill_contracts,
 };
 pub use report::{
-    RustVerificationReportArtifact, RustVerificationReportArtifactRenderError,
-    RustVerificationReportArtifactRole, RustVerificationReportBundle,
-    RustVerificationReportOptions, RustVerificationReportPersistence,
-    RustVerificationReportSidecar, RustVerificationReportSidecarRole,
-    RustVerificationReportTemplate, RustVerificationReportTraceConfig,
-    RustVerificationTraceMaxSeconds, RustVerificationTraceSampleIntervalMs,
+    RustVerificationReportArtifact, RustVerificationReportBundle, RustVerificationReportSidecar,
     build_rust_verification_report_bundle, build_rust_verification_report_bundle_with_options,
-    render_rust_verification_report_artifact_json,
-    render_rust_verification_report_artifact_json_with_config,
     render_rust_verification_report_bundle, render_rust_verification_report_bundle_json,
+};
+pub use report_artifact::{
+    RustVerificationReportArtifactRenderError, render_rust_verification_report_artifact_json,
+    render_rust_verification_report_artifact_json_with_config,
 };
 pub use report_entry::{
     RustVerificationReportEntryAction, RustVerificationReportEntryAdvice,
@@ -172,6 +172,12 @@ pub use report_manifest::{
     check_rust_verification_report_manifest_schema,
     render_rust_verification_report_manifest_compatibility,
     render_rust_verification_report_manifest_schema_compatibility,
+};
+pub use report_options::{
+    RustVerificationReportArtifactRole, RustVerificationReportOptions,
+    RustVerificationReportPersistence, RustVerificationReportSidecarRole,
+    RustVerificationReportTemplate, RustVerificationReportTraceConfig,
+    RustVerificationTraceMaxSeconds, RustVerificationTraceSampleIntervalMs,
 };
 pub use report_select::{
     RustVerificationReportSelectionAdvice, RustVerificationReportSelectionArtifact,
@@ -196,6 +202,11 @@ pub use review_packet::{
     render_rust_review_packet_json,
 };
 pub use skill_descriptor::RustVerificationSkillDescriptor;
+pub use stability::{
+    RustVerificationStabilityIndex, RustVerificationStabilityRecord,
+    build_rust_verification_stability_index, render_rust_verification_stability_index,
+    render_rust_verification_stability_index_json,
+};
 pub use task_index::{
     RustVerificationTaskIndex, RustVerificationTaskRecord, build_rust_verification_task_index,
     render_rust_verification_task_index_json,

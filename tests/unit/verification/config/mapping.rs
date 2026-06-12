@@ -77,3 +77,59 @@ fn verification_latency_sensitive_profile_requests_performance_task() {
     );
     insta::assert_snapshot!("verification_latency_sensitive_performance_task", rendered);
 }
+
+#[test]
+fn verification_availability_critical_profile_requests_stability_task() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_api_project(root);
+    let config = default_rust_harness_config().with_verification_profile_hint(
+        RustVerificationProfileHint::new(
+            "src/api.rs",
+            [RustOwnerResponsibility::AvailabilityCritical],
+        ),
+    );
+
+    let plan = plan_rust_project_verification_with_config(root, &config).expect("plan");
+    let rendered = normalize_temp_root(&render_rust_verification_plan(&plan), root);
+    let active_kinds = plan
+        .active_tasks()
+        .into_iter()
+        .map(|task| task.kind)
+        .collect::<std::collections::BTreeSet<_>>();
+    let stability_task = plan
+        .tasks
+        .iter()
+        .find(|task| task.kind == RustVerificationTaskKind::Stability)
+        .expect("stability task");
+    let required_stability_evidence = stability_task
+        .required_evidence
+        .iter()
+        .map(|requirement| requirement.key.as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        active_kinds,
+        std::collections::BTreeSet::from([
+            RustVerificationTaskKind::Chaos,
+            RustVerificationTaskKind::Stability,
+        ]),
+        "{rendered}"
+    );
+    assert_eq!(
+        required_stability_evidence,
+        [
+            "stability_command",
+            "iteration_window",
+            "latency_distribution",
+            "resource_delta",
+            "state_growth",
+            "determinism",
+            "stability_artifact",
+        ]
+    );
+    assert!(
+        rendered.contains("profile declares availability-critical Rust owner"),
+        "{rendered}"
+    );
+}

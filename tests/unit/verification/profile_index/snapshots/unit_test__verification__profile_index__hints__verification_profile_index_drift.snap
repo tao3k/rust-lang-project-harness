@@ -1,5 +1,6 @@
 ---
 source: tests/unit/verification/profile_index/hints.rs
+assertion_line: 57
 expression: rendered
 ---
 [verify-profile] src/api.rs
@@ -7,7 +8,7 @@ expression: rendered
    |state: profile_drift
    |configured: public_api
    |suggest: public_api,external_dependency,availability_critical
-   |tasks: stress,chaos
+   |tasks: stress,stability,chaos
    |fact: public_items=1
    |fact: public_fns=1
    |fact: configured_dependency_roots=axum

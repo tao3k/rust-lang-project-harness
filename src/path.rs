@@ -15,3 +15,13 @@ pub(crate) fn normalize_lexical_path(path: &Path) -> PathBuf {
     }
     normalized
 }
+
+pub(crate) fn display_project_path(project_root: &Path, path: &Path) -> String {
+    let normalized_root = normalize_lexical_path(project_root);
+    let normalized_path = normalize_lexical_path(path);
+    normalized_path
+        .strip_prefix(&normalized_root)
+        .unwrap_or(&normalized_path)
+        .display()
+        .to_string()
+}

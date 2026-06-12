@@ -1,30 +1,29 @@
-//! Structured performance-status retrieval for verification plans.
+//! Searchable stability verification state.
 
-use std::collections::BTreeSet;
-use std::fmt::Write;
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use crate::path::display_project_path;
 
-use super::{
+use super::model::{
     RustVerificationEvidence, RustVerificationPhase, RustVerificationPlan,
     RustVerificationTaskKind, RustVerificationTaskState,
 };
 
-/// Searchable performance verification state extracted from one plan.
+/// Searchable stability verification state extracted from one plan.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RustVerificationPerformanceIndex {
+pub struct RustVerificationStabilityIndex {
     /// Root used to compact owner paths in agent renders.
     #[serde(default, skip_serializing_if = "path_buf_is_empty")]
     pub project_root: PathBuf,
-    /// Performance task records, including pending, failed, and satisfied runs.
-    pub records: Vec<RustVerificationPerformanceRecord>,
+    /// Stability task records, including pending, failed, and satisfied runs.
+    pub records: Vec<RustVerificationStabilityRecord>,
 }
 
-impl RustVerificationPerformanceIndex {
-    /// Return whether no performance task exists in this plan.
+impl RustVerificationStabilityIndex {
+    /// Return whether no stability task exists in this plan.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.records.is_empty()
@@ -35,7 +34,7 @@ impl RustVerificationPerformanceIndex {
     pub fn records_for_owner(
         &self,
         owner_path: impl AsRef<Path>,
-    ) -> Vec<&RustVerificationPerformanceRecord> {
+    ) -> Vec<&RustVerificationStabilityRecord> {
         let owner_path = owner_path.as_ref();
         self.records
             .iter()
@@ -58,7 +57,7 @@ impl RustVerificationPerformanceIndex {
     pub fn records_for_package(
         &self,
         package_root: impl AsRef<Path>,
-    ) -> Vec<&RustVerificationPerformanceRecord> {
+    ) -> Vec<&RustVerificationStabilityRecord> {
         let package_root = package_root.as_ref();
         self.records
             .iter()
@@ -77,7 +76,7 @@ impl RustVerificationPerformanceIndex {
     pub fn records_in_state(
         &self,
         state: RustVerificationTaskState,
-    ) -> Vec<&RustVerificationPerformanceRecord> {
+    ) -> Vec<&RustVerificationStabilityRecord> {
         self.records
             .iter()
             .filter(|record| record.state == state)
@@ -89,7 +88,7 @@ impl RustVerificationPerformanceIndex {
     pub fn records_with_receipt_evidence(
         &self,
         key: &str,
-    ) -> Vec<&RustVerificationPerformanceRecord> {
+    ) -> Vec<&RustVerificationStabilityRecord> {
         self.records
             .iter()
             .filter(|record| record.receipt_evidence_value(key).is_some())
@@ -97,12 +96,12 @@ impl RustVerificationPerformanceIndex {
     }
 }
 
-/// One searchable performance task record.
+/// One searchable stability task record.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RustVerificationPerformanceRecord {
+pub struct RustVerificationStabilityRecord {
     /// Stable task fingerprint.
     pub fingerprint: String,
-    /// Current verification state for this performance task.
+    /// Current verification state for this stability task.
     pub state: RustVerificationTaskState,
     /// Suggested lifecycle phase.
     pub phase: RustVerificationPhase,
@@ -112,15 +111,15 @@ pub struct RustVerificationPerformanceRecord {
     pub owner_path: PathBuf,
     /// Parser-derived owner namespace.
     pub owner_namespace: Vec<String>,
-    /// Configured performance skill label, such as `rust-verification-performance@criterion`.
+    /// Configured stability skill label, when supplied by the embedding project.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skill: Option<String>,
     /// Descriptor key for expanding the adapter contract, when configured.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub contract_ref: Option<String>,
-    /// Required evidence keys from the performance task contract.
+    /// Required evidence keys from the stability task contract.
     pub required_evidence_keys: Vec<String>,
-    /// Parser/profile facts that triggered the performance obligation.
+    /// Parser/profile facts that triggered the stability obligation.
     pub task_evidence: Vec<RustVerificationEvidence>,
     /// Matching receipt summary, when supplied.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -131,12 +130,25 @@ pub struct RustVerificationPerformanceRecord {
     /// Matching receipt timestamp, when supplied.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub receipt_observed_at: Option<String>,
-    /// Structured benchmark/profiling evidence from the matching receipt.
+    /// Structured long-run stability evidence from the matching receipt.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub receipt_evidence: Vec<RustVerificationEvidence>,
 }
 
-impl RustVerificationPerformanceRecord {
+impl RustVerificationStabilityRecord {
+    /// Return the required evidence keys that are absent from the receipt.
+    #[must_use]
+    pub fn missing_receipt_evidence_keys(&self) -> Vec<&str> {
+        self.required_evidence_keys
+            .iter()
+            .filter_map(|key| {
+                self.receipt_evidence_value(key)
+                    .is_none()
+                    .then_some(key.as_str())
+            })
+            .collect()
+    }
+
     /// Return one receipt evidence value by key.
     #[must_use]
     pub fn receipt_evidence_value(&self, key: &str) -> Option<&str> {
@@ -145,33 +157,18 @@ impl RustVerificationPerformanceRecord {
             .find(|evidence| evidence.label == key)
             .map(|evidence| evidence.value.as_str())
     }
-
-    /// Return required evidence keys not present in the matching receipt.
-    #[must_use]
-    pub fn missing_receipt_evidence_keys(&self) -> Vec<&str> {
-        let present_keys = self
-            .receipt_evidence
-            .iter()
-            .map(|evidence| evidence.label.as_str())
-            .collect::<BTreeSet<_>>();
-        self.required_evidence_keys
-            .iter()
-            .filter(|key| !present_keys.contains(key.as_str()))
-            .map(String::as_str)
-            .collect()
-    }
 }
 
-/// Build a structured performance-status index from a verification plan.
+/// Build a structured stability-status index from a verification plan.
 #[must_use]
-pub fn build_rust_verification_performance_index(
+pub fn build_rust_verification_stability_index(
     plan: &RustVerificationPlan,
-) -> RustVerificationPerformanceIndex {
+) -> RustVerificationStabilityIndex {
     let mut records = plan
         .tasks
         .iter()
-        .filter(|task| task.kind == RustVerificationTaskKind::Performance)
-        .map(|task| RustVerificationPerformanceRecord {
+        .filter(|task| task.kind == RustVerificationTaskKind::Stability)
+        .map(|task| RustVerificationStabilityRecord {
             fingerprint: task.fingerprint.clone(),
             state: task.state,
             phase: task.phase,
@@ -200,17 +197,15 @@ pub fn build_rust_verification_performance_index(
             .cmp(&right.owner_path)
             .then_with(|| left.fingerprint.cmp(&right.fingerprint))
     });
-    RustVerificationPerformanceIndex {
+    RustVerificationStabilityIndex {
         project_root: plan.project_root.clone(),
         records,
     }
 }
 
-/// Render performance-status records for agent retrieval.
+/// Render stability-status records for agent retrieval.
 #[must_use]
-pub fn render_rust_verification_performance_index(
-    index: &RustVerificationPerformanceIndex,
-) -> String {
+pub fn render_rust_verification_stability_index(index: &RustVerificationStabilityIndex) -> String {
     let display_root = if index.project_root.as_os_str().is_empty() {
         None
     } else {
@@ -219,29 +214,29 @@ pub fn render_rust_verification_performance_index(
     index
         .records
         .iter()
-        .map(|record| render_performance_record(record, display_root))
+        .map(|record| render_stability_record(record, display_root))
         .collect::<Vec<_>>()
         .join("\n")
 }
 
-/// Render performance-status records as structured JSON.
+/// Render stability-status records as structured JSON.
 ///
 /// # Errors
 ///
 /// Returns a serialization error if the index cannot be encoded as JSON.
-pub fn render_rust_verification_performance_index_json(
-    index: &RustVerificationPerformanceIndex,
+pub fn render_rust_verification_stability_index_json(
+    index: &RustVerificationStabilityIndex,
 ) -> Result<String, serde_json::Error> {
     serde_json::to_string(index)
 }
 
-fn render_performance_record(
-    record: &RustVerificationPerformanceRecord,
+fn render_stability_record(
+    record: &RustVerificationStabilityRecord,
     display_root: Option<&Path>,
 ) -> String {
     let display_root = display_root.unwrap_or(&record.package_root);
     let mut rendered = format!(
-        "[perf-state] {}\n",
+        "[stability-state] {}\n",
         display_project_path(display_root, &record.owner_path)
     );
     if !record.owner_namespace.is_empty() {

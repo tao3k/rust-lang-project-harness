@@ -1,5 +1,6 @@
 ---
 source: tests/unit/verification/profile_index/candidates.rs
+assertion_line: 72
 expression: rendered
 ---
 [verify-profile] profile_hints
@@ -10,7 +11,7 @@ expression: rendered
    |owner: src/gateway
    |state: missing_profile
    |suggest: public_api,external_dependency,latency_sensitive,availability_critical
-   |tasks: stress,performance,chaos
+   |tasks: stress,performance,stability,chaos
    |fact: owner_modules=2
    |fact: public_items=1
    |fact: public_fns=1
