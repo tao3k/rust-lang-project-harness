@@ -96,6 +96,10 @@ fn cli_search_deps_distinguishes_external_version_queries() {
         ),
         "{external}"
     );
+    assert!(
+        external.contains("avoid=web-search,docs.rs-search,raw-read"),
+        "{external}"
+    );
     assert!(!external.contains("|owner src/lib.rs"), "{external}");
 
     let external_json = run_cli([
@@ -141,6 +145,10 @@ fn cli_search_deps_distinguishes_external_version_queries() {
     );
     assert!(
         external_subpath_api.contains("|next dependency:serde,docs:serde/de::DeserializeOwned"),
+        "{external_subpath_api}"
+    );
+    assert!(
+        external_subpath_api.contains("avoid=web-search,docs.rs-search,raw-read"),
         "{external_subpath_api}"
     );
     assert!(

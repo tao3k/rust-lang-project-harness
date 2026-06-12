@@ -276,7 +276,11 @@ fn reasoning_block(
         rendered.push('\n');
     }
     push_reasoning_body(&mut rendered, body);
-    rendered.push_str("avoid=raw-read\n");
+    if profile == "query-deps" {
+        rendered.push_str("avoid=web-search,docs.rs-search,raw-read\n");
+    } else {
+        rendered.push_str("avoid=raw-read\n");
+    }
     rendered
 }
 

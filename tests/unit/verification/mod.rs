@@ -17,5 +17,6 @@ mod report_select;
 mod report_writer;
 mod review_packet;
 mod stability_index;
+mod stability_picture;
 mod support;
 mod workspace;

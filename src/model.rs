@@ -9,8 +9,9 @@ use serde::{Deserialize, Serialize};
 use crate::verification::{
     RustOwnerResponsibility, RustVerificationApiPathBaseline, RustVerificationDependencySignal,
     RustVerificationPolicy, RustVerificationProfileHint, RustVerificationReceipt,
-    RustVerificationSkillBinding, RustVerificationSkillDescriptor, RustVerificationTaskContract,
-    RustVerificationTaskKind, RustVerificationWaiver,
+    RustVerificationSkillBinding, RustVerificationSkillDescriptor,
+    RustVerificationStabilityPictureConfig, RustVerificationTaskContract, RustVerificationTaskKind,
+    RustVerificationWaiver,
 };
 
 /// Finding severity used by the Rust project harness.
@@ -855,6 +856,16 @@ impl RustHarnessConfig {
         signal: RustVerificationDependencySignal,
     ) -> Self {
         self.verification_policy.dependency_signals.push(signal);
+        self
+    }
+
+    /// Return a config with project-owned stability picture requirements.
+    #[must_use]
+    pub fn with_verification_stability_picture(
+        mut self,
+        config: RustVerificationStabilityPictureConfig,
+    ) -> Self {
+        self.verification_policy.stability_picture = Some(config);
         self
     }
 }

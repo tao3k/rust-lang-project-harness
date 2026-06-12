@@ -218,6 +218,7 @@ fn render_search_dep(
             let _ = writeln!(block, "{line}");
         }
         let _ = writeln!(block, "|next {}", parsed_query.next_actions(version_scope));
+        let _ = writeln!(block, "avoid=web-search,docs.rs-search,raw-read");
         append_block(&mut rendered, &block);
     }
     Ok(rendered)

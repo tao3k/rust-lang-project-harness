@@ -26,6 +26,7 @@ mod report_write;
 mod review_packet;
 mod skill_descriptor;
 mod stability;
+mod stability_picture;
 mod task_builder;
 mod task_index;
 
@@ -126,8 +127,9 @@ pub use model::{
     RustVerificationEvidence, RustVerificationPhase, RustVerificationPlan, RustVerificationPolicy,
     RustVerificationProfileHint, RustVerificationReceipt, RustVerificationReceiptStatus,
     RustVerificationReportObligation, RustVerificationRequirement, RustVerificationResolutionNote,
-    RustVerificationSkillBinding, RustVerificationTask, RustVerificationTaskContract,
-    RustVerificationTaskKind, RustVerificationTaskState, RustVerificationWaiver,
+    RustVerificationSkillBinding, RustVerificationStabilityPictureConfig, RustVerificationTask,
+    RustVerificationTaskContract, RustVerificationTaskKind, RustVerificationTaskState,
+    RustVerificationWaiver,
 };
 pub use performance::{
     RustVerificationPerformanceIndex, RustVerificationPerformanceRecord,
@@ -206,6 +208,12 @@ pub use stability::{
     RustVerificationStabilityIndex, RustVerificationStabilityRecord,
     build_rust_verification_stability_index, render_rust_verification_stability_index,
     render_rust_verification_stability_index_json,
+};
+pub use stability_picture::{
+    RustVerificationStabilityPicture, RustVerificationStabilityPictureRecord,
+    build_rust_verification_stability_picture,
+    build_rust_verification_stability_picture_from_index,
+    render_rust_verification_stability_picture, render_rust_verification_stability_picture_json,
 };
 pub use task_index::{
     RustVerificationTaskIndex, RustVerificationTaskRecord, build_rust_verification_task_index,

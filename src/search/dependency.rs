@@ -82,7 +82,14 @@ fn render_search_dependency_seed_view(
         let joined = query_terms.join(",");
         let _ = writeln!(block, "|seed deps:{joined}");
         let _ = writeln!(block, "|seed import:{joined}");
+        let _ = writeln!(block, "|seed docs-use:{joined}");
+        let _ = writeln!(block, "|seed crate-source:{joined}");
         let _ = writeln!(block, "|seed tests");
+        let _ = writeln!(
+            block,
+            "|next dependency:{joined},docs-use:{joined},crate-source:{joined},tests"
+        );
+        let _ = writeln!(block, "avoid=web-search,docs.rs-search,raw-read");
         append_block(&mut rendered, &block);
     }
     Ok(rendered)
@@ -230,7 +237,11 @@ fn dependency_query_details(
     append_dependency_owner_hits(&mut lines, context, query, &usage, &owner_modules, flags);
     append_limited_lines(&mut lines, public_api, SEARCH_ITEM_LIMIT);
     append_limited_lines(&mut lines, test_lines, SEARCH_TEST_LIMIT);
-    let _ = writeln!(lines, "|next deps:{query},import:{query},tests");
+    let _ = writeln!(
+        lines,
+        "|next deps:{query},import:{query},docs-use:{query},crate-source:{query},tests"
+    );
+    let _ = writeln!(lines, "avoid=web-search,docs.rs-search,raw-read");
     DependencyQueryDetails {
         deps: deps.len(),
         owners: usage.len(),

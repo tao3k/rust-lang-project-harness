@@ -204,7 +204,12 @@ fn cli_search_views_render_rfc_line_protocol() {
         "{dependency}"
     );
     assert!(
-        dependency.contains("|next deps:serde,import:serde,tests"),
+        dependency
+            .contains("|next deps:serde,import:serde,docs-use:serde,crate-source:serde,tests"),
+        "{dependency}"
+    );
+    assert!(
+        dependency.contains("avoid=web-search,docs.rs-search,raw-read"),
         "{dependency}"
     );
 
@@ -230,11 +235,17 @@ fn cli_search_views_render_rfc_line_protocol() {
         "{dependency_set}"
     );
     assert!(
-        dependency_set.contains("|next deps:serde,import:serde,tests"),
+        dependency_set
+            .contains("|next deps:serde,import:serde,docs-use:serde,crate-source:serde,tests"),
         "{dependency_set}"
     );
     assert!(
-        dependency_set.contains("|next deps:anyhow,import:anyhow,tests"),
+        dependency_set
+            .contains("|next deps:anyhow,import:anyhow,docs-use:anyhow,crate-source:anyhow,tests"),
+        "{dependency_set}"
+    );
+    assert!(
+        dependency_set.contains("avoid=web-search,docs.rs-search,raw-read"),
         "{dependency_set}"
     );
 
