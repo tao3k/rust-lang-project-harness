@@ -1,6 +1,6 @@
 [package]
 name = "rust-lang-project-harness"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Project-level Rust language harness with compact diagnostics for agents"
 authors = ["CyberXiuXian Artisan workshop"]
