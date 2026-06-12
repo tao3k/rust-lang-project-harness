@@ -21,6 +21,7 @@ my-crate/
     receipts.rs
     reports.rs
     rules.rs
+    dependencies.rs
   src/
     lib.rs
     ...
@@ -98,6 +99,12 @@ baseline directories, runtime cache artifacts, sidecars, and trace settings.
 severity overrides, disabled findings, source/test scope exceptions, and
 required explanations.
 
+`harness/dependencies.rs` owns dependency baseline policy. It should construct a
+`RustProjectHarnessDependencyBaseline` for exact `Cargo.lock` requirements such
+as `rust-lang-project-harness` version and git rev. Do not parse `Cargo.lock` in
+downstream policy modules; the upstream harness API owns lockfile parsing and
+agent guidance.
+
 `src/` owns the parser-observed implementation. Do not encode source structure in
 the gate by string convention alone; use project-relative owner paths that the
 Rust parser can resolve.
@@ -131,6 +138,7 @@ my-workspace/
     receipts.rs
     reports.rs
     rules.rs
+    dependencies.rs
   crates/
     api/
       Cargo.toml
@@ -150,8 +158,8 @@ my-workspace/
 
 ```rust
 use rust_lang_project_harness::{
-    RustProjectHarnessDownstreamPolicy, RustProjectHarnessWorkspacePolicy,
-    default_rust_harness_config,
+    RustProjectHarnessDependencyBaseline, RustProjectHarnessDownstreamPolicy,
+    RustProjectHarnessWorkspacePolicy, default_rust_harness_config,
 };
 
 pub enum WorkspaceMember {
@@ -171,6 +179,19 @@ pub fn workspace_policy() -> RustProjectHarnessWorkspacePolicy {
             ),
         ),
     )
+    .with_dependency_baseline(dependencies::baseline())
+}
+
+mod dependencies {
+    use super::RustProjectHarnessDependencyBaseline;
+
+    pub fn baseline() -> RustProjectHarnessDependencyBaseline {
+        RustProjectHarnessDependencyBaseline::new().require_git_package(
+            "rust-lang-project-harness",
+            "0.1.2",
+            "rev=<approved-rev>",
+        )
+    }
 }
 
 pub fn member_policy(member: WorkspaceMember) -> RustProjectHarnessDownstreamPolicy {
@@ -205,6 +226,11 @@ policy. `member_crate` clones the common config into a crate policy.
 crate-local override, so a member can add an owner or waiver without mutating the
 workspace baseline.
 
+`RustProjectHarnessDependencyBaseline` should be attached once to the workspace
+policy when every member crate must resolve the same harness version or git rev.
+Derived member policies inherit that baseline, and their `build.rs` gate searches
+upward for the workspace `Cargo.lock`.
+
 When a downstream agent adds the dependency and thin `build.rs`, `cargo test`
 automatically triggers the member build.rs gate before tests run. Failing gates
 print a stable `[rust-harness-agent-guidance]` block that tells the agent to keep
@@ -212,6 +238,12 @@ print a stable `[rust-harness-agent-guidance]` block that tells the agent to kee
 members with `RustProjectHarnessWorkspacePolicy`, and add crate-local owners,
 receipts, waivers, or report obligations only in the member override.
 In short: cargo test automatically triggers the member build.rs gate.
+
+If a dependency baseline drifts, failing gates print a stable
+`[rust-harness-dependency-guidance]` block. The repair path is to update the
+stale direct or transitive dependency edge, refresh `Cargo.lock` with Cargo,
+confirm `cargo tree -i` for the package, and rerun `cargo test`. Do not hand-edit
+lockfile entries or keep a downstream-specific `Cargo.lock` parser.
 
 ## Classification
 
@@ -232,6 +264,9 @@ Library/build.rs semantic gate:
   `with_criterion_performance_verification`.
 - persisted receipts, waivers, and report artifact policy that determine whether
   a crate has complete verification evidence.
+- dependency baseline gate: `RustProjectHarnessDependencyBaseline` with
+  `assert_rust_project_harness_dependency_baseline`, normally attached through
+  `RustProjectHarnessDownstreamPolicy` or `RustProjectHarnessWorkspacePolicy`.
 
 CLI quick check and observation surface:
 
@@ -254,15 +289,18 @@ When adapting a downstream crate, an agent should:
    `harness/mod.rs`.
 3. Split policy into `owners.rs`, `verification.rs`, `receipts.rs`,
    `reports.rs`, and `rules.rs` once more than one responsibility is configured.
-4. Mark public dispatch paths, cache hot paths, parser hot paths, or provider
+4. Put shared dependency baselines in `dependencies.rs` or the workspace
+   `harness/mod.rs`, attach them through `with_dependency_baseline`, and let
+   member crates inherit them from `RustProjectHarnessWorkspacePolicy`.
+5. Mark public dispatch paths, cache hot paths, parser hot paths, or provider
    transport paths as performance owners.
-5. Mark timeout, retry, persistence, state growth, deterministic replay, or
+6. Mark timeout, retry, persistence, state growth, deterministic replay, or
    degradation/recovery paths as stability owners.
-6. Add benchmark targets only when the selected owners need performance
+7. Add benchmark targets only when the selected owners need performance
    evidence.
-7. Add stability receipts or runner evidence only when selected owners need
+8. Add stability receipts or runner evidence only when selected owners need
    stability evidence.
-8. Keep quick CLI checks as developer feedback, not as the source of truth for
+9. Keep quick CLI checks as developer feedback, not as the source of truth for
    full verification.
 
 The output should be a thin `build.rs`, a `harness/` module tree, and a small
