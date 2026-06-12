@@ -12,6 +12,80 @@ use crate::cli::support::{
 };
 
 #[test]
+fn cli_search_deps_reports_basic_dependency_usage_without_boundary() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\n\
+         name = \"cli-search-deps-basic-usage\"\n\
+         version = \"0.1.0\"\n\
+         edition = \"2024\"\n\n\
+         [dependencies]\n\
+         tokio = { version = \"1\", features = [\"rt\", \"time\", \"process\"] }\n",
+    )
+    .expect("write manifest");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(
+        root.join("src/lib.rs"),
+        "use tokio::task;\n\npub async fn enqueue() {\n    task::spawn(async {});\n}\n",
+    )
+    .expect("write lib");
+
+    let output = run_search(root, &["deps", "tokio"]);
+
+    assert!(
+        output.contains(
+            "|dependency-guidance dep=tokio usageLevel=basic_usage engineeringBoundary=missing ownerUsage=1"
+        ),
+        "{output}"
+    );
+    assert!(
+        output.contains(
+            "boundaryCapabilities=- missingBoundary=timeout,cancellation,process-lifecycle,stream-drain next=deps:tokio::timeout"
+        ),
+        "{output}"
+    );
+}
+
+#[test]
+fn cli_search_deps_reports_dependency_capability_boundary_usage() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\n\
+         name = \"cli-search-deps-boundary-usage\"\n\
+         version = \"0.1.0\"\n\
+         edition = \"2024\"\n\n\
+         [dependencies]\n\
+         tokio = { version = \"1\", features = [\"rt\", \"time\", \"process\"] }\n",
+    )
+    .expect("write manifest");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(
+        root.join("src/lib.rs"),
+        "use std::time::Duration;\nuse tokio::time::timeout;\n\npub async fn bounded() {\n    let _ = timeout(Duration::from_secs(1), async {}).await;\n}\n",
+    )
+    .expect("write lib");
+
+    let output = run_search(root, &["deps", "tokio"]);
+
+    assert!(
+        output.contains(
+            "|dependency-guidance dep=tokio usageLevel=capability_boundary engineeringBoundary=present ownerUsage=1"
+        ),
+        "{output}"
+    );
+    assert!(
+        output.contains(
+            "boundaryCapabilities=timeout missingBoundary=cancellation,process-lifecycle,stream-drain next=deps:tokio::cancellation"
+        ),
+        "{output}"
+    );
+}
+
+#[test]
 fn cli_search_deps_distinguishes_external_version_queries() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();

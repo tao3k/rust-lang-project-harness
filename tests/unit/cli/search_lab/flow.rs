@@ -29,7 +29,7 @@ fn search_lab_multi_pipe_dependency_flow_compresses_to_final_packet() {
     assert_lab_packet(
         "dependency_multi_pipe_final_packet",
         &full,
-        26,
+        27,
         &[
             "[search-dependency] q=serde pkg=. dep=1 own=2 api=8 item=",
             " docs=8 tests=1",
@@ -39,7 +39,7 @@ fn search_lab_multi_pipe_dependency_flow_compresses_to_final_packet() {
             "|item load kind=fn responsibilities=early-return public=true next=syntax:load",
             "|api src/domain/mod.rs line=4 dep=serde kind=struct name=Thing",
             "|test tests/domain.rs functions=1 owner=src/lib.rs",
-            "|next deps:serde,import:serde,tests",
+            "|next deps:serde,import:serde,docs-use:serde,crate-source:serde,tests",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );
@@ -67,9 +67,9 @@ fn search_lab_multi_pipe_dependency_flow_compresses_to_final_packet() {
         10,
         &[
             "[search-dependency] q=serde alg=seed-frontier",
-            "D=dependency:pkg(serde)!deps",
+            "D=dependency:pkg(serde)!dependency",
             "rank=D,",
-            "frontier=D.deps",
+            "frontier=D.dependency",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );
@@ -104,10 +104,10 @@ fn search_lab_multi_pipe_dependency_flow_compresses_to_final_packet() {
         &[
             "[search-dependency] q=serde alg=seed-frontier",
             "aliases: graph:{G=search,D=dependency",
-            "D=dependency:pkg(serde)!deps",
+            "D=dependency:pkg(serde)!dependency",
             "G>{D:uses",
             "rank=D,",
-            "frontier=D.deps",
+            "frontier=D.dependency",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );
@@ -181,8 +181,9 @@ fn search_lab_deps_flow_separates_current_workspace_and_external_versions() {
         &[
             "[search-deps] q=tokio@1::Sender pkg=. dep=1 own=1 api=0 requestedVersion=1 currentWorkspaceVersion=1 versionScope=current apiQuery=Sender",
             "|dep tokio import=tokio pkg=tokio version=1 kind=normal opt=true source=manifest manager=cargo",
+            "|dependency-guidance dep=tokio usageLevel=basic_usage engineeringBoundary=missing",
             "|owner src/http/client.rs hit_kind=dependency-api apiQuery=Sender",
-            "|next dependency:tokio,docs:tokio::Sender,text:Sender,tests:Sender",
+            "|next dependency:tokio,docs-use:tokio::Sender,crate-source:tokio,import:tokio,tests:Sender",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );
@@ -195,7 +196,7 @@ fn search_lab_deps_flow_separates_current_workspace_and_external_versions() {
         &[
             "[search-deps] q=ignore@0.3::WalkBuilder pkg=. dep=1 own=0 api=0 requestedVersion=0.3 currentWorkspaceVersion=0.4 versionScope=external apiQuery=WalkBuilder",
             "|note kind=version-scope message=requested-version-is-outside-current-workspace-version",
-            "|next dependency:ignore,docs:ignore::WalkBuilder,text:WalkBuilder,tests:WalkBuilder",
+            "|next dependency:ignore,docs-use:ignore::WalkBuilder,crate-source:ignore,import:ignore,tests:WalkBuilder",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );

@@ -15,6 +15,7 @@ pub(crate) fn expand(args: TokenStream, input: TokenStream) -> TokenStream {
 struct HarnessTestOptions {
     advice_allow: bool,
     config: Option<Expr>,
+    project_root: Option<Expr>,
     test_attrs: Vec<proc_macro2::TokenStream>,
 }
 
@@ -33,6 +34,9 @@ impl HarnessTestOptions {
                 Meta::NameValue(name_value) if name_value.path.is_ident("config") => {
                     options.config = Some(name_value.value);
                 }
+                Meta::NameValue(name_value) if name_value.path.is_ident("project_root") => {
+                    options.project_root = Some(name_value.value);
+                }
                 Meta::Path(path) if path.is_ident("ignore") => {
                     options.test_attrs.push(quote! { #[ignore] });
                 }
@@ -50,7 +54,7 @@ impl HarnessTestOptions {
                 other => {
                     return Err(syn::Error::new(
                         other.span(),
-                        "expected `allow_advice`, `advice = allow`, `config = <expr>`, `ignore`, or `should_panic`",
+                        "expected `allow_advice`, `advice = allow`, `config = <expr>`, `project_root = <expr>`, `ignore`, or `should_panic`",
                     ));
                 }
             }
@@ -101,31 +105,52 @@ fn expand_harness_test(options: HarnessTestOptions, function: ItemFn) -> proc_ma
 }
 
 fn harness_gate_call(options: &HarnessTestOptions) -> proc_macro2::TokenStream {
+    let project_root = project_root_expr(options);
     match (&options.config, options.advice_allow) {
         (Some(config), true) => quote! {
+            let __rs_harness_project_root = #project_root;
+            let __rs_harness_project_root =
+                std::convert::AsRef::<std::path::Path>::as_ref(&__rs_harness_project_root);
             let __rs_harness_config = #config;
             rust_lang_project_harness::assert_rust_project_harness_clean_with_config(
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR")),
+                __rs_harness_project_root,
                 &__rs_harness_config,
             );
         },
         (Some(config), false) => quote! {
+            let __rs_harness_project_root = #project_root;
+            let __rs_harness_project_root =
+                std::convert::AsRef::<std::path::Path>::as_ref(&__rs_harness_project_root);
             let __rs_harness_config = #config;
             rust_lang_project_harness::assert_rust_project_harness_cargo_test_clean_with_config(
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR")),
+                __rs_harness_project_root,
                 &__rs_harness_config,
             );
         },
         (None, true) => quote! {
+            let __rs_harness_project_root = #project_root;
+            let __rs_harness_project_root =
+                std::convert::AsRef::<std::path::Path>::as_ref(&__rs_harness_project_root);
             rust_lang_project_harness::assert_rust_project_harness_clean(
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR")),
+                __rs_harness_project_root,
             );
         },
         (None, false) => quote! {
+            let __rs_harness_project_root = #project_root;
+            let __rs_harness_project_root =
+                std::convert::AsRef::<std::path::Path>::as_ref(&__rs_harness_project_root);
             rust_lang_project_harness::assert_rust_project_harness_cargo_test_clean(
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR")),
+                __rs_harness_project_root,
             );
         },
+    }
+}
+
+fn project_root_expr(options: &HarnessTestOptions) -> proc_macro2::TokenStream {
+    if let Some(project_root) = &options.project_root {
+        quote! { #project_root }
+    } else {
+        quote! { std::path::Path::new(env!("CARGO_MANIFEST_DIR")) }
     }
 }
 

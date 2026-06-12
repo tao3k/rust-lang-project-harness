@@ -89,7 +89,7 @@ fn public_large_tokio_bytes_flow_connects_prime_to_dependency_api_and_docs_axes(
             "|api src/io/mod.rs line=4 dep=bytes kind=struct name=RuntimeFrame",
             "|api src/io/mod.rs line=10 dep=bytes kind=fn name=split_buf",
             "|test tests/io_util.rs functions=1 owner=src/io/mod.rs",
-            "|next deps:bytes,import:bytes,tests",
+            "|next deps:bytes,import:bytes,docs-use:bytes,crate-source:bytes,tests",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );
@@ -222,7 +222,7 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
             "|item command_action kind=fn",
             "|api src/tool.rs line=6 dep=codex-api kind=fn name=command_action",
             "|test tests/web_search.rs functions=1 owner=src/tool.rs",
-            "|next deps:codex-api,import:codex-api,tests",
+            "|next deps:codex-api,import:codex-api,docs-use:codex-api,crate-source:codex-api,tests",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );
@@ -245,7 +245,7 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
             "[search-deps] q=codex-api::SearchCommands pkg=ext/web-search dep=1 own=1 api=1 apiQuery=SearchCommands",
             "|owner src/tool.rs hit_kind=dependency-api apiQuery=SearchCommands",
             "|api src/tool.rs line=6 dep=codex-api kind=fn name=command_action",
-            "|next dependency:codex-api,docs:codex-api::SearchCommands,text:SearchCommands,tests:SearchCommands",
+            "|next dependency:codex-api,docs-use:codex-api::SearchCommands,crate-source:codex-api,import:codex-api,tests:SearchCommands",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );
@@ -281,9 +281,9 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
             "[search-trace] source=deps query=codex-api::SearchCommands pipes=public-api view=seeds",
             "|stage cargo=1 owners=1 api=1 final=true lines=",
             "[search-dependency] q=codex-api::SearchCommands",
-            "D=dependency:pkg(codex-api::SearchCommands)!deps",
+            "D=dependency:pkg(codex-api::SearchCommands)!dependency",
             "rank=D",
-            "frontier=D.deps",
+            "frontier=D.dependency",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );

@@ -194,7 +194,7 @@ fn cli_rust_flow_drill_exercises_registry_prime_search_and_ingest() {
     );
     assert!(
         external_dep_api.contains(
-            "|next dependency:serde,docs:serde::Serialize,text:Serialize,tests:Serialize"
+            "|next dependency:serde,docs-use:serde::Serialize,crate-source:serde,import:serde,tests:Serialize"
         ),
         "{external_dep_api}"
     );
@@ -348,11 +348,17 @@ fn cli_rust_flow_drill_reduces_search_rounds_with_seeds_and_recipe_plan() {
         "{seeds}"
     );
     assert!(seeds.lines().count() < full.lines().count(), "{seeds}");
-    assert!(seeds.contains("D=dependency:pkg(serde)!deps"), "{seeds}");
+    assert!(
+        seeds.contains("D=dependency:pkg(serde)!dependency"),
+        "{seeds}"
+    );
     assert!(seeds.contains("T=test:path(.)!tests"), "{seeds}");
-    assert!(seeds.contains("rank=D,T,O,I"), "{seeds}");
+    assert!(seeds.contains("rank=D,T,O,D2,I"), "{seeds}");
     assert!(seeds.contains("I2=item:symbol(Thing)!syntax"), "{seeds}");
-    assert!(seeds.contains("frontier=D.deps,T.tests,O.owner,I.import"), "{seeds}");
+    assert!(
+        seeds.contains("frontier=D.dependency,T.tests,O.owner,D2.deps,I.import"),
+        "{seeds}"
+    );
     assert!(!seeds.contains("|owner src/lib.rs"), "{seeds}");
     assert!(!seeds.contains("|item load"), "{seeds}");
     assert!(!seeds.contains("|api src/domain/mod.rs"), "{seeds}");
@@ -397,9 +403,12 @@ fn cli_rust_flow_drill_reduces_search_rounds_with_seeds_and_recipe_plan() {
         plan.contains("[search-dependency] q=serde alg=seed-frontier"),
         "{plan}"
     );
-    assert!(plan.contains("D=dependency:pkg(serde)!deps"), "{plan}");
+    assert!(
+        plan.contains("D=dependency:pkg(serde)!dependency"),
+        "{plan}"
+    );
     assert!(plan.contains("T=test:path(.)!tests"), "{plan}");
-    assert!(plan.contains("frontier=D.deps,T.tests"), "{plan}");
+    assert!(plan.contains("frontier=D.dependency,T.tests"), "{plan}");
 
     let ingest = run_search_with_stdin(
         root,
@@ -540,7 +549,15 @@ fn cli_rust_flow_drill_regresses_tokio_ignore_bytes_style_flow() {
         "{tokio_sender}"
     );
     assert!(
-        tokio_sender.contains("|next dependency:tokio,docs:tokio::Sender,text:Sender,tests:Sender"),
+        tokio_sender.contains(
+            "|dependency-guidance dep=tokio usageLevel=basic_usage engineeringBoundary=missing"
+        ),
+        "{tokio_sender}"
+    );
+    assert!(
+        tokio_sender.contains(
+            "|next dependency:tokio,docs-use:tokio::Sender,crate-source:tokio,import:tokio,tests:Sender"
+        ),
         "{tokio_sender}"
     );
 
