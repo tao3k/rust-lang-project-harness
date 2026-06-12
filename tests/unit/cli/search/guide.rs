@@ -30,7 +30,7 @@ fn cli_search_guide_renders_typed_reasoning_profiles() {
     );
     assert!(
         stdout.contains(
-            "|catalog reasoningProfiles=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg entries=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg routes=path,read-frontier"
+            "|catalog reasoningProfiles=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg entries=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg routes=path,read-frontier namespaces=code,deps,extension,env,pattern"
         ),
         "{stdout}"
     );
@@ -78,6 +78,24 @@ fn cli_search_guide_renders_typed_reasoning_profiles() {
     assert!(
         stdout.contains(
             "  feature-cfg:\n    command=search reasoning feature-cfg --query <feature-name> --view seeds\n    args=feature:name"
+        ),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "  env-toolchain:\n    command=search env toolchain --workspace .\n    args=namespace:env facet:toolchain"
+        ),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "  code-comments:\n    command=search code comments --owner <owner-path>\n    args=namespace:code facet:comments"
+        ),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "  extension-tokio:\n    command=search extension tokio --workspace .\n    args=namespace:extension extension:tokio"
         ),
         "{stdout}"
     );

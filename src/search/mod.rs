@@ -12,6 +12,7 @@ mod hits;
 mod ingest;
 mod item_query;
 mod limits;
+mod namespace;
 mod owner;
 mod owner_view;
 pub(crate) mod policy;

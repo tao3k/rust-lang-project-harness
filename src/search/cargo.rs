@@ -381,7 +381,7 @@ struct DependencyBoundaryCapability {
     symbols: &'static [&'static str],
 }
 
-fn dependency_capability_guidance(
+pub(super) fn dependency_capability_guidance(
     context: &PackageSearchContext,
     dependency: &str,
     dependency_usage: &[OwnerHit],

@@ -9,6 +9,7 @@ struct SearchGuideProfile {
 
 const SEARCH_GUIDE_REASONING_PROFILES: &str =
     "owner-query,query-deps,owner-tests,finding-frontier,feature-cfg";
+const SEARCH_GUIDE_NAMESPACES: &str = "code,deps,extension,env,pattern";
 
 const SEARCH_GUIDE_PROFILES: &[SearchGuideProfile] = &[
     SearchGuideProfile {
@@ -51,6 +52,30 @@ const SEARCH_GUIDE_PROFILES: &[SearchGuideProfile] = &[
         args: "feature:name",
         returns: "cfg gates/owners/verification surfaces",
     },
+    SearchGuideProfile {
+        id: "env-toolchain",
+        command: Some("search env toolchain --workspace ."),
+        args: "namespace:env facet:toolchain",
+        returns: "active toolchain/manifest/lock evidence",
+    },
+    SearchGuideProfile {
+        id: "env-cfg",
+        command: Some("search env cfg --workspace ."),
+        args: "namespace:env facet:cfg",
+        returns: "rustc cfg witness facts",
+    },
+    SearchGuideProfile {
+        id: "code-comments",
+        command: Some("search code comments --owner <owner-path>"),
+        args: "namespace:code facet:comments",
+        returns: "comment claims labeled claim with missing verdict/witness",
+    },
+    SearchGuideProfile {
+        id: "extension-tokio",
+        command: Some("search extension tokio --workspace ."),
+        args: "namespace:extension extension:tokio",
+        returns: "manifest/source-derived Tokio boundary evidence",
+    },
 ];
 
 const SEARCH_GUIDE_ROUTES: &[SearchGuideProfile] = &[
@@ -78,7 +103,7 @@ const SEARCH_GUIDE_AVOID: &[&str] = &[
 pub(crate) fn render_search_guide() -> String {
     let mut lines = vec!["[search-guide] protocol=search-guide.v1".to_string()];
     lines.push(format!(
-        "|catalog reasoningProfiles={SEARCH_GUIDE_REASONING_PROFILES} entries={SEARCH_GUIDE_REASONING_PROFILES} routes=path,read-frontier"
+        "|catalog reasoningProfiles={SEARCH_GUIDE_REASONING_PROFILES} entries={SEARCH_GUIDE_REASONING_PROFILES} routes=path,read-frontier namespaces={SEARCH_GUIDE_NAMESPACES}"
     ));
     lines.push("profiles:".to_string());
     for profile in SEARCH_GUIDE_PROFILES {

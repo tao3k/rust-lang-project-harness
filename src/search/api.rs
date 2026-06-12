@@ -5,7 +5,8 @@ use std::path::Path;
 use crate::RustHarnessConfig;
 
 use super::{
-    cargo, compact, dependency, format, fzf_query, guide, owner, owner_view, prime, query,
+    cargo, compact, dependency, format, fzf_query, guide, namespace, owner, owner_view, prime,
+    query,
 };
 
 /// Options shared by RFC search renderers.
@@ -80,6 +81,19 @@ fn render_search_view_packet(request: &RustSearchViewRequest<'_>) -> Result<Stri
         "deps" => cargo::render_search_deps(project_root, config, request.query, options),
         "features" => cargo::render_search_features(project_root, config, request.query, options),
         "policy" => super::policy::render_search_policy(
+            project_root,
+            config,
+            format::required_query(request.view, request.query)?,
+            options,
+        ),
+        "code" => namespace::render_search_code(
+            project_root,
+            config,
+            format::required_query(request.view, request.query)?,
+            options,
+        ),
+        "env" => namespace::render_search_env(project_root, config, request.query, options),
+        "extension" => namespace::render_search_extension(
             project_root,
             config,
             format::required_query(request.view, request.query)?,

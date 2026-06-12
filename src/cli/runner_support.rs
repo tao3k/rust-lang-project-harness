@@ -11,6 +11,7 @@ pub(super) fn print_help() {
              rs-harness check <--changed|--full> [--json] [PROJECT_ROOT]\n\
              rs-harness behavior snapshot --path PATH [--json]\n\
              rs-harness determinism readiness [--include-tests] [--json] [PROJECT_ROOT]\n\
+             rs-harness verification <performance-index|stability-index> [--json] [PROJECT_ROOT]\n\
              rs-harness receipt <adapter> [--dry-run] [--json] [PROJECT_ROOT]\n\
              rs-harness proof pilot dependency-graph-acyclicity [--max-nodes N] [--json]\n\
              rs-harness review packet [--receipt-json PATH] [--behavior-json PATH] [--determinism-json PATH] [--proof-json PATH] [--waiver-json PATH] [--json] [PROJECT_ROOT]\n\
@@ -38,6 +39,9 @@ rs-harness search owner <path-or-owner> [items tests] [--scope SCOPE] [PROJECT_R
          rs-harness search workspace [--package PACKAGE] [PROJECT_ROOT]\n\
          rs-harness search targets [--package PACKAGE] [PROJECT_ROOT]\n\
 rs-harness search deps [dep[/subpath][@version][::api]] [public-api] [PROJECT_ROOT]\n\
+rs-harness search env [toolchain|cfg] [PROJECT_ROOT]\n\
+rs-harness search code comments [--owner OWNER] [PROJECT_ROOT]\n\
+rs-harness search extension <extension-id> [PROJECT_ROOT]\n\
 rs-harness search policy <rule-id-or-alias> [owner tests] [PROJECT_ROOT]\n\
 rs-harness search query <code-shaped-query> [owner tests] [PROJECT_ROOT]\n\
 rs-harness search features [feature] [cfg owners tests] [PROJECT_ROOT]\n\
@@ -121,6 +125,9 @@ pub(super) fn search_view_requires_query(view: &str) -> bool {
         view,
         "owner"
             | "policy"
+            | "code"
+            | "env"
+            | "extension"
             | "dependency"
             | "tests"
             | "symbol"
@@ -154,8 +161,11 @@ pub(super) fn is_known_search_view(view: &str) -> bool {
             | "workspace"
             | "targets"
             | "deps"
+            | "env"
             | "features"
             | "policy"
+            | "code"
+            | "extension"
             | "owner"
             | "dependency"
             | "tests"
