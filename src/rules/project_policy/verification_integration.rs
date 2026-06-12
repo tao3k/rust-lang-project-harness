@@ -108,7 +108,7 @@ fn legacy_source_cargo_test_gate_findings(
                 ),
                 path_line_location(&module.report.path, invocation.line),
                 source_line(&module.source, invocation.line),
-                "move parser-native harness policy to [build-dependencies] plus root build.rs using assert_rust_project_harness_cargo_check_clean_from_env_with_config(...), then remove this cargo-test source gate",
+                "move parser-native harness policy to [build-dependencies] plus root build.rs using assert_rust_project_harness_downstream_policy_from_env(...), then remove this cargo-test source gate",
             ))
         })
         .collect()
@@ -133,7 +133,7 @@ fn empty_build_gate_config_findings(
                 ),
                 path_line_location(&module.report.path, line),
                 source_line(&module.source, line),
-                "use assert_rust_project_harness_cargo_check_clean_from_env_with_config(...) and declare verification profile hints, explicit suppressions, or skill bindings",
+                "use assert_rust_project_harness_downstream_policy_from_env(...) with a policy that declares verification profile hints, explicit suppressions, or skill bindings",
             )
         })
         .collect()

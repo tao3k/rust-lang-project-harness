@@ -35,7 +35,7 @@ pub(super) fn build_gate_findings(
             ),
             file_location(project_root.join("Cargo.toml")),
             None,
-            "add rust-lang-project-harness under [build-dependencies] and add a thin root build.rs that calls rust_lang_project_harness::assert_rust_project_harness_cargo_check_clean_from_env_with_config(...)",
+            "add rust-lang-project-harness under [build-dependencies] and add a thin root build.rs that calls rust_lang_project_harness::assert_rust_project_harness_downstream_policy_from_env(...)",
         )];
     }
 
@@ -48,7 +48,7 @@ pub(super) fn build_gate_findings(
             ),
             file_location(project_root.join("Cargo.toml")),
             None,
-            "add a thin root build.rs that calls rust_lang_project_harness::assert_rust_project_harness_cargo_check_clean_from_env_with_config(...)",
+            "add a thin root build.rs that calls rust_lang_project_harness::assert_rust_project_harness_downstream_policy_from_env(...)",
         )];
     }
 
@@ -61,7 +61,7 @@ pub(super) fn build_gate_findings(
             ),
             file_location(&build_script_path),
             None,
-            "add the harness to [build-dependencies] and call rust_lang_project_harness::assert_rust_project_harness_cargo_check_clean_from_env_with_config(...) from root build.rs",
+            "add the harness to [build-dependencies] and call rust_lang_project_harness::assert_rust_project_harness_downstream_policy_from_env(...) from root build.rs",
         )];
     }
 
@@ -138,6 +138,8 @@ const BUILD_GATE_FUNCTIONS: &[&str] = &[
     "assert_rust_project_harness_cargo_check_clean_with_config",
     "assert_rust_project_harness_cargo_check_clean_from_env",
     "assert_rust_project_harness_cargo_check_clean_from_env_with_config",
+    "assert_rust_project_harness_downstream_policy",
+    "assert_rust_project_harness_downstream_policy_from_env",
 ];
 
 const DEFAULT_BUILD_GATE_FUNCTIONS: &[&str] = &[

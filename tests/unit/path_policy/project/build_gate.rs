@@ -30,6 +30,24 @@ fn complete_build_gate_clears_source_cargo_test_gate_requirement() {
 }
 
 #[test]
+fn downstream_policy_build_gate_clears_build_gate_requirement() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_build_harness_manifest(root, "downstream-policy-build-gate");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
+    write_downstream_policy_build_gate(root);
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    assert!(
+        !has_rule(&report, "RUST-PROJ-R012"),
+        "{:?}",
+        report.findings
+    );
+}
+
+#[test]
 fn complete_build_gate_clears_root_test_target_gate_requirement() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
@@ -192,6 +210,14 @@ fn write_configured_build_gate(root: &Path) {
     fs::write(
         root.join("build.rs"),
         "fn main() {\n    let config = rust_lang_project_harness::default_rust_harness_config();\n    rust_lang_project_harness::assert_rust_project_harness_cargo_check_clean_from_env_with_config(&config);\n}\n",
+    )
+    .expect("write build script");
+}
+
+fn write_downstream_policy_build_gate(root: &Path) {
+    fs::write(
+        root.join("build.rs"),
+        "fn main() {\n    let config = rust_lang_project_harness::default_rust_harness_config();\n    let policy = rust_lang_project_harness::RustProjectHarnessWorkspacePolicy::new(\"test-workspace\", config).member_crate(\"downstream-policy-build-gate\");\n    rust_lang_project_harness::assert_rust_project_harness_downstream_policy_from_env(&policy);\n}\n",
     )
     .expect("write build script");
 }

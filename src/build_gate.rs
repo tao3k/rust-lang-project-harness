@@ -300,8 +300,8 @@ pub fn assert_rust_project_harness_verification_with_config(
     config: &RustHarnessConfig,
     gate_label: &str,
 ) {
-    let plan = plan_rust_project_verification_with_config(project_root, config)
-        .unwrap_or_else(|error| {
+    let plan =
+        plan_rust_project_verification_with_config(project_root, config).unwrap_or_else(|error| {
             panic!(
                 "{gate_label} verification plan: {error}\n{}",
                 downstream_build_gate_agent_guidance(gate_label)

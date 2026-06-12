@@ -162,8 +162,6 @@ pub use agent_snapshot::{
 };
 pub use build_gate::{
     RustProjectHarnessDownstreamPolicy, RustProjectHarnessWorkspacePolicy,
-    assert_rust_project_harness_downstream_policy,
-    assert_rust_project_harness_downstream_policy_from_env,
     assert_rust_project_harness_build_clean, assert_rust_project_harness_build_clean_from_env,
     assert_rust_project_harness_build_clean_from_env_with_config,
     assert_rust_project_harness_build_clean_with_config,
@@ -171,6 +169,8 @@ pub use build_gate::{
     assert_rust_project_harness_cargo_check_clean_from_env,
     assert_rust_project_harness_cargo_check_clean_from_env_with_config,
     assert_rust_project_harness_cargo_check_clean_with_config,
+    assert_rust_project_harness_downstream_policy,
+    assert_rust_project_harness_downstream_policy_from_env,
     assert_rust_project_harness_verification_from_env_with_config,
     assert_rust_project_harness_verification_with_config,
 };

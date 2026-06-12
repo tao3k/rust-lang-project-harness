@@ -14,8 +14,8 @@ fn build_gate_verification_requires_performance_and_stability_reports() {
     let root = temp.path();
     write_api_project(root);
 
-    let performance_only_config =
-        default_rust_harness_config().with_latency_sensitive_performance_owner(
+    let performance_only_config = default_rust_harness_config()
+        .with_latency_sensitive_performance_owner(
             "src/api.rs",
             "API request path owns latency-sensitive dispatch",
         );
@@ -32,8 +32,14 @@ fn build_gate_verification_requires_performance_and_stability_reports() {
         message.contains("Stability verification tasks"),
         "{message}"
     );
-    assert!(message.contains("[rust-harness-agent-guidance]"), "{message}");
-    assert!(message.contains("cargo test runs the member build.rs"), "{message}");
+    assert!(
+        message.contains("[rust-harness-agent-guidance]"),
+        "{message}"
+    );
+    assert!(
+        message.contains("cargo test runs the member build.rs"),
+        "{message}"
+    );
     assert!(
         message.contains("RustProjectHarnessWorkspacePolicy"),
         "{message}"
@@ -68,23 +74,14 @@ fn downstream_verification_gate_guide_classifies_api_and_cli_surfaces() {
 
     assert!(guide.contains("## Crate Layout"), "{guide}");
     assert!(guide.contains("## Classification"), "{guide}");
+    assert!(guide.contains("Library/build.rs semantic gate"), "{guide}");
     assert!(
-        guide.contains("Library/build.rs semantic gate"),
+        guide.contains("CLI quick check and observation surface"),
         "{guide}"
     );
-    assert!(guide.contains("CLI quick check and observation surface"), "{guide}");
-    assert!(
-        guide.contains("harness/mod.rs"),
-        "{guide}"
-    );
-    assert!(
-        guide.contains("owners.rs"),
-        "{guide}"
-    );
-    assert!(
-        guide.contains("verification.rs"),
-        "{guide}"
-    );
+    assert!(guide.contains("harness/mod.rs"), "{guide}");
+    assert!(guide.contains("owners.rs"), "{guide}");
+    assert!(guide.contains("verification.rs"), "{guide}");
     assert!(
         guide.contains("RustProjectHarnessDownstreamPolicy"),
         "{guide}"
@@ -97,13 +94,19 @@ fn downstream_verification_gate_guide_classifies_api_and_cli_surfaces() {
         guide.contains("assert_rust_project_harness_verification_from_env_with_config"),
         "{guide}"
     );
-    assert!(guide.contains("with_availability_stability_owner"), "{guide}");
+    assert!(
+        guide.contains("with_availability_stability_owner"),
+        "{guide}"
+    );
     assert!(
         guide.contains("Do not expose full verification as a standalone downstream CLI command"),
         "{guide}"
     );
     assert!(guide.contains("## Workspace Layout"), "{guide}");
-    assert!(guide.contains("RustProjectHarnessWorkspacePolicy"), "{guide}");
+    assert!(
+        guide.contains("RustProjectHarnessWorkspacePolicy"),
+        "{guide}"
+    );
     assert!(guide.contains("member_crate_with_config"), "{guide}");
     assert!(
         guide.contains("A workspace should own common policy once"),
@@ -173,11 +176,12 @@ fn workspace_policy_reuses_common_config_for_member_crates() {
     assert_eq!(api_policy.gate_label(), "example-workspace::api");
     assert!(report.is_clean(), "{report:?}");
 
-    let specialized_policy = workspace_policy.member_crate_with_config("api-specialized", |config| {
-        config.with_cargo_check_advice_allow_explanation(
-            "member policy owns a crate-local advisory exception",
-        )
-    });
+    let specialized_policy =
+        workspace_policy.member_crate_with_config("api-specialized", |config| {
+            config.with_cargo_check_advice_allow_explanation(
+                "member policy owns a crate-local advisory exception",
+            )
+        });
 
     assert_eq!(
         specialized_policy.gate_label(),
