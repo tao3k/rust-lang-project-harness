@@ -35,7 +35,7 @@ const SEARCH_GUIDE_PROFILES: &[SearchGuideProfile] = &[
         id: "query-deps",
         command: Some("search reasoning query-deps --query <term> --dependency <pkg> --view seeds"),
         args: "query:term dependency:pkg",
-        returns: "dependency usage owners/tests",
+        returns: "dependency usage owners/local-docs/crate-source/tests",
     },
     SearchGuideProfile {
         id: "finding-frontier",

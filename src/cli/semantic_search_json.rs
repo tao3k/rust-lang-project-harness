@@ -418,14 +418,15 @@ fn rust_reasoning_profiles() -> Value {
         },
         {
             "profile": "query-deps",
-            "description": "Return owners, imports, dependency API usage, and usage tests for a concrete query plus dependency.",
+            "description": "Return owners, imports, local dependency API/docs usage, crate-source frontier, and usage tests for a concrete query plus dependency.",
             "selectors": [
                 { "kind": "query", "alias": "Q", "targetRole": "term", "required": true },
                 { "kind": "dependency", "alias": "D", "targetRole": "pkg", "required": true }
             ],
-            "returns": ["owners", "imports", "usage-tests"],
-            "frontier": ["Q.owner", "D.public-api", "D.tests"],
-            "fields": { "source": "search-guide" }
+            "returns": ["owners", "imports", "local-docs", "crate-source", "usage-tests"],
+            "frontier": ["Q.owner", "D.public-api", "D.docs-use", "D.crate-source", "D.tests"],
+            "avoid": ["web-search", "docs.rs-search"],
+            "fields": { "source": "search-guide", "docs": "local-first" }
         },
         {
             "profile": "owner-tests",
