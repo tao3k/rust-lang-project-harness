@@ -151,28 +151,16 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
     if let Some(option) = pending_option {
         return Err(format!("missing value for query catalog option {option}"));
     }
-    if workspace_root.is_some() && !positionals.is_empty() {
+    if !positionals.is_empty() {
         return Err(
-            "query accepts project root via --workspace or positional PROJECT_ROOT, not both"
-                .to_string(),
+            "query does not accept positional WORKSPACE; use --workspace <WORKSPACE>".to_string(),
         );
-    }
-    if code_output && !positionals.is_empty() {
-        return Err(
-            "query --code does not accept a trailing PROJECT_ROOT; use --workspace PROJECT_ROOT"
-                .to_string(),
-        );
-    }
-    if positionals.len() > 1 {
-        return Err("query catalog accepts at most one project root".to_string());
     }
     if catalog_id.is_some() && tree_sitter_query.is_some() {
         return Err("query accepts only one of --catalog or --treesitter-query".to_string());
     }
 
-    let project_root = workspace_root
-        .or_else(|| positionals.first().cloned())
-        .unwrap_or_else(|| PathBuf::from("."));
+    let project_root = workspace_root.unwrap_or_else(|| PathBuf::from("."));
 
     let (
         input,

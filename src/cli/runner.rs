@@ -17,9 +17,9 @@ use super::query_options::QuerySearchOptions;
 use super::query_source::QuerySourceVersion;
 use super::query_window::render_query_local_item_frontier;
 use super::runner_support::{
-    discover_rust_project_root, is_command, is_explicit_rust_project_root, is_known_search_view,
-    is_search_pipe, moved_agent_action, parse_usize_option, print_agent_doctor, print_agent_help,
-    print_check_help, print_guide, print_help, print_search_help, rust_project_root_for_path,
+    discover_rust_project_root, is_command, is_known_search_view, is_search_pipe,
+    moved_agent_action, parse_usize_option, print_agent_doctor, print_agent_help, print_check_help,
+    print_guide, print_help, print_search_help, rust_project_root_for_path,
     search_view_accepts_optional_query, search_view_requires_query, search_view_supports_query_set,
     split_csv_values,
 };
@@ -584,8 +584,7 @@ pub(super) struct SearchOptions {
     pub(super) item_code: bool,
     pub(super) item_projection_metadata: bool,
     pub(super) source_version: QuerySourceVersion,
-    pub(super) workspace: bool,
-    paths: Vec<PathBuf>,
+    pub(super) workspace_root: Option<PathBuf>,
 }
 
 impl SearchOptions {
@@ -604,8 +603,7 @@ impl SearchOptions {
             item_names_only: options.item_names_only,
             item_code: options.item_code,
             source_version: options.source_version,
-            workspace: options.workspace,
-            paths: options.paths,
+            workspace_root: options.workspace_root,
             ..Self::default()
         }
     }
@@ -639,6 +637,12 @@ impl SearchOptions {
                     "--query-set" => options.query_set.extend(split_csv_values(value)),
                     "--fzf-arg" => options.fzf_args.push(value.to_string()),
                     "--query" => options.item_query = Some(value.to_string()),
+                    "--workspace" => {
+                        if value.starts_with('-') {
+                            return Err("--workspace requires a project root".to_string());
+                        }
+                        options.workspace_root = Some(PathBuf::from(value));
+                    }
                     _ => unreachable!("known pending search option"),
                 }
                 continue;
@@ -675,7 +679,7 @@ impl SearchOptions {
                 "--item-slice" => options.pipes.push("items".to_string()),
                 "--package" | "--owner" | "--dependency" | "--scope" | "--view" | "--depth"
                 | "--dir" | "--edge" | "--per-owner" | "--seeds" | "--owners" | "--hits"
-                | "--query-set" | "--query" | "--fzf-arg" => {
+                | "--query-set" | "--query" | "--fzf-arg" | "--workspace" => {
                     pending_option = Some(value.to_string())
                 }
                 "--fzf" => {
@@ -702,9 +706,6 @@ impl SearchOptions {
         options.apply_positionals(positionals)?;
         if options.view.is_empty() {
             return Err("expected search view: prime".to_string());
-        }
-        if options.paths.len() > 1 {
-            return Err("expected at most one PROJECT_ROOT argument".to_string());
         }
         validate_search_options(&options)?;
         Ok(options)
@@ -745,15 +746,9 @@ impl SearchOptions {
         {
             self.query = Some(values.remove(0));
         }
-        let mut saw_project_root = false;
         for value in values {
             if is_search_pipe(&value) {
                 self.pipes.push(value);
-            } else if is_explicit_rust_project_root(&value) {
-                saw_project_root = true;
-                self.paths.push(PathBuf::from(value));
-            } else if saw_project_root {
-                return Err("expected at most one PROJECT_ROOT argument".to_string());
             } else {
                 self.push_scope(value);
             }
@@ -857,19 +852,10 @@ impl SearchOptions {
 
     #[cfg(feature = "search")]
     fn project_root(&self) -> Result<PathBuf, String> {
-        if self.workspace {
-            return match self.paths.as_slice() {
-                [path] => Ok(path.clone()),
-                [] => env::current_dir()
-                    .map_err(|error| format!("failed to read current dir: {error}")),
-                _ => unreachable!("parse enforces at most one path"),
-            };
+        if let Some(path) = self.workspace_root.as_ref() {
+            return Ok(path.clone());
         }
-        match self.paths.as_slice() {
-            [path] => rust_project_root_for_path(path),
-            [] => discover_rust_project_root(),
-            _ => unreachable!("parse enforces at most one path"),
-        }
+        discover_rust_project_root()
     }
 
     fn query_set(&self) -> Vec<String> {

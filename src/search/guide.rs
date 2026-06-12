@@ -13,7 +13,7 @@ const SEARCH_GUIDE_REASONING_PROFILES: &str =
 const SEARCH_GUIDE_PROFILES: &[SearchGuideProfile] = &[
     SearchGuideProfile {
         id: "overview-prime",
-        command: Some("search prime --view seeds"),
+        command: Some("search prime --workspace . --view seeds"),
         args: "",
         returns: "owner/query/dependency/test/finding handles",
     },

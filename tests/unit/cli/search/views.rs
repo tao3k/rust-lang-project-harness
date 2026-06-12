@@ -1037,7 +1037,7 @@ fn cli_search_owner_with_dot_project_root_is_not_duplicated() {
 }
 
 #[test]
-fn cli_search_ingest_rejects_extra_project_root_argument() {
+fn cli_search_ingest_accepts_workspace_relative_scope_argument() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path().join("fixture");
     fs::create_dir_all(&root).expect("create fixture root");
@@ -1047,16 +1047,22 @@ fn cli_search_ingest_rejects_extra_project_root_argument() {
     configure_shared_asp_renderer(&mut command);
     let output = command
         .current_dir(temp.path())
-        .args(["search", "ingest", "items", "tests", "--view", "seeds"])
+        .args([
+            "search",
+            "ingest",
+            "items",
+            "tests",
+            "--view",
+            "seeds",
+            "--workspace",
+        ])
         .arg(&root)
         .arg(".")
         .output()
         .expect("run search ingest");
 
-    assert!(!output.status.success(), "{output:?}");
-    let stderr = String::from_utf8(output.stderr).expect("stderr");
-    assert!(
-        stderr.contains("expected at most one PROJECT_ROOT argument"),
-        "{stderr}"
-    );
+    assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout");
+    assert!(stdout.starts_with("[search-ingest] root=."), "{stdout}");
+    assert!(stdout.contains(" scope=."), "{stdout}");
 }

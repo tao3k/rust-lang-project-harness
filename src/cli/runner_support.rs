@@ -31,7 +31,7 @@ pub(super) fn print_help() {
 
 pub(super) fn print_search_help() {
     println!(
-        "rs-harness search prime [--package PACKAGE] [PROJECT_ROOT]\n\
+        "rs-harness search prime [--workspace PROJECT_ROOT] [--package PACKAGE]\n\
 rs-harness search guide [PROJECT_ROOT]\n\
 rs-harness search owner <path-or-owner> [items tests] [--scope SCOPE] [PROJECT_ROOT]\n\
          rs-harness search owner <path-or-owner> items --query SYMBOL [--names-only | --code] [PROJECT_ROOT]\n\
@@ -94,7 +94,7 @@ pub(super) fn print_guide(_project_root: &Path) {
 |surface patch purpose=mutation authority=agent-core|apply_patch|ast-patch
 |catalog reasoningProfiles=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg entries=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg routes=path,read-frontier
 
-|flow bootstrap start="search guide ." then="search prime --view seeds ." next="use search-guide command=search reasoning <profile> --owner/--query/--dependency ... --view seeds"
+|flow bootstrap start="search guide ." then="search prime --workspace . --view seeds" next="use search-guide command=search reasoning <profile> --owner/--query/--dependency ... --view seeds"
 |flow code-shaped-read start="refer:treesitter-query-guide" then="query --treesitter-query <pattern>" then="query --selector <path:range> --treesitter-query <pattern> --workspace <workspace-root> --code"
 |flow wide-read-protection trigger="query --from-hook direct-source-read --selector <wide-range> --code" output=read-frontier code=false
 
@@ -196,21 +196,6 @@ pub(super) fn is_search_pipe(value: &str) -> bool {
             | "features"
             | "dependents"
     )
-}
-
-pub(super) fn is_explicit_rust_project_root(value: &str) -> bool {
-    let path = Path::new(value);
-    let manifest_dir = if path.file_name().and_then(|name| name.to_str()) == Some("Cargo.toml")
-        && path.is_file()
-    {
-        match path.parent() {
-            Some(parent) => parent,
-            None => return false,
-        }
-    } else {
-        path
-    };
-    manifest_dir.join("Cargo.toml").is_file() && rust_project_root_for_path(manifest_dir).is_ok()
 }
 
 pub(super) fn discover_rust_project_root() -> Result<PathBuf, String> {

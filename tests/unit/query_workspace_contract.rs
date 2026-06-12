@@ -56,7 +56,7 @@ fn query_code_uses_workspace_option_and_rejects_trailing_root() {
     );
     assert!(
         String::from_utf8_lossy(&stale.stderr)
-            .contains("query --code does not accept a trailing PROJECT_ROOT"),
+            .contains("query does not accept positional WORKSPACE"),
         "stderr={}",
         String::from_utf8_lossy(&stale.stderr)
     );
@@ -107,8 +107,41 @@ fn query_code_uses_workspace_option_and_rejects_trailing_root() {
     );
     assert!(
         String::from_utf8_lossy(&tree_sitter_stale.stderr)
-            .contains("query --code does not accept a trailing PROJECT_ROOT"),
+            .contains("query does not accept positional WORKSPACE"),
         "stderr={}",
         String::from_utf8_lossy(&tree_sitter_stale.stderr)
+    );
+}
+
+#[test]
+fn query_names_only_rejects_workspace_term_discovery() {
+    let Some(bin) = option_env!("CARGO_BIN_EXE_rs-harness") else {
+        return;
+    };
+    let root = tempfile::tempdir().expect("temp root");
+    fs::create_dir_all(root.path().join("src")).expect("create src");
+    fs::write(root.path().join("src/lib.rs"), "pub fn run_install() {}\n").expect("write fixture");
+
+    let output = Command::new(bin)
+        .args(["query", "--term", "run_install", "--workspace"])
+        .arg(root.path())
+        .arg("--names-only")
+        .current_dir(root.path())
+        .output()
+        .expect("run ambiguous query command");
+
+    assert!(
+        !output.status.success(),
+        "ambiguous command unexpectedly succeeded: stdout={}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("query --names-only requires an owner selector"),
+        "stderr={stderr}"
+    );
+    assert!(
+        stderr.contains("search fzf '<term>' owner --view seeds --workspace <workspace-root>"),
+        "stderr={stderr}"
     );
 }

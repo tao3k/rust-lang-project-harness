@@ -53,6 +53,7 @@ pub(super) fn run_flow_lite_query_catalog(args: &[OsString]) -> Result<Option<Ex
     let mut catalog_id = None::<String>;
     let mut where_expr = None::<String>;
     let mut json_output = false;
+    let mut workspace_root = None::<PathBuf>;
     let mut positionals = Vec::<PathBuf>::new();
     let mut pending_option = None::<String>;
 
@@ -68,13 +69,16 @@ pub(super) fn run_flow_lite_query_catalog(args: &[OsString]) -> Result<Option<Ex
                 "--where" => {
                     where_expr = Some(value.to_string());
                 }
+                "--workspace" => {
+                    workspace_root = Some(PathBuf::from(value));
+                }
                 _ => unreachable!("unsupported pending flow-lite option: {option}"),
             }
             continue;
         }
 
         match value {
-            "--catalog" | "--where" => pending_option = Some(value.to_string()),
+            "--catalog" | "--where" | "--workspace" => pending_option = Some(value.to_string()),
             "--json" => json_output = true,
             "--help" | "-h" => {
                 print_query_help();
@@ -99,20 +103,18 @@ pub(super) fn run_flow_lite_query_catalog(args: &[OsString]) -> Result<Option<Ex
     if catalog_id.as_deref() != Some(FLOW_LITE_CATALOG_ID) {
         return Err("query flow-lite dispatch requires --catalog flow-lite".to_string());
     }
-    if positionals.len() > 1 {
-        return Err("query --catalog flow-lite accepts at most one project root".to_string());
+    if !positionals.is_empty() {
+        return Err(
+            "query does not accept positional WORKSPACE; use --workspace <WORKSPACE>".to_string(),
+        );
     }
 
     let where_expr = where_expr
         .as_deref()
         .ok_or_else(|| "query --catalog flow-lite requires --where".to_string())?;
     let constraints = parse_flow_lite_where(where_expr)?;
-    let project_root = absolute_project_root(
-        positionals
-            .first()
-            .map(PathBuf::as_path)
-            .unwrap_or_else(|| Path::new(".")),
-    );
+    let project_root =
+        absolute_project_root(workspace_root.as_deref().unwrap_or_else(|| Path::new(".")));
     let result = evaluate_flow_lite_query(&project_root, &constraints)?;
     if json_output {
         print_flow_lite_json(&project_root, &constraints, &result)?;

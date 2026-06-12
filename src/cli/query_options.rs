@@ -18,8 +18,7 @@ pub(super) struct QuerySearchOptions {
     pub(super) item_names_only: bool,
     pub(super) item_code: bool,
     pub(super) source_version: QuerySourceVersion,
-    pub(super) workspace: bool,
-    pub(super) paths: Vec<PathBuf>,
+    pub(super) workspace_root: Option<PathBuf>,
 }
 
 #[derive(Debug, Default)]
@@ -111,20 +110,26 @@ impl QueryOptions {
             return Err("query --names-only and --code cannot be combined".to_string());
         }
         options.apply_positionals(positionals)?;
-        if options.workspace_root.is_some() && !options.paths.is_empty() {
+        if options.names_only
+            && options.selector.is_none()
+            && (!options.terms.is_empty() || options.query.is_some())
+        {
             return Err(
-                "query accepts project root via --workspace or positional PROJECT_ROOT, not both"
+                "query --names-only requires an owner selector; workspace term discovery is `search fzf '<term>' owner --view seeds --workspace <workspace-root>`"
                     .to_string(),
             );
         }
         if options.code && !options.paths.is_empty() {
             return Err(
-                "query --code does not accept a trailing PROJECT_ROOT; use --workspace PROJECT_ROOT"
+                "query does not accept positional WORKSPACE; use --workspace <WORKSPACE>"
                     .to_string(),
             );
         }
-        if options.paths.len() > 1 {
-            return Err("expected at most one PROJECT_ROOT argument".to_string());
+        if !options.paths.is_empty() {
+            return Err(
+                "query does not accept positional WORKSPACE; use --workspace <WORKSPACE>"
+                    .to_string(),
+            );
         }
         if let Some(view) = options.output_view.as_deref()
             && !matches!(view, "graph" | "hits" | "both" | "seeds" | "read-packet")
@@ -150,8 +155,11 @@ impl QueryOptions {
         {
             self.selector = Some(values.remove(0));
         }
-        for value in values {
-            self.paths.push(PathBuf::from(value));
+        if !values.is_empty() {
+            return Err(
+                "query does not accept positional WORKSPACE; use --workspace <WORKSPACE>"
+                    .to_string(),
+            );
         }
         Ok(())
     }
@@ -210,13 +218,21 @@ impl QueryOptions {
             item_names_only: self.names_only,
             item_code: self.code,
             source_version: self.source_version,
-            workspace: self.workspace,
+            workspace_root: self.workspace_root.clone(),
             ..QuerySearchOptions::default()
         };
-        options.paths.push(self.project_root()?);
+        if options.workspace_root.is_none() {
+            options.workspace_root = Some(self.project_root()?);
+        }
         if let Some(selector) = self.normalized_selector() {
             if selector_has_glob(&selector) {
                 if !self.terms.is_empty() || self.query.is_some() {
+                    if self.names_only {
+                        return Err(
+                            "query --names-only requires an owner selector; workspace term discovery is `search fzf '<term>' owner --view seeds --workspace <workspace-root>`"
+                                .to_string(),
+                        );
+                    }
                     self.apply_fzf_query(
                         &mut options,
                         self.from_hook.as_deref() == Some("direct-source-read"),

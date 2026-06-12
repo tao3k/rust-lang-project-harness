@@ -188,6 +188,7 @@ query_set.starts_with(
         "rCAH".as_ref(),
         "--view".as_ref(),
         "seeds".as_ref(),
+        "--workspace".as_ref(),
         root.as_os_str(),
         "--fzf".as_ref(),
         "--exact".as_ref(),

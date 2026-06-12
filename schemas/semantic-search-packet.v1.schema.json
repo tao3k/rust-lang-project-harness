@@ -1750,6 +1750,24 @@
           "type": "string",
           "pattern": "^[a-z][a-z0-9_-]*$"
         },
+        "fanout": {
+          "const": "parallel"
+        },
+        "instances": {
+          "const": "targetActions"
+        },
+        "branchPrompt": {
+          "const": "reasoning-tree"
+        },
+        "stateOwner": {
+          "const": "parent"
+        },
+        "fanin": {
+          "const": "receipt"
+        },
+        "iterative": {
+          "type": "boolean"
+        },
         "decision": {
           "const": "advisory"
         },
@@ -1818,6 +1836,7 @@
           "items": {
             "enum": [
               "role",
+              "action",
               "evidence",
               "missing",
               "next",

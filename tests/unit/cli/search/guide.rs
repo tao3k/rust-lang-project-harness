@@ -35,7 +35,7 @@ fn cli_search_guide_renders_typed_reasoning_profiles() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("  overview-prime:\n    command=search prime --view seeds"),
+        stdout.contains("  overview-prime:\n    command=search prime --workspace . --view seeds"),
         "{stdout}"
     );
     assert!(

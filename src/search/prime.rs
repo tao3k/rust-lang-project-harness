@@ -386,7 +386,7 @@ fn render_package_prime_seed_source(
 fn append_decision_primer_lines(rendered: &mut String, language_id: &str) {
     let _ = writeln!(
         rendered,
-        "|decision purpose=decision-primer answer=false code=false capabilities=pipe,fzf,fd-query,rg-query,owner-items,selector-code,treesitter-query ladder=pipe>fzf>fd-query|rg-query>owner-items>selector-code history=asp-artifacts:directReadRisk,repeatedPrime,repeatedPipe,bestPath risk=broad-direct-read,manual-window-scan,repeat-prime next=\"asp {language_id} search pipe '<question-or-feature-term>' --view seeds .\""
+        "|decision purpose=decision-primer answer=false code=false capabilities=pipe,fzf,fd-query,rg-query,owner-items,selector-code,treesitter-query ladder=pipe>fzf>fd-query|rg-query>owner-items>selector-code history=asp-artifacts:directReadRisk,repeatedPrime,repeatedPipe,bestPath risk=broad-direct-read,manual-window-scan,repeat-prime next=\"asp {language_id} search pipe '<question-or-feature-term>' --workspace . --view seeds\""
     );
 }
 

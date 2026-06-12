@@ -1,5 +1,6 @@
 /target
 **/*.rs.bk
+*.pending-snap
 Cargo.lock
 /.devenv
 /.codex/harness-state/

@@ -74,16 +74,16 @@ pub(super) fn print_query_guide() {
 
 |mode names command="query <owner-path> --query <symbol> --names-only" output=item-names
 |mode frontier command="query <owner-path> --query <symbol>" output=item-frontier code=false
-|mode code command="query <owner-path> --query <symbol> --workspace <workspace-root> --code" output=pure-code requires=unique-match
+|mode code command="query <owner-path> --query <symbol> --workspace <WORKSPACE> --code" output=pure-code requires=unique-match
 |mode exact-range command="query --from-hook direct-source-read --selector <path:start-end> --code" output=pure-code maxWindow=40
-|mode workspace-range command="query --from-hook direct-source-read --selector <workspace-path:start-end> --workspace <workspace-root> --code" output=pure-code
+|mode workspace-range command="query --from-hook direct-source-read --selector <workspace-path:start-end> --workspace <WORKSPACE> --code" output=pure-code
 |mode read-plan trigger="wide-selector|low-signal-window|broad-selector" output=read-frontier code=false
 
-|action item.code mapsTo="query <owner-path> --query <item-name> --workspace <workspace-root> --code"
+|action item.code mapsTo="query <owner-path> --query <item-name> --workspace <WORKSPACE> --code"
 |action window.code mapsTo="query --from-hook direct-source-read --selector <path:start-end> --code"
-|action workspace-window.code mapsTo="query --from-hook direct-source-read --selector <workspace-path:start-end> --workspace <workspace-root> --code"
-|action item.outline mapsTo="query <owner-path> --query <item-name> --view outline <root>"
-|action exact-read mapsTo="query --from-hook direct-source-read --selector <exactRead> --workspace <workspace-root> --code"
+|action workspace-window.code mapsTo="query --from-hook direct-source-read --selector <workspace-path:start-end> --workspace <WORKSPACE> --code"
+|action item.outline mapsTo="query <owner-path> --query <item-name> --view outline --workspace <WORKSPACE>"
+|action exact-read mapsTo="query --from-hook direct-source-read --selector <exactRead> --workspace <WORKSPACE> --code"
 
 |read-plan nodeKinds=range,window,symbol,hot
 |read-plan relations=contains,split,remainder,matches,repairs
@@ -117,8 +117,8 @@ pub(super) fn print_tree_sitter_query_guide() {
 |template id=rust.macros pattern="(macro_invocation macro: (identifier) @macro.name)" capture=macro.name target=pattern-root
 |template id=rust.tests pattern="(attribute_item) @attr (#match? @attr \"test\")" capture=attr target=enclosing-item
 
-|mode frontier command="query --treesitter-query <pattern> <root>" output=capture-frontier code=false
-|mode scoped-frontier command="query --selector <path-or-range> --treesitter-query <pattern> <root>" output=capture-frontier code=false
+|mode frontier command="query --treesitter-query <pattern> --workspace <workspace-root>" output=capture-frontier code=false
+|mode scoped-frontier command="query --selector <path-or-range> --treesitter-query <pattern> --workspace <workspace-root>" output=capture-frontier code=false
 |mode exact-code command="query --selector <path-or-range> --treesitter-query <pattern> --workspace <workspace-root> --code" output=pure-code
 |mode strict command="... --strict-treesitter" noMatch=fail stdout=empty
 
@@ -128,7 +128,7 @@ pub(super) fn print_tree_sitter_query_guide() {
 |rule noMatch default=frontier-empty strict=false
 |rule noMatchStrict exit=nonzero stdout=empty
 
-|example frontier="query --treesitter-query '(function_item name: (identifier) @function.name)' ."
+|example frontier="query --treesitter-query '(function_item name: (identifier) @function.name)' --workspace <workspace-root>"
 |example exactCode="query --selector src/cli/query.rs --treesitter-query '(function_item name: (identifier) @function.name (#eq? @function.name \"parse_query\"))' --workspace <workspace-root> --code"
 |avoid broad-code-output,capture-name-only-by-default,inline-metadata-in-code-stdout"#
     );
@@ -136,20 +136,20 @@ pub(super) fn print_tree_sitter_query_guide() {
 
 pub(super) fn print_query_help() {
     println!(
-        "rs-harness query <owner-path[:start:end]> [items tests] [--query SYMBOL] [--names-only | --code] [PROJECT_ROOT]\n\
-rs-harness query --catalog flow-lite --where 'source.call=NAME sink.constructs=TYPE scope.fn=FUNCTION' [--json] [PROJECT_ROOT]\n\
-rs-harness query --catalog <declarations|imports|calls|macros|cfg> [--json] [PROJECT_ROOT]\n\
-rs-harness query --treesitter-query '<s-expression>' [--selector <path[:line|:start:end]>] [--term TERM...] [--workspace PROJECT_ROOT] [--code] [--json]\n\
-rs-harness query --from-hook direct-source-read --selector <path[:line-range]> [--workspace PROJECT_ROOT] [--source worktree|index|head] --code\n\
-rs-harness query --from-hook KIND --selector SELECTOR [--query SYMBOL | --term TERM] [--names-only | --code] [PROJECT_ROOT]\n\
-rs-harness query --term TERM [--term TERM...] [--surface PIPE] [--view seeds] [PROJECT_ROOT]\n\n\
+        "rs-harness query <owner-path[:start:end]> [items tests] [--query SYMBOL] [--names-only | --code] [--workspace WORKSPACE]\n\
+rs-harness query --catalog flow-lite --where 'source.call=NAME sink.constructs=TYPE scope.fn=FUNCTION' [--json] [--workspace WORKSPACE]\n\
+rs-harness query --catalog <declarations|imports|calls|macros|cfg> [--json] [--workspace WORKSPACE]\n\
+rs-harness query --treesitter-query '<s-expression>' [--selector <path[:line|:start:end]>] [--term TERM...] [--workspace WORKSPACE] [--code] [--json]\n\
+rs-harness query --from-hook direct-source-read --selector <path[:line-range]> [--workspace WORKSPACE] [--source worktree|index|head] --code\n\
+rs-harness query --from-hook KIND --selector SELECTOR [--query SYMBOL | --term TERM] [--names-only | --code] [--workspace WORKSPACE]\n\
+rs-harness search fzf TERM owner [--view seeds] [--workspace WORKSPACE]\n\n\
 Maps hook-denied raw reads and broad searches into parser-owned search output.\n\
-Concrete Rust owner selectors route to search owner items/tests; multi-term queries route to search fzf query-set.\n\
+Concrete Rust owner selectors route to search owner items/tests; workspace term discovery is the explicit search fzf surface.\n\
 Tree-sitter-compatible syntax catalog and inline queries emit semantic-tree-sitter-query.v1 packets through the normal query command.\n\
 Flow-lite native relation queries emit compact locator/provenance frontiers or semantic-flow-lite.v1 JSON without running CodeQL.\n\
 Glob or broad selectors without terms route to search prime --view seeds.\n\
 Owner item queries emit |query status=hit|miss match=exact|fallback-contains|none.\n\
-Use --workspace PROJECT_ROOT when the selector is workspace-relative; query --code never accepts a trailing project root.\n\
+Use --workspace WORKSPACE when the selector is workspace-relative; query never accepts a trailing workspace root.\n\
 Use --source only to choose worktree, index, or head content.\n\
 Use --code after selecting an owner/symbol or hook path/range to emit compact parser-owned code."
     );

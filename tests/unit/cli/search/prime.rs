@@ -29,7 +29,12 @@ fn cli_search_prime_renders_line_protocol() {
     )
     .expect("write domain");
 
-    let output = run_cli(["search".as_ref(), "prime".as_ref(), root.as_os_str()]);
+    let output = run_cli([
+        "search".as_ref(),
+        "prime".as_ref(),
+        "--workspace".as_ref(),
+        root.as_os_str(),
+    ]);
 
     assert!(output.status.success(), "{output:?}");
     let stdout = normalize_temp_root(
@@ -64,8 +69,9 @@ fn cli_search_prime_renders_line_protocol() {
         "{stdout}"
     );
     assert!(
-        stdout
-            .contains("next=\"asp rust search pipe '<question-or-feature-term>' --view seeds .\""),
+        stdout.contains(
+            "next=\"asp rust search pipe '<question-or-feature-term>' --workspace . --view seeds\""
+        ),
         "{stdout}"
     );
     assert!(stdout.contains("|owner src/lib.rs"), "{stdout}");

@@ -11,6 +11,7 @@ where
 {
     let mut command = Command::new(env!("CARGO_BIN_EXE_rs-harness"));
     configure_shared_asp_renderer(&mut command);
+    let args = normalize_fixture_workspace_args(args);
     command.args(args).output().expect("run cli")
 }
 
@@ -21,6 +22,7 @@ where
 {
     let mut command = Command::new(env!("CARGO_BIN_EXE_rs-harness"));
     configure_shared_asp_renderer(&mut command);
+    let args = normalize_fixture_workspace_args(args);
     let mut child = command
         .args(args)
         .stdin(Stdio::piped())
@@ -35,6 +37,49 @@ where
         .write_all(stdin.as_bytes())
         .expect("write stdin");
     child.wait_with_output().expect("run cli")
+}
+
+fn normalize_fixture_workspace_args<I, S>(args: I) -> Vec<std::ffi::OsString>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<std::ffi::OsStr>,
+{
+    let mut args = args
+        .into_iter()
+        .map(|arg| arg.as_ref().to_os_string())
+        .collect::<Vec<_>>();
+    let Some(first) = args.first().and_then(|arg| arg.to_str()) else {
+        return args;
+    };
+    if first != "query" && first != "search" {
+        return args;
+    }
+    if args
+        .iter()
+        .any(|arg| arg.to_str().is_some_and(|value| value == "--workspace"))
+    {
+        return args;
+    }
+    if first == "query" {
+        if let Some(index) = args.iter().enumerate().skip(1).find_map(|(index, arg)| {
+            let path = Path::new(arg);
+            (path.is_absolute() && path.is_dir()).then_some(index)
+        }) {
+            args.insert(index, "--workspace".into());
+        }
+        return args;
+    }
+    let Some(last) = args.last() else {
+        return args;
+    };
+    let root = Path::new(last);
+    if !root.join("Cargo.toml").is_file() {
+        return args;
+    }
+    let root = args.pop().expect("last arg");
+    args.push("--workspace".into());
+    args.push(root);
+    args
 }
 
 #[cfg(feature = "search")]
@@ -98,6 +143,7 @@ pub(crate) fn run_search(root: &Path, args: &[&str]) -> String {
     let mut command_args = Vec::<std::ffi::OsString>::new();
     command_args.push("search".into());
     command_args.extend(args.iter().map(std::ffi::OsString::from));
+    command_args.push("--workspace".into());
     command_args.push(root.as_os_str().to_os_string());
     let output = run_cli(command_args);
     assert!(output.status.success(), "{output:?}");
@@ -112,6 +158,7 @@ pub(crate) fn run_search_with_stdin(root: &Path, args: &[&str], stdin: &str) -> 
     let mut command_args = Vec::<std::ffi::OsString>::new();
     command_args.push("search".into());
     command_args.extend(args.iter().map(std::ffi::OsString::from));
+    command_args.push("--workspace".into());
     command_args.push(root.as_os_str().to_os_string());
     let output = run_cli_with_stdin(command_args, stdin);
     assert!(output.status.success(), "{output:?}");
