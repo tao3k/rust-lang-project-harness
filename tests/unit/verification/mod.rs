@@ -1,6 +1,7 @@
 mod analysis;
 mod assurance_case;
 mod behavior_snapshot;
+mod build_gate;
 mod config;
 mod determinism_readiness;
 mod evidence_graph;

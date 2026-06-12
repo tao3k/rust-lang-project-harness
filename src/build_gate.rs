@@ -8,6 +8,150 @@ use crate::model::{RustHarnessConfig, RustHarnessReport};
 use crate::runner::run_rust_project_harness_with_config;
 use crate::verification::{RustVerificationTaskKind, plan_rust_project_verification_with_config};
 
+/// Downstream crate-owned policy consumed by a thin `build.rs`.
+///
+/// Downstream projects should construct this value from crate-local policy
+/// modules, then pass it to
+/// [`assert_rust_project_harness_downstream_policy_from_env`]. This keeps
+/// `build.rs` small while still letting larger projects split policy into
+/// owners, verification, receipts, reports, and rule modules.
+pub struct RustProjectHarnessDownstreamPolicy {
+    gate_label: String,
+    config: RustHarnessConfig,
+}
+
+impl RustProjectHarnessDownstreamPolicy {
+    /// Create a downstream policy wrapper around a complete harness config.
+    #[must_use]
+    pub fn new(gate_label: impl Into<String>, config: RustHarnessConfig) -> Self {
+        Self {
+            gate_label: gate_label.into(),
+            config,
+        }
+    }
+
+    /// Human-readable crate label used in build-gate panic messages.
+    #[must_use]
+    pub fn gate_label(&self) -> &str {
+        &self.gate_label
+    }
+
+    /// Complete project harness config assembled by downstream policy modules.
+    #[must_use]
+    pub fn config(&self) -> &RustHarnessConfig {
+        &self.config
+    }
+}
+
+/// Workspace-owned policy baseline shared by multiple downstream crates.
+///
+/// Downstream workspaces should keep common rules, receipts, and verification
+/// defaults in this value, then derive crate policies through
+/// [`RustProjectHarnessWorkspacePolicy::member_crate`] or
+/// [`RustProjectHarnessWorkspacePolicy::member_crate_with_config`]. This keeps
+/// member `build.rs` files thin without forcing every crate to duplicate the
+/// workspace policy tree.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RustProjectHarnessWorkspacePolicy {
+    workspace_label: String,
+    config: RustHarnessConfig,
+}
+
+impl RustProjectHarnessWorkspacePolicy {
+    /// Create a workspace policy wrapper around a shared harness config.
+    #[must_use]
+    pub fn new(workspace_label: impl Into<String>, config: RustHarnessConfig) -> Self {
+        Self {
+            workspace_label: workspace_label.into(),
+            config,
+        }
+    }
+
+    /// Human-readable workspace label used as the prefix for member gates.
+    #[must_use]
+    pub fn workspace_label(&self) -> &str {
+        &self.workspace_label
+    }
+
+    /// Shared harness config used as the baseline for member crate policies.
+    #[must_use]
+    pub fn config(&self) -> &RustHarnessConfig {
+        &self.config
+    }
+
+    /// Derive a member crate policy from the shared workspace config.
+    #[must_use]
+    pub fn member_crate(
+        &self,
+        crate_label: impl Into<String>,
+    ) -> RustProjectHarnessDownstreamPolicy {
+        RustProjectHarnessDownstreamPolicy::new(
+            self.member_gate_label(crate_label),
+            self.config.clone(),
+        )
+    }
+
+    /// Derive a member crate policy and apply crate-local overrides.
+    ///
+    /// The shared workspace config is cloned before the override closure runs,
+    /// so member-specific owners or waivers cannot mutate the common baseline.
+    #[must_use]
+    pub fn member_crate_with_config<F>(
+        &self,
+        crate_label: impl Into<String>,
+        configure: F,
+    ) -> RustProjectHarnessDownstreamPolicy
+    where
+        F: FnOnce(RustHarnessConfig) -> RustHarnessConfig,
+    {
+        RustProjectHarnessDownstreamPolicy::new(
+            self.member_gate_label(crate_label),
+            configure(self.config.clone()),
+        )
+    }
+
+    fn member_gate_label(&self, crate_label: impl Into<String>) -> String {
+        format!("{}::{}", self.workspace_label, crate_label.into())
+    }
+}
+
+/// Assert a complete downstream policy from `CARGO_MANIFEST_DIR`.
+///
+/// This is the preferred entrypoint for downstream crates whose policy is too
+/// large to live directly in `build.rs`.
+///
+/// # Panics
+///
+/// Panics when `CARGO_MANIFEST_DIR` is missing, when the cargo-check policy
+/// gate fails, or when semantic verification coverage is incomplete.
+#[track_caller]
+pub fn assert_rust_project_harness_downstream_policy_from_env(
+    policy: &RustProjectHarnessDownstreamPolicy,
+) -> RustHarnessReport {
+    let root = cargo_manifest_dir();
+    assert_rust_project_harness_downstream_policy(&root, policy)
+}
+
+/// Assert a complete downstream policy from an explicit project root.
+///
+/// # Panics
+///
+/// Panics when the cargo-check policy gate fails, or when semantic
+/// verification coverage is incomplete.
+#[track_caller]
+pub fn assert_rust_project_harness_downstream_policy(
+    project_root: &Path,
+    policy: &RustProjectHarnessDownstreamPolicy,
+) -> RustHarnessReport {
+    let report = assert_downstream_cargo_check_clean_with_guidance(project_root, policy);
+    assert_rust_project_harness_verification_with_config(
+        project_root,
+        policy.config(),
+        policy.gate_label(),
+    );
+    report
+}
+
 /// Assert a project harness run from a Cargo build script.
 ///
 /// This runs during Cargo build-script execution, so `cargo check` surfaces the
@@ -125,32 +269,138 @@ pub fn assert_rust_project_harness_cargo_check_clean_from_env_with_config(
     assert_rust_project_harness_build_clean_from_env_with_config(config)
 }
 
-/// Assert that a cargo-check build gate has an active performance verification task.
+/// Assert that a cargo-check build gate has active semantic verification tasks.
 ///
 /// # Panics
 ///
 /// Panics when `CARGO_MANIFEST_DIR` is missing, the verification plan cannot be
-/// built, or the configured plan lacks an active performance task/report.
+/// built, or the configured plan lacks active verification tasks/reports.
 #[track_caller]
-pub fn assert_rust_project_harness_performance_verification_from_env(
+pub fn assert_rust_project_harness_verification_from_env_with_config(
     config: &RustHarnessConfig,
     gate_label: &str,
 ) {
     let root = cargo_manifest_dir();
-    let plan = plan_rust_project_verification_with_config(&root, config)
-        .unwrap_or_else(|error| panic!("{gate_label} verification plan: {error}"));
-    assert!(
-        plan.tasks
-            .iter()
-            .any(|task| task.kind == RustVerificationTaskKind::Performance && task.is_active()),
-        "{gate_label} build gate must configure active performance verification tasks"
-    );
-    assert!(
-        plan.report_obligations
-            .iter()
-            .any(|obligation| obligation.key == "performance_index_json"),
-        "{gate_label} build gate must require a performance index report"
-    );
+    assert_rust_project_harness_verification_with_config(&root, config, gate_label);
+}
+
+/// Assert that a cargo-check build gate has active semantic verification tasks.
+///
+/// This mirrors a Clippy-style build-script gate: downstream crates pass their
+/// harness config through `build.rs`, and Cargo surfaces missing semantic
+/// verification coverage during `cargo check`/`cargo test` compilation.
+///
+/// # Panics
+///
+/// Panics when the verification plan cannot be built, or the configured plan
+/// lacks active verification tasks/reports.
+#[track_caller]
+pub fn assert_rust_project_harness_verification_with_config(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    gate_label: &str,
+) {
+    let plan = plan_rust_project_verification_with_config(project_root, config)
+        .unwrap_or_else(|error| {
+            panic!(
+                "{gate_label} verification plan: {error}\n{}",
+                downstream_build_gate_agent_guidance(gate_label)
+            )
+        });
+    assert_active_verification_task(&plan, gate_label, RustVerificationTaskKind::Performance);
+    assert_active_verification_task(&plan, gate_label, RustVerificationTaskKind::Stability);
+    assert_verification_report_obligation(&plan, gate_label, "performance_index_json");
+    assert_verification_report_obligation(&plan, gate_label, "stability_index_json");
+}
+
+fn assert_downstream_cargo_check_clean_with_guidance(
+    project_root: &Path,
+    policy: &RustProjectHarnessDownstreamPolicy,
+) -> RustHarnessReport {
+    emit_cargo_rerun_inputs(project_root, policy.config());
+    let report = run_rust_project_harness_with_config(project_root, policy.config())
+        .unwrap_or_else(|error| {
+            panic!(
+                "{} cargo-check build gate: {error}\n{}",
+                policy.gate_label(),
+                downstream_build_gate_agent_guidance(policy.gate_label())
+            )
+        });
+    assert_build_report_clean_with_agent_guidance(&report, policy.config(), policy.gate_label());
+    report
+}
+
+fn assert_build_report_clean_with_agent_guidance(
+    report: &RustHarnessReport,
+    config: &RustHarnessConfig,
+    gate_label: &str,
+) {
+    if !report.is_clean() {
+        panic!(
+            "{}\n{}",
+            crate::render_rust_project_harness(report),
+            downstream_build_gate_agent_guidance(gate_label)
+        );
+    }
+    if !config_allows_agent_advice(config) {
+        let rendered = crate::render_rust_project_harness_advice(report);
+        if !rendered.is_empty() {
+            panic!(
+                "{rendered}\n{}",
+                downstream_build_gate_agent_guidance(gate_label)
+            );
+        }
+    }
+}
+
+fn assert_active_verification_task(
+    plan: &crate::verification::RustVerificationPlan,
+    gate_label: &str,
+    kind: RustVerificationTaskKind,
+) {
+    if !plan
+        .tasks
+        .iter()
+        .any(|task| task.kind == kind && task.is_active())
+    {
+        panic!(
+            "{gate_label} build gate must configure active {kind:?} verification tasks\n{}",
+            downstream_build_gate_agent_guidance(gate_label)
+        );
+    }
+}
+
+fn assert_verification_report_obligation(
+    plan: &crate::verification::RustVerificationPlan,
+    gate_label: &str,
+    key: &str,
+) {
+    if !plan
+        .report_obligations
+        .iter()
+        .any(|obligation| obligation.key == key)
+    {
+        panic!(
+            "{gate_label} build gate must require a {key} report\n{}",
+            downstream_build_gate_agent_guidance(gate_label)
+        );
+    }
+}
+
+fn downstream_build_gate_agent_guidance(gate_label: &str) -> String {
+    format!(
+        "\
+[rust-harness-agent-guidance]
+gate: {gate_label}
+trigger: cargo test runs the member build.rs before tests; keep rust-lang-project-harness under [build-dependencies].
+repair:
+- keep build.rs thin and call assert_rust_project_harness_downstream_policy_from_env.
+- in a workspace, put common policy in the root harness/ module tree.
+- construct RustProjectHarnessWorkspacePolicy once, then derive members with member_crate or member_crate_with_config.
+- add crate-local owners, receipts, waivers, or report obligations in the member override only.
+- rerun cargo test after updating policy or evidence.
+"
+    )
 }
 
 fn cargo_manifest_dir() -> PathBuf {

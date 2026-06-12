@@ -833,6 +833,23 @@ impl RustHarnessConfig {
         )
     }
 
+    /// Return a config that marks one owner as availability-critical stability work.
+    #[must_use]
+    pub fn with_availability_stability_owner(
+        self,
+        owner_path: impl Into<PathBuf>,
+        rationale: impl Into<String>,
+    ) -> Self {
+        self.with_verification_profile_hint(
+            RustVerificationProfileHint::new(
+                owner_path,
+                [RustOwnerResponsibility::AvailabilityCritical],
+            )
+            .with_task_kinds([RustVerificationTaskKind::Stability])
+            .with_rationale(rationale),
+        )
+    }
+
     /// Return a config with one responsibility mapped to explicit task kinds.
     #[must_use]
     pub fn with_verification_responsibility_task_kinds<I>(

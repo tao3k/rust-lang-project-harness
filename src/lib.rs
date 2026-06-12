@@ -11,6 +11,7 @@ mod build_gate;
 #[cfg(feature = "cli")]
 mod cli;
 mod discovery;
+mod downstream_gate_guide;
 mod harness_rules;
 mod invariant_catalog;
 mod macros;
@@ -160,6 +161,9 @@ pub use agent_snapshot::{
     render_rust_project_harness_agent_snapshot_with_config,
 };
 pub use build_gate::{
+    RustProjectHarnessDownstreamPolicy, RustProjectHarnessWorkspacePolicy,
+    assert_rust_project_harness_downstream_policy,
+    assert_rust_project_harness_downstream_policy_from_env,
     assert_rust_project_harness_build_clean, assert_rust_project_harness_build_clean_from_env,
     assert_rust_project_harness_build_clean_from_env_with_config,
     assert_rust_project_harness_build_clean_with_config,
@@ -167,11 +171,15 @@ pub use build_gate::{
     assert_rust_project_harness_cargo_check_clean_from_env,
     assert_rust_project_harness_cargo_check_clean_from_env_with_config,
     assert_rust_project_harness_cargo_check_clean_with_config,
-    assert_rust_project_harness_performance_verification_from_env,
+    assert_rust_project_harness_verification_from_env_with_config,
+    assert_rust_project_harness_verification_with_config,
 };
 #[cfg(feature = "cli")]
 pub use cli::run_cli_from_env;
 pub use discovery::{DEFAULT_IGNORED_DIR_NAMES, discover_rust_files, rust_project_harness_scope};
+pub use downstream_gate_guide::{
+    RUST_DOWNSTREAM_VERIFICATION_GATE_GUIDE_MD, rust_downstream_verification_gate_guide_markdown,
+};
 pub use model::{
     RulePackDescriptor, RustDiagnosticSeverity, RustHarnessConfig, RustHarnessFinding,
     RustHarnessReport, RustHarnessRule, RustInvariantCandidate, RustInvariantCandidateStatus,
