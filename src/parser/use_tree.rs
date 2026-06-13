@@ -34,8 +34,11 @@ pub(crate) struct RustUseGlobImportSyntax {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RustUseDeepRelativeImportSyntax {
+    pub line: usize,
     pub prefix_segments: Vec<String>,
     pub parent_hops: usize,
+    pub visibility: RustUseVisibilityKind,
+    pub is_reexport: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -139,12 +142,11 @@ pub(crate) fn rust_use_statement_syntax(
 ) -> RustUseStatementSyntax {
     let imports = use_item_imports(item_use);
     let visibility = use_visibility_kind(&item_use.vis);
+    let line = item_use.span().start().line.max(1);
     let reexports = if visibility.is_reexport() {
         imports
             .iter()
-            .filter_map(|import| {
-                reexport_syntax(item_use.span().start().line.max(1), &visibility, import)
-            })
+            .filter_map(|import| reexport_syntax(line, &visibility, import))
             .collect::<Vec<_>>()
     } else {
         Vec::new()
@@ -152,7 +154,7 @@ pub(crate) fn rust_use_statement_syntax(
     let deep_relative_imports = imports
         .iter()
         .filter(|import| is_deep_relative_import(import))
-        .map(deep_relative_import_syntax)
+        .map(|import| deep_relative_import_syntax(line, &visibility, import))
         .collect::<Vec<_>>();
     let glob_imports = imports
         .iter()
@@ -160,7 +162,7 @@ pub(crate) fn rust_use_statement_syntax(
         .map(glob_import_syntax)
         .collect::<Vec<_>>();
     RustUseStatementSyntax {
-        line: item_use.span().start().line.max(1),
+        line,
         visibility,
         context,
         imports,
@@ -267,10 +269,17 @@ fn reexport_syntax(
     })
 }
 
-fn deep_relative_import_syntax(import: &RustUseImportSyntax) -> RustUseDeepRelativeImportSyntax {
+fn deep_relative_import_syntax(
+    line: usize,
+    visibility: &RustUseVisibilityKind,
+    import: &RustUseImportSyntax,
+) -> RustUseDeepRelativeImportSyntax {
     RustUseDeepRelativeImportSyntax {
+        line,
         prefix_segments: import.segments.clone(),
         parent_hops: import.parent_hops,
+        visibility: visibility.clone(),
+        is_reexport: visibility.is_reexport(),
     }
 }
 

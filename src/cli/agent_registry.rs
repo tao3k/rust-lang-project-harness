@@ -39,6 +39,7 @@ fn agent_registry_json(project_root: &Path) -> Value {
         "policy",
         "semantic-facts",
         "ingest",
+        "compare",
     ];
     let mut methods = search_methods
         .iter()
@@ -57,6 +58,8 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "query/direct-source-read".to_string(),
             "query/owner-items".to_string(),
             "review/packet".to_string(),
+            "verification/performance-index".to_string(),
+            "verification/stability-index".to_string(),
         ])
         .collect::<Vec<_>>();
     methods.sort();
@@ -173,6 +176,20 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "supportsJson": true
         }),
         json!({
+            "command": "verification",
+            "input": "performance-index",
+            "method": "verification/performance-index",
+            "supportsCompact": true,
+            "supportsJson": true
+        }),
+        json!({
+            "command": "verification",
+            "input": "stability-index",
+            "method": "verification/stability-index",
+            "supportsCompact": true,
+            "supportsJson": true
+        }),
+        json!({
             "command": "evidence",
             "input": "graph",
             "method": "evidence/graph",
@@ -244,6 +261,7 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "schemas": [
                 { "path": "schemas/semantic-language-registry.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-language-registry", "schemaVersion": "1" },
                 { "path": "schemas/semantic-search-packet.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-search-packet", "schemaVersion": "1" },
+                { "path": "schemas/semantic-compare-packet.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-compare-packet", "schemaVersion": "1" },
                 { "path": "schemas/semantic-query-packet.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-query-packet", "schemaVersion": "1" },
                 { "path": "schemas/semantic-tree-sitter-query.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-tree-sitter-query", "schemaVersion": "1" },
                 { "path": "schemas/semantic-tree-sitter-grammar-profile.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-tree-sitter-grammar-profile", "schemaVersion": "1" },
@@ -357,6 +375,9 @@ fn search_output_schema_ids(view: &str) -> Vec<&'static str> {
     if view == "query" {
         schema_ids.push("agent.semantic-protocols.semantic-native-syntax-fact-index");
     }
+    if view == "compare" {
+        schema_ids.push("agent.semantic-protocols.semantic-compare-packet");
+    }
     schema_ids
 }
 
@@ -378,6 +399,7 @@ fn search_view_requires_query(view: &str) -> bool {
             | "docs-use"
             | "api"
             | "semantic-facts"
+            | "compare"
     )
 }
 

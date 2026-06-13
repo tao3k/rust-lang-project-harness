@@ -20,7 +20,7 @@ type DependencyEdge = (
     bool,
 );
 
-type DeepRelativeImportRepair = (String, String, usize, usize, bool);
+type DeepRelativeImportRepair = (String, Option<String>, usize, usize, bool);
 
 #[test]
 fn cargo_manifest_parser_records_dependency_facts() {
@@ -471,21 +471,21 @@ fn reasoning_tree_derives_crate_repairs_for_deep_relative_imports() {
         vec![
             (
                 "super::super::MarkdownLintIssue".to_string(),
-                "crate::gateway::MarkdownLintIssue".to_string(),
+                Some("crate::gateway::MarkdownLintIssue".to_string()),
                 2,
                 1,
                 false,
             ),
             (
                 "super::super::MarkdownLintReport".to_string(),
-                "crate::gateway::MarkdownLintReport".to_string(),
+                Some("crate::gateway::MarkdownLintReport".to_string()),
                 2,
                 1,
                 false,
             ),
             (
                 "super::super::super::TestOnly".to_string(),
-                "crate::gateway::TestOnly".to_string(),
+                Some("crate::gateway::TestOnly".to_string()),
                 3,
                 4,
                 true,

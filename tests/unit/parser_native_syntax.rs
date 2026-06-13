@@ -156,7 +156,8 @@ fn native_syntax_facts_record_deep_relative_scope_imports() {
     let source = temp.path().join("domain.rs");
     fs::write(
         &source,
-        "pub use super::{super::MissingOwner, sibling::Thing};\n\
+        "pub(super) use super::super::{assert_workspace_patch_intent_artifact, local_gxi};\n\
+         pub use super::{super::MissingOwner, sibling::Thing};\n\
          use self::leaf::Leaf;\n",
     )
     .expect("write source");
@@ -168,11 +169,41 @@ fn native_syntax_facts_record_deep_relative_scope_imports() {
         .use_statements
         .iter()
         .flat_map(|use_statement| &use_statement.deep_relative_imports)
-        .map(|import| (import.rendered_path(), import.parent_hops))
+        .map(|import| {
+            (
+                import.rendered_path(),
+                import.parent_hops,
+                import.line,
+                import.visibility.clone(),
+                import.is_reexport,
+            )
+        })
         .collect::<Vec<_>>();
     assert_eq!(
         deep_relative_imports,
-        vec![("super::super::MissingOwner".to_string(), 2)]
+        vec![
+            (
+                "super::super::assert_workspace_patch_intent_artifact".to_string(),
+                2,
+                1,
+                RustUseVisibilityKind::Super,
+                true,
+            ),
+            (
+                "super::super::local_gxi".to_string(),
+                2,
+                1,
+                RustUseVisibilityKind::Super,
+                true,
+            ),
+            (
+                "super::super::MissingOwner".to_string(),
+                2,
+                2,
+                RustUseVisibilityKind::Public,
+                true,
+            ),
+        ]
     );
 }
 

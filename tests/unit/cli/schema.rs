@@ -336,6 +336,19 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
         ingest["acceptedPipes"],
         serde_json::json!(["items", "tests"])
     );
+    let compare = method_descriptor(methods, "search/compare");
+    assert_eq!(compare["command"], "search");
+    assert_eq!(compare["view"], "compare");
+    assert_eq!(compare["requiresQuery"], true);
+    assert_eq!(compare["supportsJson"], true);
+    assert_eq!(compare["supportsCompact"], true);
+    assert_eq!(
+        compare["outputSchemaIds"],
+        serde_json::json!([
+            "agent.semantic-protocols.semantic-search-packet",
+            "agent.semantic-protocols.semantic-compare-packet"
+        ])
+    );
     assert!(
         fzf["ingestRequiredFor"].as_array().is_some_and(|surfaces| {
             surfaces
@@ -392,6 +405,13 @@ fn semantic_schema_files() -> &'static [SemanticSchemaFile] {
             schema_id: "agent.semantic-protocols.semantic-search-packet",
             file_name: "semantic-search-packet.v1.schema.json",
             registry_path: "schemas/semantic-search-packet.v1.schema.json",
+            identity_pointer: &["properties", "schemaId", "const"],
+            syncs_with_protocol_repository: true,
+        },
+        SemanticSchemaFile {
+            schema_id: "agent.semantic-protocols.semantic-compare-packet",
+            file_name: "semantic-compare-packet.v1.schema.json",
+            registry_path: "schemas/semantic-compare-packet.v1.schema.json",
             identity_pointer: &["properties", "schemaId", "const"],
             syncs_with_protocol_repository: true,
         },

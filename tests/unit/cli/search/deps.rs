@@ -86,6 +86,126 @@ fn cli_search_deps_reports_dependency_capability_boundary_usage() {
 }
 
 #[test]
+fn cli_search_deps_reports_no_output_before_external_dependency_lookup() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\n\
+         name = \"cli-search-deps-missing-local\"\n\
+         version = \"0.1.0\"\n\
+         edition = \"2024\"\n\n\
+         [dependencies]\n\
+         serde = { version = \"1\", features = [\"derive\"] }\n",
+    )
+    .expect("write manifest");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(
+        root.join("src/lib.rs"),
+        "use serde::Serialize;\n#[derive(Serialize)]\npub struct Thing;\n",
+    )
+    .expect("write lib");
+
+    let output = run_search(root, &["deps", "process-wrap::JobObject"]);
+
+    assert!(
+        output.starts_with(
+            "[search-deps] q=process-wrap::JobObject pkg=. dep=0 own=0 api=0 apiQuery=JobObject"
+        ),
+        "{output}"
+    );
+    assert!(
+        output.contains(
+            "noOutput reason=no-local-dependency sourceTrace=cargo:manifest-empty,cargo:usage-empty"
+        ),
+        "{output}"
+    );
+    assert!(
+        output.contains(
+            "nextCommand=asp rust search deps 'process-wrap::JobObject' --workspace . --view seeds"
+        ),
+        "{output}"
+    );
+    assert!(
+        output.contains("avoid=web-search,docs.rs-search,raw-read,external-doc-lookup"),
+        "{output}"
+    );
+    assert!(!output.contains("docs-use"), "{output}");
+    assert!(!output.contains("|owner src/lib.rs"), "{output}");
+
+    let seeds = run_search(
+        root,
+        &["deps", "process-wrap::JobObject", "--view", "seeds"],
+    );
+    assert!(
+        seeds.contains("D=dependency:pkg(process-wrap::JobObject)!dependency"),
+        "{seeds}"
+    );
+    assert!(!seeds.contains("docs-use"), "{seeds}");
+
+    let query_deps_seeds = run_search(
+        root,
+        &[
+            "reasoning",
+            "query-deps",
+            "--query",
+            "JobObject",
+            "--dependency",
+            "process-wrap",
+            "--view",
+            "seeds",
+        ],
+    );
+    assert!(
+        query_deps_seeds.starts_with("[search-reasoning] q=query-deps"),
+        "{query_deps_seeds}"
+    );
+    assert!(
+        query_deps_seeds.contains("process-wrap"),
+        "{query_deps_seeds}"
+    );
+    assert!(
+        query_deps_seeds.contains("avoid=web-search,docs.rs-search,raw-read"),
+        "{query_deps_seeds}"
+    );
+    assert!(!query_deps_seeds.contains("docs-use"), "{query_deps_seeds}");
+
+    let multi_word_query_deps_seeds = run_search(
+        root,
+        &[
+            "reasoning",
+            "query-deps",
+            "--query",
+            "Job Object",
+            "--dependency",
+            "process-wrap",
+            "--view",
+            "seeds",
+        ],
+    );
+    assert!(
+        multi_word_query_deps_seeds.contains("selector=query=Job%20Object"),
+        "{multi_word_query_deps_seeds}"
+    );
+    assert!(
+        multi_word_query_deps_seeds.contains("query=Job%20Object"),
+        "{multi_word_query_deps_seeds}"
+    );
+    assert!(
+        multi_word_query_deps_seeds.contains("process-wrap"),
+        "{multi_word_query_deps_seeds}"
+    );
+    assert!(
+        multi_word_query_deps_seeds.contains("avoid=web-search,docs.rs-search,raw-read"),
+        "{multi_word_query_deps_seeds}"
+    );
+    assert!(
+        !multi_word_query_deps_seeds.contains("docs-use"),
+        "{multi_word_query_deps_seeds}"
+    );
+}
+
+#[test]
 fn cli_search_deps_distinguishes_external_version_queries() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
@@ -136,7 +256,7 @@ fn cli_search_deps_distinguishes_external_version_queries() {
         query_deps_seeds.contains("dependency"),
         "{query_deps_seeds}"
     );
-    assert!(query_deps_seeds.contains("docs-use"), "{query_deps_seeds}");
+    assert!(!query_deps_seeds.contains("docs-use"), "{query_deps_seeds}");
     assert!(
         query_deps_seeds.contains("crate-source"),
         "{query_deps_seeds}"

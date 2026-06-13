@@ -444,7 +444,7 @@ fn rust_reasoning_profiles() -> Value {
                 { "kind": "dependency", "alias": "D", "targetRole": "pkg", "required": true }
             ],
             "returns": ["owners", "imports", "local-docs", "crate-source", "usage-tests"],
-            "frontier": ["Q.owner", "D.public-api", "D.docs-use", "D.crate-source", "D.tests"],
+            "frontier": ["Q.owner", "D.public-api", "D.crate-source", "D.tests"],
             "avoid": ["web-search", "docs.rs-search"],
             "fields": { "source": "search-guide", "docs": "local-first" }
         },

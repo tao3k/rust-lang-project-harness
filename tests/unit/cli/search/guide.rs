@@ -30,7 +30,7 @@ fn cli_search_guide_renders_typed_reasoning_profiles() {
     );
     assert!(
         stdout.contains(
-            "|catalog reasoningProfiles=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg entries=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg routes=path,read-frontier namespaces=code,deps,extension,env,pattern"
+            "|catalog reasoningProfiles=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg entries=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg routes=path,read-frontier namespaces=code,deps,extension,env,pattern,compare"
         ),
         "{stdout}"
     );
@@ -96,6 +96,12 @@ fn cli_search_guide_renders_typed_reasoning_profiles() {
     assert!(
         stdout.contains(
             "  extension-tokio:\n    command=search extension tokio --workspace .\n    args=namespace:extension extension:tokio"
+        ),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "  compare-env-stable-nightly:\n    command=search compare env stable nightly --workspace .\n    args=namespace:compare axis:env left:stable right:nightly"
         ),
         "{stdout}"
     );

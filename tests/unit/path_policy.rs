@@ -1,6 +1,6 @@
 #[path = "path_policy/agent.rs"]
 mod agent;
-#[path = "path_policy/modularity.rs"]
+#[path = "path_policy/modularity/mod.rs"]
 mod modularity;
 #[path = "path_policy/modularity_owner_shape.rs"]
 mod modularity_owner_shape;

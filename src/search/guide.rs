@@ -9,7 +9,7 @@ struct SearchGuideProfile {
 
 const SEARCH_GUIDE_REASONING_PROFILES: &str =
     "owner-query,query-deps,owner-tests,finding-frontier,feature-cfg";
-const SEARCH_GUIDE_NAMESPACES: &str = "code,deps,extension,env,pattern";
+const SEARCH_GUIDE_NAMESPACES: &str = "code,deps,extension,env,pattern,compare";
 
 const SEARCH_GUIDE_PROFILES: &[SearchGuideProfile] = &[
     SearchGuideProfile {
@@ -75,6 +75,12 @@ const SEARCH_GUIDE_PROFILES: &[SearchGuideProfile] = &[
         command: Some("search extension tokio --workspace ."),
         args: "namespace:extension extension:tokio",
         returns: "manifest/source-derived Tokio boundary evidence",
+    },
+    SearchGuideProfile {
+        id: "compare-env-stable-nightly",
+        command: Some("search compare env stable nightly --workspace ."),
+        args: "namespace:compare axis:env left:stable right:nightly",
+        returns: "active resolver gated toolchain comparison packet",
     },
 ];
 

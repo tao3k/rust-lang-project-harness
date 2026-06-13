@@ -1,9 +1,12 @@
 use crate::verification::{
     RUST_EVIDENCE_GRAPH_PROTOCOL_ID, RUST_EVIDENCE_GRAPH_SCHEMA_ID, RUST_REVIEW_PACKET_PROTOCOL_ID,
     RUST_REVIEW_PACKET_SCHEMA_ID, RustAssuranceCaseInput, RustEvidenceGraph,
-    RustEvidenceGraphInput, RustReviewPacket, build_rust_assurance_case_set,
-    build_rust_evidence_graph, render_rust_assurance_case_set, render_rust_assurance_case_set_json,
-    render_rust_evidence_graph, render_rust_evidence_graph_json,
+    RustEvidenceGraphAnalysisInput, RustEvidenceGraphInput, RustReviewPacket,
+    build_rust_assurance_case_set, build_rust_evidence_graph,
+    build_rust_evidence_graph_analysis_request, render_rust_assurance_case_set,
+    render_rust_assurance_case_set_json, render_rust_evidence_graph,
+    render_rust_evidence_graph_analysis_request, render_rust_evidence_graph_analysis_request_json,
+    render_rust_evidence_graph_json,
 };
 use serde_json::Value;
 use std::ffi::OsString;
@@ -20,7 +23,8 @@ pub(super) fn run_evidence(args: impl IntoIterator<Item = OsString>) -> Result<E
     match options.command.as_deref() {
         Some("graph") => run_evidence_graph(options),
         Some("assurance") => run_assurance_case(options),
-        _ => Err("expected `rs-harness evidence <graph|assurance>`".to_owned()),
+        Some("analyze" | "analysis") => run_evidence_analysis(options),
+        _ => Err("expected `rs-harness evidence <graph|assurance|analyze>`".to_owned()),
     }
 }
 
@@ -64,6 +68,29 @@ fn run_assurance_case(options: EvidenceOptions) -> Result<ExitCode, String> {
         );
     } else {
         println!("{}", render_rust_assurance_case_set(&case_set));
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn run_evidence_analysis(options: EvidenceOptions) -> Result<ExitCode, String> {
+    if options.evidence_graph_json_paths.is_empty() {
+        return Err("evidence analyze requires at least one --evidence-graph-json PATH".to_owned());
+    }
+    let project_root = options.project_root.unwrap_or_else(|| PathBuf::from("."));
+    let evidence_graphs = read_evidence_graph_json_inputs(&options.evidence_graph_json_paths)?;
+    let request = build_rust_evidence_graph_analysis_request(RustEvidenceGraphAnalysisInput {
+        project_root,
+        evidence_graphs,
+    });
+    if options.json {
+        println!(
+            "{}",
+            render_rust_evidence_graph_analysis_request_json(&request).map_err(|error| {
+                format!("failed to render evidence analysis request JSON: {error}")
+            })?
+        );
+    } else {
+        println!("{}", render_rust_evidence_graph_analysis_request(&request));
     }
     Ok(ExitCode::SUCCESS)
 }
@@ -263,7 +290,8 @@ fn next_path(args: &mut impl Iterator<Item = OsString>, option: &str) -> Result<
 fn print_evidence_help() {
     println!(
         "rs-harness evidence graph --review-packet-json PATH [--json] [PROJECT_ROOT]\n\
-         rs-harness evidence assurance --evidence-graph-json PATH [--json] [PROJECT_ROOT]\n\n\
-         Builds portable evidence graph and assurance case packets."
+         rs-harness evidence assurance --evidence-graph-json PATH [--json] [PROJECT_ROOT]\n\
+         rs-harness evidence analyze --evidence-graph-json PATH [--json] [PROJECT_ROOT]\n\n\
+         Builds portable evidence graph, assurance case, and graph-turbo analysis request packets."
     );
 }

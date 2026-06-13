@@ -73,12 +73,19 @@ pub use verification::{
     render_rust_assurance_case_set, render_rust_assurance_case_set_json,
 };
 pub use verification::{
-    RUST_EVIDENCE_GRAPH_PROTOCOL_ID, RUST_EVIDENCE_GRAPH_PROTOCOL_VERSION,
-    RUST_EVIDENCE_GRAPH_SCHEMA_ID, RUST_EVIDENCE_GRAPH_SCHEMA_VERSION, RustEvidenceEdge,
-    RustEvidenceEdgeKind, RustEvidenceGap, RustEvidenceGraph, RustEvidenceGraphInput,
+    RUST_EVIDENCE_GRAPH_ANALYSIS_PACKET_KIND, RUST_EVIDENCE_GRAPH_ANALYSIS_PROFILE,
+    RUST_EVIDENCE_GRAPH_ANALYSIS_REQUEST_SCHEMA_ID,
+    RUST_EVIDENCE_GRAPH_ANALYSIS_REQUEST_SCHEMA_VERSION, RUST_EVIDENCE_GRAPH_PROTOCOL_ID,
+    RUST_EVIDENCE_GRAPH_PROTOCOL_VERSION, RUST_EVIDENCE_GRAPH_SCHEMA_ID,
+    RUST_EVIDENCE_GRAPH_SCHEMA_VERSION, RustEvidenceEdge, RustEvidenceEdgeKind, RustEvidenceGap,
+    RustEvidenceGraph, RustEvidenceGraphAnalysisGraph, RustEvidenceGraphAnalysisInput,
+    RustEvidenceGraphAnalysisPacketKind, RustEvidenceGraphAnalysisProducer,
+    RustEvidenceGraphAnalysisRequest, RustEvidenceGraphAnalysisSummary, RustEvidenceGraphInput,
     RustEvidenceGraphProducer, RustEvidenceGraphProject, RustEvidenceGraphSummary,
     RustEvidenceLocation, RustEvidenceNode, RustEvidenceNodeKind, RustEvidenceNodeStatus,
-    build_rust_evidence_graph, render_rust_evidence_graph, render_rust_evidence_graph_json,
+    build_rust_evidence_graph, build_rust_evidence_graph_analysis_request,
+    render_rust_evidence_graph, render_rust_evidence_graph_analysis_request,
+    render_rust_evidence_graph_analysis_request_json, render_rust_evidence_graph_json,
 };
 pub use verification::{
     RUST_FORMAL_PROOF_PILOT_PROTOCOL_ID, RUST_FORMAL_PROOF_PILOT_PROTOCOL_VERSION,
@@ -209,6 +216,7 @@ pub use search::render_rust_project_harness_search_semantic_facts_json;
 #[cfg(feature = "search")]
 pub use search::{
     RustSearchOptions, RustSearchViewRequest,
+    render_rust_project_harness_search_compare_json_with_config,
     render_rust_project_harness_search_ingest_with_config,
     render_rust_project_harness_search_prime, render_rust_project_harness_search_prime_with_config,
     render_rust_project_harness_search_view_with_config,

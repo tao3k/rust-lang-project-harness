@@ -80,12 +80,19 @@ pub use determinism_readiness::{
 };
 #[allow(unused_imports)]
 pub use evidence_graph::{
-    RUST_EVIDENCE_GRAPH_PROTOCOL_ID, RUST_EVIDENCE_GRAPH_PROTOCOL_VERSION,
-    RUST_EVIDENCE_GRAPH_SCHEMA_ID, RUST_EVIDENCE_GRAPH_SCHEMA_VERSION, RustEvidenceEdge,
-    RustEvidenceEdgeKind, RustEvidenceGap, RustEvidenceGraph, RustEvidenceGraphInput,
+    RUST_EVIDENCE_GRAPH_ANALYSIS_PACKET_KIND, RUST_EVIDENCE_GRAPH_ANALYSIS_PROFILE,
+    RUST_EVIDENCE_GRAPH_ANALYSIS_REQUEST_SCHEMA_ID,
+    RUST_EVIDENCE_GRAPH_ANALYSIS_REQUEST_SCHEMA_VERSION, RUST_EVIDENCE_GRAPH_PROTOCOL_ID,
+    RUST_EVIDENCE_GRAPH_PROTOCOL_VERSION, RUST_EVIDENCE_GRAPH_SCHEMA_ID,
+    RUST_EVIDENCE_GRAPH_SCHEMA_VERSION, RustEvidenceEdge, RustEvidenceEdgeKind, RustEvidenceGap,
+    RustEvidenceGraph, RustEvidenceGraphAnalysisGraph, RustEvidenceGraphAnalysisInput,
+    RustEvidenceGraphAnalysisPacketKind, RustEvidenceGraphAnalysisProducer,
+    RustEvidenceGraphAnalysisRequest, RustEvidenceGraphAnalysisSummary, RustEvidenceGraphInput,
     RustEvidenceGraphProducer, RustEvidenceGraphProject, RustEvidenceGraphSummary,
     RustEvidenceLocation, RustEvidenceNode, RustEvidenceNodeKind, RustEvidenceNodeStatus,
-    build_rust_evidence_graph, render_rust_evidence_graph, render_rust_evidence_graph_json,
+    build_rust_evidence_graph, build_rust_evidence_graph_analysis_request,
+    render_rust_evidence_graph, render_rust_evidence_graph_analysis_request,
+    render_rust_evidence_graph_analysis_request_json, render_rust_evidence_graph_json,
 };
 pub use execution_receipt::{
     RUST_VERIFICATION_EXECUTION_RECEIPT_PROTOCOL_ID,

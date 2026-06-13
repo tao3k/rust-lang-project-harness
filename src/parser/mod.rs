@@ -43,9 +43,8 @@ pub(crate) use reasoning_tree::{
 };
 pub(crate) use source_metrics::RustSourceMetrics;
 pub(crate) use source_path::{RustSourcePathFacts, rust_source_path_facts};
-#[cfg(test)]
-pub(crate) use use_tree::RustUseVisibilityKind;
 pub(crate) use use_tree::{
-    RustUseGlobScopeKind, RustUseImportRootKind, RustUseImportSyntax, RustUseStatementContext,
-    RustUseStatementSyntax, rust_use_statement_syntax,
+    RustUseDeepRelativeImportSyntax, RustUseGlobScopeKind, RustUseImportRootKind,
+    RustUseImportSyntax, RustUseStatementContext, RustUseStatementSyntax, RustUseVisibilityKind,
+    rust_use_statement_syntax,
 };

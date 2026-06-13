@@ -5,8 +5,8 @@ use std::path::Path;
 use crate::RustHarnessConfig;
 
 use super::{
-    cargo, compact, dependency, format, fzf_query, guide, namespace, owner, owner_view, prime,
-    query,
+    cargo, compact, compare, dependency, format, fzf_query, guide, namespace, owner, owner_view,
+    prime, query,
 };
 
 /// Options shared by RFC search renderers.
@@ -93,6 +93,12 @@ fn render_search_view_packet(request: &RustSearchViewRequest<'_>) -> Result<Stri
             options,
         ),
         "env" => namespace::render_search_env(project_root, config, request.query, options),
+        "compare" => compare::render_search_compare(
+            project_root,
+            config,
+            format::required_query(request.view, request.query)?,
+            options,
+        ),
         "extension" => namespace::render_search_extension(
             project_root,
             config,
@@ -246,6 +252,18 @@ fn push_reasoning_body(rendered: &mut String, body: &str) {
     }
 }
 
+fn compact_field_value(value: &str) -> String {
+    let mut escaped = String::new();
+    for character in value.chars() {
+        match character {
+            '%' => escaped.push_str("%25"),
+            character if character.is_whitespace() => escaped.push_str("%20"),
+            character => escaped.push(character),
+        }
+    }
+    escaped
+}
+
 fn reasoning_block(
     profile: &str,
     selector: &str,
@@ -256,8 +274,9 @@ fn reasoning_block(
     let extra_fields = extra_fields
         .iter()
         .filter(|(_, value)| !value.trim().is_empty())
-        .map(|(name, value)| format!(" {name}={value}"))
+        .map(|(name, value)| format!(" {name}={}", compact_field_value(value)))
         .collect::<String>();
+    let selector = compact_field_value(selector);
     let mut rendered = format!(
         "[search-reasoning] q={profile} selector={selector} alg={algorithm}{extra_fields}\n",
     );
@@ -343,6 +362,7 @@ fn render_reasoning_profile(
                 let mut dep_options = clone_reasoning_options(options);
                 ensure_reasoning_pipe(&mut dep_options, "public-api");
                 ensure_reasoning_pipe(&mut dep_options, "tests");
+                ensure_reasoning_pipe(&mut dep_options, "no-docs-use");
                 let dep_body = cargo::render_search_deps(
                     project_root,
                     config,
@@ -367,6 +387,7 @@ fn render_reasoning_profile(
             let mut reasoning_options = clone_reasoning_options(options);
             ensure_reasoning_pipe(&mut reasoning_options, "public-api");
             ensure_reasoning_pipe(&mut reasoning_options, "tests");
+            ensure_reasoning_pipe(&mut reasoning_options, "no-docs-use");
             let body = cargo::render_search_deps(
                 project_root,
                 config,

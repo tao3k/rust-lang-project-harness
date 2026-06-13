@@ -10,8 +10,8 @@ use super::module_tree::{
     rust_module_tree_facts,
 };
 use super::{
-    ParsedRustModule, RustSourcePathFacts, RustUseImportRootKind, RustUseImportSyntax,
-    RustUseStatementSyntax, rust_source_path_facts,
+    ParsedRustModule, RustSourcePathFacts, RustUseDeepRelativeImportSyntax, RustUseImportRootKind,
+    RustUseImportSyntax, RustUseStatementSyntax, RustUseVisibilityKind, rust_source_path_facts,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -67,8 +67,10 @@ pub(crate) struct RustReasoningImportFacts {
 pub(crate) struct RustReasoningDeepRelativeImportFacts {
     pub(crate) line: usize,
     pub(crate) original_segments: Vec<String>,
-    pub(crate) crate_segments: Vec<String>,
+    pub(crate) crate_segments: Option<Vec<String>>,
     pub(crate) parent_hops: usize,
+    pub(crate) visibility: RustUseVisibilityKind,
+    pub(crate) is_reexport: bool,
     pub(crate) is_test_context: bool,
 }
 
@@ -120,8 +122,10 @@ impl RustReasoningDeepRelativeImportFacts {
         self.original_segments.join("::")
     }
 
-    pub(crate) fn rendered_crate_path(&self) -> String {
-        self.crate_segments.join("::")
+    pub(crate) fn rendered_crate_path(&self) -> Option<String> {
+        self.crate_segments
+            .as_ref()
+            .map(|segments| segments.join("::"))
     }
 }
 
@@ -302,6 +306,7 @@ fn record_use_statement_imports(
             known_module_namespace_paths,
         );
     }
+    record_deep_relative_import_facts(accumulators.summary, &import_namespace, use_statement);
 }
 
 fn record_import_fact(
@@ -313,12 +318,7 @@ fn record_import_fact(
     known_module_namespace_paths: &BTreeMap<Vec<String>, PathBuf>,
 ) {
     record_import_root(accumulators.summary, import.root_kind);
-    record_import_shape(
-        accumulators.summary,
-        import_namespace,
-        use_statement,
-        import,
-    );
+    record_import_shape(accumulators.summary, import);
     if let Some(dependency) = local_owner_dependency(
         &module_facts.path,
         &module_facts.source_path.namespace_components,
@@ -346,31 +346,30 @@ fn record_import_root(summary: &mut RustReasoningImportFacts, root_kind: RustUse
     }
 }
 
-fn record_import_shape(
-    summary: &mut RustReasoningImportFacts,
-    import_namespace: &[String],
-    use_statement: &RustUseStatementSyntax,
-    import: &RustUseImportSyntax,
-) {
+fn record_import_shape(summary: &mut RustReasoningImportFacts, import: &RustUseImportSyntax) {
     if import.is_glob {
         summary.glob_imports += 1;
-    }
-    if import.parent_hops >= 2 {
-        summary.deep_relative_imports += 1;
-        if let Some(deep_relative_import) = deep_relative_import_fact(
-            import_namespace,
-            import,
-            use_statement.line,
-            use_statement.context.is_inside_cfg_test_module,
-        ) {
-            summary
-                .deep_relative_import_facts
-                .push(deep_relative_import);
-        }
     }
     if import.is_prelude_import {
         summary.prelude_imports += 1;
     }
+}
+
+fn record_deep_relative_import_facts(
+    summary: &mut RustReasoningImportFacts,
+    import_namespace: &[String],
+    use_statement: &RustUseStatementSyntax,
+) {
+    summary.deep_relative_imports += use_statement.deep_relative_imports.len();
+    summary
+        .deep_relative_import_facts
+        .extend(use_statement.deep_relative_imports.iter().map(|import| {
+            deep_relative_import_fact(
+                import_namespace,
+                import,
+                use_statement.context.is_inside_cfg_test_module,
+            )
+        }));
 }
 
 fn use_statement_namespace(
@@ -384,36 +383,42 @@ fn use_statement_namespace(
 
 fn deep_relative_import_fact(
     current_namespace: &[String],
-    import: &RustUseImportSyntax,
-    line: usize,
+    import: &RustUseDeepRelativeImportSyntax,
     is_test_context: bool,
-) -> Option<RustReasoningDeepRelativeImportFacts> {
-    if import.root_kind != RustUseImportRootKind::Parent || import.parent_hops < 2 {
-        return None;
-    }
-    Some(RustReasoningDeepRelativeImportFacts {
-        line,
-        original_segments: import.segments.clone(),
-        crate_segments: crate_relative_import_segments(current_namespace, import)?,
+) -> RustReasoningDeepRelativeImportFacts {
+    RustReasoningDeepRelativeImportFacts {
+        line: import.line,
+        original_segments: import.prefix_segments.clone(),
+        crate_segments: crate_relative_deep_relative_import_segments(current_namespace, import),
         parent_hops: import.parent_hops,
+        visibility: import.visibility.clone(),
+        is_reexport: import.is_reexport,
         is_test_context,
-    })
+    }
 }
 
-fn crate_relative_import_segments(
+fn crate_relative_deep_relative_import_segments(
     current_namespace: &[String],
-    import: &RustUseImportSyntax,
+    import: &RustUseDeepRelativeImportSyntax,
 ) -> Option<Vec<String>> {
-    let candidate = local_import_candidate_namespace(current_namespace, import)?;
+    let candidate = parent_import_candidate_namespace(
+        current_namespace,
+        &import.prefix_segments,
+        import.parent_hops,
+    )?;
+    Some(crate_relative_segments(current_namespace, &candidate))
+}
+
+fn crate_relative_segments(current_namespace: &[String], candidate: &[String]) -> Vec<String> {
     let mut segments = vec!["crate".to_string()];
     let candidate_segments =
         if !current_namespace.is_empty() && candidate.first() == current_namespace.first() {
             &candidate[1..]
         } else {
-            candidate.as_slice()
+            candidate
         };
     segments.extend(candidate_segments.iter().cloned());
-    Some(segments)
+    segments
 }
 
 fn local_owner_dependency(
@@ -479,22 +484,32 @@ fn local_import_candidate_namespace(
             namespace.extend(import.segments.iter().skip(1).cloned());
             Some(namespace)
         }
-        RustUseImportRootKind::Parent => {
-            if import.parent_hops > current_namespace.len() {
-                return None;
-            }
-            let mut namespace = current_namespace
-                .iter()
-                .take(current_namespace.len() - import.parent_hops)
-                .cloned()
-                .collect::<Vec<_>>();
-            namespace.extend(import.segments.iter().skip(import.parent_hops).cloned());
-            Some(namespace)
-        }
+        RustUseImportRootKind::Parent => parent_import_candidate_namespace(
+            current_namespace,
+            &import.segments,
+            import.parent_hops,
+        ),
         RustUseImportRootKind::Absolute
         | RustUseImportRootKind::External
         | RustUseImportRootKind::Unknown => None,
     }
+}
+
+fn parent_import_candidate_namespace(
+    current_namespace: &[String],
+    segments: &[String],
+    parent_hops: usize,
+) -> Option<Vec<String>> {
+    if parent_hops > current_namespace.len() {
+        return None;
+    }
+    let mut namespace = current_namespace
+        .iter()
+        .take(current_namespace.len() - parent_hops)
+        .cloned()
+        .collect::<Vec<_>>();
+    namespace.extend(segments.iter().skip(parent_hops).cloned());
+    Some(namespace)
 }
 
 fn longest_known_namespace_prefix(

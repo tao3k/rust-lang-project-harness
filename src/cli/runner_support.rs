@@ -40,6 +40,7 @@ rs-harness search owner <path-or-owner> [items tests] [--scope SCOPE] [PROJECT_R
          rs-harness search targets [--package PACKAGE] [PROJECT_ROOT]\n\
 rs-harness search deps [dep[/subpath][@version][::api]] [public-api] [PROJECT_ROOT]\n\
 rs-harness search env [toolchain|cfg] [PROJECT_ROOT]\n\
+rs-harness search compare env stable nightly [PROJECT_ROOT]\n\
 rs-harness search code comments [--owner OWNER] [PROJECT_ROOT]\n\
 rs-harness search extension <extension-id> [PROJECT_ROOT]\n\
 rs-harness search policy <rule-id-or-alias> [owner tests] [PROJECT_ROOT]\n\
@@ -102,6 +103,12 @@ pub(super) fn print_guide(_project_root: &Path) {
 |flow code-shaped-read start="refer:treesitter-query-guide" then="query --treesitter-query <pattern>" then="query --selector <path:range> --treesitter-query <pattern> --workspace <workspace-root> --code"
 |flow wide-read-protection trigger="query --from-hook direct-source-read --selector <wide-range> --code" output=read-frontier code=false
 
+|cmd prime=asp rust search prime --workspace <workspace-root> --view seeds
+|cmd pipe=asp rust search pipe '<term>' --workspace <workspace-root> --view seeds
+|cmd query-code=asp rust query --selector <path:start-end> --workspace <workspace-root> --code
+|cmd evidence-graph=asp rust evidence graph --review-packet-json <semantic-review-packet.json> --json <workspace-root>
+|cmd evidence-analyze=asp rust evidence analyze --evidence-graph-json <semantic-evidence-graph.json> --json <workspace-root>
+
 |refer search-guide="search guide ." use=low-frequency-tool-map
 |refer query-guide="query guide ." use=code-stdout|read-plan-contract
 |refer treesitter-query-guide="query guide treesitter ." use=tree-sitter-s-expression
@@ -127,6 +134,7 @@ pub(super) fn search_view_requires_query(view: &str) -> bool {
             | "policy"
             | "code"
             | "env"
+            | "compare"
             | "extension"
             | "dependency"
             | "tests"
@@ -162,6 +170,7 @@ pub(super) fn is_known_search_view(view: &str) -> bool {
             | "targets"
             | "deps"
             | "env"
+            | "compare"
             | "features"
             | "policy"
             | "code"

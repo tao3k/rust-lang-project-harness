@@ -170,6 +170,22 @@ fn render_search_dep(
         } else {
             Vec::new()
         };
+        if deps.is_empty()
+            && dependency_usage.is_empty()
+            && usage.is_empty()
+            && public_api.is_empty()
+        {
+            append_block(
+                &mut rendered,
+                &render_missing_local_dependency_block(
+                    project_root,
+                    &context,
+                    query,
+                    &parsed_query,
+                ),
+            );
+            continue;
+        }
         let mut block = format!(
             "[search-deps] q={} pkg={} dep={} own={} api={}",
             query,
@@ -222,11 +238,60 @@ fn render_search_dep(
         for line in public_api.into_iter().take(SEARCH_HIT_LIMIT) {
             let _ = writeln!(block, "{line}");
         }
-        let _ = writeln!(block, "|next {}", parsed_query.next_actions(version_scope));
+        let _ = writeln!(
+            block,
+            "|next {}",
+            parsed_query.next_actions(version_scope, include_docs_use_next(options))
+        );
         let _ = writeln!(block, "avoid=web-search,docs.rs-search,raw-read");
         append_block(&mut rendered, &block);
     }
     Ok(rendered)
+}
+
+fn render_missing_local_dependency_block(
+    project_root: &Path,
+    context: &PackageSearchContext,
+    query: &str,
+    parsed_query: &DependencySearchQuery,
+) -> String {
+    let mut block = format!(
+        "[search-deps] q={} pkg={} dep=0 own=0 api=0",
+        query,
+        package_label(project_root, &context.package_root)
+    );
+    if let Some(requested_version) = parsed_query.requested_version.as_deref() {
+        let _ = write!(
+            block,
+            " requestedVersion={} currentWorkspaceVersion=- versionScope=missing",
+            requested_version
+        );
+    }
+    if let Some(subpath) = parsed_query.subpath.as_deref() {
+        let _ = write!(block, " subpath={subpath}");
+    }
+    if let Some(api_query) = parsed_query.api.as_deref() {
+        let _ = write!(block, " apiQuery={api_query}");
+    }
+    block.push('\n');
+    let _ = writeln!(
+        block,
+        "noOutput reason=no-local-dependency sourceTrace=cargo:manifest-empty,cargo:usage-empty"
+    );
+    let _ = writeln!(
+        block,
+        "nextCommand=asp rust search deps {} --workspace . --view seeds",
+        shell_single_quote(query)
+    );
+    let _ = writeln!(
+        block,
+        "avoid=web-search,docs.rs-search,raw-read,external-doc-lookup"
+    );
+    block
+}
+
+fn shell_single_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
 }
 
 #[derive(Debug)]
@@ -269,14 +334,30 @@ impl DependencySearchQuery {
         }
     }
 
-    fn next_actions(&self, version_scope: DependencyVersionScope) -> String {
+    fn next_actions(
+        &self,
+        version_scope: DependencyVersionScope,
+        include_docs_use: bool,
+    ) -> String {
         let docs_dependency = self.docs_dependency(version_scope);
         if let Some(api) = self.api.as_deref() {
+            if !include_docs_use {
+                return format!(
+                    "dependency:{},crate-source:{},import:{},tests:{}",
+                    self.dependency, self.dependency, self.dependency, api
+                );
+            }
             format!(
                 "dependency:{},docs-use:{}::{},crate-source:{},import:{},tests:{}",
                 self.dependency, docs_dependency, api, self.dependency, self.dependency, api
             )
         } else {
+            if !include_docs_use {
+                return format!(
+                    "dependency:{},crate-source:{},import:{},tests",
+                    self.dependency, self.dependency, self.dependency
+                );
+            }
             format!(
                 "dependency:{},docs-use:{},crate-source:{},import:{},tests",
                 self.dependency, docs_dependency, self.dependency, self.dependency
@@ -311,6 +392,10 @@ impl DependencySearchQuery {
         }
         metadata
     }
+}
+
+fn include_docs_use_next(options: &RustSearchOptions) -> bool {
+    !options.pipes.iter().any(|pipe| pipe == "no-docs-use")
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

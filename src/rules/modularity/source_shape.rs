@@ -138,19 +138,29 @@ pub(super) fn deep_relative_import_findings(
         .deep_relative_import_facts
         .iter()
         .map(|deep_relative_import| {
+            let crate_path = deep_relative_import.rendered_crate_path();
+            let suggestion = crate_path
+                .as_deref()
+                .unwrap_or("a crate::... owner/facade import");
+            let summary_suffix = crate_path
+                .as_ref()
+                .map(|crate_path| format!("; parser suggests `{crate_path}`."))
+                .unwrap_or_else(|| {
+                    "; parser could not derive a safe crate-relative replacement.".to_string()
+                });
             RustHarnessFinding::from_rule(
                 rule,
                 format!(
-                    "{} uses deep relative import `{}`; parser suggests `{}`.",
+                    "{} uses deep relative import `{}`{}",
                     display_path(&module.report.path),
                     deep_relative_import.rendered_path(),
-                    deep_relative_import.rendered_crate_path()
+                    summary_suffix
                 ),
                 path_line_location(&module.report.path, deep_relative_import.line),
                 source_line(&module.source, deep_relative_import.line),
                 format!(
                     "replace with {} or expose it through an owner facade",
-                    deep_relative_import.rendered_crate_path()
+                    suggestion
                 ),
             )
         })

@@ -487,6 +487,8 @@ fn is_compact_graph_fact_line(line: &str) -> bool {
     line.starts_with("legend: ")
         || line.starts_with("aliases: graph:")
         || line.starts_with("entries=")
+        || line.starts_with("nextCommand=")
+        || line.starts_with("noOutput ")
         || line.starts_with("avoid=")
         || line.contains(">{")
 }

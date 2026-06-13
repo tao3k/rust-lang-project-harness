@@ -33,7 +33,9 @@ fn native_use_scope_facts_stay_in_parser_layer() {
     let reasoning_tree_source =
         fs::read_to_string(root.join("src/parser/reasoning_tree.rs")).expect("read parser facts");
     assert!(reasoning_tree_source.contains("RustReasoningDeepRelativeImportFacts"));
-    assert!(reasoning_tree_source.contains("fn crate_relative_import_segments"));
+    assert!(reasoning_tree_source.contains("fn record_deep_relative_import_facts"));
+    assert!(reasoning_tree_source.contains("fn crate_relative_deep_relative_import_segments"));
+    assert!(reasoning_tree_source.contains("fn parent_import_candidate_namespace"));
 
     let rule_source = fs::read_to_string(root.join("src/rules/modularity/source_shape.rs"))
         .expect("read modularity source-shape rules");

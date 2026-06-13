@@ -41,6 +41,7 @@ use super::tree_sitter_query::run_tree_sitter_query_catalog;
 #[cfg(feature = "search")]
 use crate::{
     RustHarnessConfig, RustSearchOptions, RustSearchViewRequest,
+    render_rust_project_harness_search_compare_json_with_config,
     render_rust_project_harness_search_ingest_with_config,
     render_rust_project_harness_search_semantic_facts_json,
     render_rust_project_harness_search_view_with_config,
@@ -247,6 +248,22 @@ fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
     let project_root = options.project_root()?;
     let render_options = options.render_options();
     let config = rust_harness_config_for_project(&project_root);
+    if options.view == "compare" && options.json {
+        let query = options
+            .query
+            .as_deref()
+            .ok_or_else(|| "search compare requires a query".to_string())?;
+        println!(
+            "{}",
+            render_rust_project_harness_search_compare_json_with_config(
+                &project_root,
+                &config,
+                query,
+                &render_options,
+            )?
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
     if options.view == "semantic-facts" {
         if !options.json {
             return Err("search semantic-facts requires --json".to_string());
@@ -291,15 +308,19 @@ fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
         render_rust_project_harness_search_view_with_config(&request)?
     };
     let json_options = options.semantic_json_options();
-    let rendered = apply_search_output_controls(
-        SearchOutputControls {
-            depth: options.depth,
-            output_view: options.output_view.as_deref(),
-            seeds: options.seeds,
-        },
-        &raw_rendered,
-    );
-    let rendered = if options.output_view.as_deref() == Some("seeds") {
+    let rendered = if options.view == "compare" {
+        raw_rendered.clone()
+    } else {
+        apply_search_output_controls(
+            SearchOutputControls {
+                depth: options.depth,
+                output_view: options.output_view.as_deref(),
+                seeds: options.seeds,
+            },
+            &raw_rendered,
+        )
+    };
+    let rendered = if options.output_view.as_deref() == Some("seeds") && options.view != "compare" {
         let packet = build_search_packet(&project_root, &json_options, &raw_rendered);
         render_search_graph_packet(&packet, options.seeds)?
     } else {
