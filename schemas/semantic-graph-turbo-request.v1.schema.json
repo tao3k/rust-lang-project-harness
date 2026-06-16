@@ -66,6 +66,30 @@
       },
       "uniqueItems": true
     },
+    "queryClauses": {
+      "type": "array",
+      "description": "Normalized query-pack clauses used as independent graph-turbo rank coverage units. Clauses preserve the user's multi-part search intent before it is flattened into queryTerms.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "queryAdjustmentPolicy": {
+      "type": "object",
+      "description": "Optional analyzer or ablation switchboard for owner-query first-stage query adjustments. Omitted fields default to enabled.",
+      "additionalProperties": false,
+      "properties": {
+        "seedPrior": {
+          "type": "boolean"
+        },
+        "packageCohesion": {
+          "type": "boolean"
+        },
+        "queryClauseCoverage": {
+          "type": "boolean"
+        }
+      }
+    },
     "profile": {
       "enum": [
         "owner-query",
@@ -89,13 +113,14 @@
     },
     "surfaces": {
       "type": "array",
-      "description": "Requested prompt-facing graph projection classes for the search adapter. This selects fact channels such as owner, items, tests, or deps; it is not a pipeline expression.",
+      "description": "Requested prompt-facing graph projection classes for the search adapter. This selects fact channels such as owner, items, tests, deps, or topology; it is not a pipeline expression. Topology is language-neutral project structure, such as workspace roots, provider roots, and registered submodules. Language-specific package/module topology remains provider-owned fact data.",
       "items": {
         "enum": [
           "owner",
           "items",
           "tests",
-          "deps"
+          "deps",
+          "topology"
         ]
       },
       "uniqueItems": true
@@ -115,6 +140,7 @@
         "enum": [
           "provider",
           "finder",
+          "document-element",
           "ingest"
         ]
       },
@@ -132,6 +158,9 @@
         "$ref": "#/$defs/nodeId"
       },
       "uniqueItems": true
+    },
+    "seedPlan": {
+      "$ref": "#/$defs/seedPlan"
     },
     "budget": {
       "type": "integer",
@@ -319,6 +348,111 @@
       "type": "string",
       "minLength": 1
     },
+    "seedPlan": {
+      "description": "First-phase seed selection diagnostics for graph-turbo ranking. This explains why seedIds were selected before traversal and rendering.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase",
+        "algorithm",
+        "reason",
+        "seedQuality",
+        "queryPresent",
+        "querySeedPresent",
+        "candidateCount",
+        "candidateOwnerCount",
+        "queryOwnerSeedCount",
+        "fallbackOwnerSeedCount",
+        "selectedSeedCount",
+        "seedIds",
+        "riskFactors",
+        "recommendedActions"
+      ],
+      "properties": {
+        "phase": {
+          "const": "seed-query"
+        },
+        "algorithm": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "enum": [
+            "query",
+            "fallback-owner",
+            "empty"
+          ]
+        },
+        "seedQuality": {
+          "enum": [
+            "good",
+            "review",
+            "fail"
+          ]
+        },
+        "queryPresent": {
+          "type": "boolean"
+        },
+        "querySeedPresent": {
+          "type": "boolean"
+        },
+        "candidateCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidateOwnerCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "queryOwnerSeedCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fallbackOwnerSeedCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "selectedSeedCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "seedIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nodeId"
+          },
+          "uniqueItems": true
+        },
+        "riskFactors": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "empty-seed-frontier",
+              "fallback-owner",
+              "query-seed-missing",
+              "flat-query",
+              "owner-drift"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "recommendedActions": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "inspect-seed-extraction",
+              "replace-fallback-owner-seed",
+              "propagate-query-seed",
+              "split-query-pack",
+              "narrow-owner-scope",
+              "keep-query-seed"
+            ]
+          },
+          "uniqueItems": true,
+          "minItems": 1
+        }
+      }
+    },
     "sourceTraceEntry": {
       "type": "object",
       "additionalProperties": false,
@@ -331,6 +465,7 @@
           "enum": [
             "provider",
             "finder",
+            "document-element",
             "ingest"
           ]
         },
@@ -582,6 +717,7 @@
       }
     },
     "node": {
+      "description": "Graph node projected into graph-turbo ranking. Topology nodes use shared kinds such as workspace, provider-root, and submodule; provider-specific package/module nodes may use provider-owned kinds.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -641,6 +777,7 @@
           "enum": [
             "provider",
             "finder",
+            "document-element",
             "ingest"
           ]
         },
@@ -648,6 +785,7 @@
           "enum": [
             "exact",
             "likely",
+            "parser",
             "heuristic"
           ]
         },
@@ -689,6 +827,7 @@
       }
     },
     "edge": {
+      "description": "Graph edge projected into graph-turbo ranking. Topology edges use shared relations such as has_provider_root and has_submodule; provider-specific structural edges may use provider-owned relations.",
       "type": "object",
       "additionalProperties": false,
       "required": [
