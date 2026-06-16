@@ -162,7 +162,9 @@ fn query_exact_owner_names_only_does_not_scan_workspace_context() {
     .expect("write source fixture");
     for index in 0..800 {
         fs::write(
-            root.path().join("tests").join(format!("fixture_{index}.rs")),
+            root.path()
+                .join("tests")
+                .join(format!("fixture_{index}.rs")),
             format!(
                 "#[test]\nfn generated_test_{index}() {{\n    assert_eq!({}, {});\n}}\n",
                 index, index
@@ -171,17 +173,31 @@ fn query_exact_owner_names_only_does_not_scan_workspace_context() {
         .expect("write test fixture");
     }
 
+    let query_args = [
+        "query",
+        "--selector",
+        "src/lib.rs",
+        "--term",
+        "target_symbol",
+        "--names-only",
+        "--workspace",
+    ];
+    let warmup = Command::new(bin)
+        .args(query_args)
+        .arg(root.path())
+        .current_dir(root.path())
+        .output()
+        .expect("warm exact owner names-only query");
+    assert!(
+        warmup.status.success(),
+        "warm exact owner names-only failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&warmup.stdout),
+        String::from_utf8_lossy(&warmup.stderr)
+    );
+
     let started_at = Instant::now();
     let output = Command::new(bin)
-        .args([
-            "query",
-            "--selector",
-            "src/lib.rs",
-            "--term",
-            "target_symbol",
-            "--names-only",
-            "--workspace",
-        ])
+        .args(query_args)
         .arg(root.path())
         .current_dir(root.path())
         .output()
