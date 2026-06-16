@@ -76,7 +76,12 @@ fn render_exact_path_owner_query_set(
     let package_roots =
         package_roots_for_request(project_root, config, options.package.as_deref())?;
     let include_items = options.pipes.iter().any(|pipe| pipe == "items");
-    let contexts = search_contexts(project_root, config, options)?;
+    let needs_context = !include_items || !options.item_names_only;
+    let contexts = if needs_context {
+        search_contexts(project_root, config, options)?
+    } else {
+        Vec::new()
+    };
     let mut rendered = String::new();
     for package_root in package_roots {
         let modules = query_terms
@@ -162,7 +167,12 @@ fn render_exact_path_owner(
     }
 
     let include_items = options.pipes.iter().any(|pipe| pipe == "items");
-    let contexts = search_contexts(project_root, config, options)?;
+    let needs_context = !include_items || !options.item_names_only;
+    let contexts = if needs_context {
+        search_contexts(project_root, config, options)?
+    } else {
+        Vec::new()
+    };
     let mut rendered = String::new();
     for (package_root, path) in matches {
         let module = parse_rust_file(&path);
