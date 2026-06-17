@@ -75,7 +75,7 @@ if (profiles.length > 0) {
   lines.push(`profiles=${profiles.join(",")}`);
 }
 
-const avoid = synthesis.avoid ?? packet.avoid ?? defaultAvoid(packet.header?.kind);
+const avoid = synthesis.avoid ?? packet.avoid ?? defaultAvoid(packet.header?.kind, fields);
 if (avoid !== undefined) {
   lines.push(`avoid=${formatValue(avoid)}`);
 }
@@ -104,6 +104,9 @@ function collectSeeds(packet) {
   const query = packet.query ?? firstQuerySetValue(packet);
   if ((packet.header?.kind === "search-fzf" || packet.header?.kind === "search-query") && query !== undefined) {
     querySeeds.push({ kind: "query", target: query });
+  }
+  if ((packet.header?.kind === "search-deps" || packet.header?.kind === "search-dependency") && query !== undefined) {
+    dependencySeeds.push({ kind: "dependency", target: query });
   }
 
   for (const action of packet.nextActions ?? []) {
@@ -360,7 +363,7 @@ function describeSeed(seed) {
       return { prefix: "S", kind: "symbol", role: "symbol", next: "symbol", edge: "selects" };
     case "dependency":
     case "deps":
-      return { prefix: "D", kind: "dependency", role: "dep", next: "dependency", edge: "selects" };
+      return { prefix: "D", kind: "dependency", role: "pkg", next: "dependency", edge: "uses" };
     case "finding":
       return { prefix: "F", kind: "finding", role: "rule", next: "owner", edge: "selects" };
     case "package":
@@ -490,7 +493,10 @@ function dedupeStrings(values) {
   return [...new Set(values.filter((value) => value !== undefined))];
 }
 
-function defaultAvoid(kind) {
+function defaultAvoid(kind, fields = {}) {
+  if (kind === "search-reasoning" && fields.q === "query-deps") {
+    return "web-search,docs.rs-search,raw-read";
+  }
   return kind === "search-fzf" || kind === "search-query"
     ? "broad-fzf,raw-read,repeat-glob"
     : undefined;

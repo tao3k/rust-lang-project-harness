@@ -124,7 +124,14 @@ pub(crate) fn skip_if_protocol_graph_renderer_unavailable() -> bool {
 }
 
 pub(crate) fn configure_shared_asp_renderer(command: &mut Command) {
-    if std::env::var_os("SEMANTIC_AGENT_PROTOCOL_BIN").is_some() {
+    if let Some(binary) = std::env::var_os("SEMANTIC_AGENT_PROTOCOL_BIN") {
+        let binary = Path::new(&binary);
+        if binary.is_relative()
+            && binary.is_file()
+            && let Ok(canonical) = binary.canonicalize()
+        {
+            command.env("SEMANTIC_AGENT_PROTOCOL_BIN", canonical);
+        }
         return;
     }
     if let Some(binary) = shared_asp_renderer_binary() {

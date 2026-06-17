@@ -1,5 +1,6 @@
 //! Language-neutral compare namespace backed by Rust toolchain evidence.
 
+use std::ffi::OsString;
 use std::fmt::Write;
 use std::path::Path;
 use std::process::Command;
@@ -312,7 +313,11 @@ fn command_first_line(cwd: &Path, program: &str, args: &[&str]) -> Option<String
 }
 
 fn command_lines(cwd: &Path, program: &str, args: &[&str]) -> Vec<String> {
-    let Ok(output) = Command::new(program).args(args).current_dir(cwd).output() else {
+    let Ok(output) = Command::new(command_program(program))
+        .args(args)
+        .current_dir(cwd)
+        .output()
+    else {
         return Vec::new();
     };
     if !output.status.success() {
@@ -324,6 +329,31 @@ fn command_lines(cwd: &Path, program: &str, args: &[&str]) -> Vec<String> {
         .filter(|line| !line.is_empty())
         .map(ToOwned::to_owned)
         .collect()
+}
+
+#[cfg(not(windows))]
+fn command_program(program: &str) -> OsString {
+    OsString::from(program)
+}
+
+#[cfg(windows)]
+fn command_program(program: &str) -> OsString {
+    let path = Path::new(program);
+    if path.components().count() > 1 || path.extension().is_some() {
+        return OsString::from(program);
+    }
+    let Some(paths) = std::env::var_os("PATH") else {
+        return OsString::from(program);
+    };
+    for dir in std::env::split_paths(&paths) {
+        for extension in ["exe", "cmd", "bat"] {
+            let candidate = dir.join(format!("{program}.{extension}"));
+            if candidate.is_file() {
+                return candidate.into_os_string();
+            }
+        }
+    }
+    OsString::from(program)
 }
 
 fn toolchain_available(installed: &[String], requested: &str) -> bool {

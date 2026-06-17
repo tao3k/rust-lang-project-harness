@@ -285,6 +285,13 @@ fn write_fake_toolchain(
     );
     write_executable(&bin_dir.join("rustup"), &rustup);
     write_executable(&bin_dir.join("rustc"), &rustc);
+    #[cfg(windows)]
+    write_windows_toolchain_commands(
+        bin_dir,
+        active_toolchain,
+        installed_toolchains,
+        rustc_version,
+    );
 }
 
 fn write_executable(path: &Path, text: &str) {
@@ -296,6 +303,62 @@ fn write_executable(path: &Path, text: &str) {
         permissions.set_mode(0o755);
         fs::set_permissions(path, permissions).expect("chmod executable");
     }
+}
+
+#[cfg(windows)]
+fn write_windows_toolchain_commands(
+    bin_dir: &Path,
+    active_toolchain: &str,
+    installed_toolchains: &[&str],
+    rustc_version: &str,
+) {
+    let installed_lines = installed_toolchains
+        .iter()
+        .map(|toolchain| format!("echo {}\r\n", cmd_escape(toolchain)))
+        .collect::<String>();
+    fs::write(
+        bin_dir.join("rustup.cmd"),
+        format!(
+            "@echo off\r\n\
+             if \"%1\"==\"show\" if \"%2\"==\"active-toolchain\" (\r\n\
+             echo {}\r\n\
+             exit /b 0\r\n\
+             )\r\n\
+             if \"%1\"==\"toolchain\" if \"%2\"==\"list\" (\r\n\
+             {}\
+             exit /b 0\r\n\
+             )\r\n\
+             exit /b 1\r\n",
+            cmd_escape(active_toolchain),
+            installed_lines
+        ),
+    )
+    .expect("write rustup command shim");
+    fs::write(
+        bin_dir.join("rustc.cmd"),
+        format!(
+            "@echo off\r\n\
+             if \"%1\"==\"-Vv\" (\r\n\
+             echo {}\r\n\
+             exit /b 0\r\n\
+             )\r\n\
+             exit /b 1\r\n",
+            cmd_escape(rustc_version)
+        ),
+    )
+    .expect("write rustc command shim");
+}
+
+#[cfg(windows)]
+fn cmd_escape(value: &str) -> String {
+    value
+        .chars()
+        .flat_map(|character| match character {
+            '^' | '&' | '|' | '<' | '>' | '(' | ')' => ['^', character],
+            _ => ['\0', character],
+        })
+        .filter(|character| *character != '\0')
+        .collect()
 }
 
 fn fake_path(bin_dir: &Path) -> OsString {
