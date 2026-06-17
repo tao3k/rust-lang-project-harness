@@ -160,24 +160,26 @@ fn render_exact_path_owner(
         return Ok(None);
     }
     let include_items = options.pipes.iter().any(|pipe| pipe == "items");
-    if include_items && options.item_names_only && options.package.is_none() {
-        if let Some((package_root, path)) = direct_exact_owner_path_match(project_root, query) {
-            let module = parse_rust_file(&path);
-            return Ok(Some(render_exact_path_owner_block(ExactPathOwnerBlock {
-                project_root,
-                package_root: &package_root,
-                query,
-                module: &module,
-                include_items,
-                include_tests: false,
-                item_query: options.item_query.as_deref(),
-                item_names_only: options.item_names_only,
-                item_code: options.item_code,
-                item_projection_metadata: options.item_projection_metadata,
-                test_lines: Vec::new(),
-                synthesis_lines: Vec::new(),
-            })));
-        }
+    if include_items
+        && options.item_names_only
+        && options.package.is_none()
+        && let Some((package_root, path)) = direct_exact_owner_path_match(project_root, query)
+    {
+        let module = parse_rust_file(&path);
+        return Ok(Some(render_exact_path_owner_block(ExactPathOwnerBlock {
+            project_root,
+            package_root: &package_root,
+            query,
+            module: &module,
+            include_items,
+            include_tests: false,
+            item_query: options.item_query.as_deref(),
+            item_names_only: options.item_names_only,
+            item_code: options.item_code,
+            item_projection_metadata: options.item_projection_metadata,
+            test_lines: Vec::new(),
+            synthesis_lines: Vec::new(),
+        })));
     }
     let package_roots =
         package_roots_for_request(project_root, config, options.package.as_deref())?;
