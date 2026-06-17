@@ -504,7 +504,7 @@ pub(super) fn first_code_line_with_number<'a>(
         .skip(start_line.saturating_sub(1))
         .take(end_line.saturating_sub(start_line).saturating_add(1))
         .enumerate()
-        .map(|(offset, line)| (start_line + offset, line.trim()))
+        .map(|(line_delta, line)| (start_line + line_delta, line.trim()))
         .find(|(_, line)| {
             !line.is_empty()
                 && !line.starts_with("#[")

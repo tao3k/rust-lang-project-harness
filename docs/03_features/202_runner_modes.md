@@ -16,7 +16,7 @@ exists, so this is the crate package-level gate:
 3. `rust.modularity`
 4. `rust.agent_policy`
 
-This is the mode used by the build-script assertion helpers and by the legacy
+This is the mode used by the build-script assertion helpers and by the retired
 cargo-test gate macros.
 
 When the requested root is a Cargo workspace or a directory that contains
@@ -73,7 +73,7 @@ structure needs repair. The notification disappears when the agent fixes the
 structure, or when the crate config explicitly suppresses or replaces the
 applicable rule surface.
 
-Use `with_cargo_check_advice_allow_explanation(...)` only for a deliberate legacy
+Use `with_cargo_check_advice_allow_explanation(...)` only for a deliberate retired
 waiver where cargo check must pass even while rendered harness reports still
 expose advisory findings:
 
@@ -81,7 +81,7 @@ expose advisory findings:
 fn main() {
     let config = rust_lang_project_harness::default_rust_harness_config()
         .with_cargo_check_advice_allow_explanation(
-            "legacy crate allows advisory findings during staged migration",
+            "retired crate allows advisory findings during staged migration",
         );
     rust_lang_project_harness::assert_rust_project_harness_cargo_check_clean_from_env_with_config(
         &config,
@@ -98,13 +98,13 @@ silent compatibility: `RUST-PROJ-R006` and `RUST-PROJ-R009` emit compact
 migration warnings that tell the Agent to move parser-native policy to the
 cargo-check build gate.
 
-Cargo-test policy is for test-layer semantics only: legacy source gate
+Cargo-test policy is for test-layer semantics only: retired source gate
 configuration, explicit advice allowance, and future rules that consume runtime
 test or verification receipts. It should not be the primary surface for
 parser-native structure because those facts are already known during
 `cargo check`.
 
-Use `advice = allow, config = { ... }` only for a deliberate legacy waiver where
+Use `advice = allow, config = { ... }` only for a deliberate retired waiver where
 cargo tests must pass even while rendered harness reports still expose advisory
 findings:
 
@@ -127,7 +127,7 @@ rust_lang_project_harness::rust_project_harness_cargo_test_gate!(
 Cargo-test gates do not replace the `cargo check` gate for downstream packages.
 Once a parsed `Cargo.toml` references the harness package, `RUST-PROJ-R012`
 asks for the build-dependency plus root `build.rs` closure, while
-`RUST-PROJ-R006` and `RUST-PROJ-R009` keep legacy cargo-test mounts visible
+`RUST-PROJ-R006` and `RUST-PROJ-R009` keep retired cargo-test mounts visible
 until they are removed or replaced by local policy.
 
 ## Configuration

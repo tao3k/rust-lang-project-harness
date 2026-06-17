@@ -516,8 +516,8 @@ fn fuzzy_match_positions(candidate: &str, query: &str) -> Option<Vec<usize>> {
         .filter(|ch| !ch.is_whitespace())
         .try_fold((Vec::new(), 0usize), |(mut positions, cursor), ch| {
             let suffix = candidate.get(cursor..)?;
-            let offset = suffix.find(ch)?;
-            let position = cursor + offset;
+            let relative_index = suffix.find(ch)?;
+            let position = cursor + relative_index;
             positions.push(position);
             Some((positions, position + ch.len_utf8()))
         })

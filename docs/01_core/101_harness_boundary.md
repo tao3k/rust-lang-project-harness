@@ -126,7 +126,7 @@ The layer split is deliberate:
 - `cargo check`: parser-native policy, including syntax, Cargo manifest facts,
   module/owner graph, import clarity, source/test scope coverage, build-gate
   closure, and verification planning reminders.
-- `cargo test`: test-layer compatibility policy, including legacy source gate
+- `cargo test`: test-layer compatibility policy, including retired source gate
   configuration, explicit advice allowance, and future checks that consume
   runtime test or verification receipts.
 

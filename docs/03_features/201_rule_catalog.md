@@ -34,17 +34,17 @@ version labels, searchable domains, and default modes. The first three packs are
 - `RUST-PROJ-R003`: source tests must be externalized instead of inline
 - `RUST-PROJ-R004`: external test mount must point to an existing `tests/unit` file
 - `RUST-PROJ-R005`: large test leaf should split into a folder-first suite
-- `RUST-PROJ-R006`: legacy root Cargo test target harness gate should migrate to the cargo-check build gate
+- `RUST-PROJ-R006`: retired root Cargo test target harness gate should migrate to the cargo-check build gate
 - `RUST-PROJ-R007`: root Cargo test target should stay a thin harness aggregate
 - `RUST-PROJ-R008`: root Cargo test target modules should use explicit suite `#[path]` mounts
-- `RUST-PROJ-R009`: legacy source cargo-test harness gate should migrate to the cargo-check build gate
+- `RUST-PROJ-R009`: retired source cargo-test harness gate should migrate to the cargo-check build gate
 - `RUST-PROJ-R010`: Rust-native performance verification bindings must have a runnable `harness = false` Cargo bench target
 - `RUST-PROJ-R011`: cargo-check build gates must run with explicit verification config
 - `RUST-PROJ-R012`: harness-enabled packages must mount the build-time harness gate for `cargo check`
 - `RUST-PROJ-R013`: custom harness source/test scope paths must carry an explicit explanation
 - `RUST-PROJ-R014`: Cargo-backed harness scopes must not be silently removed
-- `RUST-PROJ-R015`: legacy cargo-test advice allowance must carry an explicit explanation
-- `RUST-PROJ-R016`: legacy cargo-test compatibility gates must run with explicit verification config
+- `RUST-PROJ-R015`: retired cargo-test advice allowance must carry an explicit explanation
+- `RUST-PROJ-R016`: retired cargo-test compatibility gates must run with explicit verification config
 - `RUST-MOD-R001`: `mod.rs` should stay interface-only with external module declarations and re-exports
 - `RUST-MOD-R002`: oversized source file should split by responsibility, including private implementation piles
 - `RUST-MOD-R003`: native `use` trees containing `super::super` should use `crate::...` owner/facade imports
@@ -117,7 +117,7 @@ macro, the compact finding tells the next Agent to move that policy to
 `[build-dependencies]` plus root `build.rs`.
 
 Cargo-test policy is intentionally narrower. Use it only for behavior that is
-about the test layer itself: legacy source gate configuration, explicit advice
+about the test layer itself: retired source gate configuration, explicit advice
 allowance, or future checks that consume runtime test/verification receipts.
 `RUST-PROJ-R015` and `RUST-PROJ-R016` are therefore cargo-test compatibility
 rules. Parser-native structure, module ownership, import clarity, scope

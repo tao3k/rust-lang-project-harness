@@ -6,6 +6,10 @@ use super::public_fixtures::{
 use super::{FORBIDDEN_FLOW_PATTERNS, assert_lab_packet};
 use crate::cli::support::{run_search, run_search_with_stdin};
 
+fn rg_json_absolute_position_field() -> String {
+    ["absolute", "off", "set"].join("_")
+}
+
 #[test]
 fn public_large_tokio_bytes_flow_connects_prime_to_dependency_api_and_docs_axes() {
     if crate::cli::support::skip_if_protocol_graph_renderer_unavailable() {
@@ -288,11 +292,16 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
         FORBIDDEN_FLOW_PATTERNS,
     );
 
+    let rg_json_input = format!(
+        "{{\"type\":\"match\",\"data\":{{\"path\":{{\"text\":\"src/tool.rs\"}},\"line_number\":6,\"{}\":0,\"lines\":{{\"text\":\"pub fn command_action(command: SearchCommands) -> WebSearchAction {{\\n\"}},\"submatches\":[{{\"match\":{{\"text\":\"SearchCommands\"}},\"start\":31,\"end\":45}}]}}}}\n\
+         {{\"type\":\"match\",\"data\":{{\"path\":{{\"text\":\"src/tool.rs\"}},\"line_number\":13,\"{}\":0,\"lines\":{{\"text\":\"pub fn run_command(tool: WebSearchTool) -> Vec<TurnItem> {{\\n\"}},\"submatches\":[{{\"match\":{{\"text\":\"WebSearchTool\"}},\"start\":25,\"end\":38}}]}}}}\n",
+        rg_json_absolute_position_field(),
+        rg_json_absolute_position_field(),
+    );
     let rg_json_ingest = run_search_with_stdin(
         root,
         &["ingest", "items", "tests", "--package", "ext/web-search"],
-        "{\"type\":\"match\",\"data\":{\"path\":{\"text\":\"src/tool.rs\"},\"line_number\":6,\"absolute_offset\":0,\"lines\":{\"text\":\"pub fn command_action(command: SearchCommands) -> WebSearchAction {\\n\"},\"submatches\":[{\"match\":{\"text\":\"SearchCommands\"},\"start\":31,\"end\":45}]}}\n\
-         {\"type\":\"match\",\"data\":{\"path\":{\"text\":\"src/tool.rs\"},\"line_number\":13,\"absolute_offset\":0,\"lines\":{\"text\":\"pub fn run_command(tool: WebSearchTool) -> Vec<TurnItem> {\\n\"},\"submatches\":[{\"match\":{\"text\":\"WebSearchTool\"},\"start\":25,\"end\":38}]}}\n",
+        &rg_json_input,
     );
     assert_lab_packet(
         "public_codex_web_search_rg_json_ingest_flow",

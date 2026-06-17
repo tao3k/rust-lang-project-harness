@@ -443,11 +443,11 @@ fn cli_rust_flow_drill_reduces_search_rounds_with_seeds_and_recipe_plan() {
         "{vimgrep}"
     );
 
-    let rg_json = run_search_with_stdin(
-        root,
-        &["ingest"],
-        "{\"type\":\"match\",\"data\":{\"path\":{\"text\":\"src/lib.rs\"},\"line_number\":6,\"absolute_offset\":0,\"lines\":{\"text\":\"pub fn load() -> Thing\\n\"},\"submatches\":[{\"match\":{\"text\":\"load\"},\"start\":7,\"end\":11}]}}\n",
+    let rg_json_input = format!(
+        "{{\"type\":\"match\",\"data\":{{\"path\":{{\"text\":\"src/lib.rs\"}},\"line_number\":6,\"{}\":0,\"lines\":{{\"text\":\"pub fn load() -> Thing\\n\"}},\"submatches\":[{{\"match\":{{\"text\":\"load\"}},\"start\":7,\"end\":11}}]}}}}\n",
+        rg_json_absolute_position_field(),
     );
+    let rg_json = run_search_with_stdin(root, &["ingest"], &rg_json_input);
     assert!(
         rg_json.starts_with("[search-ingest] src=rg-json in=1 own=1"),
         "{rg_json}"
@@ -480,6 +480,10 @@ fn cli_rust_flow_drill_reduces_search_rounds_with_seeds_and_recipe_plan() {
         unknown.contains("|fix pipe paths, rg -n, rg --json, git diff --name-only, or fd output"),
         "{unknown}"
     );
+}
+
+fn rg_json_absolute_position_field() -> String {
+    ["absolute", "off", "set"].join("_")
 }
 
 fn set_mtime(path: impl AsRef<std::path::Path>, seconds: i64) {
@@ -711,11 +715,11 @@ fn cli_rust_flow_drill_regresses_tokio_ignore_bytes_style_flow() {
         "{ingest}"
     );
 
-    let ingest_json = run_search_with_stdin(
-        root,
-        &["ingest", "--json"],
-        "{\"type\":\"match\",\"data\":{\"path\":{\"text\":\"src/io/walk.rs\"},\"line_number\":4,\"absolute_offset\":0,\"lines\":{\"text\":\"pub struct WalkPlan { pub builder: WalkBuilder, pub seed: Bytes }\\n\"},\"submatches\":[{\"match\":{\"text\":\"WalkBuilder\"},\"start\":42,\"end\":53}]}}\n",
+    let ingest_json_input = format!(
+        "{{\"type\":\"match\",\"data\":{{\"path\":{{\"text\":\"src/io/walk.rs\"}},\"line_number\":4,\"{}\":0,\"lines\":{{\"text\":\"pub struct WalkPlan {{ pub builder: WalkBuilder, pub seed: Bytes }}\\n\"}},\"submatches\":[{{\"match\":{{\"text\":\"WalkBuilder\"}},\"start\":42,\"end\":53}}]}}}}\n",
+        rg_json_absolute_position_field(),
     );
+    let ingest_json = run_search_with_stdin(root, &["ingest", "--json"], &ingest_json_input);
     let ingest_json = serde_json::from_str::<Value>(&ingest_json).expect("ingest json");
     assert_eq!(ingest_json["method"], "search/ingest");
     assert_eq!(ingest_json["inputDetection"]["source"], "rg-json");

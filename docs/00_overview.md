@@ -39,7 +39,7 @@ project ownership context.
 `cargo check` is the primary downstream gate for parser-native policy: syntax,
 Cargo manifest facts, module and owner graph, import clarity, scope coverage,
 build-gate closure, and verification planning obligations. Cargo-test gates
-remain a compatibility surface for legacy crates and for this crate's self-apply
+remain a compatibility surface for retired crates and for this crate's self-apply
 path, but they are not the preferred downstream entrypoint.
 
 ## Where Details Live

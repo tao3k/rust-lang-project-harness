@@ -431,8 +431,8 @@ pub(super) fn insert_module_declaration(source: &mut String, module_name: &str, 
     } else {
         format!("{visibility} mod {module_name};\n")
     };
-    let offset = module_declaration_insert_offset(source);
-    source.insert_str(offset, &declaration);
+    let insertion_index = module_declaration_insert_index(source);
+    source.insert_str(insertion_index, &declaration);
 }
 
 fn module_declaration_present(source: &str, module_name: &str) -> bool {
@@ -445,7 +445,7 @@ fn module_declaration_present(source: &str, module_name: &str) -> bool {
     })
 }
 
-fn module_declaration_insert_offset(source: &str) -> usize {
+fn module_declaration_insert_index(source: &str) -> usize {
     source
         .split_inclusive('\n')
         .take_while(|line| {

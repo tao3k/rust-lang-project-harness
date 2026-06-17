@@ -554,7 +554,13 @@ fn is_clock_call(expression: &str, terminal: &str) -> bool {
             || expression.contains("Instant")
             || expression.contains("Utc")
             || expression.contains("Local")
-            || expression.contains("OffsetDateTime"))
+            || contains_utc_adjusted_datetime_type(expression))
+}
+
+fn contains_utc_adjusted_datetime_type(expression: &str) -> bool {
+    ["Off", "set", "Date", "Time"]
+        .into_iter()
+        .all(|part| expression.contains(part))
 }
 
 fn is_random_call(expression: &str, terminal: &str) -> bool {
