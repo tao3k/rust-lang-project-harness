@@ -163,6 +163,52 @@ fn downstream_policy_object_keeps_build_script_thin() {
 }
 
 #[test]
+fn downstream_policy_requires_criterion_bench_manifest_when_performance_adapter_is_enabled() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_api_project(root);
+
+    let policy = criterion_downstream_policy("api crate");
+
+    let missing_bench = std::panic::catch_unwind(|| {
+        assert_rust_project_harness_downstream_policy(root, &policy);
+    })
+    .expect_err("criterion performance gate should require a bench manifest");
+    let message = panic_message(missing_bench);
+
+    assert!(message.contains("RUST-PROJ-R010"), "{message}");
+    assert!(
+        message.contains("Performance verification skill lacks Cargo bench target"),
+        "{message}"
+    );
+    assert!(
+        message.contains("add a Criterion, Divan, or iai-callgrind [[bench]] target"),
+        "{message}"
+    );
+    assert!(
+        message.contains("benchmark framework dev-dependency"),
+        "{message}"
+    );
+    assert!(
+        message.contains("record benchmark runs through performance receipts"),
+        "{message}"
+    );
+}
+
+#[test]
+fn downstream_policy_accepts_criterion_bench_manifest_contract() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_api_project(root);
+    write_criterion_bench_contract(root);
+
+    let policy = criterion_downstream_policy("api crate");
+    let report = assert_rust_project_harness_downstream_policy(root, &policy);
+
+    assert!(report.is_clean(), "{report:?}");
+}
+
+#[test]
 fn downstream_policy_asserts_dependency_baseline_from_cargo_lock() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
@@ -350,4 +396,57 @@ fn workspace_policy_shares_dependency_baseline_with_member_crates() {
 
 fn write_cargo_lock(root: &std::path::Path, contents: &str) {
     fs::write(root.join("Cargo.lock"), contents.trim_start()).expect("write Cargo.lock");
+}
+
+fn criterion_downstream_policy(gate_label: &str) -> RustProjectHarnessDownstreamPolicy {
+    RustProjectHarnessDownstreamPolicy::new(
+        gate_label,
+        default_rust_harness_config()
+            .with_cargo_check_advice_allow_explanation(
+                "downstream policy modules own advisory triage while build.rs stays thin",
+            )
+            .with_criterion_performance_verification()
+            .with_latency_sensitive_performance_owner(
+                "src/api.rs",
+                "API request path owns latency-sensitive dispatch",
+            )
+            .with_availability_stability_owner(
+                "src/api.rs",
+                "API request path must degrade and recover predictably",
+            ),
+    )
+}
+
+fn write_criterion_bench_contract(root: &std::path::Path) {
+    let manifest_path = root.join("Cargo.toml");
+    let mut manifest = fs::read_to_string(&manifest_path).expect("read Cargo.toml");
+    manifest.push_str(
+        r#"
+
+[dev-dependencies]
+criterion = "0.8"
+
+[[bench]]
+name = "api_hot_path"
+path = "benches/api_hot_path.rs"
+harness = false
+"#,
+    );
+    fs::write(manifest_path, manifest).expect("write Cargo.toml");
+    fs::create_dir(root.join("benches")).expect("create benches");
+    fs::write(
+        root.join("benches/api_hot_path.rs"),
+        r#"//! Criterion bench target.
+
+use criterion::{criterion_group, criterion_main, Criterion};
+
+fn api_hot_path(c: &mut Criterion) {
+    c.bench_function("api_hot_path", |b| b.iter(|| 1));
+}
+
+criterion_group!(benches, api_hot_path);
+criterion_main!(benches);
+"#,
+    )
+    .expect("write bench");
 }

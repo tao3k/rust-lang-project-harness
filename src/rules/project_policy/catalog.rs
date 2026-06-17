@@ -90,7 +90,7 @@ pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             PACK_ID,
             RustDiagnosticSeverity::Warning,
             "Performance verification skill lacks Cargo bench target",
-            "When a Rust-native performance skill is configured, expose a runnable harness=false [[bench]] target so harness policy can remind agents when benchmark wiring is missing.",
+            "When a Rust-native performance skill is configured, expose a runnable harness=false [[bench]] target and benchmark framework dev-dependency; keep build.rs as a structural gate and record benchmark runs through performance receipts.",
             labels("project-policy"),
         ),
         RustHarnessRule::new(
