@@ -19,6 +19,12 @@ const SEARCH_GUIDE_PROFILES: &[SearchGuideProfile] = &[
         returns: "owner/query/dependency/test/finding handles",
     },
     SearchGuideProfile {
+        id: "dependency-manifest",
+        command: Some("search dependency <crate-or-package> --workspace . --view seeds"),
+        args: "dependency:pkg",
+        returns: "manifest version facts/import owners/public-api/docs-use/tests",
+    },
+    SearchGuideProfile {
         id: "owner-query",
         command: Some(
             "search reasoning owner-query --owner <owner-path> --query <term> --view seeds",

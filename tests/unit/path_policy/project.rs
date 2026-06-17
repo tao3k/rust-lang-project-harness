@@ -7,8 +7,8 @@ use super::support::{findings_for_rule, has_rule, write_manifest};
 
 #[path = "project/build_gate.rs"]
 mod build_gate;
-#[path = "project/legacy_gate.rs"]
-mod legacy_gate;
+#[path = "project/retired_gate.rs"]
+mod retired_gate;
 #[path = "project/verification_integration/mod.rs"]
 mod verification_integration;
 
@@ -264,7 +264,7 @@ fn large_unit_test_leaf() -> String {
             source.push_str("#[tokio::test]\n");
         }
         source.push_str(&format!("fn large_test_{index}() {{\n"));
-        for value in 0..34 {
+        for value in 0..70 {
             source.push_str(&format!("    let value_{value} = {value};\n"));
             source.push_str(&format!("    assert_eq!(value_{value}, {value});\n"));
         }

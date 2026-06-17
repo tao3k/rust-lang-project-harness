@@ -32,7 +32,7 @@ fn build_gate_assertion_allows_agent_advice_with_explicit_explanation() {
     let root = temp.path();
     write_advice_only_project(root, "advice-build-gate-allowed");
     let config = default_rust_harness_config().with_cargo_check_advice_allow_explanation(
-        "legacy crate allows advisory findings while it migrates to cargo-check gating",
+        "transitional crate allows advisory findings while it migrates to cargo-check gating",
     );
 
     assert_rust_project_harness_cargo_check_clean_with_config(root, &config);

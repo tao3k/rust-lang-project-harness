@@ -17,7 +17,7 @@ const CARGO_TEST_GATE_MACROS: &[&str] = &[
     "rust_project_harness_cargo_test_gate",
 ];
 
-pub(super) fn legacy_test_target_gate_findings(
+pub(super) fn retired_test_target_gate_findings(
     project_root: &Path,
     cargo_manifest: &CargoManifestFacts,
     cargo_test_targets: &[ParsedRustModule],
@@ -42,7 +42,7 @@ pub(super) fn legacy_test_target_gate_findings(
                     RustHarnessFinding::from_rule(
                         rule,
                         format!(
-                            "{} mounts a legacy cargo-test harness gate.",
+                            "{} mounts a retired cargo-test harness gate.",
                             display_project_path(project_root, &parsed.report.path)
                         ),
                         path_line_location(&parsed.report.path, invocation.line),

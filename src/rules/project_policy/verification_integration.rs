@@ -32,7 +32,7 @@ pub(super) fn verification_integration_findings(
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     let mut findings = Vec::new();
-    findings.extend(legacy_source_cargo_test_gate_findings(
+    findings.extend(retired_source_cargo_test_gate_findings(
         project_root,
         reasoning_tree,
         modules,
@@ -79,7 +79,7 @@ pub(super) fn verification_integration_findings(
     findings
 }
 
-fn legacy_source_cargo_test_gate_findings(
+fn retired_source_cargo_test_gate_findings(
     project_root: &Path,
     reasoning_tree: &RustReasoningTreeFacts,
     modules: &[ParsedRustModule],
@@ -103,7 +103,7 @@ fn legacy_source_cargo_test_gate_findings(
             Some(RustHarnessFinding::from_rule(
                 rule,
                 format!(
-                    "{} mounts a legacy source cargo-test harness gate.",
+                    "{} mounts a retired source cargo-test harness gate.",
                     display_project_path(project_root, &module.report.path)
                 ),
                 path_line_location(&module.report.path, invocation.line),
@@ -206,7 +206,7 @@ fn advice_allow_explanation_findings(
                 ),
                 path_line_location(&module.report.path, invocation.line),
                 source_line(&module.source, invocation.line),
-                "use with_cargo_test_advice_allow_explanation(...) to explain why advisory findings may pass this legacy cargo-test gate",
+                "use with_cargo_test_advice_allow_explanation(...) to explain why advisory findings may pass this retired cargo-test gate",
             ))
         })
         .collect()

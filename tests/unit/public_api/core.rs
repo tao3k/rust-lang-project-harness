@@ -19,7 +19,7 @@ mod embedded_cargo_test_gate_macro_smoke {
                     [rust_lang_project_harness::RustOwnerResponsibility::PublicApi],
                 )
                 .without_verification_tasks()
-                .with_rationale("macro smoke test exercises legacy cargo-test gate wiring"),
+                .with_rationale("macro smoke test exercises retired cargo-test gate wiring"),
             )
         }
     );
@@ -36,7 +36,7 @@ mod embedded_cargo_test_gate_macro_smoke {
                         )
                         .without_verification_tasks()
                         .with_rationale(
-                            "macro smoke test exercises legacy advice allowance wiring",
+                            "macro smoke test exercises transitional advice allowance wiring",
                         ),
                     )
                     .with_cargo_test_advice_allow_explanation(

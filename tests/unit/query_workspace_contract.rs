@@ -142,7 +142,7 @@ fn query_names_only_rejects_workspace_term_discovery() {
         "stderr={stderr}"
     );
     assert!(
-        stderr.contains("search fzf '<term>' owner --view seeds --workspace <workspace-root>"),
+        stderr.contains("search fzf '<term>' owner --workspace <workspace-root> --view seeds"),
         "stderr={stderr}"
     );
 }

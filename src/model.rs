@@ -518,13 +518,13 @@ pub struct RustHarnessConfig {
     /// Required explanations for excluding default test paths.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub test_path_exclusion_explanations: BTreeMap<String, String>,
-    /// Compatibility explanation for allowing harness agent advice to pass.
+    /// Transitional explanation for allowing harness agent advice to pass.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_advice_allow_explanation: Option<String>,
     /// Required explanation for allowing cargo-check harness advice to pass.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cargo_check_advice_allow_explanation: Option<String>,
-    /// Required explanation for allowing legacy cargo-test harness advice to pass.
+    /// Required explanation for allowing retired cargo-test harness advice to pass.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cargo_test_advice_allow_explanation: Option<String>,
     /// Library-first verification policy used to plan external skill tasks.
@@ -705,7 +705,7 @@ impl RustHarnessConfig {
         self
     }
 
-    /// Return a config that explains why legacy cargo-test harness advice may pass.
+    /// Return a config that explains why retired cargo-test harness advice may pass.
     #[must_use]
     pub fn with_cargo_test_advice_allow_explanation(
         mut self,
@@ -715,10 +715,10 @@ impl RustHarnessConfig {
         self
     }
 
-    /// Return a compatibility config that explains why harness agent advice may pass.
+    /// Return a transitional config that explains why harness agent advice may pass.
     ///
     /// Prefer `with_cargo_check_advice_allow_explanation(...)` for build-script
-    /// gates and `with_cargo_test_advice_allow_explanation(...)` for legacy
+    /// gates and `with_cargo_test_advice_allow_explanation(...)` for retired
     /// cargo-test gates.
     #[must_use]
     pub fn with_agent_advice_allow_explanation(mut self, explanation: impl Into<String>) -> Self {

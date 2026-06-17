@@ -160,10 +160,10 @@ fn cli_agent_provider_surface_delegates_hook_runtime_to_root_tool() {
             .expect("stderr")
             .contains("rs-harness agent install moved to asp hook")
     );
-    let legacy_guide = run_cli(["agent".as_ref(), "guide".as_ref(), root.as_os_str()]);
-    assert!(!legacy_guide.status.success(), "{legacy_guide:?}");
+    let moved_guide = run_cli(["agent".as_ref(), "guide".as_ref(), root.as_os_str()]);
+    assert!(!moved_guide.status.success(), "{moved_guide:?}");
     assert!(
-        String::from_utf8(legacy_guide.stderr)
+        String::from_utf8(moved_guide.stderr)
             .expect("stderr")
             .contains("rs-harness agent guide moved to rs-harness guide")
     );

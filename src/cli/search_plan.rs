@@ -112,11 +112,11 @@ fn append_unknown_scope_plan(rendered: &mut String, view: &str, query: &str) {
 
 fn append_default_plan(rendered: &mut String) {
     rendered.push_str("|catalog reasoningProfiles=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg entries=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg routes=read-frontier\n");
-    rendered.push_str("|entry owner-query selectors=O:owner,Q:query returns=items,tests,dependency-usage frontier=O.items,Q.owner,Q.tests cmd=asp rust search owner <path> items --query <query> --view seeds .\n");
-    rendered.push_str("|entry query-deps selectors=Q:query,D:dependency returns=owners,imports,local-docs,crate-source,usage-tests frontier=Q.owner,D.public-api,D.crate-source,D.tests avoid=web-search,docs.rs-search cmd=asp rust search reasoning query-deps --query <query> --dependency <dep> --view seeds .\n");
-    rendered.push_str("|entry owner-tests selectors=O:owner returns=covering-tests,test-entrypoints,fixtures frontier=O.tests,T.owner cmd=asp rust search reasoning owner-tests --owner <path> --view seeds .\n");
-    rendered.push_str("|entry finding-frontier selectors=F:finding,O:owner? returns=affected-owners,tests,verification-actions frontier=F.owner,F.tests,O.policy cmd=asp rust search reasoning finding-frontier --query <finding> [--owner <path>] --view seeds .\n");
-    rendered.push_str("|entry feature-cfg selectors=F2:feature returns=cfg-gates,owners,verification-surfaces frontier=F2.cfg,F2.owner,F2.tests cmd=asp rust search reasoning feature-cfg --query <feature> --view seeds .\n");
+    rendered.push_str("|entry owner-query selectors=O:owner,Q:query returns=items,tests,dependency-usage frontier=O.items,Q.owner,Q.tests cmd=asp rust search owner <path> items --query <query> --workspace . --view seeds\n");
+    rendered.push_str("|entry query-deps selectors=Q:query,D:dependency returns=owners,imports,local-docs,crate-source,usage-tests frontier=Q.owner,D.public-api,D.crate-source,D.tests avoid=web-search,docs.rs-search cmd=asp rust search reasoning query-deps --query <query> --dependency <dep> --workspace . --view seeds\n");
+    rendered.push_str("|entry owner-tests selectors=O:owner returns=covering-tests,test-entrypoints,fixtures frontier=O.tests,T.owner cmd=asp rust search reasoning owner-tests --owner <path> --workspace . --view seeds\n");
+    rendered.push_str("|entry finding-frontier selectors=F:finding,O:owner? returns=affected-owners,tests,verification-actions frontier=F.owner,F.tests,O.policy cmd=asp rust search reasoning finding-frontier --query <finding> [--owner <path>] --workspace . --view seeds\n");
+    rendered.push_str("|entry feature-cfg selectors=F2:feature returns=cfg-gates,owners,verification-surfaces frontier=F2.cfg,F2.owner,F2.tests cmd=asp rust search reasoning feature-cfg --query <feature> --workspace . --view seeds\n");
     rendered.push_str("|route read-frontier selectors=R:range returns=symbols,windows,tests,next-actions frontier=R.symbols,R.tests,R.code cmd=asp rust query --from-hook direct-source-read --selector <path[:line-range]> [--code] .\n");
 }
 

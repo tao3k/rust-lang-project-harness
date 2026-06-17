@@ -7,12 +7,12 @@ use tempfile::TempDir;
 use crate::path_policy::support::has_rule;
 
 #[test]
-fn legacy_root_cargo_test_gate_reports_migration_warning() {
+fn retired_root_cargo_test_gate_reports_migration_warning() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     fs::write(
         root.join("Cargo.toml"),
-        "[package]\nname = \"legacy-root-cargo-test-gate\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dev-dependencies]\nrust-lang-project-harness = { path = \".\" }\n",
+        "[package]\nname = \"retired-root-cargo-test-gate\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dev-dependencies]\nrust-lang-project-harness = { path = \".\" }\n",
     )
     .expect("write manifest");
     fs::create_dir(root.join("src")).expect("create src");
@@ -33,13 +33,13 @@ fn legacy_root_cargo_test_gate_reports_migration_warning() {
     assert_eq!(focused_report.findings.len(), 1, "{:?}", report.findings);
     let rendered = normalize_temp_root(&render_rust_project_harness(&focused_report), root);
     insta::assert_snapshot!(
-        "legacy_root_cargo_test_gate_reports_migration_warning",
+        "retired_root_cargo_test_gate_reports_migration_warning",
         rendered
     );
 }
 
 #[test]
-fn legacy_source_cargo_test_gate_reports_migration_warning() {
+fn retired_source_cargo_test_gate_reports_migration_warning() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     fs::write(
@@ -65,7 +65,7 @@ fn legacy_source_cargo_test_gate_reports_migration_warning() {
         .retain(|finding| finding.rule_id == "RUST-PROJ-R009");
     let rendered = normalize_temp_root(&render_rust_project_harness(&focused_report), root);
     insta::assert_snapshot!(
-        "legacy_source_cargo_test_gate_reports_migration_warning",
+        "retired_source_cargo_test_gate_reports_migration_warning",
         rendered
     );
 }

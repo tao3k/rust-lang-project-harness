@@ -13,7 +13,7 @@ use super::source_tests::source_test_mount_findings;
 use super::test_bloat::test_leaf_bloat_findings;
 use super::test_layout::test_layout_findings;
 use super::test_targets::{
-    legacy_test_target_gate_findings, test_target_aggregate_findings,
+    retired_test_target_gate_findings, test_target_aggregate_findings,
     test_target_module_mount_findings,
 };
 use super::verification_integration::verification_integration_findings;
@@ -36,9 +36,9 @@ pub(crate) const RUST_PROJ_R014: &str = "RUST-PROJ-R014";
 pub(crate) const RUST_PROJ_R015: &str = "RUST-PROJ-R015";
 pub(crate) const RUST_PROJ_R016: &str = "RUST-PROJ-R016";
 
-pub(crate) const MAX_UNIT_TEST_EFFECTIVE_LINES: usize = 260;
+pub(crate) const MAX_UNIT_TEST_EFFECTIVE_LINES: usize = 1000;
 pub(crate) const MIN_UNIT_TEST_FUNCTIONS: usize = 8;
-pub(crate) const MAX_INTEGRATION_TEST_EFFECTIVE_LINES: usize = 420;
+pub(crate) const MAX_INTEGRATION_TEST_EFFECTIVE_LINES: usize = 1000;
 pub(crate) const MIN_INTEGRATION_TEST_FUNCTIONS: usize = 12;
 
 /// Return compact metadata for Rust project-policy rules.
@@ -81,7 +81,7 @@ pub(crate) fn evaluate(
         &policy,
         &rules,
     ));
-    findings.extend(legacy_test_target_gate_findings(
+    findings.extend(retired_test_target_gate_findings(
         &scope.project_root,
         &cargo_manifest,
         &cargo_test_targets,

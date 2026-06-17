@@ -16,7 +16,7 @@ const PROJECT_POLICY_TESTS: &[&str] = &[
     "tests/unit/rule_catalog.rs",
     "tests/unit/path_policy/project.rs",
     "tests/unit/path_policy/project/build_gate.rs",
-    "tests/unit/path_policy/project/legacy_gate.rs",
+    "tests/unit/path_policy/project/retired_gate.rs",
     "tests/unit/path_policy/project/verification_integration.rs",
 ];
 

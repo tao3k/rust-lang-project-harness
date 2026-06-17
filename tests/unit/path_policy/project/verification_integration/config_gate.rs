@@ -158,7 +158,7 @@ fn advice_allow_with_explanation_clears_allow_warning() {
     let report = run_rust_project_harness_with_config(
         root,
         &configured_no_external_tasks_config().with_cargo_test_advice_allow_explanation(
-            "legacy fixture allows advisory output during migration",
+            "migration fixture allows advisory output during transition",
         ),
     )
     .expect("run project harness");
@@ -180,7 +180,7 @@ fn configured_no_external_tasks_config() -> rust_lang_project_harness::RustHarne
         RustVerificationProfileHint::new("src/lib.rs", [RustOwnerResponsibility::PublicApi])
             .without_verification_tasks()
             .with_rationale(
-                "this fixture only verifies legacy cargo-test gate configuration plumbing",
+                "this fixture only verifies retired cargo-test gate configuration plumbing",
             ),
     )
 }

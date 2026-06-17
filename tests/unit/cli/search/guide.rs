@@ -40,6 +40,17 @@ fn cli_search_guide_renders_typed_reasoning_profiles() {
     );
     assert!(
         stdout.contains(
+            "  dependency-manifest:\n    command=search dependency <crate-or-package> --workspace . --view seeds\n    args=dependency:pkg"
+        ),
+        "{stdout}"
+    );
+    assert!(
+        stdout
+            .contains("    returns=manifest version facts/import owners/public-api/docs-use/tests"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
             "  owner-query:\n    command=search reasoning owner-query --owner <owner-path> --query <term> --view seeds\n    args=owner:path query:term"
         ),
         "{stdout}"

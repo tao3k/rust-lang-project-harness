@@ -79,7 +79,9 @@ fn build_packet(project_root: &Path, options: &SemanticReadJsonOptions, rendered
                 let lines = text
                     .lines()
                     .enumerate()
-                    .map(|(offset, text)| json!({ "number": start_line + offset, "text": text }))
+                    .map(|(line_index, text)| {
+                        json!({ "number": start_line + line_index, "text": text })
+                    })
                     .collect::<Vec<_>>();
                 let line_count = lines.len();
                 source_windows.push(json!({
@@ -183,7 +185,7 @@ impl ReadPlanRows {
     fn collect(rendered: &str) -> Self {
         rendered.lines().fold(Self::default(), |mut rows, line| {
             rows.record_graph_line(line);
-            rows.record_legacy_line(line);
+            rows.record_text_line(line);
             rows
         })
     }
@@ -199,7 +201,7 @@ impl ReadPlanRows {
         });
     }
 
-    fn record_legacy_line(&mut self, line: &str) -> Option<()> {
+    fn record_text_line(&mut self, line: &str) -> Option<()> {
         if let Some(rest) = line.strip_prefix("|range ") {
             let fields = parse_fields(rest.split_whitespace());
             self.ranges.push(json!({

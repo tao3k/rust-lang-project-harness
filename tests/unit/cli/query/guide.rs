@@ -34,6 +34,27 @@ fn cli_agent_guide_advertises_query_reroute() {
 }
 
 #[test]
+fn cli_query_help_advertises_dependency_search_surface() {
+    let output = run_cli(["query", "--help"]);
+    assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
+    assert!(
+        stdout.contains(
+            "rs-harness search dependency <crate-or-package> [items docs-use tests] [--view seeds] [--workspace WORKSPACE]"
+        ),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("rs-harness search guide [--workspace WORKSPACE]"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("Dependency search is manifest-first"),
+        "{stdout}"
+    );
+}
+
+#[test]
 fn cli_query_guide_prints_query_contract() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();

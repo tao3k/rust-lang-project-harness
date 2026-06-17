@@ -142,9 +142,12 @@ rs-harness query --catalog <declarations|imports|calls|macros|cfg> [<workspace-r
 rs-harness query --treesitter-query '<s-expression>' [<workspace-root>] [--selector <path[:line|:start:end]>] [--term TERM...] [--workspace WORKSPACE] [--code] [--json]\n\
 rs-harness query --from-hook direct-source-read --selector <path[:line-range]> [--workspace WORKSPACE] [--source worktree|index|head] --code\n\
 rs-harness query --from-hook KIND --selector SELECTOR [--query SYMBOL | --term TERM] [--names-only | --code] [--workspace WORKSPACE]\n\
+rs-harness search dependency <crate-or-package> [items docs-use tests] [--view seeds] [--workspace WORKSPACE]\n\
+rs-harness search guide [--workspace WORKSPACE]\n\
 rs-harness search fzf TERM owner [--view seeds] [--workspace WORKSPACE]\n\n\
 Maps hook-denied raw reads and broad searches into parser-owned search output.\n\
 Concrete Rust owner selectors route to search owner items/tests; workspace term discovery is the explicit search fzf surface.\n\
+Dependency search is manifest-first: inspect Cargo.toml/Cargo.lock facts, import owners, public API/docs-use, and tests before web or docs.rs search.\n\
 Tree-sitter-compatible syntax catalog and inline queries emit semantic-tree-sitter-query.v1 packets through the normal query command.\n\
 Flow-lite native relation queries emit compact locator/provenance frontiers or semantic-flow-lite.v1 JSON without running CodeQL.\n\
 Glob or broad selectors without terms route to search prime --view seeds.\n\

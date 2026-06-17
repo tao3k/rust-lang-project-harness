@@ -48,14 +48,14 @@ Generated from embedded `src/harness-rules.md`.
 - **RUST-PROJ-R003**: Keeps test bodies out of source files by mounting source-backed unit tests externally.
 - **RUST-PROJ-R004**: Requires external source-backed tests to resolve to existing files under tests unit.
 - **RUST-PROJ-R005**: Splits oversized test leaves into folder-first suites with focused modules.
-- **RUST-PROJ-R006**: Migrates legacy root cargo-test harness gates toward cargo-check build gates.
+- **RUST-PROJ-R006**: Migrates retired root cargo-test harness gates toward cargo-check build gates.
 - **RUST-PROJ-R007**: Keeps root Cargo test targets as thin aggregates with external module mounts only.
 - **RUST-PROJ-R008**: Requires root Cargo test targets to mount external modules with explicit path attributes.
-- **RUST-PROJ-R009**: Migrates legacy source cargo-test harness gates toward cargo-check build gates.
+- **RUST-PROJ-R009**: Migrates retired source cargo-test harness gates toward cargo-check build gates.
 - **RUST-PROJ-R010**: Requires Rust-native performance skills to expose runnable bench targets.
 - **RUST-PROJ-R011**: Requires cargo-check harness gates to declare verification hints, suppressions, or skill bindings.
 - **RUST-PROJ-R012**: Requires harness-enabled packages to mount the build-time harness gate.
 - **RUST-PROJ-R013**: Requires custom harness scope paths to carry explicit explanations.
 - **RUST-PROJ-R014**: Requires cargo-backed scope reductions to be explained or removed from coverage.
-- **RUST-PROJ-R015**: Requires legacy cargo-test advice allowances to include explicit explanations.
+- **RUST-PROJ-R015**: Requires retired cargo-test advice allowances to include explicit explanations.
 - **RUST-PROJ-R016**: Requires remaining source cargo-test gates to declare verification hints, suppressions, or skill bindings.
