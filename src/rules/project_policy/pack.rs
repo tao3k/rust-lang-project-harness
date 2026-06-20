@@ -8,6 +8,7 @@ use crate::{RustHarnessConfig, RustHarnessFinding, RustHarnessRule, RustProjectH
 use super::build_gate::build_gate_findings;
 use super::catalog::rules_by_id;
 use super::config::load_layout_policy;
+use super::quality::quality_findings;
 use super::source_scope::source_scope_findings;
 use super::source_tests::source_test_mount_findings;
 use super::test_bloat::test_leaf_bloat_findings;
@@ -35,6 +36,9 @@ pub(crate) const RUST_PROJ_R013: &str = "RUST-PROJ-R013";
 pub(crate) const RUST_PROJ_R014: &str = "RUST-PROJ-R014";
 pub(crate) const RUST_PROJ_R015: &str = "RUST-PROJ-R015";
 pub(crate) const RUST_PROJ_R016: &str = "RUST-PROJ-R016";
+pub(crate) const RUST_PROJ_R017: &str = "RUST-PROJ-R017";
+pub(crate) const RUST_PROJ_R018: &str = "RUST-PROJ-R018";
+pub(crate) const RUST_PROJ_R019: &str = "RUST-PROJ-R019";
 
 pub(crate) const MAX_UNIT_TEST_EFFECTIVE_LINES: usize = 1000;
 pub(crate) const MIN_UNIT_TEST_FUNCTIONS: usize = 8;
@@ -93,6 +97,12 @@ pub(crate) fn evaluate(
         config,
         modules,
         &cargo_manifest,
+        &rules,
+    ));
+    findings.extend(quality_findings(
+        &scope.project_root,
+        config,
+        modules,
         &rules,
     ));
     findings.extend(build_gate_findings(

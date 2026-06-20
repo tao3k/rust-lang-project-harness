@@ -40,7 +40,10 @@ mod embedded_cargo_test_gate_macro_smoke {
                         ),
                     )
                     .with_cargo_test_advice_allow_explanation(
-                        "macro smoke test intentionally permits advisory findings",
+                        "scope=cargo-test macro smoke; owner=public_api::core test; \
+                         finding_category=advisory harness smoke findings; \
+                         why_safe_now=the test intentionally exercises advice=allow macro wiring; \
+                         cleanup_trigger=remove when the compatibility macro no longer supports advice=allow",
                     )
             }
         );

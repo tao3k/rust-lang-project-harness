@@ -172,28 +172,3 @@ const DEFAULT_BUILD_GATE_FUNCTIONS: &[&str] = &[
     "assert_rust_project_harness_cargo_check_clean",
     "assert_rust_project_harness_cargo_check_clean_from_env",
 ];
-
-#[cfg(test)]
-mod tests {
-    use super::is_workspace_build_gate_wrapper_function;
-
-    #[test]
-    fn workspace_harness_wrapper_names_mount_build_gate() {
-        assert!(is_workspace_build_gate_wrapper_function(
-            "assert_member_harness_build_gate_from_env"
-        ));
-        assert!(is_workspace_build_gate_wrapper_function(
-            "assert_workspace_harness_policy_from_env_with_configure"
-        ));
-    }
-
-    #[test]
-    fn ordinary_assertions_do_not_mount_build_gate() {
-        assert!(!is_workspace_build_gate_wrapper_function(
-            "assert_member_build_gate_from_env"
-        ));
-        assert!(!is_workspace_build_gate_wrapper_function(
-            "assert_project_ready"
-        ));
-    }
-}

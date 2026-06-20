@@ -8,7 +8,8 @@ use crate::{RustDiagnosticSeverity, RustHarnessRule};
 use super::{
     PACK_ID, RUST_PROJ_R001, RUST_PROJ_R002, RUST_PROJ_R003, RUST_PROJ_R004, RUST_PROJ_R005,
     RUST_PROJ_R006, RUST_PROJ_R007, RUST_PROJ_R008, RUST_PROJ_R009, RUST_PROJ_R010, RUST_PROJ_R011,
-    RUST_PROJ_R012, RUST_PROJ_R013, RUST_PROJ_R014, RUST_PROJ_R015, RUST_PROJ_R016,
+    RUST_PROJ_R012, RUST_PROJ_R013, RUST_PROJ_R014, RUST_PROJ_R015, RUST_PROJ_R016, RUST_PROJ_R017,
+    RUST_PROJ_R018, RUST_PROJ_R019,
 };
 
 pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
@@ -139,6 +140,30 @@ pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             RustDiagnosticSeverity::Warning,
             "Retired cargo-test gate uses empty verification config",
             "Source cargo-test gates that remain in use must declare verification profile hints, task suppressions, or skill bindings for the test layer.",
+            labels("project-policy"),
+        ),
+        RustHarnessRule::new(
+            RUST_PROJ_R017,
+            PACK_ID,
+            RustDiagnosticSeverity::Warning,
+            "Advice allowance explanation is too weak",
+            "Advice allowances must state scope, owner, finding category, why the code is safe now, and the cleanup trigger so agents cannot use explanations as blanket waivers.",
+            labels("project-policy"),
+        ),
+        RustHarnessRule::new(
+            RUST_PROJ_R018,
+            PACK_ID,
+            RustDiagnosticSeverity::Warning,
+            "Policy identity fallback is fake",
+            "Policy and evidence identity must fail closed when Cargo identity is missing; do not synthesize unknown/default/todo labels that can enter receipts.",
+            labels("project-policy"),
+        ),
+        RustHarnessRule::new(
+            RUST_PROJ_R019,
+            PACK_ID,
+            RustDiagnosticSeverity::Warning,
+            "Workspace member build-gate wrapper alias is redundant",
+            "Expose one canonical workspace member build-gate entrypoint; duplicate public aliases need deprecation metadata and a bounded migration plan.",
             labels("project-policy"),
         ),
     ]

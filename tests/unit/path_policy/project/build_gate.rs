@@ -51,7 +51,7 @@ fn downstream_policy_build_gate_clears_build_gate_requirement() {
 fn workspace_wrapper_build_gate_clears_direct_harness_dependency_requirement() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
-    write_workspace_wrapper_manifest(root, "workspace-wrapper-build-gate");
+    write_build_harness_manifest(root, "workspace-wrapper-build-gate");
     fs::create_dir(root.join("src")).expect("create src");
     fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
     write_workspace_wrapper_build_gate(root);
@@ -63,6 +63,20 @@ fn workspace_wrapper_build_gate_clears_direct_harness_dependency_requirement() {
         "{:?}",
         report.findings
     );
+}
+
+#[test]
+fn ordinary_workspace_alias_does_not_clear_build_gate_requirement() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_build_harness_manifest(root, "ordinary-workspace-alias-build-gate");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
+    write_ordinary_workspace_alias_build_gate(root);
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    assert!(has_rule(&report, "RUST-PROJ-R012"), "{:?}", report.findings);
 }
 
 #[test]
@@ -224,16 +238,6 @@ fn write_build_harness_manifest(root: &Path, name: &str) {
     .expect("write manifest");
 }
 
-fn write_workspace_wrapper_manifest(root: &Path, name: &str) {
-    fs::write(
-        root.join("Cargo.toml"),
-        format!(
-            "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[build-dependencies]\nworkspace-harness = {{ path = \".\" }}\n",
-        ),
-    )
-    .expect("write manifest");
-}
-
 fn write_configured_build_gate(root: &Path) {
     fs::write(
         root.join("build.rs"),
@@ -246,6 +250,14 @@ fn write_workspace_wrapper_build_gate(root: &Path) {
     fs::write(
         root.join("build.rs"),
         "fn main() {\n    xiuxian_rust_workspace_harness::assert_member_harness_build_gate_from_env();\n}\n",
+    )
+    .expect("write build script");
+}
+
+fn write_ordinary_workspace_alias_build_gate(root: &Path) {
+    fs::write(
+        root.join("build.rs"),
+        "fn main() {\n    xiuxian_rust_workspace_harness::assert_member_build_gate_from_env();\n}\n",
     )
     .expect("write build script");
 }

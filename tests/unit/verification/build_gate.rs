@@ -20,6 +20,11 @@ use tempfile::TempDir;
 
 use crate::verification::support::write_api_project;
 
+const THIN_BUILD_SCRIPT_ADVICE_ALLOW: &str = "scope=downstream policy thin-build-script test; owner=verification::build_gate test; finding_category=advisory public API doc findings; why_safe_now=the test verifies policy object wiring while advisory findings remain visible; cleanup_trigger=remove when the API fixture documents its public item";
+const WORKSPACE_POLICY_ADVICE_ALLOW: &str = "scope=workspace common policy test; owner=verification::build_gate test; finding_category=advisory public API doc findings; why_safe_now=the test verifies common workspace policy reuse while advisory findings remain visible; cleanup_trigger=remove when the API fixture documents its public item";
+const MEMBER_POLICY_ADVICE_ALLOW: &str = "scope=workspace member override test; owner=verification::build_gate test; finding_category=advisory public API doc findings; why_safe_now=the test verifies member-specific policy override behavior; cleanup_trigger=remove when the member fixture no longer needs an advice override";
+const CRITERION_POLICY_ADVICE_ALLOW: &str = "scope=criterion downstream policy test; owner=verification::build_gate test; finding_category=advisory public API doc findings; why_safe_now=the test verifies criterion policy wiring while advisory findings remain visible; cleanup_trigger=remove when the API fixture documents its public item";
+
 #[test]
 fn build_gate_verification_requires_performance_and_stability_reports() {
     let temp = TempDir::new().expect("temp dir");
@@ -352,9 +357,7 @@ fn downstream_policy_object_keeps_build_script_thin() {
     let policy = RustProjectHarnessDownstreamPolicy::new(
         "api crate",
         default_rust_harness_config()
-            .with_cargo_check_advice_allow_explanation(
-                "downstream policy modules own advisory triage while build.rs stays thin",
-            )
+            .with_cargo_check_advice_allow_explanation(THIN_BUILD_SCRIPT_ADVICE_ALLOW)
             .with_latency_sensitive_performance_owner(
                 "src/api.rs",
                 "API request path owns latency-sensitive dispatch",
@@ -437,9 +440,7 @@ source = "git+https://github.com/tao3k/agent-semantic-protocols?rev=abc123#abc12
     let policy = RustProjectHarnessDownstreamPolicy::new(
         "api crate",
         default_rust_harness_config()
-            .with_cargo_check_advice_allow_explanation(
-                "downstream policy modules own advisory triage while build.rs stays thin",
-            )
+            .with_cargo_check_advice_allow_explanation(THIN_BUILD_SCRIPT_ADVICE_ALLOW)
             .with_latency_sensitive_performance_owner(
                 "src/api.rs",
                 "API request path owns latency-sensitive dispatch",
@@ -524,9 +525,7 @@ fn workspace_policy_reuses_common_config_for_member_crates() {
     let workspace_policy = RustProjectHarnessWorkspacePolicy::new(
         "example-workspace",
         default_rust_harness_config()
-            .with_cargo_check_advice_allow_explanation(
-                "workspace policy owns common advisory triage",
-            )
+            .with_cargo_check_advice_allow_explanation(WORKSPACE_POLICY_ADVICE_ALLOW)
             .with_latency_sensitive_performance_owner(
                 "src/api.rs",
                 "workspace public API dispatch is latency-sensitive",
@@ -544,11 +543,9 @@ fn workspace_policy_reuses_common_config_for_member_crates() {
     assert_eq!(api_policy.gate_label(), "example-workspace::api");
     assert!(report.is_clean(), "{report:?}");
 
-    let specialized_policy =
-        workspace_policy.member_crate_with_config("api-specialized", |config| {
-            config.with_cargo_check_advice_allow_explanation(
-                "member policy owns a crate-local advisory exception",
-            )
+    let specialized_policy = workspace_policy
+        .member_crate_with_config("api-specialized", |config| {
+            config.with_cargo_check_advice_allow_explanation(MEMBER_POLICY_ADVICE_ALLOW)
         });
 
     assert_eq!(
@@ -560,14 +557,14 @@ fn workspace_policy_reuses_common_config_for_member_crates() {
             .config()
             .cargo_check_advice_allow_explanation
             .as_deref(),
-        Some("workspace policy owns common advisory triage")
+        Some(WORKSPACE_POLICY_ADVICE_ALLOW)
     );
     assert_eq!(
         specialized_policy
             .config()
             .cargo_check_advice_allow_explanation
             .as_deref(),
-        Some("member policy owns a crate-local advisory exception")
+        Some(MEMBER_POLICY_ADVICE_ALLOW)
     );
 }
 
@@ -611,9 +608,7 @@ fn criterion_downstream_policy(gate_label: &str) -> RustProjectHarnessDownstream
     RustProjectHarnessDownstreamPolicy::new(
         gate_label,
         default_rust_harness_config()
-            .with_cargo_check_advice_allow_explanation(
-                "downstream policy modules own advisory triage while build.rs stays thin",
-            )
+            .with_cargo_check_advice_allow_explanation(CRITERION_POLICY_ADVICE_ALLOW)
             .with_criterion_performance_verification()
             .with_latency_sensitive_performance_owner(
                 "src/api.rs",

@@ -32,7 +32,10 @@ fn build_gate_assertion_allows_agent_advice_with_explicit_explanation() {
     let root = temp.path();
     write_advice_only_project(root, "advice-build-gate-allowed");
     let config = default_rust_harness_config().with_cargo_check_advice_allow_explanation(
-        "transitional crate allows advisory findings while it migrates to cargo-check gating",
+        "scope=public API cargo-check smoke; owner=build_gate test; \
+         finding_category=advisory documentation findings; \
+         why_safe_now=the test intentionally exercises the advice allowance branch; \
+         cleanup_trigger=remove when the fixture no longer carries advisory findings",
     );
 
     assert_rust_project_harness_cargo_check_clean_with_config(root, &config);

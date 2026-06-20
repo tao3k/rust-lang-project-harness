@@ -7,6 +7,8 @@ use super::support::{findings_for_rule, has_rule, write_manifest};
 
 #[path = "project/build_gate.rs"]
 mod build_gate;
+#[path = "project/quality.rs"]
+mod quality;
 #[path = "project/retired_gate.rs"]
 mod retired_gate;
 #[path = "project/verification_integration/mod.rs"]

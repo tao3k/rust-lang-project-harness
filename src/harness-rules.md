@@ -53,3 +53,6 @@
 - RUST-PROJ-R014: Requires cargo-backed scope reductions to be explained or removed from coverage.
 - RUST-PROJ-R015: Requires retired cargo-test advice allowances to include explicit explanations.
 - RUST-PROJ-R016: Requires remaining source cargo-test gates to declare verification hints, suppressions, or skill bindings.
+- RUST-PROJ-R017: Requires advice allowance explanations to state scope, owner, finding category, current safety, and cleanup trigger.
+- RUST-PROJ-R018: Rejects fake Cargo package identity fallbacks in policy and evidence code.
+- RUST-PROJ-R019: Rejects redundant public workspace member build-gate wrapper aliases.
