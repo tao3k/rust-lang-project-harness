@@ -1,9 +1,19 @@
 use rust_lang_project_harness::{
+    RUST_PROJECT_HARNESS_DOWNSTREAM_POLICY_RECEIPT_SCHEMA_ID,
+    RUST_PROJECT_HARNESS_DOWNSTREAM_POLICY_RECEIPT_SCHEMA_VERSION,
+    RUST_PROJECT_HARNESS_WORKSPACE_EVIDENCE_GRAPH_RECEIPT_SCHEMA_ID,
     RustProjectHarnessDependencyBaseline, RustProjectHarnessDownstreamPolicy,
-    RustProjectHarnessWorkspacePolicy, assert_rust_project_harness_dependency_baseline,
-    assert_rust_project_harness_downstream_policy,
+    RustProjectHarnessWorkspaceEvidenceGraphEdgeKind,
+    RustProjectHarnessWorkspaceEvidenceGraphMemberInput,
+    RustProjectHarnessWorkspaceEvidenceGraphNodeKind, RustProjectHarnessWorkspacePolicy,
+    RustProjectHarnessWorkspaceTrustLoopStepStatus,
+    assert_rust_project_harness_dependency_baseline, assert_rust_project_harness_downstream_policy,
     assert_rust_project_harness_verification_with_config, default_rust_harness_config,
+    render_rust_project_harness_downstream_policy_receipt_json,
+    render_rust_project_harness_workspace_evidence_graph_receipt_json,
     rust_downstream_verification_gate_guide_markdown,
+    rust_project_harness_downstream_policy_receipt,
+    rust_project_harness_workspace_evidence_graph_receipt,
 };
 use std::fs;
 use tempfile::TempDir;
@@ -68,6 +78,205 @@ fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
         return (*message).to_string();
     }
     "<non-string panic>".to_string()
+}
+
+#[test]
+fn downstream_policy_receipt_projects_verification_and_dependency_contract() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_api_project(root);
+
+    let policy = RustProjectHarnessDownstreamPolicy::new(
+        "example-workspace::api",
+        default_rust_harness_config()
+            .with_latency_sensitive_performance_owner(
+                "src/api.rs",
+                "API request path owns latency-sensitive dispatch",
+            )
+            .with_availability_stability_owner(
+                "src/api.rs",
+                "API request path must degrade and recover predictably",
+            ),
+    )
+    .with_dependency_baseline(
+        RustProjectHarnessDependencyBaseline::new().require_git_package(
+            "rust-lang-project-harness",
+            "0.1.2",
+            "rev=abc123",
+        ),
+    );
+
+    let receipt =
+        rust_project_harness_downstream_policy_receipt(root, &policy).expect("policy receipt");
+
+    assert_eq!(
+        receipt.schema_id,
+        RUST_PROJECT_HARNESS_DOWNSTREAM_POLICY_RECEIPT_SCHEMA_ID
+    );
+    assert_eq!(
+        receipt.schema_version,
+        RUST_PROJECT_HARNESS_DOWNSTREAM_POLICY_RECEIPT_SCHEMA_VERSION
+    );
+    assert_eq!(receipt.gate_label, "example-workspace::api");
+    assert_eq!(receipt.dependency_baseline_packages.len(), 1);
+    assert_eq!(
+        receipt.dependency_baseline_packages[0].name,
+        "rust-lang-project-harness"
+    );
+    assert_eq!(
+        receipt.dependency_baseline_packages[0].source_contains,
+        "rev=abc123"
+    );
+    assert!(receipt.active_verification_task_count >= 2, "{receipt:?}");
+    assert!(receipt.performance_task_count > 0, "{receipt:?}");
+    assert!(receipt.stability_task_count > 0, "{receipt:?}");
+    assert!(receipt.performance_report_obligation, "{receipt:?}");
+    assert!(receipt.stability_report_obligation, "{receipt:?}");
+    assert!(receipt.report_obligations.iter().any(|obligation| {
+        obligation.key == "performance_index_json"
+            && obligation
+                .task_kinds
+                .iter()
+                .any(|kind| kind == "performance")
+    }));
+    assert!(receipt.report_obligations.iter().any(|obligation| {
+        obligation.key == "stability_index_json"
+            && obligation.task_kinds.iter().any(|kind| kind == "stability")
+    }));
+
+    let json =
+        render_rust_project_harness_downstream_policy_receipt_json(&receipt).expect("receipt json");
+    let value: serde_json::Value = serde_json::from_str(&json).expect("valid receipt json");
+    assert_eq!(
+        value["schema_id"],
+        RUST_PROJECT_HARNESS_DOWNSTREAM_POLICY_RECEIPT_SCHEMA_ID
+    );
+    assert_eq!(value["gate_label"], "example-workspace::api");
+    assert_eq!(
+        value["dependency_baseline_packages"][0]["source_contains"],
+        "rev=abc123"
+    );
+}
+
+#[test]
+fn workspace_evidence_graph_receipt_connects_multi_crate_trust_loop() {
+    let temp = TempDir::new().expect("temp dir");
+    let workspace_root = temp.path();
+    let api_root = workspace_root.join("api");
+    let worker_root = workspace_root.join("worker");
+    fs::create_dir_all(&api_root).expect("api dir");
+    fs::create_dir_all(&worker_root).expect("worker dir");
+    write_api_project(&api_root);
+    write_api_project(&worker_root);
+
+    let workspace_policy = RustProjectHarnessWorkspacePolicy::new(
+        "example-workspace",
+        default_rust_harness_config()
+            .with_latency_sensitive_performance_owner(
+                "src/api.rs",
+                "API request path owns latency-sensitive dispatch",
+            )
+            .with_availability_stability_owner(
+                "src/api.rs",
+                "API request path must degrade and recover predictably",
+            ),
+    )
+    .with_dependency_baseline(
+        RustProjectHarnessDependencyBaseline::new().require_git_package(
+            "rust-lang-project-harness",
+            "0.1.2",
+            "rev=abc123",
+        ),
+    );
+
+    let receipt = rust_project_harness_workspace_evidence_graph_receipt(
+        workspace_root,
+        workspace_policy.workspace_label(),
+        vec![
+            RustProjectHarnessWorkspaceEvidenceGraphMemberInput::new(
+                "api",
+                &api_root,
+                workspace_policy.member_crate("api"),
+            ),
+            RustProjectHarnessWorkspaceEvidenceGraphMemberInput::new(
+                "worker",
+                &worker_root,
+                workspace_policy.member_crate("worker"),
+            ),
+        ],
+    )
+    .expect("workspace evidence graph receipt");
+
+    assert_eq!(
+        receipt.schema_id,
+        RUST_PROJECT_HARNESS_WORKSPACE_EVIDENCE_GRAPH_RECEIPT_SCHEMA_ID
+    );
+    assert_eq!(receipt.workspace_label, "example-workspace");
+    assert_eq!(receipt.summary.member_crate_count, 2);
+    assert_eq!(receipt.summary.dependency_baseline_package_count, 2);
+    assert!(receipt.summary.active_verification_task_count >= 4);
+    assert!(receipt.summary.performance_task_count >= 2);
+    assert!(receipt.summary.stability_task_count >= 2);
+    assert!(receipt.summary.report_obligation_count >= 4);
+    assert_eq!(receipt.summary.security_task_count, 0);
+    assert_eq!(receipt.members.len(), 2);
+    assert!(
+        receipt
+            .nodes
+            .iter()
+            .any(|node| node.kind == RustProjectHarnessWorkspaceEvidenceGraphNodeKind::Workspace)
+    );
+    assert!(receipt.nodes.iter().any(|node| {
+        node.kind == RustProjectHarnessWorkspaceEvidenceGraphNodeKind::MemberCrate
+    }));
+    assert!(receipt.nodes.iter().any(|node| node.kind
+        == RustProjectHarnessWorkspaceEvidenceGraphNodeKind::DependencyBaselinePackage));
+    assert!(receipt.nodes.iter().any(
+        |node| node.kind == RustProjectHarnessWorkspaceEvidenceGraphNodeKind::ReportObligation
+    ));
+    assert!(receipt.edges.iter().any(|edge| edge.kind
+        == RustProjectHarnessWorkspaceEvidenceGraphEdgeKind::RequiresDependencyBaseline));
+    assert!(
+        receipt
+            .edges
+            .iter()
+            .any(|edge| edge.kind
+                == RustProjectHarnessWorkspaceEvidenceGraphEdgeKind::RequiresReport)
+    );
+    assert!(receipt.trust_loop_steps.iter().any(|step| {
+        step.key == "performance_stability_reports"
+            && step.status == RustProjectHarnessWorkspaceTrustLoopStepStatus::Required
+    }));
+    assert!(
+        receipt
+            .trust_loop_steps
+            .iter()
+            .any(|step| step.key == "security_review"
+                && step.status == RustProjectHarnessWorkspaceTrustLoopStepStatus::NotConfigured)
+    );
+    assert!(
+        receipt
+            .trust_loop_steps
+            .iter()
+            .any(|step| step.key == "build_gate"
+                && step.status == RustProjectHarnessWorkspaceTrustLoopStepStatus::Enforced)
+    );
+
+    let json =
+        render_rust_project_harness_workspace_evidence_graph_receipt_json(&receipt).expect("json");
+    let value: serde_json::Value = serde_json::from_str(&json).expect("valid json");
+    assert_eq!(
+        value["schema_id"],
+        RUST_PROJECT_HARNESS_WORKSPACE_EVIDENCE_GRAPH_RECEIPT_SCHEMA_ID
+    );
+    assert_eq!(value["summary"]["member_crate_count"], 2);
+    assert_eq!(
+        value["trust_loop_steps"]
+            .as_array()
+            .expect("trust loop array")
+            .len(),
+        6
+    );
 }
 
 #[test]

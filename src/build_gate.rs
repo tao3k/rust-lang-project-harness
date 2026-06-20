@@ -3,10 +3,21 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
+use serde::{Deserialize, Serialize};
+
 use crate::discovery::{discover_rust_files, rust_project_harness_scope};
 use crate::model::{RustHarnessConfig, RustHarnessReport};
 use crate::runner::run_rust_project_harness_with_config;
-use crate::verification::{RustVerificationTaskKind, plan_rust_project_verification_with_config};
+use crate::verification::{
+    RustVerificationPlan, RustVerificationTaskKind, plan_rust_project_verification_with_config,
+};
+
+/// Stable schema id for downstream policy receipt projections.
+pub const RUST_PROJECT_HARNESS_DOWNSTREAM_POLICY_RECEIPT_SCHEMA_ID: &str =
+    "rust-lang-project-harness.downstream-policy-receipt";
+
+/// Current downstream policy receipt schema version.
+pub const RUST_PROJECT_HARNESS_DOWNSTREAM_POLICY_RECEIPT_SCHEMA_VERSION: &str = "1";
 
 /// Downstream crate-owned policy consumed by a thin `build.rs`.
 ///
@@ -15,6 +26,7 @@ use crate::verification::{RustVerificationTaskKind, plan_rust_project_verificati
 /// [`assert_rust_project_harness_downstream_policy_from_env`]. This keeps
 /// `build.rs` small while still letting larger projects split policy into
 /// owners, verification, receipts, reports, and rule modules.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RustProjectHarnessDownstreamPolicy {
     gate_label: String,
     config: RustHarnessConfig,
@@ -132,6 +144,63 @@ impl RustProjectHarnessDependencyBaselinePackage {
     pub fn source_contains(&self) -> &str {
         &self.source_contains
     }
+}
+
+/// Agent-facing receipt for a downstream build-gate policy.
+///
+/// This is a non-panicking observation surface for CI, agents, and workspace
+/// policy modules that need to inspect the same semantic contract enforced by
+/// [`assert_rust_project_harness_downstream_policy`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RustProjectHarnessDownstreamPolicyReceipt {
+    /// Stable receipt schema id.
+    pub schema_id: String,
+    /// Stable receipt schema version.
+    pub schema_version: String,
+    /// Human-readable gate label configured by the downstream policy.
+    pub gate_label: String,
+    /// Dependency baseline requirements inherited by this member policy.
+    pub dependency_baseline_packages: Vec<RustProjectHarnessDependencyBaselinePackageReceipt>,
+    /// Number of active verification tasks in the generated plan.
+    pub active_verification_task_count: usize,
+    /// Number of active performance verification tasks.
+    pub performance_task_count: usize,
+    /// Number of active stability verification tasks.
+    pub stability_task_count: usize,
+    /// Whether the generated plan requires the performance report artifact.
+    pub performance_report_obligation: bool,
+    /// Whether the generated plan requires the stability report artifact.
+    pub stability_report_obligation: bool,
+    /// Report obligations emitted by the generated verification plan.
+    pub report_obligations: Vec<RustProjectHarnessReportObligationReceipt>,
+}
+
+/// Receipt projection of one dependency baseline package.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RustProjectHarnessDependencyBaselinePackageReceipt {
+    /// Package name.
+    pub name: String,
+    /// Exact package version expected in Cargo.lock.
+    pub version: String,
+    /// Required source fragment expected in Cargo.lock.
+    pub source_contains: String,
+}
+
+/// Receipt projection of one verification report obligation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RustProjectHarnessReportObligationReceipt {
+    /// Stable report contract key.
+    pub key: String,
+    /// Harness renderer or index builder that produces the report payload.
+    pub renderer: String,
+    /// Recommended artifact filename for embedding projects.
+    pub suggested_artifact_name: String,
+    /// Why this report should be persisted for later comparison.
+    pub reason: String,
+    /// Active task family keys covered by this report.
+    pub task_kinds: Vec<String>,
+    /// Active task fingerprints covered by this report.
+    pub task_fingerprints: Vec<String>,
 }
 
 /// Workspace-owned policy baseline shared by multiple downstream crates.
@@ -276,6 +345,75 @@ pub fn assert_rust_project_harness_downstream_policy(
         );
     }
     report
+}
+
+/// Build an agent-facing receipt for a downstream policy without asserting it.
+///
+/// The receipt uses the same verification planner as the build gate, but does
+/// not run cargo-check assertions or dependency-baseline lockfile checks. Use
+/// this when a downstream CI job or agent wants a typed observation surface
+/// before the panic-oriented `build.rs` gate fires.
+pub fn rust_project_harness_downstream_policy_receipt(
+    project_root: &Path,
+    policy: &RustProjectHarnessDownstreamPolicy,
+) -> Result<RustProjectHarnessDownstreamPolicyReceipt, String> {
+    let plan = plan_rust_project_verification_with_config(project_root, policy.config())?;
+    Ok(downstream_policy_receipt_from_plan(policy, &plan))
+}
+
+pub(crate) fn downstream_policy_receipt_from_plan(
+    policy: &RustProjectHarnessDownstreamPolicy,
+    plan: &RustVerificationPlan,
+) -> RustProjectHarnessDownstreamPolicyReceipt {
+    RustProjectHarnessDownstreamPolicyReceipt {
+        schema_id: RUST_PROJECT_HARNESS_DOWNSTREAM_POLICY_RECEIPT_SCHEMA_ID.to_string(),
+        schema_version: RUST_PROJECT_HARNESS_DOWNSTREAM_POLICY_RECEIPT_SCHEMA_VERSION.to_string(),
+        gate_label: policy.gate_label().to_string(),
+        dependency_baseline_packages: policy
+            .dependency_baseline()
+            .into_iter()
+            .flat_map(RustProjectHarnessDependencyBaseline::packages)
+            .map(
+                |package| RustProjectHarnessDependencyBaselinePackageReceipt {
+                    name: package.name().to_string(),
+                    version: package.version().to_string(),
+                    source_contains: package.source_contains().to_string(),
+                },
+            )
+            .collect(),
+        active_verification_task_count: plan.active_tasks().len(),
+        performance_task_count: active_task_count(plan, RustVerificationTaskKind::Performance),
+        stability_task_count: active_task_count(plan, RustVerificationTaskKind::Stability),
+        performance_report_obligation: has_report_obligation(plan, "performance_index_json"),
+        stability_report_obligation: has_report_obligation(plan, "stability_index_json"),
+        report_obligations: plan
+            .report_obligations
+            .iter()
+            .map(|obligation| RustProjectHarnessReportObligationReceipt {
+                key: obligation.key.clone(),
+                renderer: obligation.renderer.clone(),
+                suggested_artifact_name: obligation.suggested_artifact_name.clone(),
+                reason: obligation.reason.clone(),
+                task_kinds: obligation
+                    .task_kinds
+                    .iter()
+                    .map(|kind| verification_task_kind_key(*kind).to_string())
+                    .collect(),
+                task_fingerprints: obligation.task_fingerprints.clone(),
+            })
+            .collect(),
+    }
+}
+
+/// Render a downstream policy receipt as structured JSON for evidence files.
+///
+/// # Errors
+///
+/// Returns a serialization error if the receipt cannot be encoded as JSON.
+pub fn render_rust_project_harness_downstream_policy_receipt_json(
+    receipt: &RustProjectHarnessDownstreamPolicyReceipt,
+) -> Result<String, serde_json::Error> {
+    serde_json::to_string(receipt)
 }
 
 /// Assert an exact Cargo.lock dependency baseline from a downstream gate.
@@ -536,20 +674,44 @@ fn assert_active_verification_task(
     }
 }
 
+fn active_task_count(
+    plan: &crate::verification::RustVerificationPlan,
+    kind: RustVerificationTaskKind,
+) -> usize {
+    plan.tasks
+        .iter()
+        .filter(|task| task.kind == kind && task.is_active())
+        .count()
+}
+
 fn assert_verification_report_obligation(
     plan: &crate::verification::RustVerificationPlan,
     gate_label: &str,
     key: &str,
 ) {
-    if !plan
-        .report_obligations
-        .iter()
-        .any(|obligation| obligation.key == key)
-    {
+    if !has_report_obligation(plan, key) {
         panic!(
             "{gate_label} build gate must require a {key} report\n{}",
             downstream_build_gate_agent_guidance(gate_label)
         );
+    }
+}
+
+fn has_report_obligation(plan: &crate::verification::RustVerificationPlan, key: &str) -> bool {
+    plan.report_obligations
+        .iter()
+        .any(|obligation| obligation.key == key)
+}
+
+pub(crate) fn verification_task_kind_key(kind: RustVerificationTaskKind) -> &'static str {
+    match kind {
+        RustVerificationTaskKind::Stress => "stress",
+        RustVerificationTaskKind::Performance => "performance",
+        RustVerificationTaskKind::Stability => "stability",
+        RustVerificationTaskKind::Chaos => "chaos",
+        RustVerificationTaskKind::Security => "security",
+        RustVerificationTaskKind::Regression => "regression",
+        RustVerificationTaskKind::ResponsibilityReview => "responsibility_review",
     }
 }
 

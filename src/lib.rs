@@ -25,6 +25,7 @@ mod runner;
 mod search;
 mod self_policy;
 mod verification;
+mod workspace_evidence_graph;
 
 pub use harness_rules::{
     RUST_HARNESS_RULES_MD, render_rust_harness_rules_markdown, rust_harness_rules_markdown,
@@ -168,9 +169,13 @@ pub use agent_snapshot::{
     render_rust_project_harness_agent_snapshot_with_config,
 };
 pub use build_gate::{
+    RUST_PROJECT_HARNESS_DOWNSTREAM_POLICY_RECEIPT_SCHEMA_ID,
+    RUST_PROJECT_HARNESS_DOWNSTREAM_POLICY_RECEIPT_SCHEMA_VERSION,
     RustProjectHarnessDependencyBaseline, RustProjectHarnessDependencyBaselinePackage,
-    RustProjectHarnessDownstreamPolicy, RustProjectHarnessWorkspacePolicy,
-    assert_rust_project_harness_build_clean, assert_rust_project_harness_build_clean_from_env,
+    RustProjectHarnessDependencyBaselinePackageReceipt, RustProjectHarnessDownstreamPolicy,
+    RustProjectHarnessDownstreamPolicyReceipt, RustProjectHarnessReportObligationReceipt,
+    RustProjectHarnessWorkspacePolicy, assert_rust_project_harness_build_clean,
+    assert_rust_project_harness_build_clean_from_env,
     assert_rust_project_harness_build_clean_from_env_with_config,
     assert_rust_project_harness_build_clean_with_config,
     assert_rust_project_harness_cargo_check_clean,
@@ -181,6 +186,8 @@ pub use build_gate::{
     assert_rust_project_harness_downstream_policy_from_env,
     assert_rust_project_harness_verification_from_env_with_config,
     assert_rust_project_harness_verification_with_config,
+    render_rust_project_harness_downstream_policy_receipt_json,
+    rust_project_harness_downstream_policy_receipt,
 };
 #[cfg(feature = "cli")]
 pub use cli::run_cli_from_env;
@@ -287,4 +294,21 @@ pub use verification::{
     render_rust_verification_stability_picture, render_rust_verification_stability_picture_json,
     render_rust_verification_task_index_json, write_rust_verification_reports,
     write_rust_verification_reports_with_options,
+};
+pub use workspace_evidence_graph::{
+    RUST_PROJECT_HARNESS_WORKSPACE_EVIDENCE_GRAPH_RECEIPT_SCHEMA_ID,
+    RUST_PROJECT_HARNESS_WORKSPACE_EVIDENCE_GRAPH_RECEIPT_SCHEMA_VERSION,
+    RustProjectHarnessVerificationTaskKindCountReceipt,
+    RustProjectHarnessWorkspaceEvidenceGraphEdgeKind,
+    RustProjectHarnessWorkspaceEvidenceGraphEdgeReceipt,
+    RustProjectHarnessWorkspaceEvidenceGraphMemberInput,
+    RustProjectHarnessWorkspaceEvidenceGraphMemberReceipt,
+    RustProjectHarnessWorkspaceEvidenceGraphNodeKind,
+    RustProjectHarnessWorkspaceEvidenceGraphNodeReceipt,
+    RustProjectHarnessWorkspaceEvidenceGraphReceipt,
+    RustProjectHarnessWorkspaceEvidenceGraphSummaryReceipt,
+    RustProjectHarnessWorkspaceTrustLoopStepReceipt,
+    RustProjectHarnessWorkspaceTrustLoopStepStatus,
+    render_rust_project_harness_workspace_evidence_graph_receipt_json,
+    rust_project_harness_workspace_evidence_graph_receipt,
 };
