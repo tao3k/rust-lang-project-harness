@@ -19,6 +19,8 @@ pub(super) fn build_gate_findings(
     let build_script = root_build_script_module(project_root, modules);
     let build_script_exists = build_script.is_some() || build_script_path.exists();
     let has_build_gate_call = build_script.is_some_and(module_contains_build_gate_call);
+    let has_direct_build_gate_call =
+        build_script.is_some_and(module_contains_direct_build_gate_call);
     let harness_enabled = cargo_manifest.references_harness || has_build_gate_call;
 
     if !harness_enabled || project_has_complete_build_gate(project_root, cargo_manifest, modules) {
@@ -35,7 +37,7 @@ pub(super) fn build_gate_findings(
             ),
             file_location(project_root.join("Cargo.toml")),
             None,
-            "add rust-lang-project-harness under [build-dependencies] and add a thin root build.rs that calls rust_lang_project_harness::assert_rust_project_harness_downstream_policy_from_env(...)",
+            "add rust-lang-project-harness under [build-dependencies] with a thin root build.rs gate, or call a workspace-owned harness wrapper from root build.rs",
         )];
     }
 
@@ -48,7 +50,7 @@ pub(super) fn build_gate_findings(
             ),
             file_location(project_root.join("Cargo.toml")),
             None,
-            "add a thin root build.rs that calls rust_lang_project_harness::assert_rust_project_harness_downstream_policy_from_env(...)",
+            "add a thin root build.rs that calls rust_lang_project_harness::assert_rust_project_harness_downstream_policy_from_env(...) or a workspace-owned harness wrapper",
         )];
     }
 
@@ -61,11 +63,11 @@ pub(super) fn build_gate_findings(
             ),
             file_location(&build_script_path),
             None,
-            "add the harness to [build-dependencies] and call rust_lang_project_harness::assert_rust_project_harness_downstream_policy_from_env(...) from root build.rs",
+            "call rust_lang_project_harness::assert_rust_project_harness_downstream_policy_from_env(...) or a workspace-owned harness wrapper from root build.rs",
         )];
     }
 
-    if has_build_gate_call && !cargo_manifest.references_harness_build_dependency {
+    if has_direct_build_gate_call && !cargo_manifest.references_harness_build_dependency {
         return vec![RustHarnessFinding::from_rule(
             rule,
             format!(
@@ -86,9 +88,11 @@ pub(super) fn project_has_complete_build_gate(
     cargo_manifest: &CargoManifestFacts,
     modules: &[ParsedRustModule],
 ) -> bool {
-    cargo_manifest.references_harness_build_dependency
-        && root_build_script_module(project_root, modules)
-            .is_some_and(module_contains_build_gate_call)
+    root_build_script_module(project_root, modules).is_some_and(|module| {
+        module_contains_workspace_build_gate_wrapper_call(module)
+            || (cargo_manifest.references_harness_build_dependency
+                && module_contains_direct_build_gate_call(module))
+    })
 }
 
 pub(super) fn root_build_script_module<'a>(
@@ -102,9 +106,29 @@ pub(super) fn root_build_script_module<'a>(
 }
 
 pub(super) fn module_contains_build_gate_call(module: &ParsedRustModule) -> bool {
+    module_contains_direct_build_gate_call(module)
+        || module_contains_workspace_build_gate_wrapper_call(module)
+}
+
+fn module_contains_direct_build_gate_call(module: &ParsedRustModule) -> bool {
     module
         .syntax_facts
         .contains_function_call_named(BUILD_GATE_FUNCTIONS)
+}
+
+fn module_contains_workspace_build_gate_wrapper_call(module: &ParsedRustModule) -> bool {
+    module
+        .syntax_facts
+        .function_calls
+        .iter()
+        .any(|invocation| is_workspace_build_gate_wrapper_function(&invocation.terminal_name))
+}
+
+fn is_workspace_build_gate_wrapper_function(function_name: &str) -> bool {
+    function_name.starts_with("assert_")
+        && function_name.contains("harness")
+        && (function_name.contains("gate") || function_name.contains("policy"))
+        && function_name.contains("_from_env")
 }
 
 pub(super) fn module_default_build_gate_call_lines(
@@ -148,3 +172,28 @@ const DEFAULT_BUILD_GATE_FUNCTIONS: &[&str] = &[
     "assert_rust_project_harness_cargo_check_clean",
     "assert_rust_project_harness_cargo_check_clean_from_env",
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::is_workspace_build_gate_wrapper_function;
+
+    #[test]
+    fn workspace_harness_wrapper_names_mount_build_gate() {
+        assert!(is_workspace_build_gate_wrapper_function(
+            "assert_member_harness_build_gate_from_env"
+        ));
+        assert!(is_workspace_build_gate_wrapper_function(
+            "assert_workspace_harness_policy_from_env_with_configure"
+        ));
+    }
+
+    #[test]
+    fn ordinary_assertions_do_not_mount_build_gate() {
+        assert!(!is_workspace_build_gate_wrapper_function(
+            "assert_member_build_gate_from_env"
+        ));
+        assert!(!is_workspace_build_gate_wrapper_function(
+            "assert_project_ready"
+        ));
+    }
+}

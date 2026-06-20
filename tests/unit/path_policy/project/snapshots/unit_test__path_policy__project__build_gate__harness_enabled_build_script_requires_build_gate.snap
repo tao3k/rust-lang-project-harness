@@ -12,6 +12,6 @@ Contract: Source cargo-test harness gates should move parser-native project poli
 
 [RUST-PROJ-R012] Warning: Build-time harness gate is incomplete
 @ $TEMP/build.rs:1:1
-fix: add the harness to [build-dependencies] and call rust_lang_project_harness::assert_rust_project_harness_downstream_policy_from_env(...) from root build.rs
+fix: call rust_lang_project_harness::assert_rust_project_harness_downstream_policy_from_env(...) or a workspace-owned harness wrapper from root build.rs
 Help: build.rs exists in a harness-enabled project but does not mount the build-time harness gate.
 Contract: Harness-enabled packages should mount the build-time harness gate so cargo check runs parser-native project policy before the test/evaluation layer.
