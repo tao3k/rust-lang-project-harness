@@ -39,6 +39,9 @@ pub(crate) const RUST_PROJ_R016: &str = "RUST-PROJ-R016";
 pub(crate) const RUST_PROJ_R017: &str = "RUST-PROJ-R017";
 pub(crate) const RUST_PROJ_R018: &str = "RUST-PROJ-R018";
 pub(crate) const RUST_PROJ_R019: &str = "RUST-PROJ-R019";
+pub(crate) const RUST_PROJ_R020: &str = "RUST-PROJ-R020";
+pub(crate) const RUST_PROJ_R021: &str = "RUST-PROJ-R021";
+pub(crate) const RUST_PROJ_R022: &str = "RUST-PROJ-R022";
 
 pub(crate) const MAX_UNIT_TEST_EFFECTIVE_LINES: usize = 1000;
 pub(crate) const MIN_UNIT_TEST_FUNCTIONS: usize = 8;

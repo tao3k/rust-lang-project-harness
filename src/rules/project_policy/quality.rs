@@ -7,7 +7,9 @@ use crate::parser::{ParsedRustModule, file_location, path_line_location, source_
 use crate::{RustHarnessConfig, RustHarnessFinding, RustHarnessRule};
 
 use super::support::display_project_path;
-use super::{RUST_PROJ_R017, RUST_PROJ_R018, RUST_PROJ_R019};
+use super::{
+    RUST_PROJ_R017, RUST_PROJ_R018, RUST_PROJ_R019, RUST_PROJ_R020, RUST_PROJ_R021, RUST_PROJ_R022,
+};
 
 pub(super) fn quality_findings(
     project_root: &Path,
@@ -27,6 +29,21 @@ pub(super) fn quality_findings(
         rules,
     ));
     findings.extend(redundant_workspace_wrapper_findings(
+        project_root,
+        modules,
+        rules,
+    ));
+    findings.extend(silent_evidence_default_findings(
+        project_root,
+        modules,
+        rules,
+    ));
+    findings.extend(source_location_sentinel_findings(
+        project_root,
+        modules,
+        rules,
+    ));
+    findings.extend(candidate_loop_telemetry_findings(
         project_root,
         modules,
         rules,
@@ -182,6 +199,178 @@ fn item_range_contains_harness_alias_target(
         .skip(start_line.saturating_sub(1))
         .take(end_line.saturating_sub(start_line).saturating_add(1))
         .any(|line| line.contains("assert_member_harness_build_gate_from_env"))
+}
+
+fn silent_evidence_default_findings(
+    project_root: &Path,
+    modules: &[ParsedRustModule],
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let rule = &rules[RUST_PROJ_R020];
+    modules
+        .iter()
+        .filter(|module| !is_test_module(module))
+        .filter(|module| is_quality_sensitive_module(module))
+        .filter_map(|module| {
+            let line = module
+                .source
+                .lines()
+                .position(line_has_silent_evidence_default)?;
+            let line = line + 1;
+            Some(RustHarnessFinding::from_rule(
+                rule,
+                format!(
+                    "{} silently defaults missing evidence-bearing data.",
+                    display_project_path(project_root, &module.report.path)
+                ),
+                path_line_location(&module.report.path, line),
+                source_line(&module.source, line),
+                "return Option/Result, skip with typed telemetry, or provide an explicit non-empty fallback reason",
+            ))
+        })
+        .collect()
+}
+
+fn line_has_silent_evidence_default(line: &str) -> bool {
+    line.contains("unwrap_or_default")
+        && [
+            "anchor",
+            "candidate",
+            "canonical",
+            "entity",
+            "evidence",
+            "identity",
+            "lineage",
+            "path",
+            "policy",
+            "semantic",
+        ]
+        .into_iter()
+        .any(|term| line.to_ascii_lowercase().contains(term))
+}
+
+fn source_location_sentinel_findings(
+    project_root: &Path,
+    modules: &[ParsedRustModule],
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let rule = &rules[RUST_PROJ_R021];
+    modules
+        .iter()
+        .filter(|module| !is_test_module(module))
+        .filter(|module| is_quality_sensitive_module(module))
+        .filter_map(|module| {
+            let line = module
+                .source
+                .lines()
+                .position(line_has_source_location_sentinel)?;
+            let line = line + 1;
+            Some(RustHarnessFinding::from_rule(
+                rule,
+                format!(
+                    "{} uses a sentinel source location value.",
+                    display_project_path(project_root, &module.report.path)
+                ),
+                path_line_location(&module.report.path, line),
+                source_line(&module.source, line),
+                "propagate a decode error or drop the candidate with explicit telemetry instead of inventing a source location",
+            ))
+        })
+        .collect()
+}
+
+fn line_has_source_location_sentinel(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    if trimmed.starts_with('"') || trimmed.contains("line.contains(") {
+        return false;
+    }
+    line.contains("usize::MAX")
+        && ["line", "column", "range", "location"]
+            .into_iter()
+            .any(|term| line.to_ascii_lowercase().contains(term))
+}
+
+fn candidate_loop_telemetry_findings(
+    project_root: &Path,
+    modules: &[ParsedRustModule],
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let rule = &rules[RUST_PROJ_R022];
+    modules
+        .iter()
+        .filter(|module| !is_test_module(module))
+        .filter(|module| is_candidate_lookup_module(module))
+        .filter(|module| module.source.contains("observe_batch"))
+        .filter(|module| module.source.contains("observe_match"))
+        .filter(|module| !module_records_candidate_rejection(module))
+        .filter_map(|module| {
+            let line = first_score_continue_line(&module.source)?;
+            Some(RustHarnessFinding::from_rule(
+                rule,
+                format!(
+                    "{} skips candidate rows without rejection telemetry.",
+                    display_project_path(project_root, &module.report.path)
+                ),
+                path_line_location(&module.report.path, line),
+                source_line(&module.source, line),
+                "record skipped/filtered candidate counts or route the loop through a shared telemetry-aware candidate collector",
+            ))
+        })
+        .collect()
+}
+
+fn module_records_candidate_rejection(module: &ParsedRustModule) -> bool {
+    [
+        "observe_skip",
+        "observe_reject",
+        "observe_filtered",
+        "observe_miss",
+    ]
+    .into_iter()
+    .any(|needle| module.source.contains(needle))
+}
+
+fn first_score_continue_line(source: &str) -> Option<usize> {
+    let lines = source.lines().collect::<Vec<_>>();
+    lines.iter().enumerate().find_map(|(index, line)| {
+        let lower = line.to_ascii_lowercase();
+        if !(lower.contains("score <= 0.0") || lower.contains("score == 0.0")) {
+            return None;
+        }
+        let has_continue = lines
+            .iter()
+            .skip(index)
+            .take(4)
+            .any(|candidate| candidate.contains("continue;"));
+        has_continue.then_some(index + 1)
+    })
+}
+
+fn is_candidate_lookup_module(module: &ParsedRustModule) -> bool {
+    let path = module.report.path.to_string_lossy().to_ascii_lowercase();
+    path.contains("candidate") || (path.contains("query") && path.contains("lookup"))
+}
+
+fn is_quality_sensitive_module(module: &ParsedRustModule) -> bool {
+    let path = module.report.path.to_string_lossy().to_ascii_lowercase();
+    [
+        "candidate",
+        "dedup",
+        "evidence",
+        "graph",
+        "lookup",
+        "orchestrate",
+        "policy",
+        "query",
+        "search",
+    ]
+    .into_iter()
+    .any(|segment| path.contains(segment))
+}
+
+fn is_test_module(module: &ParsedRustModule) -> bool {
+    let path = module.report.path.to_string_lossy();
+    path.contains("/tests/") || path.contains("\\tests\\")
 }
 
 fn build_script_or_manifest(project_root: &Path) -> std::path::PathBuf {

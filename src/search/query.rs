@@ -516,7 +516,8 @@ impl ApiDocsQuery {
                 (crate_path, Some(version.to_string()))
             });
         let crate_name = has_crate
-            .then(|| crate_path.split('/').next().unwrap_or_default())
+            .then(|| crate_path.split('/').next())
+            .flatten()
             .filter(|crate_name| !crate_name.is_empty())
             .map(ToOwned::to_owned);
         Self {

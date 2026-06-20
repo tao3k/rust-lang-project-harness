@@ -9,7 +9,7 @@ use super::{
     PACK_ID, RUST_PROJ_R001, RUST_PROJ_R002, RUST_PROJ_R003, RUST_PROJ_R004, RUST_PROJ_R005,
     RUST_PROJ_R006, RUST_PROJ_R007, RUST_PROJ_R008, RUST_PROJ_R009, RUST_PROJ_R010, RUST_PROJ_R011,
     RUST_PROJ_R012, RUST_PROJ_R013, RUST_PROJ_R014, RUST_PROJ_R015, RUST_PROJ_R016, RUST_PROJ_R017,
-    RUST_PROJ_R018, RUST_PROJ_R019,
+    RUST_PROJ_R018, RUST_PROJ_R019, RUST_PROJ_R020, RUST_PROJ_R021, RUST_PROJ_R022,
 };
 
 pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
@@ -164,6 +164,30 @@ pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             RustDiagnosticSeverity::Warning,
             "Workspace member build-gate wrapper alias is redundant",
             "Expose one canonical workspace member build-gate entrypoint; duplicate public aliases need deprecation metadata and a bounded migration plan.",
+            labels("project-policy"),
+        ),
+        RustHarnessRule::new(
+            RUST_PROJ_R020,
+            PACK_ID,
+            RustDiagnosticSeverity::Warning,
+            "Evidence pipeline silently defaults missing data",
+            "Search, graph, policy, and evidence code must not turn missing lineage, identity, or candidate data into a default value without a typed reason or diagnostic.",
+            labels("project-policy"),
+        ),
+        RustHarnessRule::new(
+            RUST_PROJ_R021,
+            PACK_ID,
+            RustDiagnosticSeverity::Warning,
+            "Source location conversion uses sentinel",
+            "Line, column, range, and source-location conversions must not use sentinel values such as usize::MAX; reject the candidate or report a decode error.",
+            labels("project-policy"),
+        ),
+        RustHarnessRule::new(
+            RUST_PROJ_R022,
+            PACK_ID,
+            RustDiagnosticSeverity::Warning,
+            "Candidate loop drops rows without telemetry",
+            "Streaming candidate loops that skip scored rows should record filtered or rejected rows so query quality and recall gaps are observable.",
             labels("project-policy"),
         ),
     ]

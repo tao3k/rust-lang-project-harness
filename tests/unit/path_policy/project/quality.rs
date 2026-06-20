@@ -85,8 +85,108 @@ fn redundant_workspace_member_build_gate_alias_is_flagged() {
     assert!(has_rule(&report, "RUST-PROJ-R019"), "{:?}", report.findings);
 }
 
+#[test]
+fn silent_evidence_default_is_flagged_in_search_graph_code() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_minimal_project(root, "silent-evidence-default");
+    write_sensitive_module(
+        root,
+        "pub(crate) fn semantic_path(anchor_id: &str) -> Vec<String> {\n    \
+         extract_lineage(anchor_id).unwrap_or_default()\n}\n\n\
+         fn extract_lineage(_: &str) -> Option<Vec<String>> { None }\n",
+    );
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    assert!(has_rule(&report, "RUST-PROJ-R020"), "{:?}", report.findings);
+}
+
+#[test]
+fn source_location_sentinel_is_flagged_in_candidate_code() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_minimal_project(root, "source-location-sentinel");
+    write_sensitive_module(
+        root,
+        "pub(crate) fn decode_line(value: u64) -> Location {\n    \
+         Location { line: usize::try_from(value).unwrap_or(usize::MAX) }\n}\n\n\
+         pub(crate) struct Location { line: usize }\n",
+    );
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    assert!(has_rule(&report, "RUST-PROJ-R021"), "{:?}", report.findings);
+}
+
+#[test]
+fn candidate_loop_without_rejection_telemetry_is_flagged() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_minimal_project(root, "candidate-loop-telemetry");
+    write_sensitive_module(
+        root,
+        "pub(crate) fn collect_candidates(scores: &[f64], telemetry: &mut Telemetry) {\n    \
+         telemetry.observe_batch(scores.len());\n    \
+         for score in scores {\n        \
+         if *score <= 0.0 {\n            \
+         continue;\n        \
+         }\n        \
+         telemetry.observe_match();\n    \
+         }\n}\n\n\
+         pub(crate) struct Telemetry;\n\
+         impl Telemetry {\n    \
+         fn observe_batch(&mut self, _: usize) {}\n    \
+         fn observe_match(&mut self) {}\n\
+         }\n",
+    );
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    assert!(has_rule(&report, "RUST-PROJ-R022"), "{:?}", report.findings);
+}
+
+#[test]
+fn candidate_loop_with_rejection_telemetry_is_allowed() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_minimal_project(root, "candidate-loop-with-telemetry");
+    write_sensitive_module(
+        root,
+        "pub(crate) fn collect_candidates(scores: &[f64], telemetry: &mut Telemetry) {\n    \
+         telemetry.observe_batch(scores.len());\n    \
+         for score in scores {\n        \
+         if *score <= 0.0 {\n            \
+         telemetry.observe_filtered();\n            \
+         continue;\n        \
+         }\n        \
+         telemetry.observe_match();\n    \
+         }\n}\n\n\
+         pub(crate) struct Telemetry;\n\
+         impl Telemetry {\n    \
+         fn observe_batch(&mut self, _: usize) {}\n    \
+         fn observe_match(&mut self) {}\n    \
+         fn observe_filtered(&mut self) {}\n\
+         }\n",
+    );
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    assert!(
+        !has_rule(&report, "RUST-PROJ-R022"),
+        "{:?}",
+        report.findings
+    );
+}
+
 fn write_minimal_project(root: &Path, name: &str) {
     write_manifest(root, name);
     fs::create_dir(root.join("src")).expect("create src");
-    fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod search;\n").expect("write lib");
+}
+
+fn write_sensitive_module(root: &Path, source: &str) {
+    fs::create_dir_all(root.join("src/search")).expect("create search dir");
+    fs::write(root.join("src/search/mod.rs"), "mod candidates;\n").expect("write search mod");
+    fs::write(root.join("src/search/candidates.rs"), source).expect("write candidates");
 }

@@ -56,3 +56,6 @@
 - RUST-PROJ-R017: Requires advice allowance explanations to state scope, owner, finding category, current safety, and cleanup trigger.
 - RUST-PROJ-R018: Rejects fake Cargo package identity fallbacks in policy and evidence code.
 - RUST-PROJ-R019: Rejects redundant public workspace member build-gate wrapper aliases.
+- RUST-PROJ-R020: Rejects silent default values for missing evidence-bearing data.
+- RUST-PROJ-R021: Rejects sentinel source locations in line, column, and range conversion.
+- RUST-PROJ-R022: Advises candidate loops to record skipped or filtered row telemetry.
