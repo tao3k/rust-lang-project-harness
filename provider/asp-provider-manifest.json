@@ -11,10 +11,27 @@
   "binary": "rs-harness",
   "execution": "external-process",
   "source": {
-    "defaultExtensions": [".rs"],
-    "defaultConfigFiles": ["Cargo.toml"],
-    "defaultSourceRoots": ["src", "crates", "tests"],
-    "defaultIgnoredPathPrefixes": ["target"]
+    "defaultExtensions": [
+      ".rs"
+    ],
+    "defaultConfigFiles": [
+      "Cargo.toml"
+    ],
+    "defaultSourceRoots": [
+      "src",
+      "crates",
+      "tests"
+    ],
+    "defaultIgnoredPathPrefixes": [
+      "target"
+    ],
+    "defaultProjectMarkers": [
+      "Cargo.toml"
+    ],
+    "defaultDependencyMarkers": [
+      "Cargo.toml",
+      "Cargo.lock"
+    ]
   },
   "searchCapabilities": {
     "semanticFacts": true
@@ -27,26 +44,87 @@
   },
   "routes": {
     "prime": {
-      "argv": ["rs-harness", "search", "prime", "--workspace", "{projectRoot}", "--view", "seeds"]
+      "argv": [
+        "rs-harness",
+        "search",
+        "prime",
+        "--workspace",
+        "{projectRoot}",
+        "--view",
+        "seeds"
+      ]
     },
     "owner": {
-      "argv": ["rs-harness", "search", "owner", "{path}", "--workspace", "{projectRoot}", "--view", "seeds"]
+      "argv": [
+        "rs-harness",
+        "search",
+        "owner",
+        "{path}",
+        "--workspace",
+        "{projectRoot}",
+        "--view",
+        "seeds"
+      ]
     },
     "fzf": {
-      "argv": ["rs-harness", "search", "fzf", "{query}", "owner", "tests", "--workspace", "{projectRoot}", "--view", "seeds"]
+      "argv": [
+        "rs-harness",
+        "search",
+        "fzf",
+        "{query}",
+        "owner",
+        "tests",
+        "--workspace",
+        "{projectRoot}",
+        "--view",
+        "seeds"
+      ]
     },
     "query": {
-      "argv": ["rs-harness", "query", "--from-hook", "direct-source-read", "--selector", "{selector}", "{termArgs}", "--surface", "owners,tests", "--workspace", "{projectRoot}", "--view", "seeds"]
+      "argv": [
+        "rs-harness",
+        "query",
+        "--from-hook",
+        "direct-source-read",
+        "--selector",
+        "{selector}",
+        "{termArgs}",
+        "--surface",
+        "owners,tests",
+        "--workspace",
+        "{projectRoot}",
+        "--view",
+        "seeds"
+      ]
     },
     "ingest": {
-      "argv": ["rs-harness", "search", "ingest", "items", "tests", "--workspace", "{projectRoot}", "--view", "seeds"],
+      "argv": [
+        "rs-harness",
+        "search",
+        "ingest",
+        "items",
+        "tests",
+        "--workspace",
+        "{projectRoot}",
+        "--view",
+        "seeds"
+      ],
       "stdinMode": "pipe-candidates"
     },
     "checkChanged": {
-      "argv": ["rs-harness", "check", "--changed", "{projectRoot}"]
+      "argv": [
+        "rs-harness",
+        "check",
+        "--changed",
+        "{projectRoot}"
+      ]
     },
     "guide": {
-      "argv": ["rs-harness", "guide", "{projectRoot}"]
+      "argv": [
+        "rs-harness",
+        "guide",
+        "{projectRoot}"
+      ]
     }
   }
 }
