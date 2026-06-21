@@ -454,151 +454,22 @@ fn dependency_api_usage(
     dependency_index_hits(context, &dependency_owner_paths, api)
 }
 
-#[derive(Debug)]
-struct DependencyCapabilityCatalog {
-    dependency: &'static str,
-    boundary_capabilities: &'static [DependencyBoundaryCapability],
-}
-
-#[derive(Debug)]
-struct DependencyBoundaryCapability {
-    name: &'static str,
-    symbols: &'static [&'static str],
-}
-
 pub(super) fn dependency_capability_guidance(
-    context: &PackageSearchContext,
+    _context: &PackageSearchContext,
     dependency: &str,
     dependency_usage: &[OwnerHit],
 ) -> Option<String> {
     if dependency_usage.is_empty() {
         return None;
     }
-    let catalog = dependency_capability_catalog(dependency)?;
-    let dependency_owner_paths = dependency_usage
-        .iter()
-        .map(|hit| hit.path.clone())
-        .collect::<BTreeSet<_>>();
-    let (present, missing): (Vec<_>, Vec<_>) =
-        catalog
-            .boundary_capabilities
-            .iter()
-            .partition(|capability| {
-                dependency_boundary_capability_present(context, &dependency_owner_paths, capability)
-            });
-    let present = present
-        .into_iter()
-        .map(|capability| capability.name)
-        .collect::<Vec<_>>();
-    let missing = missing
-        .into_iter()
-        .map(|capability| capability.name)
-        .collect::<Vec<_>>();
-    let usage_level = if present.is_empty() {
-        "basic_usage"
-    } else {
-        "capability_boundary"
-    };
-    let engineering_boundary = if present.is_empty() {
-        "missing"
-    } else {
-        "present"
-    };
     Some(format!(
-        "|dependency-guidance dep={} usageLevel={} engineeringBoundary={} ownerUsage={} boundaryCapabilities={} missingBoundary={} next=deps:{}::{}",
-        catalog.dependency,
-        usage_level,
-        engineering_boundary,
+        "|dependency-topology dep={} usageLevel=local_usage topology=needs-index ownerUsage={} source=manifest,usage-index next=dependency-topology:{},crate-source:{},docs-use:{}",
+        dependency,
         dependency_usage.len(),
-        empty_dash_strs(&present),
-        empty_dash_strs(&missing),
-        catalog.dependency,
-        missing.first().copied().unwrap_or("capability-boundary")
+        dependency,
+        dependency,
+        dependency
     ))
-}
-
-fn dependency_boundary_capability_present(
-    context: &PackageSearchContext,
-    dependency_owner_paths: &BTreeSet<PathBuf>,
-    capability: &DependencyBoundaryCapability,
-) -> bool {
-    capability
-        .symbols
-        .iter()
-        .any(|symbol| !dependency_index_hits(context, dependency_owner_paths, symbol).is_empty())
-}
-
-fn empty_dash_strs(values: &[&str]) -> String {
-    if values.is_empty() {
-        "-".to_string()
-    } else {
-        values.join(",")
-    }
-}
-
-fn dependency_capability_catalog(dependency: &str) -> Option<DependencyCapabilityCatalog> {
-    match dependency.replace('_', "-").as_str() {
-        "tokio" => Some(DependencyCapabilityCatalog {
-            dependency: "tokio",
-            boundary_capabilities: &[
-                DependencyBoundaryCapability {
-                    name: "timeout",
-                    symbols: &["timeout"],
-                },
-                DependencyBoundaryCapability {
-                    name: "cancellation",
-                    symbols: &["select", "abort", "AbortHandle"],
-                },
-                DependencyBoundaryCapability {
-                    name: "process-lifecycle",
-                    symbols: &["kill_on_drop", "start_kill", "wait_with_output", "Child"],
-                },
-                DependencyBoundaryCapability {
-                    name: "stream-drain",
-                    symbols: &["read_to_end", "read_to_string", "AsyncReadExt"],
-                },
-            ],
-        }),
-        "figment" => Some(DependencyCapabilityCatalog {
-            dependency: "figment",
-            boundary_capabilities: &[
-                DependencyBoundaryCapability {
-                    name: "layered-config",
-                    symbols: &["merge", "join", "Serialized"],
-                },
-                DependencyBoundaryCapability {
-                    name: "env-override",
-                    symbols: &["Env", "prefixed", "split"],
-                },
-                DependencyBoundaryCapability {
-                    name: "profile",
-                    symbols: &["Profile", "select"],
-                },
-                DependencyBoundaryCapability {
-                    name: "source-diagnostics",
-                    symbols: &["metadata", "Metadata"],
-                },
-            ],
-        }),
-        "tracing" => Some(DependencyCapabilityCatalog {
-            dependency: "tracing",
-            boundary_capabilities: &[
-                DependencyBoundaryCapability {
-                    name: "span-boundary",
-                    symbols: &["info_span", "debug_span", "span", "Span"],
-                },
-                DependencyBoundaryCapability {
-                    name: "instrumentation",
-                    symbols: &["instrument", "Instrument"],
-                },
-                DependencyBoundaryCapability {
-                    name: "structured-events",
-                    symbols: &["event", "Event"],
-                },
-            ],
-        }),
-        _ => None,
-    }
 }
 
 fn dependency_subpath_usage(

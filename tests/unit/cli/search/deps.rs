@@ -35,21 +35,19 @@ fn cli_search_deps_reports_basic_dependency_usage_without_boundary() {
     let output = run_search(root, &["deps", "tokio"]);
 
     assert!(
-        output.contains(
-            "|dependency-guidance dep=tokio usageLevel=basic_usage engineeringBoundary=missing ownerUsage=1"
-        ),
+        output.contains("|dependency-topology dep=tokio usageLevel=local_usage topology=needs-index ownerUsage=1"),
         "{output}"
     );
     assert!(
         output.contains(
-            "boundaryCapabilities=- missingBoundary=timeout,cancellation,process-lifecycle,stream-drain next=deps:tokio::timeout"
+            "source=manifest,usage-index next=dependency-topology:tokio,crate-source:tokio,docs-use:tokio"
         ),
         "{output}"
     );
 }
 
 #[test]
-fn cli_search_deps_reports_dependency_capability_boundary_usage() {
+fn cli_search_deps_reports_dependency_topology_next_for_api_usage() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     fs::write(
@@ -72,14 +70,12 @@ fn cli_search_deps_reports_dependency_capability_boundary_usage() {
     let output = run_search(root, &["deps", "tokio"]);
 
     assert!(
-        output.contains(
-            "|dependency-guidance dep=tokio usageLevel=capability_boundary engineeringBoundary=present ownerUsage=1"
-        ),
+        output.contains("|dependency-topology dep=tokio usageLevel=local_usage topology=needs-index ownerUsage=1"),
         "{output}"
     );
     assert!(
         output.contains(
-            "boundaryCapabilities=timeout missingBoundary=cancellation,process-lifecycle,stream-drain next=deps:tokio::cancellation"
+            "source=manifest,usage-index next=dependency-topology:tokio,crate-source:tokio,docs-use:tokio"
         ),
         "{output}"
     );
