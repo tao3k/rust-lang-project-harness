@@ -26,6 +26,7 @@ const PACKAGE_MANAGER: &str = "cargo";
 const MANIFEST_FILE: &str = "Cargo.toml";
 const LOCKFILE_FILE: &str = "Cargo.lock";
 
+/// Renders Cargo dependency topology metadata for cache and freshness checks.
 pub fn render_rust_project_harness_dependency_topology_metadata_json(
     project_root: &Path,
 ) -> Result<String, String> {
@@ -38,6 +39,7 @@ pub fn render_rust_project_harness_dependency_topology_metadata_json(
         .map_err(|error| format!("failed to render dependency topology metadata JSON: {error}"))
 }
 
+/// Renders the Cargo dependency topology packet for Rust search facts.
 pub fn render_rust_project_harness_dependency_topology_json(
     project_root: &Path,
 ) -> Result<String, String> {
@@ -390,7 +392,13 @@ fn combined_sources_hash(sources: &[SourceFile]) -> String {
 }
 
 fn file_sha256(path: &Path) -> String {
-    let content = fs::read(path).unwrap_or_default();
+    let content = fs::read(path).unwrap_or_else(|error| {
+        format!(
+            "missing-dependency-topology-source:{}:{error}",
+            path.display()
+        )
+        .into_bytes()
+    });
     let mut hasher = Sha256::new();
     hasher.update(content);
     sha256_string(hasher.finalize())

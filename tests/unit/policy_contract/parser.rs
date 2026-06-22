@@ -86,16 +86,25 @@ fn cargo_manifest_parser_lives_under_parser_module() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let parser_source = fs::read_to_string(root.join("src/parser/cargo_manifest.rs"))
         .expect("read cargo manifest parser");
+    let dependency_facts_source =
+        fs::read_to_string(root.join("src/parser/cargo_dependency_facts.rs"))
+            .expect("read cargo dependency facts parser");
     assert!(parser_source.contains("use cargo_toml::"));
     assert!(parser_source.contains("Manifest::from_path"));
-    assert!(parser_source.contains("parse_cargo_dependency_facts"));
+    assert!(dependency_facts_source.contains("parse_cargo_dependency_facts"));
+    assert!(dependency_facts_source.contains("Manifest::from_path"));
     assert!(!parser_source.contains("Command::new"));
     assert!(!parser_source.contains("cargo metadata"));
+    assert!(!dependency_facts_source.contains("Command::new"));
+    assert!(!dependency_facts_source.contains("cargo metadata"));
 
     let mut offenders = Vec::new();
     for path in rust_files_under(&root.join("src")) {
         let relative = relative_path(&root, &path);
-        if relative == "src/parser/cargo_manifest.rs" {
+        if matches!(
+            relative.as_str(),
+            "src/parser/cargo_manifest.rs" | "src/parser/cargo_dependency_facts.rs"
+        ) {
             continue;
         }
         let source = fs::read_to_string(&path).expect("read Rust source");
@@ -106,7 +115,7 @@ fn cargo_manifest_parser_lives_under_parser_module() {
 
     assert!(
         offenders.is_empty(),
-        "Cargo manifest dependency parsing must live in src/parser/cargo_manifest.rs: {offenders:?}"
+        "Cargo manifest parsing must stay under src/parser cargo owners: {offenders:?}"
     );
 }
 

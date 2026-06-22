@@ -1,5 +1,6 @@
 //! Internal parser substrate for Rust source and Cargo project facts.
 
+mod cargo_dependency_facts;
 mod cargo_manifest;
 mod cargo_test_targets;
 mod location;
@@ -14,16 +15,16 @@ mod source_path;
 pub(crate) mod syntax_abi;
 mod use_tree;
 
+pub(crate) use cargo_dependency_facts::{
+    CargoDependencyFacts, CargoDependencyKind, parse_cargo_dependency_facts,
+};
 #[cfg(feature = "cli")]
 pub(crate) use cargo_manifest::cargo_project_root_for_path;
 #[cfg(any(feature = "search", test))]
 pub(crate) use cargo_manifest::parse_cargo_cfg_facts;
 #[cfg(feature = "cli")]
 pub(crate) use cargo_manifest::parse_cargo_workspace_member_roots;
-pub(crate) use cargo_manifest::{
-    CargoBenchTargetFacts, CargoDependencyFacts, CargoDependencyKind, CargoManifestFacts,
-    parse_cargo_dependency_facts, parse_cargo_manifest,
-};
+pub(crate) use cargo_manifest::{CargoBenchTargetFacts, CargoManifestFacts, parse_cargo_manifest};
 pub(crate) use cargo_test_targets::parse_cargo_test_targets;
 pub(crate) use location::{file_location, path_line_location, source_line, span_location};
 pub(crate) use module_tree::RustModuleChildEdge;

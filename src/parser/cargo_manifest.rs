@@ -41,25 +41,6 @@ pub(crate) struct CargoBenchTargetFacts {
     pub(crate) required_features: Vec<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum CargoDependencyKind {
-    Normal,
-    Dev,
-    Build,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct CargoDependencyFacts {
-    pub(crate) dependency_key: String,
-    pub(crate) import_name: String,
-    pub(crate) package_name: String,
-    pub(crate) version_req: Option<String>,
-    pub(crate) kind: CargoDependencyKind,
-    pub(crate) target: Option<String>,
-    pub(crate) optional: bool,
-    pub(crate) features: Vec<String>,
-}
-
 #[cfg(any(feature = "search", test))]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct CargoCfgFacts {
@@ -348,16 +329,6 @@ fn manifest_example_targets(
         .collect()
 }
 
-pub(crate) fn parse_cargo_dependency_facts(project_root: &Path) -> Vec<CargoDependencyFacts> {
-    let Some(manifest) = read_manifest(project_root) else {
-        return Vec::new();
-    };
-    let mut dependencies = manifest_dependency_facts(project_root, &manifest);
-    dependencies.sort();
-    dependencies.dedup();
-    dependencies
-}
-
 #[cfg(any(feature = "search", test))]
 pub(crate) fn parse_cargo_cfg_facts(project_root: &Path) -> Vec<CargoCfgFacts> {
     let Some(manifest) = read_manifest(project_root) else {
@@ -518,52 +489,6 @@ fn manifest_references_harness_build_dependency(manifest: &Manifest) -> bool {
             .any(|target| dependency_table_references_harness(&target.build_dependencies))
 }
 
-fn manifest_dependency_facts(
-    project_root: &Path,
-    manifest: &Manifest,
-) -> Vec<CargoDependencyFacts> {
-    let mut dependencies = Vec::new();
-    dependencies.extend(dependency_table_facts(
-        project_root,
-        CargoDependencyKind::Normal,
-        None,
-        &manifest.dependencies,
-    ));
-    dependencies.extend(dependency_table_facts(
-        project_root,
-        CargoDependencyKind::Dev,
-        None,
-        &manifest.dev_dependencies,
-    ));
-    dependencies.extend(dependency_table_facts(
-        project_root,
-        CargoDependencyKind::Build,
-        None,
-        &manifest.build_dependencies,
-    ));
-    for (target_name, target) in &manifest.target {
-        dependencies.extend(dependency_table_facts(
-            project_root,
-            CargoDependencyKind::Normal,
-            Some(target_name),
-            &target.dependencies,
-        ));
-        dependencies.extend(dependency_table_facts(
-            project_root,
-            CargoDependencyKind::Dev,
-            Some(target_name),
-            &target.dev_dependencies,
-        ));
-        dependencies.extend(dependency_table_facts(
-            project_root,
-            CargoDependencyKind::Build,
-            Some(target_name),
-            &target.build_dependencies,
-        ));
-    }
-    dependencies
-}
-
 #[cfg(any(feature = "search", test))]
 fn manifest_cfg_facts(manifest: &Manifest) -> Vec<CargoCfgFacts> {
     let mut cfgs = Vec::new();
@@ -713,61 +638,6 @@ fn push_cfg_label(labels: &mut BTreeSet<String>, token: &mut String) {
     } else {
         token.clear();
     }
-}
-
-fn dependency_table_facts(
-    project_root: &Path,
-    kind: CargoDependencyKind,
-    target: Option<&str>,
-    dependencies: &DepsSet,
-) -> Vec<CargoDependencyFacts> {
-    dependencies
-        .iter()
-        .map(|(name, dependency)| dependency_fact(project_root, name, dependency, kind, target))
-        .collect()
-}
-
-fn dependency_fact(
-    project_root: &Path,
-    name: &str,
-    dependency: &Dependency,
-    kind: CargoDependencyKind,
-    target: Option<&str>,
-) -> CargoDependencyFacts {
-    let mut features = dependency.req_features().to_vec();
-    features.sort();
-    features.dedup();
-    let package_name = dependency.package().unwrap_or(name).to_string();
-    let version_req = dependency
-        .try_req()
-        .ok()
-        .map(ToOwned::to_owned)
-        .or_else(|| workspace_dependency_version_req(project_root, name));
-    CargoDependencyFacts {
-        dependency_key: name.to_string(),
-        import_name: name.replace('-', "_"),
-        package_name,
-        version_req,
-        kind,
-        target: target.map(compact_cfg_expression),
-        optional: dependency.optional(),
-        features,
-    }
-}
-
-fn workspace_dependency_version_req(project_root: &Path, name: &str) -> Option<String> {
-    project_root
-        .ancestors()
-        .skip(1)
-        .filter_map(read_manifest)
-        .find_map(|manifest| {
-            manifest
-                .workspace
-                .as_ref()
-                .and_then(|workspace| workspace.dependencies.get(name))
-                .and_then(|dependency| dependency.try_req().ok())
-                .map(ToOwned::to_owned)
-        })
 }
 
 fn compact_cfg_expression(expression: &str) -> String {
