@@ -554,7 +554,7 @@ fn cli_rust_flow_drill_regresses_tokio_ignore_bytes_style_flow() {
     );
     assert!(
         tokio_sender.contains(
-            "|dependency-guidance dep=tokio usageLevel=basic_usage engineeringBoundary=missing"
+            "|dependency-topology dep=tokio usageLevel=local_usage topology=needs-index ownerUsage=1"
         ),
         "{tokio_sender}"
     );

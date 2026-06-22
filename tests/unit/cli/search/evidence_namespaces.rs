@@ -477,7 +477,7 @@ fn cli_search_extension_tokio_uses_manifest_and_source_derived_boundary_facts() 
         "{output}"
     );
     assert!(
-        output.contains("|extension-guidance dep=tokio usageLevel=capability_boundary engineeringBoundary=present ownerUsage=1"),
+        output.contains("|dependency-topology dep=tokio usageLevel=local_usage topology=needs-index ownerUsage=1"),
         "{output}"
     );
     assert!(

@@ -384,11 +384,10 @@ fn dependency_topology_expands_cargo_workspace_members() {
         render_rust_project_harness_dependency_topology_json(tempdir.path()).expect("render facts");
     let packet: JsonValue = serde_json::from_str(&rendered).expect("json");
     assert_eq!(packet["packetKind"].as_str(), Some("dependency-topology"));
-    assert_eq!(
+    assert!(
         packet["cacheKey"]["projectPackageName"]
             .as_str()
-            .is_some_and(|name| !name.is_empty()),
-        true
+            .is_some_and(|name| !name.is_empty())
     );
     let manifests = packet["sources"]["manifests"]
         .as_array()

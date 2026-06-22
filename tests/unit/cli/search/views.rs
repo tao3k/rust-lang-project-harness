@@ -38,7 +38,7 @@ fn cli_search_views_render_rfc_line_protocol() {
 
     let dep = run_search(root, &["deps", "serde"]);
     assert!(
-        dep.starts_with("[search-deps] q=serde pkg=. dep=1 own=2 api=0"),
+        dep.starts_with("[search-deps] q=serde pkg=. dep=1 own=0 api=0"),
         "{dep}"
     );
     assert!(
@@ -46,11 +46,11 @@ fn cli_search_views_render_rfc_line_protocol() {
         "{dep}"
     );
     assert!(
-        dep.contains("|owner src/lib.rs hit_kind=dependency"),
+        dep.contains("|dependency-topology dep=serde usageLevel=manifest topology=asp-owned"),
         "{dep}"
     );
     assert!(
-        dep.contains("|owner src/domain/mod.rs hit_kind=dependency"),
+        dep.contains("|next dependency:serde,docs-use:serde,crate-source:serde,import:serde,tests"),
         "{dep}"
     );
 

@@ -640,6 +640,7 @@ fn push_cfg_label(labels: &mut BTreeSet<String>, token: &mut String) {
     }
 }
 
+#[cfg(any(feature = "search", test))]
 fn compact_cfg_expression(expression: &str) -> String {
     expression
         .chars()

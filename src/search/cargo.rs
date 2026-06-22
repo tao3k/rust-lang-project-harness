@@ -284,7 +284,10 @@ fn dependency_search_requires_full_context(
 ) -> bool {
     parsed_query.subpath.is_some()
         || parsed_query.api.is_some()
-        || options.pipes.iter().any(|pipe| pipe == "public-api")
+        || options
+            .pipes
+            .iter()
+            .any(|pipe| matches!(pipe.as_str(), "public-api" | "usage"))
 }
 
 fn render_search_dep_fast(

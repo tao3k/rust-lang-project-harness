@@ -181,7 +181,7 @@ fn search_lab_deps_flow_separates_current_workspace_and_external_versions() {
         &[
             "[search-deps] q=tokio@1::Sender pkg=. dep=1 own=1 api=0 requestedVersion=1 currentWorkspaceVersion=1 versionScope=current apiQuery=Sender",
             "|dep tokio import=tokio pkg=tokio version=1 kind=normal opt=true source=manifest manager=cargo",
-            "|dependency-guidance dep=tokio usageLevel=basic_usage engineeringBoundary=missing",
+            "|dependency-topology dep=tokio usageLevel=local_usage topology=needs-index ownerUsage=1",
             "|owner src/http/client.rs hit_kind=dependency-api apiQuery=Sender",
             "|next dependency:tokio,docs-use:tokio::Sender,crate-source:tokio,import:tokio,tests:Sender",
         ],
