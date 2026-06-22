@@ -4,7 +4,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::RustHarnessConfig;
-use crate::parser::{parse_cargo_cfg_facts, parse_cargo_dependency_facts, parse_cargo_manifest};
+use crate::parser::{
+    CargoDependencyFacts, parse_cargo_cfg_facts, parse_cargo_dependency_facts, parse_cargo_manifest,
+};
 
 use super::RustSearchOptions;
 use super::context::{PackageSearchContext, search_contexts};
@@ -106,7 +108,7 @@ fn render_search_deps_list(
     config: &RustHarnessConfig,
     options: &RustSearchOptions,
 ) -> Result<String, String> {
-    let contexts = search_contexts(project_root, config, options)?;
+    let contexts = dependency_search_contexts(project_root, config, options)?;
     let mut rendered = String::new();
     for context in contexts {
         let mut block = format!(
@@ -129,6 +131,9 @@ fn render_search_dep(
     options: &RustSearchOptions,
 ) -> Result<String, String> {
     let parsed_query = DependencySearchQuery::parse(query);
+    if !dependency_search_requires_full_context(&parsed_query, options) {
+        return render_search_dep_fast(project_root, config, query, options, &parsed_query);
+    }
     let contexts = search_contexts(project_root, config, options)?;
     let mut rendered = String::new();
     for context in contexts {
@@ -179,7 +184,7 @@ fn render_search_dep(
                 &mut rendered,
                 &render_missing_local_dependency_block(
                     project_root,
-                    &context,
+                    &context.package_root,
                     query,
                     &parsed_query,
                 ),
@@ -214,7 +219,7 @@ fn render_search_dep(
             let _ = writeln!(block, "{}", render_cargo_dependency_line(dependency));
         }
         if let Some(guidance) =
-            dependency_capability_guidance(&context, &parsed_query.dependency, &dependency_usage)
+            dependency_capability_guidance(&parsed_query.dependency, &dependency_usage)
         {
             let _ = writeln!(block, "{guidance}");
         }
@@ -249,16 +254,120 @@ fn render_search_dep(
     Ok(rendered)
 }
 
+struct DependencySearchContext {
+    package_root: PathBuf,
+    cargo_dependencies: Vec<CargoDependencyFacts>,
+}
+
+fn dependency_search_contexts(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    options: &RustSearchOptions,
+) -> Result<Vec<DependencySearchContext>, String> {
+    package_roots_for_request(project_root, config, options.package.as_deref()).map(|roots| {
+        roots
+            .into_iter()
+            .map(|package_root| {
+                let cargo_dependencies = parse_cargo_dependency_facts(&package_root);
+                DependencySearchContext {
+                    package_root,
+                    cargo_dependencies,
+                }
+            })
+            .collect()
+    })
+}
+
+fn dependency_search_requires_full_context(
+    parsed_query: &DependencySearchQuery,
+    options: &RustSearchOptions,
+) -> bool {
+    parsed_query.subpath.is_some()
+        || parsed_query.api.is_some()
+        || options.pipes.iter().any(|pipe| pipe == "public-api")
+}
+
+fn render_search_dep_fast(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+    options: &RustSearchOptions,
+    parsed_query: &DependencySearchQuery,
+) -> Result<String, String> {
+    let contexts = dependency_search_contexts(project_root, config, options)?;
+    let mut rendered = String::new();
+    for context in contexts {
+        let deps = matching_dependencies(&context.cargo_dependencies, &parsed_query.dependency);
+        let version_scope = parsed_query
+            .requested_version
+            .as_deref()
+            .map(|version| dependency_version_scope(&deps, version))
+            .unwrap_or(DependencyVersionScope::Current);
+        if deps.is_empty() {
+            append_block(
+                &mut rendered,
+                &render_missing_local_dependency_block(
+                    project_root,
+                    &context.package_root,
+                    query,
+                    parsed_query,
+                ),
+            );
+            continue;
+        }
+        let mut block = format!(
+            "[search-deps] q={} pkg={} dep={} own={} api={}",
+            query,
+            package_label(project_root, &context.package_root),
+            deps.len(),
+            0,
+            0
+        );
+        if let Some(requested_version) = parsed_query.requested_version.as_deref() {
+            let _ = write!(
+                block,
+                " requestedVersion={} currentWorkspaceVersion={} versionScope={}",
+                requested_version,
+                current_workspace_versions(&context.cargo_dependencies, &parsed_query.dependency),
+                version_scope.label()
+            );
+        }
+        block.push('\n');
+        for dependency in deps.into_iter().take(SEARCH_HIT_LIMIT) {
+            let _ = writeln!(block, "{}", render_cargo_dependency_line(dependency));
+        }
+        let _ = writeln!(
+            block,
+            "{}",
+            dependency_manifest_topology_guidance(&parsed_query.dependency)
+        );
+        if version_scope == DependencyVersionScope::External {
+            let _ = writeln!(
+                block,
+                "|note kind=version-scope message=requested-version-is-outside-current-workspace-version"
+            );
+        }
+        let _ = writeln!(
+            block,
+            "|next {}",
+            parsed_query.next_actions(version_scope, include_docs_use_next(options))
+        );
+        let _ = writeln!(block, "avoid=web-search,docs.rs-search,raw-read");
+        append_block(&mut rendered, &block);
+    }
+    Ok(rendered)
+}
+
 fn render_missing_local_dependency_block(
     project_root: &Path,
-    context: &PackageSearchContext,
+    package_root: &Path,
     query: &str,
     parsed_query: &DependencySearchQuery,
 ) -> String {
     let mut block = format!(
         "[search-deps] q={} pkg={} dep=0 own=0 api=0",
         query,
-        package_label(project_root, &context.package_root)
+        package_label(project_root, package_root)
     );
     if let Some(requested_version) = parsed_query.requested_version.as_deref() {
         let _ = write!(
@@ -455,7 +564,6 @@ fn dependency_api_usage(
 }
 
 pub(super) fn dependency_capability_guidance(
-    _context: &PackageSearchContext,
     dependency: &str,
     dependency_usage: &[OwnerHit],
 ) -> Option<String> {
@@ -470,6 +578,13 @@ pub(super) fn dependency_capability_guidance(
         dependency,
         dependency
     ))
+}
+
+fn dependency_manifest_topology_guidance(dependency: &str) -> String {
+    format!(
+        "|dependency-topology dep={} usageLevel=manifest topology=asp-owned ownerUsage=0 source=manifest next=dependency-topology:{},crate-source:{},docs-use:{},import:{}",
+        dependency, dependency, dependency, dependency, dependency
+    )
 }
 
 fn dependency_subpath_usage(

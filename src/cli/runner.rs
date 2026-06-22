@@ -41,6 +41,8 @@ use super::tree_sitter_query::run_tree_sitter_query_catalog;
 #[cfg(feature = "search")]
 use crate::{
     RustHarnessConfig, RustSearchOptions, RustSearchViewRequest,
+    render_rust_project_harness_dependency_topology_json,
+    render_rust_project_harness_dependency_topology_metadata_json,
     render_rust_project_harness_search_compare_json_with_config,
     render_rust_project_harness_search_ingest_with_config,
     render_rust_project_harness_search_semantic_facts_json,
@@ -248,6 +250,26 @@ fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
     let project_root = options.project_root()?;
     let render_options = options.render_options();
     let config = rust_harness_config_for_project(&project_root);
+    if options.view == "dependency-topology" {
+        if !options.json {
+            return Err("search dependency-topology requires --json".to_string());
+        }
+        print!(
+            "{}",
+            render_rust_project_harness_dependency_topology_json(&project_root)?
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
+    if options.view == "dependency-topology-metadata" {
+        if !options.json {
+            return Err("search dependency-topology-metadata requires --json".to_string());
+        }
+        print!(
+            "{}",
+            render_rust_project_harness_dependency_topology_metadata_json(&project_root)?
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
     if options.view == "compare" && options.json {
         let query = options
             .query

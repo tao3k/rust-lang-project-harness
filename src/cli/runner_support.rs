@@ -39,6 +39,7 @@ rs-harness search owner <path-or-owner> [items tests] [--scope SCOPE] [PROJECT_R
          rs-harness search workspace [--package PACKAGE] [PROJECT_ROOT]\n\
          rs-harness search targets [--package PACKAGE] [PROJECT_ROOT]\n\
 rs-harness search deps [dep[/subpath][@version][::api]] [public-api] [PROJECT_ROOT]\n\
+rs-harness search dependency-topology --json [--workspace PROJECT_ROOT]\n\
 rs-harness search env [toolchain|cfg] [PROJECT_ROOT]\n\
 rs-harness search compare env stable nightly [PROJECT_ROOT]\n\
 rs-harness search code comments [--owner OWNER] [PROJECT_ROOT]\n\
@@ -192,6 +193,8 @@ pub(super) fn is_known_search_view(view: &str) -> bool {
             | "public-external-types"
             | "reasoning"
             | "semantic-facts"
+            | "dependency-topology"
+            | "dependency-topology-metadata"
             | "ingest"
     )
 }

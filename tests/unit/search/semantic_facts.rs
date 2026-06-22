@@ -1,6 +1,10 @@
 use std::fs;
 
-use rust_lang_project_harness::render_rust_project_harness_search_semantic_facts_json;
+use rust_lang_project_harness::{
+    render_rust_project_harness_dependency_topology_json,
+    render_rust_project_harness_dependency_topology_metadata_json,
+    render_rust_project_harness_search_semantic_facts_json,
+};
 use serde_json::Value as JsonValue;
 
 #[test]
@@ -185,4 +189,250 @@ fn semantic_facts_emit_cargo_package_build_dependency_and_test_targets() {
             "missing relation {relation}"
         );
     }
+}
+
+#[test]
+fn dependency_topology_packet_projects_cargo_dependencies() {
+    let tempdir = tempfile::tempdir().expect("tempdir");
+    fs::create_dir_all(tempdir.path().join("src")).expect("create src");
+    fs::write(
+        tempdir.path().join("Cargo.toml"),
+        "[package]\n\
+         name = \"topology-crate\"\n\
+         version = \"0.1.0\"\n\
+         edition = \"2024\"\n\
+         \n\
+         [dependencies]\n\
+         serde = { version = \"1\", features = [\"derive\"] }\n\
+         \n\
+         [build-dependencies]\n\
+         cc = \"1\"\n",
+    )
+    .expect("write manifest");
+    fs::write(tempdir.path().join("src/lib.rs"), "pub fn api() {}\n").expect("write lib");
+
+    let rendered =
+        render_rust_project_harness_dependency_topology_json(tempdir.path()).expect("render facts");
+    let packet: JsonValue = serde_json::from_str(&rendered).expect("json");
+    assert_eq!(
+        packet["schemaId"].as_str(),
+        Some("agent.semantic-protocols.semantic-dependency-topology")
+    );
+    assert_eq!(packet["packetKind"].as_str(), Some("dependency-topology"));
+    assert_eq!(packet["languageId"].as_str(), Some("rust"));
+    assert_eq!(packet["cacheKey"]["packageManager"].as_str(), Some("cargo"));
+    assert_eq!(
+        packet["cacheKey"]["projectPackageName"].as_str(),
+        Some("topology-crate")
+    );
+    assert_sha256(&packet["fingerprint"]);
+    assert_sha256(&packet["cacheKey"]["manifestHash"]);
+    assert_sha256(&packet["cacheKey"]["lockfileHash"]);
+    assert!(
+        packet["sources"]["manifests"]
+            .as_array()
+            .is_some_and(|sources| {
+                sources.iter().any(|source| {
+                    source["path"].as_str() == Some("Cargo.toml")
+                        && source["sha256"].as_str().is_some()
+                })
+            })
+    );
+
+    let nodes = packet["graph"]["nodes"].as_array().expect("nodes");
+    let edges = packet["graph"]["edges"].as_array().expect("edges");
+    assert!(nodes.iter().any(|node| {
+        node["kind"].as_str() == Some("workspace")
+            && node["role"].as_str() == Some("cargo-workspace")
+            && node["action"].as_str() == Some("package")
+    }));
+    assert!(nodes.iter().any(|node| {
+        node["kind"].as_str() == Some("package")
+            && node["value"].as_str() == Some("topology-crate")
+            && node["fields"]["packageManager"].as_str() == Some("cargo")
+    }));
+    assert!(nodes.iter().any(|node| {
+        node["kind"].as_str() == Some("dependency")
+            && node["value"].as_str() == Some("serde")
+            && node["fields"]["dependencyGroup"].as_str() == Some("normal")
+            && node["fields"]["importName"].as_str() == Some("serde")
+    }));
+    assert!(nodes.iter().any(|node| {
+        node["kind"].as_str() == Some("dependency")
+            && node["value"].as_str() == Some("cc")
+            && node["fields"]["dependencyGroup"].as_str() == Some("build")
+    }));
+    assert!(
+        edges
+            .iter()
+            .any(|edge| edge["relation"].as_str() == Some("depends_on"))
+    );
+    assert!(
+        edges
+            .iter()
+            .any(|edge| edge["relation"].as_str() == Some("version_locked"))
+    );
+}
+
+#[test]
+fn dependency_topology_metadata_packet_is_a_compact_cache_key() {
+    let tempdir = tempfile::tempdir().expect("tempdir");
+    fs::create_dir_all(tempdir.path().join("src")).expect("create src");
+    fs::write(
+        tempdir.path().join("Cargo.toml"),
+        "[package]\n\
+         name = \"metadata-crate\"\n\
+         version = \"0.1.0\"\n\
+         edition = \"2024\"\n\
+         \n\
+         [dependencies]\n\
+         serde = \"1\"\n",
+    )
+    .expect("write manifest");
+    fs::write(tempdir.path().join("src/lib.rs"), "pub fn api() {}\n").expect("write lib");
+
+    let full =
+        render_rust_project_harness_dependency_topology_json(tempdir.path()).expect("render full");
+    let rendered = render_rust_project_harness_dependency_topology_metadata_json(tempdir.path())
+        .expect("render metadata");
+    let packet: JsonValue = serde_json::from_str(&rendered).expect("json");
+
+    assert_eq!(
+        packet["schemaId"].as_str(),
+        Some("agent.semantic-protocols.semantic-dependency-topology")
+    );
+    assert_eq!(
+        packet["packetKind"].as_str(),
+        Some("dependency-topology-metadata")
+    );
+    assert_eq!(packet["languageId"].as_str(), Some("rust"));
+    assert_eq!(packet["cacheKey"]["packageManager"].as_str(), Some("cargo"));
+    assert_eq!(
+        packet["cacheKey"]["projectPackageName"].as_str(),
+        Some("metadata-crate")
+    );
+    assert_sha256(&packet["fingerprint"]);
+    assert_sha256(&packet["cacheKey"]["manifestHash"]);
+    assert_sha256(&packet["cacheKey"]["lockfileHash"]);
+    assert!(
+        packet.get("graph").is_none(),
+        "metadata packet must not include full topology graph"
+    );
+    assert!(
+        packet.get("sources").is_none(),
+        "metadata packet must not include per-source details"
+    );
+    assert_eq!(packet["sourceSummary"]["manifestCount"].as_u64(), Some(1));
+    assert_eq!(packet["sourceSummary"]["lockfileCount"].as_u64(), Some(0));
+    assert!(
+        rendered.len() < full.len() / 2,
+        "metadata packet should stay compact; metadata={} full={}",
+        rendered.len(),
+        full.len()
+    );
+}
+
+#[test]
+fn dependency_topology_expands_cargo_workspace_members() {
+    let tempdir = tempfile::tempdir().expect("tempdir");
+    fs::create_dir_all(tempdir.path().join("crates/api/src")).expect("create api");
+    fs::create_dir_all(tempdir.path().join("crates/worker/src")).expect("create worker");
+    fs::write(
+        tempdir.path().join("Cargo.toml"),
+        "[workspace]\n\
+         members = [\"crates/*\"]\n\
+         resolver = \"2\"\n\
+         \n\
+         [workspace.dependencies]\n\
+         serde = \"1\"\n",
+    )
+    .expect("write workspace manifest");
+    fs::write(
+        tempdir.path().join("crates/api/Cargo.toml"),
+        "[package]\n\
+         name = \"api\"\n\
+         version = \"0.1.0\"\n\
+         edition = \"2024\"\n\
+         \n\
+         [dependencies]\n\
+         serde = { workspace = true }\n",
+    )
+    .expect("write api manifest");
+    fs::write(
+        tempdir.path().join("crates/worker/Cargo.toml"),
+        "[package]\n\
+         name = \"worker\"\n\
+         version = \"0.1.0\"\n\
+         edition = \"2024\"\n\
+         \n\
+         [dev-dependencies]\n\
+         tokio = \"1\"\n",
+    )
+    .expect("write worker manifest");
+    fs::write(
+        tempdir.path().join("crates/api/src/lib.rs"),
+        "pub fn api() {}\n",
+    )
+    .expect("write api lib");
+    fs::write(
+        tempdir.path().join("crates/worker/src/lib.rs"),
+        "pub fn worker() {}\n",
+    )
+    .expect("write worker lib");
+
+    let rendered =
+        render_rust_project_harness_dependency_topology_json(tempdir.path()).expect("render facts");
+    let packet: JsonValue = serde_json::from_str(&rendered).expect("json");
+    assert_eq!(packet["packetKind"].as_str(), Some("dependency-topology"));
+    assert_eq!(
+        packet["cacheKey"]["projectPackageName"]
+            .as_str()
+            .is_some_and(|name| !name.is_empty()),
+        true
+    );
+    let manifests = packet["sources"]["manifests"]
+        .as_array()
+        .expect("manifests");
+    for manifest in [
+        "Cargo.toml",
+        "crates/api/Cargo.toml",
+        "crates/worker/Cargo.toml",
+    ] {
+        assert!(
+            manifests
+                .iter()
+                .any(|source| source["path"].as_str() == Some(manifest)),
+            "missing manifest {manifest}"
+        );
+    }
+    let nodes = packet["graph"]["nodes"].as_array().expect("nodes");
+    for package in ["api", "worker"] {
+        assert!(
+            nodes.iter().any(|node| {
+                node["kind"].as_str() == Some("package") && node["value"].as_str() == Some(package)
+            }),
+            "missing package {package}"
+        );
+    }
+    for dependency in ["serde", "tokio"] {
+        assert!(
+            nodes.iter().any(|node| {
+                node["kind"].as_str() == Some("dependency")
+                    && node["value"].as_str() == Some(dependency)
+            }),
+            "missing dependency {dependency}"
+        );
+    }
+}
+
+fn assert_sha256(value: &JsonValue) {
+    let rendered = value.as_str().expect("sha256 string");
+    assert!(rendered.starts_with("sha256:"));
+    assert_eq!(rendered.len(), "sha256:".len() + 64);
+    assert!(
+        rendered
+            .trim_start_matches("sha256:")
+            .chars()
+            .all(|character| character.is_ascii_hexdigit())
+    );
 }

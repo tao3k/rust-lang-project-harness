@@ -35,4 +35,8 @@ pub use prime::{
     render_rust_project_harness_search_prime, render_rust_project_harness_search_prime_with_config,
 };
 #[cfg(feature = "cli")]
-pub use semantic_facts::render_rust_project_harness_search_semantic_facts_json;
+pub use semantic_facts::{
+    render_rust_project_harness_dependency_topology_json,
+    render_rust_project_harness_dependency_topology_metadata_json,
+    render_rust_project_harness_search_semantic_facts_json,
+};

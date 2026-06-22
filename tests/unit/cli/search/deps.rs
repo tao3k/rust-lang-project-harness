@@ -12,7 +12,7 @@ use crate::cli::support::{
 };
 
 #[test]
-fn cli_search_deps_reports_basic_dependency_usage_without_boundary() {
+fn cli_search_deps_reports_basic_manifest_topology_without_boundary() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     fs::write(
@@ -35,19 +35,22 @@ fn cli_search_deps_reports_basic_dependency_usage_without_boundary() {
     let output = run_search(root, &["deps", "tokio"]);
 
     assert!(
-        output.contains("|dependency-topology dep=tokio usageLevel=local_usage topology=needs-index ownerUsage=1"),
+        output.contains(
+            "|dependency-topology dep=tokio usageLevel=manifest topology=asp-owned ownerUsage=0"
+        ),
         "{output}"
     );
     assert!(
         output.contains(
-            "source=manifest,usage-index next=dependency-topology:tokio,crate-source:tokio,docs-use:tokio"
+            "source=manifest next=dependency-topology:tokio,crate-source:tokio,docs-use:tokio,import:tokio"
         ),
         "{output}"
     );
+    assert!(!output.contains("|owner src/lib.rs"), "{output}");
 }
 
 #[test]
-fn cli_search_deps_reports_dependency_topology_next_for_api_usage() {
+fn cli_search_deps_reports_manifest_topology_next_for_dependency() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     fs::write(
@@ -70,15 +73,18 @@ fn cli_search_deps_reports_dependency_topology_next_for_api_usage() {
     let output = run_search(root, &["deps", "tokio"]);
 
     assert!(
-        output.contains("|dependency-topology dep=tokio usageLevel=local_usage topology=needs-index ownerUsage=1"),
+        output.contains(
+            "|dependency-topology dep=tokio usageLevel=manifest topology=asp-owned ownerUsage=0"
+        ),
         "{output}"
     );
     assert!(
         output.contains(
-            "source=manifest,usage-index next=dependency-topology:tokio,crate-source:tokio,docs-use:tokio"
+            "source=manifest next=dependency-topology:tokio,crate-source:tokio,docs-use:tokio,import:tokio"
         ),
         "{output}"
     );
+    assert!(!output.contains("|owner src/lib.rs"), "{output}");
 }
 
 #[test]
@@ -269,14 +275,17 @@ fn cli_search_deps_distinguishes_external_version_queries() {
     let current = run_search(root, &["deps", "serde@1"]);
     assert!(
         current.starts_with(
-            "[search-deps] q=serde@1 pkg=. dep=1 own=1 api=0 requestedVersion=1 currentWorkspaceVersion=1 versionScope=current"
+            "[search-deps] q=serde@1 pkg=. dep=1 own=0 api=0 requestedVersion=1 currentWorkspaceVersion=1 versionScope=current"
         ),
         "{current}"
     );
     assert!(
-        current.contains("|owner src/lib.rs hit_kind=dependency"),
+        current.contains(
+            "|dependency-topology dep=serde usageLevel=manifest topology=asp-owned ownerUsage=0"
+        ),
         "{current}"
     );
+    assert!(!current.contains("|owner src/lib.rs"), "{current}");
 
     let current_api = run_search(root, &["deps", "serde@1::Serialize"]);
     assert!(

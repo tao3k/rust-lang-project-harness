@@ -18,6 +18,8 @@ mod use_tree;
 pub(crate) use cargo_manifest::cargo_project_root_for_path;
 #[cfg(any(feature = "search", test))]
 pub(crate) use cargo_manifest::parse_cargo_cfg_facts;
+#[cfg(feature = "cli")]
+pub(crate) use cargo_manifest::parse_cargo_workspace_member_roots;
 pub(crate) use cargo_manifest::{
     CargoBenchTargetFacts, CargoDependencyFacts, CargoDependencyKind, CargoManifestFacts,
     parse_cargo_dependency_facts, parse_cargo_manifest,

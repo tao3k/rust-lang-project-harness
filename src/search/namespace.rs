@@ -116,8 +116,7 @@ pub(super) fn render_search_extension(
                 compact_locations(&hit.locations)
             );
         }
-        if let Some(guidance) = cargo::dependency_capability_guidance(&context, &extension, &usage)
-        {
+        if let Some(guidance) = cargo::dependency_capability_guidance(&extension, &usage) {
             let guidance = guidance.replacen("|dependency-guidance", "|extension-guidance", 1);
             let _ = writeln!(
                 block,

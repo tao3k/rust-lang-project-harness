@@ -85,3 +85,47 @@ fn cli_search_json_and_trace_follow_rfc_output_modes() {
     assert!(stdout.contains(" final=true lines="), "{stdout}");
     assert!(stdout.contains("[search-dependency] q=serde"), "{stdout}");
 }
+
+#[test]
+fn cli_search_dependency_topology_json_uses_provider_route() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_search_fixture(root);
+
+    let output = run_cli([
+        "search".as_ref(),
+        "dependency-topology".as_ref(),
+        "--json".as_ref(),
+        root.as_os_str(),
+    ]);
+    assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
+    let value = serde_json::from_str::<Value>(&stdout).expect("dependency topology json");
+    assert_eq!(
+        value["schemaId"],
+        "agent.semantic-protocols.semantic-dependency-topology"
+    );
+    assert_eq!(value["packetKind"], "dependency-topology");
+    assert_eq!(value["languageId"], "rust");
+    assert_eq!(value["cacheKey"]["packageManager"], "cargo");
+    assert_eq!(value["cacheKey"]["projectPackageName"], "cli-search-views");
+    assert!(
+        value["sources"]["manifests"]
+            .as_array()
+            .expect("manifests")
+            .iter()
+            .any(|source| source["path"].as_str() == Some("Cargo.toml")),
+        "{value}"
+    );
+    let nodes = value["graph"]["nodes"].as_array().expect("nodes");
+    assert!(nodes.iter().any(|node| {
+        node["kind"].as_str() == Some("dependency")
+            && node["value"].as_str() == Some("serde")
+            && node["fields"]["dependencyGroup"].as_str() == Some("normal")
+    }));
+    assert!(nodes.iter().any(|node| {
+        node["kind"].as_str() == Some("dependency")
+            && node["value"].as_str() == Some("anyhow")
+            && node["fields"]["packageManager"].as_str() == Some("cargo")
+    }));
+}

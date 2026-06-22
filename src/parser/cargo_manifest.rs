@@ -109,6 +109,31 @@ pub(crate) fn parse_cargo_manifest(project_root: &Path) -> CargoManifestFacts {
 }
 
 #[cfg(feature = "cli")]
+pub(crate) fn parse_cargo_workspace_member_roots(project_root: &Path) -> Vec<PathBuf> {
+    let Some(manifest) = read_manifest(project_root) else {
+        return Vec::new();
+    };
+    let Some(workspace) = manifest.workspace.as_ref() else {
+        return Vec::new();
+    };
+    let mut roots = BTreeSet::new();
+    for member in &workspace.members {
+        expand_workspace_member_pattern(project_root, member, &mut roots);
+    }
+    roots.retain(|root| {
+        root.join("Cargo.toml").is_file()
+            && root.strip_prefix(project_root).ok().is_none_or(|relative| {
+                let relative = relative.to_string_lossy().replace('\\', "/");
+                !workspace
+                    .exclude
+                    .iter()
+                    .any(|pattern| workspace_member_pattern_matches(pattern, &relative))
+            })
+    });
+    roots.into_iter().collect()
+}
+
+#[cfg(feature = "cli")]
 pub(crate) fn cargo_project_root_for_path(path: &Path) -> Result<PathBuf, String> {
     let canonical = fs::canonicalize(path).map_err(|error| {
         format!(
@@ -241,6 +266,54 @@ fn workspace_member_component_matches(pattern: &str, value: &str) -> bool {
         }
     }
     pattern.ends_with('*') || remaining.is_empty()
+}
+
+#[cfg(feature = "cli")]
+fn expand_workspace_member_pattern(
+    project_root: &Path,
+    pattern: &str,
+    roots: &mut BTreeSet<PathBuf>,
+) {
+    let normalized = pattern.replace('\\', "/");
+    let components = normalized
+        .split('/')
+        .filter(|component| !component.is_empty())
+        .collect::<Vec<_>>();
+    if components.is_empty() {
+        return;
+    }
+    expand_workspace_member_components(project_root, &components, roots);
+}
+
+#[cfg(feature = "cli")]
+fn expand_workspace_member_components(
+    current: &Path,
+    components: &[&str],
+    roots: &mut BTreeSet<PathBuf>,
+) {
+    let Some((component, remaining)) = components.split_first() else {
+        roots.insert(current.to_path_buf());
+        return;
+    };
+    if !component.contains('*') {
+        expand_workspace_member_components(&current.join(component), remaining, roots);
+        return;
+    }
+    let Ok(entries) = fs::read_dir(current) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if workspace_member_component_matches(component, name) {
+            expand_workspace_member_components(&path, remaining, roots);
+        }
+    }
 }
 
 fn manifest_example_targets(

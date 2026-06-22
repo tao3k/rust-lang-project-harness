@@ -218,8 +218,6 @@ pub use runner::{
     run_rust_lang_harness, run_rust_lang_harness_with_config, run_rust_project_harness,
     run_rust_project_harness_with_config, rust_harness_config_for_project,
 };
-#[cfg(all(feature = "cli", feature = "search"))]
-pub use search::render_rust_project_harness_search_semantic_facts_json;
 #[cfg(feature = "search")]
 pub use search::{
     RustSearchOptions, RustSearchViewRequest,
@@ -227,6 +225,12 @@ pub use search::{
     render_rust_project_harness_search_ingest_with_config,
     render_rust_project_harness_search_prime, render_rust_project_harness_search_prime_with_config,
     render_rust_project_harness_search_view_with_config,
+};
+#[cfg(all(feature = "cli", feature = "search"))]
+pub use search::{
+    render_rust_project_harness_dependency_topology_json,
+    render_rust_project_harness_dependency_topology_metadata_json,
+    render_rust_project_harness_search_semantic_facts_json,
 };
 pub use verification::{
     RUST_VERIFICATION_REPORT_MANIFEST_SCHEMA_ID, RUST_VERIFICATION_REPORT_MANIFEST_SCHEMA_VERSION,

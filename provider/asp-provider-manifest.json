@@ -34,7 +34,9 @@
     ]
   },
   "searchCapabilities": {
-    "semanticFacts": true
+    "semanticFacts": true,
+    "dependencyTopology": true,
+    "dependencyTopologyMetadata": true
   },
   "policy": {
     "directSourceRead": "block",
@@ -110,6 +112,26 @@
         "seeds"
       ],
       "stdinMode": "pipe-candidates"
+    },
+    "dependencyTopology": {
+      "argv": [
+        "rs-harness",
+        "search",
+        "dependency-topology",
+        "--json",
+        "--workspace",
+        "{projectRoot}"
+      ]
+    },
+    "dependencyTopologyMetadata": {
+      "argv": [
+        "rs-harness",
+        "search",
+        "dependency-topology-metadata",
+        "--json",
+        "--workspace",
+        "{projectRoot}"
+      ]
     },
     "checkChanged": {
       "argv": [
