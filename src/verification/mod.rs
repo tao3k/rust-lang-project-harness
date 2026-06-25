@@ -24,6 +24,7 @@ mod report_options;
 mod report_select;
 mod report_write;
 mod review_packet;
+mod scenario_benchmark;
 mod skill_descriptor;
 mod stability;
 mod stability_config;
@@ -210,6 +211,17 @@ pub use review_packet::{
     RustReviewPacketInput, RustReviewPacketReceiptKind, RustReviewPacketWaiver,
     RustReviewPacketWaiverStatus, build_rust_review_packet, render_rust_review_packet,
     render_rust_review_packet_json,
+};
+pub use scenario_benchmark::{
+    RustScenarioBenchmarkContract, RustScenarioBenchmarkDurationMs, RustScenarioBenchmarkError,
+    RustScenarioBenchmarkManifestKind, RustScenarioBenchmarkMemoryBytes,
+    RustScenarioBenchmarkReceipt, RustScenarioBenchmarkRequirement, RustScenarioBenchmarkStatus,
+    RustScenarioBenchmarkSuiteReceipt, RustScenarioBenchmarkViolation,
+    RustScenarioBenchmarkViolationKind, RustScenarioMetadata,
+    assert_rule_fixture_scenario_benchmarks, discover_required_rust_scenario_benchmarks,
+    render_rust_scenario_benchmark_gate_failure, render_rust_scenario_benchmark_snapshot,
+    render_rust_scenario_benchmark_suite_snapshot, validate_required_rust_scenario_benchmarks,
+    validate_rust_scenario_benchmark,
 };
 pub use skill_descriptor::RustVerificationSkillDescriptor;
 pub use stability::{

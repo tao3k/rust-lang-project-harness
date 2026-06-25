@@ -1,0 +1,22 @@
+---
+source: tests/unit/scenario_benchmark.rs
+assertion_line: 29
+expression: render_rust_scenario_benchmark_snapshot(&receipt)
+---
+scenario: control-flow-v1
+title: Control-flow verification stays bounded
+status: pass
+policies: RUST-CFG-R001
+bench_command: cargo test -p rust-lang-project-harness scenario_benchmark_control_flow_v1
+observed_total_ms: <measured>
+target_total_ms: 25
+max_total_ms: 100
+observed_memory_bytes: <measured>
+memory_budget_bytes: 8388608
+regression_budget_ms: 20
+agent_goal: Find the control-flow owner before editing.
+target_rationale: Parser-native owner selection should remain a small fixture test.
+inputs: inputs
+expected: expected
+timings: parse_ms=<measured>,render_ms=<measured>,snapshot_ms=<measured>
+violations: -

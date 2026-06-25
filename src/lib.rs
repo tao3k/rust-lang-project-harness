@@ -299,6 +299,17 @@ pub use verification::{
     render_rust_verification_task_index_json, write_rust_verification_reports,
     write_rust_verification_reports_with_options,
 };
+pub use verification::{
+    RustScenarioBenchmarkContract, RustScenarioBenchmarkDurationMs, RustScenarioBenchmarkError,
+    RustScenarioBenchmarkManifestKind, RustScenarioBenchmarkMemoryBytes,
+    RustScenarioBenchmarkReceipt, RustScenarioBenchmarkRequirement, RustScenarioBenchmarkStatus,
+    RustScenarioBenchmarkSuiteReceipt, RustScenarioBenchmarkViolation,
+    RustScenarioBenchmarkViolationKind, RustScenarioMetadata,
+    assert_rule_fixture_scenario_benchmarks, discover_required_rust_scenario_benchmarks,
+    render_rust_scenario_benchmark_gate_failure, render_rust_scenario_benchmark_snapshot,
+    render_rust_scenario_benchmark_suite_snapshot, validate_required_rust_scenario_benchmarks,
+    validate_rust_scenario_benchmark,
+};
 pub use workspace_evidence_graph::{
     RUST_PROJECT_HARNESS_WORKSPACE_EVIDENCE_GRAPH_RECEIPT_SCHEMA_ID,
     RUST_PROJECT_HARNESS_WORKSPACE_EVIDENCE_GRAPH_RECEIPT_SCHEMA_VERSION,

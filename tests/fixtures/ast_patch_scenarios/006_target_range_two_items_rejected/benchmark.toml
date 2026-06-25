@@ -1,0 +1,13 @@
+bench_command = "cargo test -p rust-lang-project-harness scenario_benchmark_suite_covers_all_required_current_scenarios"
+target_total_ms = 25
+max_total_ms = 100
+observed_total_ms = 18
+regression_budget_ms = 20
+memory_budget_bytes = 8388608
+observed_memory_bytes = 4194304
+target_rationale = "AST patch scenario benchmark contracts should stay within a small fixture-test budget."
+
+[observed_timings]
+manifest_ms = 5
+benchmark_contract_ms = 8
+snapshot_ms = 5

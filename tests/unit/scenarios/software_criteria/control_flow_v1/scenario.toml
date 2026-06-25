@@ -1,0 +1,6 @@
+id = "control-flow-v1"
+title = "Control-flow verification stays bounded"
+policy_ids = ["RUST-CFG-R001"]
+agent_goal = "Find the control-flow owner before editing."
+inputs = "inputs"
+expected = "expected"

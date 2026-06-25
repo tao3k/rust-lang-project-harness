@@ -37,6 +37,9 @@ mod agent_policy_snapshot;
 #[path = "unit/software_criterion_snapshot.rs"]
 mod software_criterion_snapshot;
 
+#[path = "unit/scenario_benchmark.rs"]
+mod scenario_benchmark;
+
 #[path = "unit/agent_reasoning_snapshot.rs"]
 mod agent_reasoning_snapshot;
 

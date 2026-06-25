@@ -1,0 +1,13 @@
+bench_command = "cargo test -p rust-lang-project-harness scenario_benchmark_control_flow_v1"
+target_total_ms = 25
+max_total_ms = 100
+observed_total_ms = 18
+regression_budget_ms = 20
+memory_budget_bytes = 8388608
+observed_memory_bytes = 4194304
+target_rationale = "Parser-native owner selection should remain a small fixture test."
+
+[observed_timings]
+parse_ms = 8
+render_ms = 3
+snapshot_ms = 2

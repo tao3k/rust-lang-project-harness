@@ -1,0 +1,37 @@
+---
+source: tests/unit/scenario_benchmark.rs
+assertion_line: 50
+expression: render_rust_scenario_benchmark_suite_snapshot(&receipt)
+---
+status: pass
+requirements: 13
+receipts: 13
+required:
+- ast-patch-scenario.json tests/fixtures/ast_patch_scenarios/001_replace_fn_apply_formats
+- ast-patch-scenario.json tests/fixtures/ast_patch_scenarios/002_dry_run_does_not_mutate
+- ast-patch-scenario.json tests/fixtures/ast_patch_scenarios/003_expected_snippet_mismatch_no_mutation
+- ast-patch-scenario.json tests/fixtures/ast_patch_scenarios/004_invalid_replacement_snippet_no_mutation
+- ast-patch-scenario.json tests/fixtures/ast_patch_scenarios/005_identity_mismatch_rejected
+- ast-patch-scenario.json tests/fixtures/ast_patch_scenarios/006_target_range_two_items_rejected
+- ast-patch-scenario.json tests/fixtures/ast_patch_scenarios/007_raw_string_replace_apply
+- ast-patch-scenario.json tests/fixtures/ast_patch_scenarios/008_path_escape_rejected
+- ast-patch-scenario.json tests/fixtures/ast_patch_scenarios/009_tokio_style_nested_async_fn_apply
+- ast-patch-scenario.json tests/fixtures/ast_patch_scenarios/010_tokio_style_builder_struct_apply
+- ast-patch-scenario.json tests/fixtures/ast_patch_scenarios/011_tokio_style_mpsc_channel_apply
+- ast-patch-scenario.json tests/fixtures/ast_patch_scenarios/012_tokio_style_join_handle_impl_apply
+- scenario.toml tests/unit/scenarios/software_criteria/control_flow_v1
+scenario_status:
+- pass tests/fixtures/ast_patch_scenarios/001_replace_fn_apply_formats
+- pass tests/fixtures/ast_patch_scenarios/002_dry_run_does_not_mutate
+- pass tests/fixtures/ast_patch_scenarios/003_expected_snippet_mismatch_no_mutation
+- pass tests/fixtures/ast_patch_scenarios/004_invalid_replacement_snippet_no_mutation
+- pass tests/fixtures/ast_patch_scenarios/005_identity_mismatch_rejected
+- pass tests/fixtures/ast_patch_scenarios/006_target_range_two_items_rejected
+- pass tests/fixtures/ast_patch_scenarios/007_raw_string_replace_apply
+- pass tests/fixtures/ast_patch_scenarios/008_path_escape_rejected
+- pass tests/fixtures/ast_patch_scenarios/009_tokio_style_nested_async_fn_apply
+- pass tests/fixtures/ast_patch_scenarios/010_tokio_style_builder_struct_apply
+- pass tests/fixtures/ast_patch_scenarios/011_tokio_style_mpsc_channel_apply
+- pass tests/fixtures/ast_patch_scenarios/012_tokio_style_join_handle_impl_apply
+- pass tests/unit/scenarios/software_criteria/control_flow_v1
+violations: -
