@@ -188,12 +188,11 @@ fn render_search_fzf_seed_hits(
     query: &str,
     options: &RustSearchOptions,
 ) -> Result<String, String> {
-    if options.output_view.as_deref() == Some("seeds") {
-        if let Some(rendered) =
+    if options.output_view.as_deref() == Some("seeds")
+        && let Some(rendered) =
             render_fast_search_fzf_seed_hits(project_root, config, query, &[query], options)?
-        {
-            return Ok(rendered);
-        }
+    {
+        return Ok(rendered);
     }
     let contexts = search_contexts(project_root, config, options)?;
     let mut rendered = String::new();
@@ -238,12 +237,11 @@ fn render_search_fzf_query_set_seed_hits(
     query_terms: &[&str],
     options: &RustSearchOptions,
 ) -> Result<String, String> {
-    if options.output_view.as_deref() == Some("seeds") {
-        if let Some(rendered) =
+    if options.output_view.as_deref() == Some("seeds")
+        && let Some(rendered) =
             render_fast_search_fzf_seed_hits(project_root, config, query, query_terms, options)?
-        {
-            return Ok(rendered);
-        }
+    {
+        return Ok(rendered);
     }
     let contexts = search_contexts(project_root, config, options)?;
     let mut rendered = String::new();
