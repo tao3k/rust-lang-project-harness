@@ -129,6 +129,39 @@ target_rationale = ""
 }
 
 #[test]
+fn scenario_benchmark_contract_rejects_self_referential_gate_command() {
+    let temp = TempDir::new().expect("temp dir");
+    write_scenario(temp.path());
+    write_benchmark(
+        temp.path(),
+        r#"
+bench_command = "cargo test --test integration_test orgize_rule_fixtures_have_scenario_benchmarks"
+target_total_ms = 25
+max_total_ms = 100
+observed_total_ms = 25
+regression_budget_ms = 20
+memory_budget_bytes = 8388608
+observed_memory_bytes = 4194304
+target_rationale = "Small rule fixture should stay bounded."
+
+[observed_timings]
+fixture_ms = 25
+"#,
+    );
+
+    let receipt = validate_rust_scenario_benchmark(temp.path()).expect("validate scenario");
+
+    assert_eq!(receipt.status, RustScenarioBenchmarkStatus::Invalid);
+    assert!(receipt.violations.iter().any(|violation| {
+        violation.kind == RustScenarioBenchmarkViolationKind::Contract
+            && violation.field == "benchmark.bench_command"
+            && violation
+                .message
+                .contains("focused scenario benchmark test")
+    }));
+}
+
+#[test]
 fn scenario_benchmark_suite_reports_missing_required_benchmark() {
     let temp = TempDir::new().expect("temp dir");
     let scenario_root = temp

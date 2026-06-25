@@ -6,6 +6,7 @@ use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use super::contract_gate::{bench_command_targets_contract_gate, default_benchmark_toml_template};
 use serde::Deserialize;
 
 /// Scenario manifest format that requires a benchmark contract.
@@ -595,6 +596,12 @@ fn scenario_benchmark_violations(
         "benchmark.bench_command",
         &benchmark.bench_command,
     );
+    if bench_command_targets_contract_gate(&benchmark.bench_command) {
+        violations.push(contract_violation(
+            "benchmark.bench_command",
+            "bench_command must run a focused scenario benchmark test, not the scenario benchmark contract gate",
+        ));
+    }
     require_non_empty(
         &mut violations,
         "benchmark.target_rationale",
@@ -688,24 +695,6 @@ fn normalized_timings(timings: &BTreeMap<String, RustScenarioBenchmarkDurationMs
         .map(|key| format!("{key}=<measured>"))
         .collect::<Vec<_>>()
         .join(",")
-}
-
-fn default_benchmark_toml_template() -> String {
-    [
-        "template:",
-        "bench_command = \"cargo test <focused-test>\"",
-        "target_total_ms = 25",
-        "max_total_ms = 100",
-        "observed_total_ms = 25",
-        "regression_budget_ms = 20",
-        "memory_budget_bytes = 8388608",
-        "observed_memory_bytes = 4194304",
-        "target_rationale = \"Small rule fixture should stay bounded.\"",
-        "",
-        "[observed_timings]",
-        "fixture_ms = 25",
-    ]
-    .join("\n")
 }
 
 fn collect_scenario_toml_requirements(
