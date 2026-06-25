@@ -1,6 +1,7 @@
 //! Cargo manifest facts owned by the parser layer.
 
 use std::collections::BTreeSet;
+#[cfg(feature = "cli")]
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -308,15 +309,7 @@ fn manifest_example_targets(
             if name.is_empty() {
                 return None;
             }
-            let path = target
-                .path
-                .as_deref()
-                .map(str::trim)
-                .filter(|path| !path.is_empty())
-                .map_or_else(
-                    || project_root.join("examples").join(format!("{name}.rs")),
-                    |path| project_root.join(path),
-                );
+            let path = completed_product_path(project_root, target)?;
             let mut required_features = target.required_features.clone();
             required_features.sort();
             required_features.dedup();
@@ -358,36 +351,18 @@ fn collect_path_dependency_roots(
     dependencies: &DepsSet,
     roots: &mut BTreeSet<PathBuf>,
 ) {
-    for (name, dependency) in dependencies {
-        if let Some(root) = dependency_path_root(project_root, name, dependency) {
+    for dependency in dependencies.values() {
+        if let Some(root) = dependency_path_root(project_root, dependency) {
             roots.insert(root);
         }
     }
 }
 
-fn dependency_path_root(
-    project_root: &Path,
-    name: &str,
-    dependency: &Dependency,
-) -> Option<PathBuf> {
+fn dependency_path_root(project_root: &Path, dependency: &Dependency) -> Option<PathBuf> {
     dependency
         .detail()
         .and_then(|detail| detail.path.as_deref())
         .map(|path| resolve_dependency_path(project_root, path))
-        .or_else(|| workspace_dependency_path_root(project_root, name))
-}
-
-fn workspace_dependency_path_root(project_root: &Path, name: &str) -> Option<PathBuf> {
-    project_root.ancestors().skip(1).find_map(|workspace_root| {
-        let manifest = read_manifest(workspace_root)?;
-        manifest
-            .workspace
-            .as_ref()
-            .and_then(|workspace| workspace.dependencies.get(name))
-            .and_then(|dependency| dependency.detail())
-            .and_then(|detail| detail.path.as_deref())
-            .map(|path| resolve_dependency_path(workspace_root, path))
-    })
 }
 
 fn resolve_dependency_path(base: &Path, path: &str) -> PathBuf {
@@ -401,14 +376,7 @@ fn resolve_dependency_path(base: &Path, path: &str) -> PathBuf {
 
 fn read_manifest(project_root: &Path) -> Option<Manifest> {
     let manifest_path = project_root.join("Cargo.toml");
-    Manifest::from_path(&manifest_path)
-        .or_else(|_| read_manifest_slice(&manifest_path))
-        .ok()
-}
-
-fn read_manifest_slice(manifest_path: &Path) -> Result<Manifest, cargo_toml::Error> {
-    let content = fs::read(manifest_path)?;
-    Manifest::from_slice(&content)
+    Manifest::from_path(&manifest_path).ok()
 }
 
 fn manifest_source_target_files(project_root: &Path, manifest: &Manifest) -> Vec<PathBuf> {
@@ -430,11 +398,17 @@ fn manifest_test_target_files(project_root: &Path, test_targets: &[Product]) -> 
 fn manifest_product_target_files(project_root: &Path, targets: &[Product]) -> Vec<PathBuf> {
     targets
         .iter()
-        .filter_map(|target| {
-            let target_path = target.path.as_deref().unwrap_or_default().trim();
-            (!target_path.is_empty()).then(|| project_root.join(target_path))
-        })
+        .filter_map(|target| completed_product_path(project_root, target))
         .collect()
+}
+
+fn completed_product_path(project_root: &Path, target: &Product) -> Option<PathBuf> {
+    target
+        .path
+        .as_deref()
+        .map(str::trim)
+        .filter(|path| !path.is_empty())
+        .map(|path| project_root.join(path))
 }
 
 fn manifest_bench_targets(
@@ -448,15 +422,7 @@ fn manifest_bench_targets(
             if name.is_empty() {
                 return None;
             }
-            let path = target
-                .path
-                .as_deref()
-                .map(str::trim)
-                .filter(|path| !path.is_empty())
-                .map_or_else(
-                    || project_root.join("benches").join(format!("{name}.rs")),
-                    |path| project_root.join(path),
-                );
+            let path = completed_product_path(project_root, target)?;
             let mut required_features = target.required_features.clone();
             required_features.sort();
             required_features.dedup();

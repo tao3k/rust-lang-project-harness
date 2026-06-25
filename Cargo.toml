@@ -24,7 +24,7 @@ required-features = ["search"]
 
 [dependencies]
 cargo-lock = "11.0"
-cargo_toml = "0.22.3"
+cargo_toml = "1.0.0"
 proc-macro2 = { version = "1", features = ["span-locations"] }
 quote = "1"
 regex = "1"

@@ -6,7 +6,7 @@ use tempfile::TempDir;
 use crate::RustProjectHarnessScope;
 use crate::parser::{
     RustModuleChildEdgeKind, RustReasoningOwnerBranchRole, RustUseImportRootKind,
-    parse_cargo_cfg_facts, parse_cargo_dependency_facts, parse_rust_file,
+    parse_cargo_cfg_facts, parse_cargo_dependency_facts, parse_cargo_manifest, parse_rust_file,
     rust_reasoning_tree_facts,
 };
 
@@ -22,13 +22,24 @@ type DependencyEdge = (
 
 type DeepRelativeImportRepair = (String, Option<String>, usize, usize, bool);
 
+fn relative_paths(base: &std::path::Path, paths: &[std::path::PathBuf]) -> BTreeSet<String> {
+    paths.iter().map(|path| relative_path(base, path)).collect()
+}
+
+fn relative_path(base: &std::path::Path, path: &std::path::Path) -> String {
+    path.strip_prefix(base)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
 #[test]
 fn cargo_manifest_parser_records_dependency_facts() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     fs::write(
         root.join("Cargo.toml"),
-        "[package]\nname = \"cargo-facts\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\naxum = \"0.1\"\narrow-flight = \"0.1\"\nflight = { package = \"arrow-flight\", version = \"0.1\", optional = true, features = [\"tls\", \"flight-sql\", \"tls\"] }\n\n[dev-dependencies]\ntokio = { version = \"1\", features = [\"rt\"] }\n\n[build-dependencies]\ncc = \"1\"\n\n[target.'cfg(windows)'.dependencies]\nwinapi = \"0.3\"\n",
+        "[package]\nname = \"cargo-facts\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\naxum = \"0.1\"\narrow-flight = \"0.1\"\nflight = { package = \"arrow-flight\", version = \">=0.1, <0.3\", optional = true, features = [\"tls\", \"flight-sql\", \"tls\"] }\n\n[dev-dependencies]\ntokio = { version = \"1\", features = [\"rt\"] }\n\n[build-dependencies]\ncc = \"1\"\n\n[target.'cfg(windows)'.dependencies]\nwinapi = \"0.3\"\n",
     )
     .expect("write manifest");
     fs::create_dir(root.join("src")).expect("create src");
@@ -54,12 +65,12 @@ fn cargo_manifest_parser_records_dependency_facts() {
     assert_eq!(
         dependency_facts,
         [
-            "arrow-flight|arrow_flight|arrow-flight|0.1|Normal|-|false|",
-            "axum|axum|axum|0.1|Normal|-|false|",
-            "cc|cc|cc|1|Build|-|false|",
-            "flight|flight|arrow-flight|0.1|Normal|-|true|flight-sql+tls",
-            "tokio|tokio|tokio|1|Dev|-|false|rt",
-            "winapi|winapi|winapi|0.3|Normal|cfg(windows)|false|",
+            "arrow-flight|arrow_flight|arrow-flight|^0.1|Normal|-|false|",
+            "axum|axum|axum|^0.1|Normal|-|false|",
+            "cc|cc|cc|^1|Build|-|false|",
+            "flight|flight|arrow-flight|>=0.1, <0.3|Normal|-|true|flight-sql+tls",
+            "tokio|tokio|tokio|^1|Dev|-|false|rt",
+            "winapi|winapi|winapi|^0.3|Normal|cfg(windows)|false|",
         ]
         .into_iter()
         .map(ToOwned::to_owned)
@@ -114,7 +125,7 @@ fn cargo_manifest_parser_records_workspace_inherited_dependency_facts() {
     let root = temp.path();
     fs::write(
         root.join("Cargo.toml"),
-        "[workspace]\nmembers = [\"crates/api\"]\n\n[workspace.dependencies]\nflight = { package = \"arrow-flight\", version = \"0.1\", features = [\"flight-sql\"] }\n",
+        "[workspace]\nmembers = [\"crates/api\"]\n\n[workspace.dependencies]\nflight = { package = \"arrow-flight\", version = \">=0.1, <0.3\", features = [\"flight-sql\"] }\n",
     )
     .expect("write workspace manifest");
     let package_root = root.join("crates/api");
@@ -145,11 +156,96 @@ fn cargo_manifest_parser_records_workspace_inherited_dependency_facts() {
 
     assert_eq!(
         dependency_facts,
-        ["flight|flight|arrow-flight|0.1|Normal|-|false|flight-sql"]
+        ["flight|flight|arrow-flight|>=0.1, <0.3|Normal|-|false|flight-sql"]
             .into_iter()
             .map(ToOwned::to_owned)
             .collect::<BTreeSet<_>>()
     );
+}
+
+#[test]
+fn cargo_manifest_parser_uses_completed_manifest_targets_and_workspace_paths() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"crates/app\", \"crates/helper\"]\n\n[workspace.dependencies]\nhelper = { path = \"crates/helper\", version = \"0.1\" }\n",
+    )
+    .expect("write workspace manifest");
+
+    let helper_root = root.join("crates/helper");
+    fs::create_dir_all(helper_root.join("src")).expect("create helper source");
+    fs::write(
+        helper_root.join("Cargo.toml"),
+        "[package]\nname = \"helper\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write helper manifest");
+    fs::write(helper_root.join("src/lib.rs"), "//! Helper crate.\n").expect("write helper lib");
+
+    let app_root = root.join("crates/app");
+    fs::create_dir_all(app_root.join("src")).expect("create app source");
+    fs::create_dir_all(app_root.join("examples")).expect("create examples");
+    fs::create_dir_all(app_root.join("tests")).expect("create tests");
+    fs::create_dir_all(app_root.join("benches")).expect("create benches");
+    fs::write(
+        app_root.join("Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nhelper = { workspace = true }\n",
+    )
+    .expect("write app manifest");
+    fs::write(app_root.join("src/lib.rs"), "//! App library.\n").expect("write app lib");
+    fs::write(app_root.join("src/main.rs"), "fn main() {}\n").expect("write app bin");
+    fs::write(app_root.join("examples/demo.rs"), "fn main() {}\n").expect("write example");
+    fs::write(
+        app_root.join("tests/integration.rs"),
+        "#[test]\nfn integration() {}\n",
+    )
+    .expect("write integration test");
+    fs::write(app_root.join("benches/load.rs"), "fn main() {}\n").expect("write bench");
+
+    let manifest = parse_cargo_manifest(&app_root);
+
+    assert_eq!(
+        relative_paths(&app_root, &manifest.source_target_files),
+        ["src/lib.rs", "src/main.rs"]
+            .into_iter()
+            .map(ToOwned::to_owned)
+            .collect::<BTreeSet<_>>()
+    );
+    assert_eq!(
+        manifest
+            .example_targets
+            .iter()
+            .map(|target| format!("{}|{}", target.name, relative_path(&app_root, &target.path)))
+            .collect::<BTreeSet<_>>(),
+        ["demo|examples/demo.rs"]
+            .into_iter()
+            .map(ToOwned::to_owned)
+            .collect::<BTreeSet<_>>()
+    );
+    assert_eq!(
+        relative_paths(&app_root, &manifest.test_target_files),
+        ["tests/integration.rs"]
+            .into_iter()
+            .map(ToOwned::to_owned)
+            .collect::<BTreeSet<_>>()
+    );
+    assert_eq!(
+        manifest
+            .bench_targets
+            .iter()
+            .map(|target| format!(
+                "{}|{}|{}",
+                target.name,
+                relative_path(&app_root, &target.path),
+                target.harness
+            ))
+            .collect::<BTreeSet<_>>(),
+        ["load|benches/load.rs|true"]
+            .into_iter()
+            .map(ToOwned::to_owned)
+            .collect::<BTreeSet<_>>()
+    );
+    assert_eq!(manifest.path_dependency_roots, vec![helper_root]);
 }
 
 #[test]

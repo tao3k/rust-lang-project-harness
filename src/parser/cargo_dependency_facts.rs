@@ -1,6 +1,5 @@
 //! Cargo dependency facts owned by the parser layer.
 
-use std::fs;
 use std::path::Path;
 
 use cargo_toml::{Dependency, DepsSet, Manifest};
@@ -28,7 +27,7 @@ pub(crate) fn parse_cargo_dependency_facts(project_root: &Path) -> Vec<CargoDepe
     let Some(manifest) = read_manifest(project_root) else {
         return Vec::new();
     };
-    let mut dependencies = manifest_dependency_facts(project_root, &manifest);
+    let mut dependencies = manifest_dependency_facts(&manifest);
     dependencies.sort();
     dependencies.dedup();
     dependencies
@@ -36,54 +35,38 @@ pub(crate) fn parse_cargo_dependency_facts(project_root: &Path) -> Vec<CargoDepe
 
 fn read_manifest(project_root: &Path) -> Option<Manifest> {
     let manifest_path = project_root.join("Cargo.toml");
-    Manifest::from_path(&manifest_path)
-        .or_else(|_| read_manifest_slice(&manifest_path))
-        .ok()
+    Manifest::from_path(&manifest_path).ok()
 }
 
-fn read_manifest_slice(manifest_path: &Path) -> Result<Manifest, cargo_toml::Error> {
-    let content = fs::read(manifest_path)?;
-    Manifest::from_slice(&content)
-}
-
-fn manifest_dependency_facts(
-    project_root: &Path,
-    manifest: &Manifest,
-) -> Vec<CargoDependencyFacts> {
+fn manifest_dependency_facts(manifest: &Manifest) -> Vec<CargoDependencyFacts> {
     let mut dependencies = Vec::new();
     dependencies.extend(dependency_table_facts(
-        project_root,
         CargoDependencyKind::Normal,
         None,
         &manifest.dependencies,
     ));
     dependencies.extend(dependency_table_facts(
-        project_root,
         CargoDependencyKind::Dev,
         None,
         &manifest.dev_dependencies,
     ));
     dependencies.extend(dependency_table_facts(
-        project_root,
         CargoDependencyKind::Build,
         None,
         &manifest.build_dependencies,
     ));
     for (target_name, target) in &manifest.target {
         dependencies.extend(dependency_table_facts(
-            project_root,
             CargoDependencyKind::Normal,
             Some(target_name),
             &target.dependencies,
         ));
         dependencies.extend(dependency_table_facts(
-            project_root,
             CargoDependencyKind::Dev,
             Some(target_name),
             &target.dev_dependencies,
         ));
         dependencies.extend(dependency_table_facts(
-            project_root,
             CargoDependencyKind::Build,
             Some(target_name),
             &target.build_dependencies,
@@ -93,19 +76,17 @@ fn manifest_dependency_facts(
 }
 
 fn dependency_table_facts(
-    project_root: &Path,
     kind: CargoDependencyKind,
     target: Option<&str>,
     dependencies: &DepsSet,
 ) -> Vec<CargoDependencyFacts> {
     dependencies
         .iter()
-        .map(|(name, dependency)| dependency_fact(project_root, name, dependency, kind, target))
+        .map(|(name, dependency)| dependency_fact(name, dependency, kind, target))
         .collect()
 }
 
 fn dependency_fact(
-    project_root: &Path,
     name: &str,
     dependency: &Dependency,
     kind: CargoDependencyKind,
@@ -115,11 +96,7 @@ fn dependency_fact(
     features.sort();
     features.dedup();
     let package_name = dependency.package().unwrap_or(name).to_string();
-    let version_req = dependency
-        .try_req()
-        .ok()
-        .map(ToOwned::to_owned)
-        .or_else(|| workspace_dependency_version_req(project_root, name));
+    let version_req = dependency.try_req().ok().map(|req| req.to_string());
     CargoDependencyFacts {
         dependency_key: name.to_string(),
         import_name: name.replace('-', "_"),
@@ -130,21 +107,6 @@ fn dependency_fact(
         optional: dependency.optional(),
         features,
     }
-}
-
-fn workspace_dependency_version_req(project_root: &Path, name: &str) -> Option<String> {
-    project_root
-        .ancestors()
-        .skip(1)
-        .filter_map(read_manifest)
-        .find_map(|manifest| {
-            manifest
-                .workspace
-                .as_ref()
-                .and_then(|workspace| workspace.dependencies.get(name))
-                .and_then(|dependency| dependency.try_req().ok())
-                .map(ToOwned::to_owned)
-        })
 }
 
 fn compact_cfg_expression(expression: &str) -> String {
