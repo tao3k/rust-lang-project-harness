@@ -3,13 +3,13 @@ use std::fmt::Write;
 use std::path::Path;
 
 use crate::RustHarnessConfig;
-use crate::parser::{ParsedRustModule, parse_cargo_dependency_facts};
+use crate::parser::ParsedRustModule;
 
 use super::RustSearchOptions;
 use super::context::{PackageSearchContext, search_contexts};
 use super::format::{
-    append_block, compact_locations, display_project_path, package_label,
-    package_roots_for_request, query_set_terms, render_cargo_dependency_line, render_item_line,
+    append_block, compact_locations, display_project_path, package_label, query_set_terms,
+    render_cargo_dependency_line, render_item_line,
 };
 use super::hits::{OwnerHit, dependency_usage, matching_dependencies};
 use super::limits::{SEARCH_HIT_LIMIT, SEARCH_ITEM_LIMIT, SEARCH_OWNER_LIMIT, SEARCH_TEST_LIMIT};
@@ -22,12 +22,17 @@ pub(super) fn render_search_dependency(
     options: &RustSearchOptions,
 ) -> Result<String, String> {
     let query_terms = query_set_terms(query);
-    if query_terms.len() > 1 && options.output_view.as_deref() == Some("seeds") {
+    if options.output_view.as_deref() == Some("seeds") {
+        let seed_terms = if query_terms.is_empty() {
+            vec![query]
+        } else {
+            query_terms.clone()
+        };
         return render_search_dependency_seed_view(
             project_root,
             config,
             query,
-            &query_terms,
+            &seed_terms,
             options,
         );
     }
@@ -56,24 +61,23 @@ fn render_search_dependency_seed_view(
     query_terms: &[&str],
     options: &RustSearchOptions,
 ) -> Result<String, String> {
-    let package_roots =
-        package_roots_for_request(project_root, config, options.package.as_deref())?;
     let flags = DependencyPipeFlags::from_options(options);
     let query_terms = if query_terms.is_empty() {
         vec![query]
     } else {
         query_terms.to_vec()
     };
+    let contexts = search_contexts(project_root, config, options)?;
     let mut rendered = String::new();
-    for package_root in package_roots {
-        let dependencies = parse_cargo_dependency_facts(&package_root);
-        let dep_count = query_terms
+    for context in contexts {
+        let details = query_terms
             .iter()
-            .map(|term| matching_dependencies(&dependencies, term).len())
-            .sum();
+            .map(|term| dependency_query_details(&context, term, &flags))
+            .collect::<Vec<_>>();
+        let dep_count = details.iter().map(|detail| detail.deps).sum();
         let mut block = dependency_seed_header(
             project_root,
-            &package_root,
+            &context.package_root,
             query,
             query_terms.len(),
             dep_count,
@@ -90,6 +94,10 @@ fn render_search_dependency_seed_view(
             "|next dependency:{joined},docs-use:{joined},crate-source:{joined},tests"
         );
         let _ = writeln!(block, "avoid=web-search,docs.rs-search,raw-read");
+        append_unique_detail_lines(
+            &mut block,
+            details.into_iter().flat_map(|detail| detail.lines),
+        );
         append_block(&mut rendered, &block);
     }
     Ok(rendered)

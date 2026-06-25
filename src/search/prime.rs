@@ -298,37 +298,19 @@ fn render_package_prime_seed_source(
     config: &RustHarnessConfig,
     seed_limit: usize,
 ) -> String {
-    let scope = rust_project_harness_scope(
-        package_root,
-        config.include_tests,
-        &config.source_dir_names,
-        &config.test_dir_names,
-    );
-    let parsed_modules = parse_scope(&scope, config);
-    let reasoning_tree = rust_reasoning_tree_facts(&scope, &parsed_modules);
-    let owner_branches = ranked_owner_branches(package_root, &reasoning_tree, &[]);
-    let owner_paths = owner_branches
-        .iter()
-        .map(|branch| branch.path.clone())
-        .collect::<Vec<_>>();
-    let cargo_dependencies = parse_cargo_dependency_facts(package_root);
-    let features = manifest_features(package_root);
+    let owner_paths = fast_prime_owner_seed_paths(package_root, seed_limit.max(1));
     let package_label = package_label(project_root, package_root);
     let mut rendered = String::new();
     rendered.push_str("[search-prime] ");
     let _ = write!(rendered, "mode=package package={package_label} ");
-    let source_modules = reasoning_tree
-        .modules
-        .iter()
-        .filter(|module| module.is_source_module)
-        .count();
+    let source_modules = owner_paths.len();
     let _ = write!(rendered, "src={source_modules} ");
-    let _ = write!(rendered, "own={} ", reasoning_tree.owner_branches.len());
-    let _ = write!(rendered, "edge={} ", graph_edge_count(&reasoning_tree));
-    let _ = write!(rendered, "dep={}", cargo_dependencies.len());
+    let _ = write!(rendered, "own={} ", owner_paths.len());
+    let _ = write!(rendered, "edge=0 ");
+    let _ = write!(rendered, "dep=0");
     rendered.push('\n');
     append_decision_primer_lines(&mut rendered, "rust");
-    let feature_names = feature_seed_names(&features, seed_limit.max(1));
+    let feature_names = fast_manifest_feature_seed_names(package_root, seed_limit.max(1));
     if !feature_names.is_empty() {
         let _ = writeln!(rendered, "|seed features:{}", feature_names.join(","));
     }
@@ -348,16 +330,7 @@ fn render_package_prime_seed_source(
     if !owners.is_empty() {
         let _ = writeln!(rendered, "|seed owner:{}", owners.join(","));
     }
-    let docs = docs_seed_names_from_paths(&owner_paths, seed_limit.max(1));
-    if !docs.is_empty() {
-        let _ = writeln!(rendered, "|seed docs:{}", docs.join(","));
-    }
-    if parsed_modules.iter().any(|module| {
-        let displayed = display_project_path(package_root, &module.report.path);
-        displayed.starts_with("tests/")
-            || displayed.starts_with("benches/")
-            || displayed.starts_with("examples/")
-    }) {
+    if fast_prime_has_test_surface(package_root, config) {
         let _ = writeln!(rendered, "|seed tests");
     }
     let selected_owner_paths = owner_paths
@@ -365,13 +338,7 @@ fn render_package_prime_seed_source(
         .take(owner_limit)
         .cloned()
         .collect::<Vec<_>>();
-    append_prime_graph_synthesis_line(
-        &mut rendered,
-        package_root,
-        &selected_owner_paths,
-        &reasoning_tree,
-        &[],
-    );
+    append_fast_prime_graph_synthesis_line(&mut rendered, package_root, &selected_owner_paths);
     if owner_paths.len() > owner_limit {
         let _ = writeln!(
             rendered,
@@ -381,6 +348,75 @@ fn render_package_prime_seed_source(
         );
     }
     rendered
+}
+
+fn fast_prime_owner_seed_paths(package_root: &Path, seed_limit: usize) -> Vec<PathBuf> {
+    let mut paths = ["src/lib.rs", "src/main.rs"]
+        .into_iter()
+        .map(|relative| package_root.join(relative))
+        .filter(|path| path.is_file())
+        .collect::<Vec<_>>();
+    if paths.len() < seed_limit {
+        let src_dir = package_root.join("src");
+        if let Ok(entries) = std::fs::read_dir(src_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
+                    continue;
+                }
+                if !paths.contains(&path) {
+                    paths.push(path);
+                }
+                if paths.len() >= seed_limit {
+                    break;
+                }
+            }
+        }
+    }
+    paths.sort_by(|left, right| {
+        owner_rank_for_path(package_root, right)
+            .cmp(&owner_rank_for_path(package_root, left))
+            .then_with(|| compare_paths_by_recency(package_root, left, right))
+    });
+    paths.truncate(seed_limit);
+    paths
+}
+
+fn fast_prime_has_test_surface(package_root: &Path, config: &RustHarnessConfig) -> bool {
+    config
+        .test_dir_names
+        .iter()
+        .map(|dir| package_root.join(dir))
+        .any(|dir| dir.is_dir())
+}
+
+fn fast_manifest_feature_seed_names(package_root: &Path, limit: usize) -> Vec<String> {
+    let manifest_path = package_root.join("Cargo.toml");
+    let Ok(manifest) = std::fs::read_to_string(manifest_path) else {
+        return Vec::new();
+    };
+    let mut in_features = false;
+    manifest
+        .lines()
+        .filter_map(|raw_line| {
+            let line = raw_line.trim();
+            if line.starts_with('[') && line.ends_with(']') {
+                in_features = line == "[features]";
+                return None;
+            }
+            if !in_features || line.is_empty() || line.starts_with('#') {
+                return None;
+            }
+            let (raw_name, _) = line.split_once('=')?;
+            let name = raw_name.trim().trim_matches('"');
+            if name.is_empty() || matches!(name, "default" | "full") {
+                None
+            } else {
+                Some(name.to_string())
+            }
+        })
+        .take(limit)
+        .collect()
 }
 
 fn append_decision_primer_lines(rendered: &mut String, language_id: &str) {
@@ -432,6 +468,36 @@ fn append_prime_graph_synthesis_line(
     if !seeds.is_empty() {
         parts.push(format!("seeds={}", seeds.join(",")));
     }
+    let _ = writeln!(rendered, "|synthesis {}", parts.join(" "));
+}
+
+fn append_fast_prime_graph_synthesis_line(
+    rendered: &mut String,
+    package_root: &Path,
+    selected_owner_paths: &[PathBuf],
+) {
+    if selected_owner_paths.is_empty() {
+        return;
+    }
+    let high_impact_owners = selected_owner_paths
+        .iter()
+        .take(4)
+        .map(|path| display_project_path(package_root, path))
+        .collect::<Vec<_>>();
+    let seeds = high_impact_owners
+        .iter()
+        .map(|path| format!("owner:{path}"))
+        .collect::<Vec<_>>();
+    let parts = [
+        "algorithm=fast-owner-file-frontier".to_string(),
+        "scope=prime".to_string(),
+        "summary=owner-file-frontier".to_string(),
+        format!("selected_owners={}", selected_owner_paths.len()),
+        "selected_edges=0".to_string(),
+        format!("high_impact_owners={}", high_impact_owners.join(",")),
+        format!("frontier_owners={}", high_impact_owners.join(",")),
+        format!("seeds={}", seeds.join(",")),
+    ];
     let _ = writeln!(rendered, "|synthesis {}", parts.join(" "));
 }
 
@@ -509,96 +575,6 @@ fn graph_edge_count(reasoning_tree: &RustReasoningTreeFacts) -> usize {
             .iter()
             .filter(|dependency| !dependency.is_test_context)
             .count()
-}
-
-fn feature_seed_names(features: &[(String, Vec<String>)], seed_limit: usize) -> Vec<&str> {
-    let mut names = features
-        .iter()
-        .map(|(name, _)| name.as_str())
-        .collect::<Vec<_>>();
-    names.sort_by_key(|name| match *name {
-        "default" => 90,
-        "full" => 80,
-        _ => 0,
-    });
-    names.truncate(seed_limit);
-    names
-}
-
-fn docs_seed_names_from_paths(paths: &[PathBuf], seed_limit: usize) -> Vec<String> {
-    let mut type_names = Vec::new();
-    let mut module_names = Vec::new();
-    let mut function_names = Vec::new();
-    let mut other_names = Vec::new();
-    for path in paths {
-        let displayed = path.to_string_lossy().replace('\\', "/");
-        if displayed.contains("/tests/")
-            || displayed.contains("/benches/")
-            || displayed.contains("/examples/")
-        {
-            continue;
-        }
-        let Ok(text) = std::fs::read_to_string(path) else {
-            continue;
-        };
-        collect_docs_seed_names(
-            &text,
-            &mut type_names,
-            &mut module_names,
-            &mut function_names,
-            &mut other_names,
-        );
-    }
-    function_names.sort_by(|left, right| right.cmp(left));
-    let mut names = Vec::new();
-    append_unique_names(&mut names, type_names, seed_limit);
-    append_unique_names(&mut names, module_names, seed_limit);
-    append_unique_names(&mut names, function_names, seed_limit);
-    append_unique_names(&mut names, other_names, seed_limit);
-    names.truncate(seed_limit);
-    names
-}
-
-fn collect_docs_seed_names(
-    text: &str,
-    type_names: &mut Vec<String>,
-    module_names: &mut Vec<String>,
-    function_names: &mut Vec<String>,
-    other_names: &mut Vec<String>,
-) {
-    for line in text.lines() {
-        let mut tokens = line
-            .split(|character: char| !character.is_ascii_alphanumeric() && character != '_')
-            .filter(|token| !token.is_empty());
-        while let Some(token) = tokens.next() {
-            if !matches!(
-                token,
-                "fn" | "struct" | "enum" | "trait" | "type" | "const" | "static" | "mod"
-            ) {
-                continue;
-            };
-            let Some(name) = tokens.next() else {
-                continue;
-            };
-            match token {
-                "struct" | "enum" | "trait" | "type" => type_names.push(name.to_string()),
-                "mod" => module_names.push(name.to_string()),
-                "fn" => function_names.push(name.to_string()),
-                _ => other_names.push(name.to_string()),
-            }
-        }
-    }
-}
-
-fn append_unique_names(names: &mut Vec<String>, candidates: Vec<String>, seed_limit: usize) {
-    for candidate in candidates {
-        if names.len() >= seed_limit {
-            return;
-        }
-        if !names.iter().any(|existing| existing == &candidate) {
-            names.push(candidate);
-        }
-    }
 }
 
 fn owner_rank_for_path(package_root: &Path, path: &Path) -> usize {

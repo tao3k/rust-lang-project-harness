@@ -9,6 +9,8 @@ use std::path::{Path, PathBuf};
 use super::contract_gate::{bench_command_targets_contract_gate, default_benchmark_toml_template};
 use serde::Deserialize;
 
+const RUST_SCENARIO_BENCHMARK_HARD_MAX_TOTAL_MS: u64 = 500;
+
 /// Scenario manifest format that requires a benchmark contract.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RustScenarioBenchmarkManifestKind {
@@ -637,6 +639,14 @@ fn scenario_benchmark_violations(
         violations.push(contract_violation(
             "benchmark.target_total_ms",
             "target_total_ms must be less than or equal to max_total_ms",
+        ));
+    }
+    if benchmark.max_total_ms.as_u64() > RUST_SCENARIO_BENCHMARK_HARD_MAX_TOTAL_MS {
+        violations.push(contract_violation(
+            "benchmark.max_total_ms",
+            &format!(
+                "max_total_ms must be <= {RUST_SCENARIO_BENCHMARK_HARD_MAX_TOTAL_MS} for a millisecond hard gate",
+            ),
         ));
     }
     if benchmark.observed_total_ms > benchmark.max_total_ms {

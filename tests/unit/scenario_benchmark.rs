@@ -162,6 +162,37 @@ fixture_ms = 25
 }
 
 #[test]
+fn scenario_benchmark_contract_rejects_second_scale_hard_gate() {
+    let temp = TempDir::new().expect("temp dir");
+    write_scenario(temp.path());
+    write_benchmark(
+        temp.path(),
+        r#"
+bench_command = "target/debug/asp rust search deps tokio --workspace . --view hits"
+target_total_ms = 250
+max_total_ms = 5000
+observed_total_ms = 240
+regression_budget_ms = 100
+memory_budget_bytes = 8388608
+observed_memory_bytes = 4194304
+target_rationale = "Dependency seed should stay inside the millisecond gate."
+
+[observed_timings]
+asp_search_deps_ms = 240
+"#,
+    );
+
+    let receipt = validate_rust_scenario_benchmark(temp.path()).expect("validate scenario");
+
+    assert_eq!(receipt.status, RustScenarioBenchmarkStatus::Invalid);
+    assert!(receipt.violations.iter().any(|violation| {
+        violation.kind == RustScenarioBenchmarkViolationKind::Contract
+            && violation.field == "benchmark.max_total_ms"
+            && violation.message.contains("millisecond hard gate")
+    }));
+}
+
+#[test]
 fn scenario_benchmark_suite_reports_missing_required_benchmark() {
     let temp = TempDir::new().expect("temp dir");
     let scenario_root = temp

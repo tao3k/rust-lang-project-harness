@@ -27,7 +27,7 @@ fn cli_search_owner_items_graph_prioritizes_symbol_code_frontier() {
 
     assert!(
         output.starts_with(
-            "[search-owner] q=src/domain/mod.rs pkg=. selector=items querySet=1 alg=item-frontier"
+            "[search-owner] q=src/domain/mod.rs pkg=. selector=items alg=item-frontier"
         ),
         "{output}"
     );

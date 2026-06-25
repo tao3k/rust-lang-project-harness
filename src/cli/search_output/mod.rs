@@ -2,6 +2,7 @@
 mod blocks;
 mod core;
 mod graph;
+mod graph_dependency;
 mod package;
 
 pub(super) use core::{SearchOutputControls, apply_search_output_controls};

@@ -117,6 +117,7 @@ fn render_ingest_owner_hits(
             include_items,
             include_tests,
             seed_limit: options.seeds.unwrap_or(8),
+            scope: options.scope.as_deref(),
         });
     }
     let mut rendered = format!(
@@ -161,15 +162,20 @@ struct IngestSeedSource<'a> {
     include_items: bool,
     include_tests: bool,
     seed_limit: usize,
+    scope: Option<&'a str>,
 }
 
 fn render_ingest_seed_hits(source: IngestSeedSource<'_>) -> String {
     let mut rendered = format!(
-        "[search-ingest] src={} in={} own={}\n",
+        "[search-ingest] src={} in={} own={}",
         source.source.as_str(),
         source.source.input_count(source.input),
         source.owner_hits.len()
     );
+    if let Some(scope) = source.scope {
+        let _ = write!(rendered, " scope={scope}");
+    }
+    rendered.push('\n');
     let owner_seed_limit = source.seed_limit.min(source.owner_hits.len());
     let owner_paths = source
         .owner_hits

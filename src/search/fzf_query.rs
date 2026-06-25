@@ -5,6 +5,7 @@ use std::fmt::Write;
 use std::path::{Path, PathBuf};
 
 use crate::RustHarnessConfig;
+use crate::discovery::{discover_rust_files, rust_project_harness_scope};
 
 use super::RustSearchOptions;
 use super::context::{PackageSearchContext, search_contexts};
@@ -179,12 +180,21 @@ fn fzf_query_set_hits(
     hits
 }
 
+const MIN_FAST_FZF_PROJECT_FILES: usize = 64;
+
 fn render_search_fzf_seed_hits(
     project_root: &Path,
     config: &RustHarnessConfig,
     query: &str,
     options: &RustSearchOptions,
 ) -> Result<String, String> {
+    if options.output_view.as_deref() == Some("seeds") {
+        if let Some(rendered) =
+            render_fast_search_fzf_seed_hits(project_root, config, query, &[query], options)?
+        {
+            return Ok(rendered);
+        }
+    }
     let contexts = search_contexts(project_root, config, options)?;
     let mut rendered = String::new();
     for context in contexts {
@@ -228,6 +238,13 @@ fn render_search_fzf_query_set_seed_hits(
     query_terms: &[&str],
     options: &RustSearchOptions,
 ) -> Result<String, String> {
+    if options.output_view.as_deref() == Some("seeds") {
+        if let Some(rendered) =
+            render_fast_search_fzf_seed_hits(project_root, config, query, query_terms, options)?
+        {
+            return Ok(rendered);
+        }
+    }
     let contexts = search_contexts(project_root, config, options)?;
     let mut rendered = String::new();
     for context in contexts {
@@ -263,6 +280,156 @@ fn render_search_fzf_query_set_seed_hits(
         append_block(&mut rendered, &block);
     }
     Ok(rendered)
+}
+
+fn render_fast_search_fzf_seed_hits(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    query: &str,
+    query_terms: &[&str],
+    options: &RustSearchOptions,
+) -> Result<Option<String>, String> {
+    let package_roots =
+        super::format::package_roots_for_request(project_root, config, options.package.as_deref())?;
+    let mut rendered = String::new();
+    for package_root in package_roots {
+        let Some(hits) = fast_fzf_seed_hits(&package_root, config, query_terms, options) else {
+            return Ok(None);
+        };
+        let seed_limit = options.seeds.unwrap_or(8);
+        let owner_limit = seed_limit.min(hits.len());
+        let mut block = if query_terms.len() > 1 {
+            format!(
+                "[search-fzf] q={} querySet={} selector=fuzzy-set mode={} backend=provider pkg={} own={}{}\n",
+                query,
+                query_terms.len(),
+                fzf_match_mode(options),
+                package_label(project_root, &package_root),
+                hits.len(),
+                fzf_header_suffix(options)
+            )
+        } else {
+            format!(
+                "[search-fzf] q={} mode={} backend=provider pkg={} own={}{}\n",
+                query,
+                fzf_match_mode(options),
+                package_label(project_root, &package_root),
+                hits.len(),
+                fzf_header_suffix(options)
+            )
+        };
+        append_change_frontier_seed_rows(
+            &mut block,
+            &package_root,
+            hits.iter()
+                .take(owner_limit)
+                .map(|(path, _score)| path.as_path()),
+            seed_limit,
+        );
+        append_change_frontier_synthesis_line(
+            &mut block,
+            &package_root,
+            hits.iter()
+                .take(owner_limit)
+                .map(|(path, _score)| path.as_path()),
+            seed_limit,
+        );
+        if hits.len() > owner_limit {
+            trim_trailing_newlines(&mut block);
+            let _ = writeln!(
+                block,
+                "|note seeds_truncated={} limit={}",
+                hits.len() - owner_limit,
+                seed_limit
+            );
+        }
+        append_block(&mut rendered, &block);
+    }
+    Ok(Some(rendered))
+}
+
+fn fast_fzf_seed_hits(
+    package_root: &Path,
+    config: &RustHarnessConfig,
+    query_terms: &[&str],
+    options: &RustSearchOptions,
+) -> Option<Vec<(PathBuf, usize)>> {
+    let scope = rust_project_harness_scope(
+        package_root,
+        config.include_tests,
+        &config.source_dir_names,
+        &config.test_dir_names,
+    );
+    let files = discover_rust_files(
+        &scope.monitored_paths(),
+        &config.ignored_dir_names,
+        &config.include_hidden_dir_names,
+    );
+    if files.len() < MIN_FAST_FZF_PROJECT_FILES {
+        return None;
+    }
+    let mut hits = files
+        .into_iter()
+        .filter_map(|path| {
+            let score = fast_fzf_path_score(package_root, &path, query_terms, options);
+            (score > 0).then_some((path, score))
+        })
+        .collect::<Vec<_>>();
+    hits.sort_by(|(left, left_score), (right, right_score)| {
+        right_score.cmp(left_score).then_with(|| {
+            display_project_path(package_root, left).cmp(&display_project_path(package_root, right))
+        })
+    });
+    Some(hits)
+}
+
+fn fast_fzf_path_score(
+    package_root: &Path,
+    path: &Path,
+    query_terms: &[&str],
+    options: &RustSearchOptions,
+) -> usize {
+    let owner_path = display_project_path(package_root, path);
+    let owner_lower = owner_path.to_ascii_lowercase();
+    let owner_normalized = normalize_search_token(&owner_path);
+    let mut score = 0usize;
+    for term in query_terms {
+        let term_lower = term.to_ascii_lowercase();
+        let term_normalized = normalize_search_token(term);
+        if owner_lower.contains(&term_lower) {
+            score = score.saturating_add(20_000 + term_lower.len());
+        } else if !term_normalized.is_empty() && owner_normalized.contains(&term_normalized) {
+            score = score.saturating_add(16_000 + term_normalized.len());
+        } else {
+            let tokens = search_term_tokens(term);
+            if !tokens.is_empty()
+                && tokens
+                    .iter()
+                    .all(|token| owner_normalized.contains(token.as_str()))
+            {
+                score = score.saturating_add(12_000 + tokens.len());
+            }
+        }
+        if let Some(fuzzy_score) = fuzzy_score_with_options(&owner_path, term, options) {
+            score = score.saturating_add(fuzzy_score);
+        }
+    }
+    score
+}
+
+fn normalize_search_token(value: &str) -> String {
+    value
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
+fn search_term_tokens(term: &str) -> Vec<String> {
+    term.split(|character: char| !character.is_ascii_alphanumeric())
+        .map(normalize_search_token)
+        .filter(|token| token.len() >= 2)
+        .collect()
 }
 
 fn append_change_frontier_seed_rows<'a>(
@@ -383,10 +550,14 @@ fn fzf_hits(
 }
 
 fn fzf_header_suffix(options: &RustSearchOptions) -> String {
-    if options.fzf_args.is_empty() {
-        return String::new();
+    let mut suffix = String::new();
+    if let Some(scope) = options.scope.as_deref().or(options.owner.as_deref()) {
+        let _ = write!(suffix, " scope={scope}");
     }
-    format!(" finder=fzf fzfArgs={}", options.fzf_args.join(","))
+    if !options.fzf_args.is_empty() {
+        let _ = write!(suffix, " finder=fzf fzfArgs={}", options.fzf_args.join(","));
+    }
+    suffix
 }
 
 fn fzf_match_mode(options: &RustSearchOptions) -> &'static str {
@@ -465,6 +636,9 @@ fn fuzzy_score_with_args(candidate: &str, query: &str, fzf_args: &[String]) -> O
         return None;
     }
     let exact = fzf_exact(fzf_args);
+    if !exact && acronym_matches(candidate, query) {
+        return Some(8_500usize.saturating_add(query.len().saturating_mul(100)));
+    }
     let case_sensitive = fzf_case_sensitive(fzf_args, query);
     let candidate = if case_sensitive {
         candidate.to_string()
@@ -522,4 +696,32 @@ fn fuzzy_match_positions(candidate: &str, query: &str) -> Option<Vec<usize>> {
             Some((positions, position + ch.len_utf8()))
         })
         .map(|(positions, _)| positions)
+}
+
+fn acronym_matches(candidate: &str, query: &str) -> bool {
+    let query = normalize_search_token(query);
+    if query.len() < 2 {
+        return false;
+    }
+    acronym_letters(candidate).contains(&query)
+}
+
+fn acronym_letters(value: &str) -> String {
+    let mut letters = String::new();
+    let mut at_boundary = true;
+    let mut previous_lower = false;
+    for character in value.chars() {
+        if !character.is_ascii_alphanumeric() {
+            at_boundary = true;
+            previous_lower = false;
+            continue;
+        }
+        let upper_after_lower = character.is_ascii_uppercase() && previous_lower;
+        if at_boundary || upper_after_lower {
+            letters.push(character.to_ascii_lowercase());
+        }
+        at_boundary = false;
+        previous_lower = character.is_ascii_lowercase() || character.is_ascii_digit();
+    }
+    letters
 }

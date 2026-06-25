@@ -15,6 +15,7 @@ mod item_query;
 mod limits;
 mod namespace;
 mod owner;
+mod owner_seed_view;
 mod owner_view;
 pub(crate) mod policy;
 mod prime;

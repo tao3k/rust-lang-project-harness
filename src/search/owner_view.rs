@@ -22,6 +22,7 @@ use super::item_query::{
 };
 use super::limits::SEARCH_OWNER_LIMIT;
 use super::owner as owner_search;
+use super::owner_seed_view::render_exact_path_owner_seed_view;
 use super::scope::{owner_branch_matches, owner_path_matches};
 
 pub(super) fn render_search_owner(
@@ -160,6 +161,9 @@ fn render_exact_path_owner(
         return Ok(None);
     }
     let include_items = options.pipes.iter().any(|pipe| pipe == "items");
+    if options.output_view.as_deref() == Some("seeds") && !include_items {
+        return render_exact_path_owner_seed_view(project_root, config, query, options);
+    }
     if include_items
         && options.item_names_only
         && options.package.is_none()

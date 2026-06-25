@@ -34,9 +34,7 @@ use super::search_trace::{SearchTraceOptions, render_search_trace};
 #[cfg(feature = "search")]
 use super::semantic_query_json::{SemanticQueryJsonOptions, render_query_json};
 #[cfg(feature = "search")]
-use super::semantic_search_json::{
-    SemanticSearchJsonOptions, build_search_packet, render_search_json,
-};
+use super::semantic_search_json::{SemanticSearchJsonOptions, render_search_json};
 use super::tree_sitter_query::run_tree_sitter_query_catalog;
 #[cfg(feature = "search")]
 use crate::{
@@ -343,8 +341,7 @@ fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
         )
     };
     let rendered = if options.output_view.as_deref() == Some("seeds") && options.view != "compare" {
-        let packet = build_search_packet(&project_root, &json_options, &raw_rendered);
-        render_search_graph_packet(&packet, options.seeds)?
+        render_search_graph_packet(&raw_rendered, options.seeds)?
     } else {
         rendered
     };
@@ -512,9 +509,7 @@ fn run_query_view(options: &SearchOptions) -> Result<ExitCode, String> {
         &raw_rendered,
     );
     let rendered = if options.output_view.as_deref() == Some("seeds") {
-        let json_options = options.semantic_json_options();
-        let packet = build_search_packet(&project_root, &json_options, &raw_rendered);
-        render_search_graph_packet(&packet, options.seeds)?
+        render_search_graph_packet(&raw_rendered, options.seeds)?
     } else {
         rendered
     };
