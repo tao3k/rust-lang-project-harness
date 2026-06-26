@@ -182,7 +182,7 @@ fn cli_rust_flow_drill_exercises_registry_prime_search_and_ingest() {
     let external_dep_api = run_search(root, &["deps", "serde@2::Serialize"]);
     assert!(
         external_dep_api.starts_with(
-            "[search-deps] q=serde@2::Serialize pkg=. dep=1 own=0 api=0 requestedVersion=2 currentWorkspaceVersion=1 versionScope=external apiQuery=Serialize"
+            "[search-deps] q=serde@2::Serialize pkg=. dep=1 own=0 api=0 requestedVersion=2 currentWorkspaceVersion=^1 versionScope=external apiQuery=Serialize"
         ),
         "{external_dep_api}"
     );
@@ -544,7 +544,7 @@ fn cli_rust_flow_drill_regresses_tokio_ignore_bytes_style_flow() {
     let tokio_sender = run_search(root, &["deps", "tokio@1::Sender"]);
     assert!(
         tokio_sender.starts_with(
-            "[search-deps] q=tokio@1::Sender pkg=. dep=1 own=1 api=0 requestedVersion=1 currentWorkspaceVersion=1 versionScope=current apiQuery=Sender"
+            "[search-deps] q=tokio@1::Sender pkg=. dep=1 own=1 api=0 requestedVersion=1 currentWorkspaceVersion=^1 versionScope=current apiQuery=Sender"
         ),
         "{tokio_sender}"
     );
@@ -568,7 +568,7 @@ fn cli_rust_flow_drill_regresses_tokio_ignore_bytes_style_flow() {
     let ignore_external = run_search(root, &["deps", "ignore@0.3::WalkBuilder"]);
     assert!(
         ignore_external.starts_with(
-            "[search-deps] q=ignore@0.3::WalkBuilder pkg=. dep=1 own=0 api=0 requestedVersion=0.3 currentWorkspaceVersion=0.4 versionScope=external apiQuery=WalkBuilder"
+            "[search-deps] q=ignore@0.3::WalkBuilder pkg=. dep=1 own=0 api=0 requestedVersion=0.3 currentWorkspaceVersion=^0.4 versionScope=external apiQuery=WalkBuilder"
         ),
         "{ignore_external}"
     );
@@ -665,11 +665,11 @@ fn cli_rust_flow_drill_regresses_tokio_ignore_bytes_style_flow() {
     assert!(feature.contains(" own=2"), "{feature}");
     assert!(feature.contains(" tests=1"), "{feature}");
     assert!(
-        feature.contains("|dep tokio import=tokio pkg=tokio version=1 kind=normal opt=true"),
+        feature.contains("|dep tokio import=tokio pkg=tokio version=^1 kind=normal opt=true"),
         "{feature}"
     );
     assert!(
-        feature.contains("|dep bytes import=bytes pkg=bytes version=1 kind=normal opt=true"),
+        feature.contains("|dep bytes import=bytes pkg=bytes version=^1 kind=normal opt=true"),
         "{feature}"
     );
     assert!(

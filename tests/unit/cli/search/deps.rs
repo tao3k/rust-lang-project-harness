@@ -275,7 +275,7 @@ fn cli_search_deps_distinguishes_external_version_queries() {
     let current = run_search(root, &["deps", "serde@1"]);
     assert!(
         current.starts_with(
-            "[search-deps] q=serde@1 pkg=. dep=1 own=0 api=0 requestedVersion=1 currentWorkspaceVersion=1 versionScope=current"
+            "[search-deps] q=serde@1 pkg=. dep=1 own=0 api=0 requestedVersion=1 currentWorkspaceVersion=^1 versionScope=current"
         ),
         "{current}"
     );
@@ -290,7 +290,7 @@ fn cli_search_deps_distinguishes_external_version_queries() {
     let current_api = run_search(root, &["deps", "serde@1::Serialize"]);
     assert!(
         current_api.starts_with(
-            "[search-deps] q=serde@1::Serialize pkg=. dep=1 own=1 api=0 requestedVersion=1 currentWorkspaceVersion=1 versionScope=current apiQuery=Serialize"
+            "[search-deps] q=serde@1::Serialize pkg=. dep=1 own=1 api=0 requestedVersion=1 currentWorkspaceVersion=^1 versionScope=current apiQuery=Serialize"
         ),
         "{current_api}"
     );
@@ -302,7 +302,7 @@ fn cli_search_deps_distinguishes_external_version_queries() {
     let current_subpath_api = run_search(root, &["deps", "serde/de@1::DeserializeOwned"]);
     assert!(
         current_subpath_api.starts_with(
-            "[search-deps] q=serde/de@1::DeserializeOwned pkg=. dep=1 own=1 api=0 requestedVersion=1 currentWorkspaceVersion=1 versionScope=current subpath=de apiQuery=DeserializeOwned"
+            "[search-deps] q=serde/de@1::DeserializeOwned pkg=. dep=1 own=1 api=0 requestedVersion=1 currentWorkspaceVersion=^1 versionScope=current subpath=de apiQuery=DeserializeOwned"
         ),
         "{current_subpath_api}"
     );
@@ -323,12 +323,12 @@ fn cli_search_deps_distinguishes_external_version_queries() {
 
     assert!(
         external.starts_with(
-            "[search-deps] q=serde@2::Serialize pkg=. dep=1 own=0 api=0 requestedVersion=2 currentWorkspaceVersion=1 versionScope=external apiQuery=Serialize"
+            "[search-deps] q=serde@2::Serialize pkg=. dep=1 own=0 api=0 requestedVersion=2 currentWorkspaceVersion=^1 versionScope=external apiQuery=Serialize"
         ),
         "{external}"
     );
     assert!(
-        external.contains("|dep serde import=serde pkg=serde version=1 kind=normal opt=false source=manifest manager=cargo feat=derive"),
+        external.contains("|dep serde import=serde pkg=serde version=^1 kind=normal opt=false source=manifest manager=cargo feat=derive"),
         "{external}"
     );
     assert!(
@@ -360,7 +360,7 @@ fn cli_search_deps_distinguishes_external_version_queries() {
         .as_object()
         .expect("header fields");
     assert_eq!(header_fields["requestedVersion"], "2");
-    assert_eq!(header_fields["currentWorkspaceVersion"], "1");
+    assert_eq!(header_fields["currentWorkspaceVersion"], "^1");
     assert_eq!(header_fields["versionScope"], "external");
     assert_eq!(header_fields["apiQuery"], "Serialize");
     assert!(!header_fields.contains_key("requested_version"));
@@ -378,7 +378,7 @@ fn cli_search_deps_distinguishes_external_version_queries() {
     let external_subpath_api = run_search(root, &["deps", "serde/de@2::DeserializeOwned"]);
     assert!(
         external_subpath_api.starts_with(
-            "[search-deps] q=serde/de@2::DeserializeOwned pkg=. dep=1 own=0 api=0 requestedVersion=2 currentWorkspaceVersion=1 versionScope=external subpath=de apiQuery=DeserializeOwned"
+            "[search-deps] q=serde/de@2::DeserializeOwned pkg=. dep=1 own=0 api=0 requestedVersion=2 currentWorkspaceVersion=^1 versionScope=external subpath=de apiQuery=DeserializeOwned"
         ),
         "{external_subpath_api}"
     );

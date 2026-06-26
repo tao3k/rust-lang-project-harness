@@ -29,7 +29,7 @@ fn public_large_tokio_bytes_flow_connects_prime_to_dependency_api_and_docs_axes(
             "[search-prime] mode=package package=.",
             "|package . t=lib,test dep=bytes",
             "|feature io-util dep=bytes next=features:io-util",
-            "|dep bytes import=bytes pkg=bytes version=1 kind=normal opt=true source=manifest manager=cargo",
+            "|dep bytes import=bytes pkg=bytes version=^1 kind=normal opt=true source=manifest manager=cargo",
             "|api-candidate RuntimeFrame reason=public-item owner=src/io/mod.rs",
             "|test-surface tests=tests next=tests",
         ],
@@ -58,7 +58,7 @@ fn public_large_tokio_bytes_flow_connects_prime_to_dependency_api_and_docs_axes(
         &[
             "[search-features] q=io-util pkg=. feat=1 dep=1 cfg=1",
             "|feature io-util enables=bytes source=manifest manager=cargo",
-            "|dep bytes import=bytes pkg=bytes version=1 kind=normal opt=true source=manifest manager=cargo",
+            "|dep bytes import=bytes pkg=bytes version=^1 kind=normal opt=true source=manifest manager=cargo",
             "|cfg feature:io-util declared_in=features expr=cfg(feature=\"io-util\")",
             "|owner src/lib.rs hit_kind=feature locations=",
             "|owner src/io/mod.rs hit_kind=feature locations=",

@@ -20,6 +20,7 @@ use super::hits::{
 use super::limits::SEARCH_HIT_LIMIT;
 use super::owner::{public_api_lines_for_dependency, test_lines_for_owner_modules};
 use super::scope::module_is_scope;
+use super::version::version_requirement_matches_request;
 
 pub(super) fn render_search_workspace(
     project_root: &Path,
@@ -529,10 +530,9 @@ fn dependency_version_scope(
     dependencies: &[&crate::parser::CargoDependencyFacts],
     requested_version: &str,
 ) -> DependencyVersionScope {
-    if dependencies
-        .iter()
-        .any(|dependency| dependency.version_req.as_deref() == Some(requested_version))
-    {
+    if dependencies.iter().any(|dependency| {
+        version_requirement_matches_request(dependency.version_req.as_deref(), requested_version)
+    }) {
         DependencyVersionScope::Current
     } else {
         DependencyVersionScope::External

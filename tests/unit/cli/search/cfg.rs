@@ -49,7 +49,7 @@ fn cli_search_cfg_reads_manifest_facts() {
     );
     assert!(
         loom.contains(
-            "|dep loom import=loom pkg=loom version=0.7 kind=dev opt=false source=manifest manager=cargo target=cfg(loom) feat=futures"
+            "|dep loom import=loom pkg=loom version=^0.7 kind=dev opt=false source=manifest manager=cargo target=cfg(loom) feat=futures"
         ),
         "{loom}"
     );

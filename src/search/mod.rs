@@ -26,6 +26,7 @@ mod scope;
 #[cfg(feature = "cli")]
 mod semantic_facts;
 mod syntax_query;
+mod version;
 
 pub use api::{
     RustSearchOptions, RustSearchViewRequest, render_rust_project_harness_search_view_with_config,

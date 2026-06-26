@@ -25,13 +25,13 @@ fn cli_search_views_render_rfc_line_protocol() {
     assert!(deps.starts_with("[search-deps] pkg=. dep=2"), "{deps}");
     assert!(
         deps.contains(
-            "|dep serde import=serde pkg=serde version=1 kind=normal opt=true source=manifest manager=cargo feat=derive"
+            "|dep serde import=serde pkg=serde version=^1 kind=normal opt=true source=manifest manager=cargo feat=derive"
         ),
         "{deps}"
     );
     assert!(
         deps.contains(
-            "|dep anyhow import=anyhow pkg=anyhow version=1 kind=normal opt=false source=manifest manager=cargo"
+            "|dep anyhow import=anyhow pkg=anyhow version=^1 kind=normal opt=false source=manifest manager=cargo"
         ),
         "{deps}"
     );
@@ -42,7 +42,7 @@ fn cli_search_views_render_rfc_line_protocol() {
         "{dep}"
     );
     assert!(
-        dep.contains("|dep serde import=serde pkg=serde version=1"),
+        dep.contains("|dep serde import=serde pkg=serde version=^1"),
         "{dep}"
     );
     assert!(
@@ -800,7 +800,7 @@ fn cli_search_views_render_rfc_line_protocol() {
     let current_version_api = run_search(root, &["api", "serde@1::Serialize"]);
     assert!(
         current_version_api.starts_with(
-            "[search-api] q=serde@1::Serialize pkg=. api=0 source=registry-source crate=serde requestedVersion=1 versionScope=current currentWorkspaceVersion=1"
+            "[search-api] q=serde@1::Serialize pkg=. api=0 source=registry-source crate=serde requestedVersion=1 versionScope=current currentWorkspaceVersion=^1"
         ),
         "{current_version_api}"
     );
@@ -808,7 +808,7 @@ fn cli_search_views_render_rfc_line_protocol() {
     let external_docs = run_search(root, &["docs", "serde@2::Serialize"]);
     assert!(
         external_docs.starts_with(
-            "[search-docs] q=serde@2::Serialize pkg=. docs=0 source=registry-source crate=serde requestedVersion=2 versionScope=external currentWorkspaceVersion=1"
+            "[search-docs] q=serde@2::Serialize pkg=. docs=0 source=registry-source crate=serde requestedVersion=2 versionScope=external currentWorkspaceVersion=^1"
         ),
         "{external_docs}"
     );
@@ -835,7 +835,7 @@ fn cli_search_views_render_rfc_line_protocol() {
     assert_eq!(header_fields["crate"], "serde");
     assert_eq!(header_fields["requestedVersion"], "2");
     assert_eq!(header_fields["versionScope"], "external");
-    assert_eq!(header_fields["currentWorkspaceVersion"], "1");
+    assert_eq!(header_fields["currentWorkspaceVersion"], "^1");
     let note_fields = value["notes"][0]["fields"]
         .as_object()
         .expect("note fields");

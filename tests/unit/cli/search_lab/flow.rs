@@ -33,7 +33,7 @@ fn search_lab_multi_pipe_dependency_flow_compresses_to_final_packet() {
         &[
             "[search-dependency] q=serde pkg=. dep=1 own=2 api=8 item=",
             " docs=8 tests=1",
-            "|dep serde import=serde pkg=serde version=1 kind=normal opt=true source=manifest manager=cargo feat=derive",
+            "|dep serde import=serde pkg=serde version=^1 kind=normal opt=true source=manifest manager=cargo feat=derive",
             "|owner src/lib.rs hit_kind=dependency locations=",
             "|owner src/domain/mod.rs hit_kind=dependency locations=",
             "|item load kind=fn responsibilities=early-return public=true next=syntax:load",
@@ -127,8 +127,8 @@ fn search_lab_feature_cfg_flow_routes_dependency_owner_and_tests() {
         &[
             "[search-features] q=runtime pkg=. feat=1 dep=2 cfg=1 own=2 tests=1",
             "|feature runtime enables=dep:tokio,tokio/rt-multi-thread,tokio/sync,dep:bytes source=manifest manager=cargo",
-            "|dep tokio import=tokio pkg=tokio version=1 kind=normal opt=true source=manifest manager=cargo",
-            "|dep bytes import=bytes pkg=bytes version=1 kind=normal opt=true source=manifest manager=cargo",
+            "|dep tokio import=tokio pkg=tokio version=^1 kind=normal opt=true source=manifest manager=cargo",
+            "|dep bytes import=bytes pkg=bytes version=^1 kind=normal opt=true source=manifest manager=cargo",
             "|cfg feature:runtime declared_in=features expr=cfg(feature=\"runtime\")",
             "|owner src/lib.rs hit_kind=feature locations=",
             "|owner src/http/client.rs hit_kind=feature locations=",
@@ -179,8 +179,8 @@ fn search_lab_deps_flow_separates_current_workspace_and_external_versions() {
         &current,
         8,
         &[
-            "[search-deps] q=tokio@1::Sender pkg=. dep=1 own=1 api=0 requestedVersion=1 currentWorkspaceVersion=1 versionScope=current apiQuery=Sender",
-            "|dep tokio import=tokio pkg=tokio version=1 kind=normal opt=true source=manifest manager=cargo",
+            "[search-deps] q=tokio@1::Sender pkg=. dep=1 own=1 api=0 requestedVersion=1 currentWorkspaceVersion=^1 versionScope=current apiQuery=Sender",
+            "|dep tokio import=tokio pkg=tokio version=^1 kind=normal opt=true source=manifest manager=cargo",
             "|dependency-topology dep=tokio usageLevel=local_usage topology=needs-index ownerUsage=1",
             "|owner src/http/client.rs hit_kind=dependency-api apiQuery=Sender",
             "|next dependency:tokio,docs-use:tokio::Sender,crate-source:tokio,import:tokio,tests:Sender",
@@ -194,7 +194,7 @@ fn search_lab_deps_flow_separates_current_workspace_and_external_versions() {
         &external,
         8,
         &[
-            "[search-deps] q=ignore@0.3::WalkBuilder pkg=. dep=1 own=0 api=0 requestedVersion=0.3 currentWorkspaceVersion=0.4 versionScope=external apiQuery=WalkBuilder",
+            "[search-deps] q=ignore@0.3::WalkBuilder pkg=. dep=1 own=0 api=0 requestedVersion=0.3 currentWorkspaceVersion=^0.4 versionScope=external apiQuery=WalkBuilder",
             "|note kind=version-scope message=requested-version-is-outside-current-workspace-version",
             "|next dependency:ignore,docs-use:ignore::WalkBuilder,crate-source:ignore,import:ignore,tests:WalkBuilder",
         ],

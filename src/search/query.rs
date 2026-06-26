@@ -21,6 +21,7 @@ use super::limits::SEARCH_HIT_LIMIT;
 use super::owner_view;
 use super::recency::compare_paths_by_recency;
 use super::scope::{module_allowed, path_allowed_by_scope};
+use super::version::version_requirement_matches_request;
 
 pub(super) fn render_search_symbol(
     project_root: &Path,
@@ -591,7 +592,12 @@ fn current_workspace_version_matches(
 ) -> bool {
     matching_dependencies(&context.cargo_dependencies, crate_name)
         .iter()
-        .any(|dependency| dependency.version_req.as_deref() == Some(requested_version))
+        .any(|dependency| {
+            version_requirement_matches_request(
+                dependency.version_req.as_deref(),
+                requested_version,
+            )
+        })
 }
 
 fn current_workspace_versions(context: &PackageSearchContext, crate_name: &str) -> String {
