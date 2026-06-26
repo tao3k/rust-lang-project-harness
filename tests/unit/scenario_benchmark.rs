@@ -20,7 +20,7 @@ fn scenario_benchmark_control_flow_v1_snapshot() {
     assert!(scenario_root.join(&receipt.scenario.inputs).is_dir());
     assert!(scenario_root.join(&receipt.scenario.expected).is_dir());
     assert!(
-        receipt.benchmark.observed_total_ms <= receipt.benchmark.max_total_ms,
+        receipt.benchmark.observed_total <= receipt.benchmark.max_total,
         "{receipt:?}"
     );
     assert!(
@@ -44,7 +44,7 @@ fn scenario_benchmark_suite_covers_all_required_current_scenarios() {
     assert_eq!(receipt.requirements.len(), 13, "{receipt:?}");
     assert_eq!(receipt.receipts.len(), receipt.requirements.len());
     assert!(receipt.receipts.iter().all(|receipt| {
-        receipt.benchmark.observed_total_ms <= receipt.benchmark.max_total_ms
+        receipt.benchmark.observed_total <= receipt.benchmark.max_total
             && receipt.benchmark.observed_memory_bytes <= receipt.benchmark.memory_budget_bytes
     }));
 
@@ -66,17 +66,19 @@ fn scenario_benchmark_numeric_gate_reports_speed_and_memory_failures() {
     write_benchmark(
         temp.path(),
         r#"
-bench_command = "cargo test slow"
-target_total_ms = 25
-max_total_ms = 100
-observed_total_ms = 140
-regression_budget_ms = 20
+harness = "libtest"
+test = "scenario_benchmark_numeric_gate_reports_speed_and_memory_failures"
+snapshot = "scenario_benchmark_numeric_gate_reports_speed_and_memory_failures"
+target_total = "25ms"
+max_total = "100ms"
+observed_total = "140ms"
+regression_budget = "20ms"
 memory_budget_bytes = 1024
 observed_memory_bytes = 2048
 target_rationale = "The fixture should stay bounded."
 
 [observed_timings]
-parse_ms = 120
+parse = "120ms"
 "#,
     );
 
@@ -85,12 +87,46 @@ parse_ms = 120
     assert_eq!(receipt.status, RustScenarioBenchmarkStatus::Fail);
     assert!(receipt.violations.iter().any(|violation| {
         violation.kind == RustScenarioBenchmarkViolationKind::Performance
-            && violation.field == "benchmark.observed_total_ms"
+            && violation.field == "benchmark.observed_total"
     }));
     assert!(receipt.violations.iter().any(|violation| {
         violation.kind == RustScenarioBenchmarkViolationKind::Memory
             && violation.field == "benchmark.observed_memory_bytes"
     }));
+}
+
+#[test]
+fn scenario_benchmark_contract_accepts_libtest_insta_snapshot_entry() {
+    let temp = TempDir::new().expect("temp dir");
+    write_scenario(temp.path());
+    write_benchmark(
+        temp.path(),
+        r#"
+harness = "libtest"
+test = "workspace_file_rejection_error_snapshot_and_perf"
+snapshot = "workspace_file_rejection_error_snapshot_and_perf"
+target_total = "750us"
+max_total = "1.2ms"
+observed_total = "900\u00b5s"
+regression_budget = "250us"
+memory_budget_bytes = 8388608
+observed_memory_bytes = 4194304
+target_rationale = "Workspace argument validation is an in-process Rust API path."
+
+[observed_timings]
+workspace_metadata = "750\u00b5s"
+"#,
+    );
+
+    let receipt = validate_rust_scenario_benchmark(temp.path()).expect("validate scenario");
+
+    assert_eq!(receipt.status, RustScenarioBenchmarkStatus::Pass);
+    assert_eq!(receipt.benchmark.harness, "libtest");
+    assert_eq!(
+        receipt.benchmark.bench_entry(),
+        "harness=libtest test=workspace_file_rejection_error_snapshot_and_perf snapshot=workspace_file_rejection_error_snapshot_and_perf"
+    );
+    assert!(receipt.violations.is_empty(), "{:?}", receipt.violations);
 }
 
 #[test]
@@ -100,11 +136,12 @@ fn scenario_benchmark_contract_requires_agent_visible_metadata() {
     write_benchmark(
         temp.path(),
         r#"
-bench_command = ""
-target_total_ms = 120
-max_total_ms = 100
-observed_total_ms = 90
-regression_budget_ms = 0
+harness = ""
+test = ""
+target_total = "120ms"
+max_total = "100ms"
+observed_total = "90ms"
+regression_budget = "0ms"
 memory_budget_bytes = 0
 observed_memory_bytes = 0
 target_rationale = ""
@@ -124,7 +161,7 @@ target_rationale = ""
     }));
     assert!(receipt.violations.iter().any(|violation| {
         violation.kind == RustScenarioBenchmarkViolationKind::Contract
-            && violation.field == "benchmark.target_total_ms"
+            && violation.field == "benchmark.target_total"
     }));
 }
 
@@ -135,17 +172,18 @@ fn scenario_benchmark_contract_rejects_self_referential_gate_command() {
     write_benchmark(
         temp.path(),
         r#"
-bench_command = "cargo test --test integration_test orgize_rule_fixtures_have_scenario_benchmarks"
-target_total_ms = 25
-max_total_ms = 100
-observed_total_ms = 25
-regression_budget_ms = 20
+harness = "libtest"
+test = "orgize_rule_fixtures_have_scenario_benchmarks"
+target_total = "25ms"
+max_total = "100ms"
+observed_total = "25ms"
+regression_budget = "20ms"
 memory_budget_bytes = 8388608
 observed_memory_bytes = 4194304
 target_rationale = "Small rule fixture should stay bounded."
 
 [observed_timings]
-fixture_ms = 25
+fixture = "25ms"
 "#,
     );
 
@@ -154,10 +192,10 @@ fixture_ms = 25
     assert_eq!(receipt.status, RustScenarioBenchmarkStatus::Invalid);
     assert!(receipt.violations.iter().any(|violation| {
         violation.kind == RustScenarioBenchmarkViolationKind::Contract
-            && violation.field == "benchmark.bench_command"
+            && violation.field == "benchmark.entry"
             && violation
                 .message
-                .contains("focused scenario benchmark test")
+                .contains("focused Rust test or bench case")
     }));
 }
 
@@ -168,17 +206,19 @@ fn scenario_benchmark_contract_rejects_second_scale_hard_gate() {
     write_benchmark(
         temp.path(),
         r#"
-bench_command = "target/debug/asp rust search deps tokio --workspace . --view hits"
-target_total_ms = 250
-max_total_ms = 5000
-observed_total_ms = 240
-regression_budget_ms = 100
+harness = "criterion"
+bench = "asp_search_deps"
+case = "tokio"
+target_total = "250ms"
+max_total = "5s"
+observed_total = "240ms"
+regression_budget = "100ms"
 memory_budget_bytes = 8388608
 observed_memory_bytes = 4194304
 target_rationale = "Dependency seed should stay inside the millisecond gate."
 
 [observed_timings]
-asp_search_deps_ms = 240
+asp_search_deps = "240ms"
 "#,
     );
 
@@ -187,8 +227,8 @@ asp_search_deps_ms = 240
     assert_eq!(receipt.status, RustScenarioBenchmarkStatus::Invalid);
     assert!(receipt.violations.iter().any(|violation| {
         violation.kind == RustScenarioBenchmarkViolationKind::Contract
-            && violation.field == "benchmark.max_total_ms"
-            && violation.message.contains("millisecond hard gate")
+            && violation.field == "benchmark.max_total"
+            && violation.message.contains("hard gate")
     }));
 }
 
@@ -217,7 +257,7 @@ fn scenario_benchmark_suite_reports_missing_required_benchmark() {
     let rendered = render_rust_scenario_benchmark_gate_failure(&receipt);
     assert!(rendered.contains("scenario benchmark hard gate failed"));
     assert!(rendered.contains("preferred fix: add benchmark.toml"));
-    assert!(rendered.contains("target_total_ms = 25"));
+    assert!(rendered.contains("target_total = \"25ms\""));
     assert!(rendered.contains("memory_budget_bytes = 8388608"));
     assert!(!rendered.contains("advisory mode ="));
     assert!(!rendered.contains("expires ="));
@@ -244,7 +284,9 @@ fn scenario_benchmark_hard_gate_panics_with_repair_template() {
     assert!(message.contains("scenario benchmark hard gate failed"));
     assert!(message.contains("tests/unit/scenarios/missing_benchmark/benchmark.toml"));
     assert!(message.contains("preferred fix: add benchmark.toml"));
-    assert!(message.contains("bench_command = \"cargo test <focused-test>\""));
+    assert!(message.contains("harness = \"libtest\""));
+    assert!(message.contains("test = \"<focused-libtest-case>\""));
+    assert!(message.contains("snapshot = \"<insta-snapshot-name>\""));
     assert!(!message.contains("advisory mode ="));
     assert!(!message.contains("expires ="));
 }
@@ -275,18 +317,20 @@ fn scenario_benchmark_suite_reports_ast_patch_speed_failure() {
     write_benchmark(
         &scenario_root,
         r#"
-bench_command = "cargo test slow ast patch"
-target_total_ms = 25
-max_total_ms = 100
-observed_total_ms = 140
-regression_budget_ms = 20
+harness = "libtest"
+test = "ast_patch_scenarios::slow_apply"
+snapshot = "ast_patch_scenarios::slow_apply"
+target_total = "25ms"
+max_total = "100ms"
+observed_total = "140ms"
+regression_budget = "20ms"
 memory_budget_bytes = 8388608
 observed_memory_bytes = 4194304
 target_rationale = "AST patch scenario should stay bounded."
 
 [observed_timings]
-manifest_ms = 5
-apply_ms = 120
+manifest = "5ms"
+apply = "120ms"
 "#,
     );
 
@@ -297,7 +341,7 @@ apply_ms = 120
     assert_eq!(receipt.receipts.len(), 1);
     assert!(receipt.receipts[0].violations.iter().any(|violation| {
         violation.kind == RustScenarioBenchmarkViolationKind::Performance
-            && violation.field == "benchmark.observed_total_ms"
+            && violation.field == "benchmark.observed_total"
     }));
 }
 

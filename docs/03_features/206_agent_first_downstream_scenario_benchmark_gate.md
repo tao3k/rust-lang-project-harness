@@ -41,20 +41,26 @@ benchmark contract:
 preferred fix: add benchmark.toml next to the scenario fixture
 ```
 
-The template keeps the default small-fixture gate in milliseconds:
+The template keeps the default small-fixture gate as Rust `Duration`-style unit strings:
 
 ```toml
-bench_command = "cargo test <focused-test>"
-target_total_ms = 25
-max_total_ms = 100
-observed_total_ms = 25
-regression_budget_ms = 20
+harness = "libtest"
+test = "<focused-libtest-case>"
+snapshot = "<insta-snapshot-name>"
+# For Criterion, Divan, or iai-callgrind use:
+# harness = "criterion"
+# bench = "<cargo-bench-target>"
+# case = "<benchmark-group-or-function>"
+target_total = "25ms"
+max_total = "100ms"
+observed_total = "25ms"
+regression_budget = "20ms"
 memory_budget_bytes = 8388608
 observed_memory_bytes = 4194304
 target_rationale = "Small rule fixture should stay bounded."
 
 [observed_timings]
-fixture_ms = 25
+fixture = "25ms"
 ```
 
 Larger fixtures can raise budgets, but the rationale must explain why the

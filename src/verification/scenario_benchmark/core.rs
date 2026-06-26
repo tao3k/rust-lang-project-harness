@@ -5,11 +5,16 @@ use std::error::Error;
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
-use super::contract_gate::{bench_command_targets_contract_gate, default_benchmark_toml_template};
+use super::contract_gate::{
+    benchmark_entry_targets_contract_gate, default_benchmark_toml_template,
+};
 use serde::Deserialize;
+use serde::de::{self, Visitor};
 
-const RUST_SCENARIO_BENCHMARK_HARD_MAX_TOTAL_MS: u64 = 500;
+const RUST_SCENARIO_BENCHMARK_HARD_MAX_TOTAL: RustScenarioBenchmarkDuration =
+    RustScenarioBenchmarkDuration(Duration::from_millis(500));
 
 /// Scenario manifest format that requires a benchmark contract.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -83,22 +88,51 @@ pub struct RustScenarioMetadata {
     pub expected: String,
 }
 
-/// Millisecond duration used by Rust scenario benchmark contracts.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd)]
-#[serde(transparent)]
-pub struct RustScenarioBenchmarkDurationMs(pub u64);
+/// Duration used by Rust scenario benchmark contracts.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct RustScenarioBenchmarkDuration(pub Duration);
 
-impl RustScenarioBenchmarkDurationMs {
-    /// Return the raw duration in milliseconds.
+impl RustScenarioBenchmarkDuration {
+    /// Return the raw duration.
     #[must_use]
-    pub const fn as_u64(self) -> u64 {
+    pub const fn as_duration(self) -> Duration {
         self.0
+    }
+
+    fn is_zero(self) -> bool {
+        self.0.is_zero()
     }
 }
 
-impl fmt::Display for RustScenarioBenchmarkDurationMs {
+impl<'de> Deserialize<'de> for RustScenarioBenchmarkDuration {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_str(RustScenarioBenchmarkDurationVisitor)
+    }
+}
+
+struct RustScenarioBenchmarkDurationVisitor;
+
+impl Visitor<'_> for RustScenarioBenchmarkDurationVisitor {
+    type Value = RustScenarioBenchmarkDuration;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a Rust duration string such as 800ns, 75us, 1.2ms, or 1s")
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        parse_rust_scenario_benchmark_duration(value).map_err(E::custom)
+    }
+}
+
+impl fmt::Display for RustScenarioBenchmarkDuration {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{}", self.0)
+        write!(formatter, "{:?}", self.0)
     }
 }
 
@@ -123,17 +157,30 @@ impl fmt::Display for RustScenarioBenchmarkMemoryBytes {
 
 /// Scenario benchmark thresholds and observed receipts loaded from `benchmark.toml`.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct RustScenarioBenchmarkContract {
-    /// Replayable command that produced or verifies the benchmark receipt.
-    pub bench_command: String,
+    /// Benchmark harness, such as libtest, criterion, divan, or iai-callgrind.
+    pub harness: String,
+    /// Focused libtest test function, when the perf gate is a Rust test.
+    #[serde(default)]
+    pub test: Option<String>,
+    /// Cargo bench target name, when the perf gate is a benchmark target.
+    #[serde(default)]
+    pub bench: Option<String>,
+    /// Focused benchmark case, group, or function inside a bench target.
+    #[serde(default)]
+    pub case: Option<String>,
+    /// Insta snapshot name that freezes the receipt shape, when present.
+    #[serde(default)]
+    pub snapshot: Option<String>,
     /// Intended steady-state target duration.
-    pub target_total_ms: RustScenarioBenchmarkDurationMs,
+    pub target_total: RustScenarioBenchmarkDuration,
     /// Hard maximum duration enforced by the scenario gate.
-    pub max_total_ms: RustScenarioBenchmarkDurationMs,
+    pub max_total: RustScenarioBenchmarkDuration,
     /// Last observed total duration.
-    pub observed_total_ms: RustScenarioBenchmarkDurationMs,
+    pub observed_total: RustScenarioBenchmarkDuration,
     /// Allowed regression window before this scenario should be re-tuned.
-    pub regression_budget_ms: RustScenarioBenchmarkDurationMs,
+    pub regression_budget: RustScenarioBenchmarkDuration,
     /// Hard memory budget enforced by the scenario gate.
     pub memory_budget_bytes: RustScenarioBenchmarkMemoryBytes,
     /// Last observed memory use.
@@ -142,7 +189,28 @@ pub struct RustScenarioBenchmarkContract {
     pub target_rationale: String,
     /// Phase-level observed timings, normalized in snapshots.
     #[serde(default)]
-    pub observed_timings: BTreeMap<String, RustScenarioBenchmarkDurationMs>,
+    pub observed_timings: BTreeMap<String, RustScenarioBenchmarkDuration>,
+}
+
+impl RustScenarioBenchmarkContract {
+    /// Return a compact, agent-facing benchmark entry label.
+    #[must_use]
+    pub fn bench_entry(&self) -> String {
+        let mut parts = vec![format!("harness={}", self.harness.trim())];
+        if let Some(test) = non_empty_opt(self.test.as_deref()) {
+            parts.push(format!("test={test}"));
+        }
+        if let Some(bench) = non_empty_opt(self.bench.as_deref()) {
+            parts.push(format!("bench={bench}"));
+        }
+        if let Some(case) = non_empty_opt(self.case.as_deref()) {
+            parts.push(format!("case={case}"));
+        }
+        if let Some(snapshot) = non_empty_opt(self.snapshot.as_deref()) {
+            parts.push(format!("snapshot={snapshot}"));
+        }
+        parts.join(" ")
+    }
 }
 
 /// Validation receipt for one scenario benchmark fixture.
@@ -407,19 +475,16 @@ pub fn render_rust_scenario_benchmark_snapshot(receipt: &RustScenarioBenchmarkRe
         format!("title: {}", receipt.scenario.title),
         format!("status: {}", receipt.status.as_str()),
         format!("policies: {}", receipt.scenario.policy_ids.join(",")),
-        format!("bench_command: {}", receipt.benchmark.bench_command),
-        "observed_total_ms: <measured>".to_string(),
-        format!("target_total_ms: {}", receipt.benchmark.target_total_ms),
-        format!("max_total_ms: {}", receipt.benchmark.max_total_ms),
+        format!("bench_entry: {}", receipt.benchmark.bench_entry()),
+        "observed_total: <measured>".to_string(),
+        format!("target_total: {}", receipt.benchmark.target_total),
+        format!("max_total: {}", receipt.benchmark.max_total),
         "observed_memory_bytes: <measured>".to_string(),
         format!(
             "memory_budget_bytes: {}",
             receipt.benchmark.memory_budget_bytes
         ),
-        format!(
-            "regression_budget_ms: {}",
-            receipt.benchmark.regression_budget_ms
-        ),
+        format!("regression_budget: {}", receipt.benchmark.regression_budget),
         format!("agent_goal: {}", receipt.scenario.agent_goal),
         format!("target_rationale: {}", receipt.benchmark.target_rationale),
         format!("inputs: {}", receipt.scenario.inputs),
@@ -593,15 +658,13 @@ fn scenario_benchmark_violations(
             "at least one policy id is required",
         ));
     }
-    require_non_empty(
-        &mut violations,
-        "benchmark.bench_command",
-        &benchmark.bench_command,
-    );
-    if bench_command_targets_contract_gate(&benchmark.bench_command) {
+    require_non_empty(&mut violations, "benchmark.harness", &benchmark.harness);
+    require_supported_harness(&mut violations, &benchmark.harness);
+    require_benchmark_entry(&mut violations, benchmark);
+    if benchmark_entry_targets_contract_gate(benchmark) {
         violations.push(contract_violation(
-            "benchmark.bench_command",
-            "bench_command must run a focused scenario benchmark test, not the scenario benchmark contract gate",
+            "benchmark.entry",
+            "benchmark entry must name a focused Rust test or bench case, not the scenario benchmark contract gate",
         ));
     }
     require_non_empty(
@@ -611,23 +674,23 @@ fn scenario_benchmark_violations(
     );
     require_positive(
         &mut violations,
-        "benchmark.target_total_ms",
-        benchmark.target_total_ms.as_u64(),
+        "benchmark.target_total",
+        benchmark.target_total.is_zero(),
     );
     require_positive(
         &mut violations,
-        "benchmark.max_total_ms",
-        benchmark.max_total_ms.as_u64(),
+        "benchmark.max_total",
+        benchmark.max_total.is_zero(),
     );
     require_positive(
         &mut violations,
-        "benchmark.regression_budget_ms",
-        benchmark.regression_budget_ms.as_u64(),
+        "benchmark.regression_budget",
+        benchmark.regression_budget.is_zero(),
     );
     require_positive(
         &mut violations,
         "benchmark.memory_budget_bytes",
-        benchmark.memory_budget_bytes.as_u64(),
+        benchmark.memory_budget_bytes.as_u64() == 0,
     );
     if benchmark.observed_timings.is_empty() {
         violations.push(contract_violation(
@@ -635,27 +698,27 @@ fn scenario_benchmark_violations(
             "at least one timing phase is required",
         ));
     }
-    if benchmark.target_total_ms > benchmark.max_total_ms {
+    if benchmark.target_total > benchmark.max_total {
         violations.push(contract_violation(
-            "benchmark.target_total_ms",
-            "target_total_ms must be less than or equal to max_total_ms",
+            "benchmark.target_total",
+            "target_total must be less than or equal to max_total",
         ));
     }
-    if benchmark.max_total_ms.as_u64() > RUST_SCENARIO_BENCHMARK_HARD_MAX_TOTAL_MS {
+    if benchmark.max_total > RUST_SCENARIO_BENCHMARK_HARD_MAX_TOTAL {
         violations.push(contract_violation(
-            "benchmark.max_total_ms",
+            "benchmark.max_total",
             &format!(
-                "max_total_ms must be <= {RUST_SCENARIO_BENCHMARK_HARD_MAX_TOTAL_MS} for a millisecond hard gate",
+                "max_total must be <= {RUST_SCENARIO_BENCHMARK_HARD_MAX_TOTAL} for the hard gate",
             ),
         ));
     }
-    if benchmark.observed_total_ms > benchmark.max_total_ms {
+    if benchmark.observed_total > benchmark.max_total {
         violations.push(RustScenarioBenchmarkViolation {
             kind: RustScenarioBenchmarkViolationKind::Performance,
-            field: "benchmark.observed_total_ms".to_string(),
+            field: "benchmark.observed_total".to_string(),
             message: format!(
-                "observed {}ms exceeds max {}ms",
-                benchmark.observed_total_ms, benchmark.max_total_ms
+                "observed {} exceeds max {}",
+                benchmark.observed_total, benchmark.max_total
             ),
         });
     }
@@ -682,10 +745,159 @@ fn require_non_empty(
     }
 }
 
-fn require_positive(violations: &mut Vec<RustScenarioBenchmarkViolation>, field: &str, value: u64) {
-    if value == 0 {
+fn require_positive(
+    violations: &mut Vec<RustScenarioBenchmarkViolation>,
+    field: &str,
+    is_zero: bool,
+) {
+    if is_zero {
         violations.push(contract_violation(field, "field must be greater than zero"));
     }
+}
+
+fn require_supported_harness(violations: &mut Vec<RustScenarioBenchmarkViolation>, harness: &str) {
+    if harness.trim().is_empty() {
+        return;
+    }
+    if !matches!(
+        harness.trim(),
+        "libtest" | "criterion" | "divan" | "iai-callgrind"
+    ) {
+        violations.push(contract_violation(
+            "benchmark.harness",
+            "harness must be one of libtest, criterion, divan, or iai-callgrind",
+        ));
+    }
+}
+
+fn require_benchmark_entry(
+    violations: &mut Vec<RustScenarioBenchmarkViolation>,
+    benchmark: &RustScenarioBenchmarkContract,
+) {
+    let test = non_empty_opt(benchmark.test.as_deref());
+    let bench = non_empty_opt(benchmark.bench.as_deref());
+    let case = non_empty_opt(benchmark.case.as_deref());
+
+    match (test, bench) {
+        (None, None) => violations.push(contract_violation(
+            "benchmark.entry",
+            "set either test for libtest gates or bench plus case for benchmark harnesses",
+        )),
+        (Some(_), Some(_)) => violations.push(contract_violation(
+            "benchmark.entry",
+            "set either test or bench, not both",
+        )),
+        (Some(_), None) => {
+            if benchmark.harness.trim() != "libtest" {
+                violations.push(contract_violation(
+                    "benchmark.test",
+                    "test entries must use harness = \"libtest\"",
+                ));
+            }
+            if case.is_some() {
+                violations.push(contract_violation(
+                    "benchmark.case",
+                    "case is only valid with bench targets",
+                ));
+            }
+        }
+        (None, Some(_)) => {
+            if benchmark.harness.trim() == "libtest" {
+                violations.push(contract_violation(
+                    "benchmark.bench",
+                    "bench entries must use criterion, divan, or iai-callgrind",
+                ));
+            }
+            if case.is_none() {
+                violations.push(contract_violation(
+                    "benchmark.case",
+                    "bench entries must name a focused benchmark case, group, or function",
+                ));
+            }
+        }
+    }
+}
+
+fn non_empty_opt(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|value| !value.is_empty())
+}
+
+fn parse_rust_scenario_benchmark_duration(
+    value: &str,
+) -> Result<RustScenarioBenchmarkDuration, String> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Err("duration must not be empty".to_string());
+    }
+    let unit_start = value
+        .char_indices()
+        .find_map(|(index, character)| {
+            (!character.is_ascii_digit() && character != '.').then_some(index)
+        })
+        .ok_or_else(|| "duration must include a unit: ns, us, ms, or s".to_string())?;
+    let (amount, unit) = value.split_at(unit_start);
+    if amount.is_empty() {
+        return Err("duration must include a numeric amount".to_string());
+    }
+    let nanos_per_unit = match unit {
+        "ns" => 1,
+        "us" | "\u{00b5}s" | "\u{03bc}s" => 1_000,
+        "ms" => 1_000_000,
+        "s" => 1_000_000_000,
+        _ => {
+            return Err(format!(
+                "unsupported duration unit {unit:?}; use ns, us, ms, or s"
+            ));
+        }
+    };
+    let nanos = parse_decimal_duration_nanos(amount, nanos_per_unit)?;
+    let nanos = u64::try_from(nanos)
+        .map_err(|_| "duration exceeds std::time::Duration::from_nanos range".to_string())?;
+    Ok(RustScenarioBenchmarkDuration(Duration::from_nanos(nanos)))
+}
+
+fn parse_decimal_duration_nanos(amount: &str, nanos_per_unit: u128) -> Result<u128, String> {
+    let (whole, fraction) = amount
+        .split_once('.')
+        .map_or((amount, None), |(whole, fraction)| (whole, Some(fraction)));
+    if whole.is_empty() && fraction.is_none_or(str::is_empty) {
+        return Err("duration amount must contain digits".to_string());
+    }
+    let whole_nanos = if whole.is_empty() {
+        0
+    } else {
+        whole
+            .parse::<u128>()
+            .map_err(|_| format!("invalid duration amount {amount:?}"))?
+            .checked_mul(nanos_per_unit)
+            .ok_or_else(|| "duration amount overflows nanoseconds".to_string())?
+    };
+    let Some(fraction) = fraction else {
+        return Ok(whole_nanos);
+    };
+    if fraction.is_empty() || !fraction.chars().all(|character| character.is_ascii_digit()) {
+        return Err(format!("invalid duration fraction {amount:?}"));
+    }
+    let scale = 10_u128
+        .checked_pow(
+            u32::try_from(fraction.len())
+                .map_err(|_| "duration fraction is too precise".to_string())?,
+        )
+        .ok_or_else(|| "duration fraction is too precise".to_string())?;
+    let fraction_units = fraction
+        .parse::<u128>()
+        .map_err(|_| format!("invalid duration fraction {amount:?}"))?;
+    let fraction_nanos = fraction_units
+        .checked_mul(nanos_per_unit)
+        .ok_or_else(|| "duration fraction overflows nanoseconds".to_string())?;
+    if fraction_nanos % scale != 0 {
+        return Err(format!(
+            "duration {amount:?} is more precise than nanoseconds"
+        ));
+    }
+    whole_nanos
+        .checked_add(fraction_nanos / scale)
+        .ok_or_else(|| "duration amount overflows nanoseconds".to_string())
 }
 
 fn contract_violation(field: &str, message: &str) -> RustScenarioBenchmarkViolation {
@@ -696,7 +908,7 @@ fn contract_violation(field: &str, message: &str) -> RustScenarioBenchmarkViolat
     }
 }
 
-fn normalized_timings(timings: &BTreeMap<String, RustScenarioBenchmarkDurationMs>) -> String {
+fn normalized_timings(timings: &BTreeMap<String, RustScenarioBenchmarkDuration>) -> String {
     if timings.is_empty() {
         return "-".to_string();
     }

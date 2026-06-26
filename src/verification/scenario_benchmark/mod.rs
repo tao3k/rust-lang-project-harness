@@ -4,7 +4,7 @@ mod contract_gate;
 mod core;
 
 pub use core::{
-    RustScenarioBenchmarkContract, RustScenarioBenchmarkDurationMs, RustScenarioBenchmarkError,
+    RustScenarioBenchmarkContract, RustScenarioBenchmarkDuration, RustScenarioBenchmarkError,
     RustScenarioBenchmarkManifestKind, RustScenarioBenchmarkMemoryBytes,
     RustScenarioBenchmarkReceipt, RustScenarioBenchmarkRequirement, RustScenarioBenchmarkStatus,
     RustScenarioBenchmarkSuiteReceipt, RustScenarioBenchmarkViolation,

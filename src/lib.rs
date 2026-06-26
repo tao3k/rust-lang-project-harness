@@ -300,7 +300,7 @@ pub use verification::{
     write_rust_verification_reports_with_options,
 };
 pub use verification::{
-    RustScenarioBenchmarkContract, RustScenarioBenchmarkDurationMs, RustScenarioBenchmarkError,
+    RustScenarioBenchmarkContract, RustScenarioBenchmarkDuration, RustScenarioBenchmarkError,
     RustScenarioBenchmarkManifestKind, RustScenarioBenchmarkMemoryBytes,
     RustScenarioBenchmarkReceipt, RustScenarioBenchmarkRequirement, RustScenarioBenchmarkStatus,
     RustScenarioBenchmarkSuiteReceipt, RustScenarioBenchmarkViolation,

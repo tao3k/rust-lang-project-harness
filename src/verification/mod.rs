@@ -213,7 +213,7 @@ pub use review_packet::{
     render_rust_review_packet_json,
 };
 pub use scenario_benchmark::{
-    RustScenarioBenchmarkContract, RustScenarioBenchmarkDurationMs, RustScenarioBenchmarkError,
+    RustScenarioBenchmarkContract, RustScenarioBenchmarkDuration, RustScenarioBenchmarkError,
     RustScenarioBenchmarkManifestKind, RustScenarioBenchmarkMemoryBytes,
     RustScenarioBenchmarkReceipt, RustScenarioBenchmarkRequirement, RustScenarioBenchmarkStatus,
     RustScenarioBenchmarkSuiteReceipt, RustScenarioBenchmarkViolation,
