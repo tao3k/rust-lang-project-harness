@@ -1,4 +1,4 @@
-use super::core::RustScenarioBenchmarkContract;
+use super::contract::RustScenarioBenchmarkContract;
 
 pub(super) fn benchmark_entry_targets_contract_gate(
     benchmark: &RustScenarioBenchmarkContract,

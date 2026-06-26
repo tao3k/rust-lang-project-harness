@@ -1,0 +1,215 @@
+//! Scenario benchmark contract data types.
+
+use std::collections::BTreeMap;
+use std::fmt;
+use std::time::Duration;
+
+use serde::Deserialize;
+use serde::de::{self, Visitor};
+
+/// Duration used by Rust scenario benchmark contracts.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct RustScenarioBenchmarkDuration(pub Duration);
+
+impl RustScenarioBenchmarkDuration {
+    /// Return the raw duration.
+    #[must_use]
+    pub const fn as_duration(self) -> Duration {
+        self.0
+    }
+
+    pub(super) fn is_zero(self) -> bool {
+        self.0.is_zero()
+    }
+}
+
+impl<'de> Deserialize<'de> for RustScenarioBenchmarkDuration {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_str(RustScenarioBenchmarkDurationVisitor)
+    }
+}
+
+struct RustScenarioBenchmarkDurationVisitor;
+
+impl Visitor<'_> for RustScenarioBenchmarkDurationVisitor {
+    type Value = RustScenarioBenchmarkDuration;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a Rust duration string such as 800ns, 75us, 1.2ms, or 1s")
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        parse_rust_scenario_benchmark_duration(value).map_err(E::custom)
+    }
+}
+
+impl fmt::Display for RustScenarioBenchmarkDuration {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{:?}", self.0)
+    }
+}
+
+/// Byte count used by Rust scenario memory budget contracts.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct RustScenarioBenchmarkMemoryBytes(pub u64);
+
+impl RustScenarioBenchmarkMemoryBytes {
+    /// Return the raw byte count.
+    #[must_use]
+    pub const fn as_u64(self) -> u64 {
+        self.0
+    }
+}
+
+impl fmt::Display for RustScenarioBenchmarkMemoryBytes {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}", self.0)
+    }
+}
+
+/// Scenario benchmark thresholds and observed receipts loaded from `benchmark.toml`.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RustScenarioBenchmarkContract {
+    /// Benchmark harness, such as libtest, criterion, divan, or iai-callgrind.
+    pub harness: String,
+    /// Focused libtest test function, when the perf gate is a Rust test.
+    #[serde(default)]
+    pub test: Option<String>,
+    /// Cargo bench target name, when the perf gate is a benchmark target.
+    #[serde(default)]
+    pub bench: Option<String>,
+    /// Focused benchmark case, group, or function inside a bench target.
+    #[serde(default)]
+    pub case: Option<String>,
+    /// Insta snapshot name that freezes the receipt shape, when present.
+    #[serde(default)]
+    pub snapshot: Option<String>,
+    /// Intended steady-state target duration.
+    pub target_total: RustScenarioBenchmarkDuration,
+    /// Hard maximum duration enforced by the scenario gate.
+    pub max_total: RustScenarioBenchmarkDuration,
+    /// Last observed total duration.
+    pub observed_total: RustScenarioBenchmarkDuration,
+    /// Allowed regression window before this scenario should be re-tuned.
+    pub regression_budget: RustScenarioBenchmarkDuration,
+    /// Hard memory budget enforced by the scenario gate.
+    pub memory_budget_bytes: RustScenarioBenchmarkMemoryBytes,
+    /// Last observed memory use.
+    pub observed_memory_bytes: RustScenarioBenchmarkMemoryBytes,
+    /// Agent-facing explanation for why the target is credible.
+    pub target_rationale: String,
+    /// Phase-level observed timings, normalized in snapshots.
+    #[serde(default)]
+    pub observed_timings: BTreeMap<String, RustScenarioBenchmarkDuration>,
+}
+
+impl RustScenarioBenchmarkContract {
+    /// Return a compact, agent-facing benchmark entry label.
+    #[must_use]
+    pub fn bench_entry(&self) -> String {
+        let mut parts = vec![format!("harness={}", self.harness.trim())];
+        if let Some(test) = non_empty_opt(self.test.as_deref()) {
+            parts.push(format!("test={test}"));
+        }
+        if let Some(bench) = non_empty_opt(self.bench.as_deref()) {
+            parts.push(format!("bench={bench}"));
+        }
+        if let Some(case) = non_empty_opt(self.case.as_deref()) {
+            parts.push(format!("case={case}"));
+        }
+        if let Some(snapshot) = non_empty_opt(self.snapshot.as_deref()) {
+            parts.push(format!("snapshot={snapshot}"));
+        }
+        parts.join(" ")
+    }
+}
+
+fn non_empty_opt(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|value| !value.is_empty())
+}
+
+fn parse_rust_scenario_benchmark_duration(
+    value: &str,
+) -> Result<RustScenarioBenchmarkDuration, String> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Err("duration must not be empty".to_string());
+    }
+    let unit_start = value
+        .char_indices()
+        .find_map(|(index, character)| {
+            (!character.is_ascii_digit() && character != '.').then_some(index)
+        })
+        .ok_or_else(|| "duration must include a unit: ns, us, ms, or s".to_string())?;
+    let (amount, unit) = value.split_at(unit_start);
+    if amount.is_empty() {
+        return Err("duration must include a numeric amount".to_string());
+    }
+    let nanos_per_unit = match unit {
+        "ns" => 1,
+        "us" | "\u{00b5}s" | "\u{03bc}s" => 1_000,
+        "ms" => 1_000_000,
+        "s" => 1_000_000_000,
+        _ => {
+            return Err(format!(
+                "unsupported duration unit {unit:?}; use ns, us, ms, or s"
+            ));
+        }
+    };
+    let nanos = parse_decimal_duration_nanos(amount, nanos_per_unit)?;
+    let nanos = u64::try_from(nanos)
+        .map_err(|_| "duration exceeds std::time::Duration::from_nanos range".to_string())?;
+    Ok(RustScenarioBenchmarkDuration(Duration::from_nanos(nanos)))
+}
+
+fn parse_decimal_duration_nanos(amount: &str, nanos_per_unit: u128) -> Result<u128, String> {
+    let (whole, fraction) = amount
+        .split_once('.')
+        .map_or((amount, None), |(whole, fraction)| (whole, Some(fraction)));
+    if whole.is_empty() && fraction.is_none_or(str::is_empty) {
+        return Err("duration amount must contain digits".to_string());
+    }
+    let whole_nanos = if whole.is_empty() {
+        0
+    } else {
+        whole
+            .parse::<u128>()
+            .map_err(|_| format!("invalid duration amount {amount:?}"))?
+            .checked_mul(nanos_per_unit)
+            .ok_or_else(|| "duration amount overflows nanoseconds".to_string())?
+    };
+    let Some(fraction) = fraction else {
+        return Ok(whole_nanos);
+    };
+    if fraction.is_empty() || !fraction.chars().all(|character| character.is_ascii_digit()) {
+        return Err(format!("invalid duration fraction {amount:?}"));
+    }
+    let scale = 10_u128
+        .checked_pow(
+            u32::try_from(fraction.len())
+                .map_err(|_| "duration fraction is too precise".to_string())?,
+        )
+        .ok_or_else(|| "duration fraction is too precise".to_string())?;
+    let fraction_units = fraction
+        .parse::<u128>()
+        .map_err(|_| format!("invalid duration fraction {amount:?}"))?;
+    let fraction_nanos = fraction_units
+        .checked_mul(nanos_per_unit)
+        .ok_or_else(|| "duration fraction overflows nanoseconds".to_string())?;
+    if fraction_nanos % scale != 0 {
+        return Err(format!(
+            "duration {amount:?} is more precise than nanoseconds"
+        ));
+    }
+    whole_nanos
+        .checked_add(fraction_nanos / scale)
+        .ok_or_else(|| "duration amount overflows nanoseconds".to_string())
+}
