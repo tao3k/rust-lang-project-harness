@@ -94,7 +94,7 @@ fn render_prime_graph(
             "owner",
             limit,
         );
-        append_frontier_block(&mut out, "graph:{G=search,O=owner}", &nodes);
+        append_node_block(&mut out, "owner:{O=owner}", &nodes);
         out.push_str("entries=owner-tests(O=>covering-tests+test-entrypoints+fixtures)\n");
     }
     out.push_str("omit=items,blocks,code,full-test-list\n");
@@ -508,12 +508,11 @@ fn append_graph_block(out: &mut String, aliases: &str, nodes: &[GraphNode], rela
     append_edges_rank_frontier(out, nodes, relation, None);
 }
 
-fn append_frontier_block(out: &mut String, aliases: &str, nodes: &[GraphNode]) {
+fn append_node_block(out: &mut String, aliases: &str, nodes: &[GraphNode]) {
     out.push_str("aliases: ");
     out.push_str(aliases);
     out.push('\n');
     if nodes.is_empty() {
-        out.push_str("frontier=\n");
         return;
     }
     out.push_str(
@@ -522,15 +521,6 @@ fn append_frontier_block(out: &mut String, aliases: &str, nodes: &[GraphNode]) {
             .map(GraphNode::render)
             .collect::<Vec<_>>()
             .join(";"),
-    );
-    out.push('\n');
-    out.push_str("frontier=");
-    out.push_str(
-        &nodes
-            .iter()
-            .map(|node| format!("{}.{}", node.id, node.next))
-            .collect::<Vec<_>>()
-            .join(","),
     );
     out.push('\n');
 }

@@ -12,6 +12,38 @@ use crate::cli::support::{
 };
 
 #[test]
+fn cli_search_prime_seeds_omit_owner_only_frontier() {
+    if crate::cli::support::skip_if_protocol_graph_renderer_unavailable() {
+        return;
+    }
+
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "owner-only-prime");
+    fs::create_dir_all(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "pub fn load() {}\n").expect("write lib");
+
+    let prime = run_search(root, &["prime", "--view", "seeds"]);
+
+    assert!(
+        prime.starts_with("[search-prime] root=. alg=budgeted-prime-frontier-v1"),
+        "{prime}"
+    );
+    assert!(prime.contains("aliases: owner:{O=owner}"), "{prime}");
+    assert!(prime.contains("O=owner:path(src/lib.rs)!owner"), "{prime}");
+    assert!(
+        prime.contains("entries=owner-tests(O=>covering-tests+test-entrypoints+fixtures)"),
+        "{prime}"
+    );
+    assert!(
+        !prime.contains("aliases: graph:{G=search,O=owner}"),
+        "{prime}"
+    );
+    assert!(!prime.contains("G>{"), "{prime}");
+    assert!(!prime.contains("frontier=O.owner"), "{prime}");
+}
+
+#[test]
 fn cli_search_views_render_rfc_line_protocol() {
     if crate::cli::support::skip_if_protocol_graph_renderer_unavailable() {
         return;
