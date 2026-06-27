@@ -100,13 +100,13 @@ pub(super) fn print_guide(_project_root: &Path) {
 |surface patch purpose=mutation authority=agent-core|apply_patch|ast-patch
 |catalog reasoningProfiles=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg entries=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg routes=path,read-frontier
 
-|flow bootstrap start="search guide ." then="search prime --workspace . --view seeds" next="use search-guide command=search reasoning <profile> --owner/--query/--dependency ... --view seeds"
-|flow code-shaped-read start="refer:treesitter-query-guide" then="query --treesitter-query <pattern>" then="query --selector <path:range> --treesitter-query <pattern> --workspace <workspace-root> --code"
+|flow bootstrap start="search guide ." then="choose evidence-state route; prime only when owner map unknown" next="use search-guide command=search reasoning <profile> --owner/--query/--dependency ... --view seeds"
+|flow code-shaped-read start="refer:treesitter-query-guide" then="query --treesitter-query <pattern>" then="query --selector <exact-structural-selector> --treesitter-query <pattern> --workspace <workspace-root> --code"
 |flow wide-read-protection trigger="query --from-hook direct-source-read --selector <wide-range> --code" output=read-frontier code=false
 
-|cmd prime=asp rust search prime --workspace <workspace-root> --view seeds
-|cmd pipe=asp rust search pipe '<term>' --workspace <workspace-root> --view seeds
-|cmd query-code=asp rust query --selector <path:start-end> --workspace <workspace-root> --code
+|cmd prime=asp rust search prime --workspace <workspace-root> --view seeds condition=owner-map-unknown
+|cmd pipe=asp rust search pipe '<term>' --workspace <workspace-root> --view seeds condition=ambiguous-query
+|cmd query-code=asp rust query --selector <exact-structural-selector> --workspace <workspace-root> --code
 |cmd evidence-graph=asp rust evidence graph --review-packet-json <semantic-review-packet.json> --json <workspace-root>
 |cmd evidence-analyze=asp rust evidence analyze --evidence-graph-json <semantic-evidence-graph.json> --json <workspace-root>
 
@@ -116,6 +116,7 @@ pub(super) fn print_guide(_project_root: &Path) {
 
 |rule search-no-code default=true reason=avoid-inline-code-token-bloat
 |rule query-code-stdout pure=true when="--code + exact-selector|unique-match"
+|rule displayLineRange/sourceLocatorHint are display hints; execute structural selectors or owner/symbol routes, not line ranges
 |rule tree-sitter-base enabled=true native-extension=true
 |avoid raw-read,manual-window-scan,inline-code-in-search,broad-fzf,search-json-in-prompt,repeat-wide-read
 "#

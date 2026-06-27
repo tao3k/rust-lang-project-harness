@@ -419,10 +419,10 @@ fn fast_manifest_feature_seed_names(package_root: &Path, limit: usize) -> Vec<St
         .collect()
 }
 
-fn append_decision_primer_lines(rendered: &mut String, language_id: &str) {
+fn append_decision_primer_lines(rendered: &mut String, _language_id: &str) {
     let _ = writeln!(
         rendered,
-        "|decision purpose=decision-primer answer=false code=false capabilities=pipe,fzf,fd-query,rg-query,owner-items,selector-code,treesitter-query ladder=pipe>fzf>fd-query|rg-query>owner-items>selector-code history=asp-artifacts:directReadRisk,repeatedPrime,repeatedPipe,bestPath risk=broad-direct-read,manual-window-scan,repeat-prime next=\"asp {language_id} search pipe '<question-or-feature-term>' --workspace . --view seeds\""
+        "|decision purpose=decision-primer answer=false code=false route=evidence-state capabilities=pipe,fzf,fd-query,rg-query,owner-items,selector-code,treesitter-query history=asp-artifacts:directReadRisk,repeatedPrime,repeatedPipe,bestPath risk=broad-direct-read,manual-window-scan,repeat-prime rule=\"prime maps workspace/owners only; choose the narrowest route justified by current evidence\" routeOptions=\"owner-items when owner known; selector-code when exact selector known; deps when dependency known; pipe/fzf only for ambiguous query refinement\""
     );
 }
 

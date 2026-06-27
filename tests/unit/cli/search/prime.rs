@@ -56,10 +56,18 @@ fn cli_search_prime_renders_line_protocol() {
         ),
         "{stdout}"
     );
+    assert!(stdout.contains("route=evidence-state"), "{stdout}");
     assert!(
-        stdout.contains("ladder=pipe>fzf>fd-query|rg-query>owner-items>selector-code"),
+        stdout.contains(
+            "rule=\"prime maps workspace/owners only; choose the narrowest route justified by current evidence\""
+        ),
         "{stdout}"
     );
+    assert!(
+        stdout.contains("routeOptions=\"owner-items when owner known"),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("ladder=pipe"), "{stdout}");
     assert!(
         stdout.contains("history=asp-artifacts:directReadRisk,repeatedPrime,repeatedPipe,bestPath"),
         "{stdout}"
@@ -68,12 +76,7 @@ fn cli_search_prime_renders_line_protocol() {
         stdout.contains("risk=broad-direct-read,manual-window-scan,repeat-prime"),
         "{stdout}"
     );
-    assert!(
-        stdout.contains(
-            "next=\"asp rust search pipe '<question-or-feature-term>' --workspace . --view seeds\""
-        ),
-        "{stdout}"
-    );
+    assert!(!stdout.contains("next=\"asp rust search pipe"), "{stdout}");
     assert!(stdout.contains("|owner src/lib.rs"), "{stdout}");
     assert!(
         stdout.contains("|edge O:src/lib.rs -mod-> O:src/domain/mod.rs"),
