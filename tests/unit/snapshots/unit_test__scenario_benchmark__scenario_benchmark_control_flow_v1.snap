@@ -5,7 +5,7 @@ expression: render_rust_scenario_benchmark_snapshot(&receipt)
 scenario: control-flow-v1
 title: Control-flow verification stays bounded
 status: pass
-policies: RUST-CFG-R001
+policies: RUST-AGENT-CFG-001
 bench_entry: harness=libtest test=scenario_benchmark_control_flow_v1_snapshot snapshot=scenario_benchmark_control_flow_v1
 observed_total: <measured>
 target_total: 25ms
@@ -14,8 +14,10 @@ observed_memory_bytes: <measured>
 memory_budget_bytes: 8388608
 regression_budget: 20ms
 agent_goal: Find the control-flow owner before editing.
+reference_repositories: rust-lang/rust,rust-lang/cargo,rust-lang/rust-analyzer
+reference_patterns: Traversal state is named before control-flow expands | Iterator and predicate helpers own branch-specific reasoning
 target_rationale: Parser-native owner selection should remain a small fixture test.
 inputs: inputs
 expected: expected
-timings: parse=<measured>,render=<measured>,snapshot=<measured>
+scenario_gate_timings: contract_deserialize=<measured>,receipt_render=<measured>,snapshot_assertion=<measured>
 violations: -

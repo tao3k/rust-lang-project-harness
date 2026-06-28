@@ -1,11 +1,11 @@
 ---
 source: tests/unit/scenario_benchmark.rs
-assertion_line: 50
 expression: render_rust_scenario_benchmark_suite_snapshot(&receipt)
 ---
 status: pass
-requirements: 13
-receipts: 13
+requirements: 20
+receipts: 20
+policy_coverage: 11
 required:
 - ast-patch-scenario.json tests/fixtures/ast_patch_scenarios/001_replace_fn_apply_formats
 - ast-patch-scenario.json tests/fixtures/ast_patch_scenarios/002_dry_run_does_not_mutate
@@ -19,7 +19,14 @@ required:
 - ast-patch-scenario.json tests/fixtures/ast_patch_scenarios/010_tokio_style_builder_struct_apply
 - ast-patch-scenario.json tests/fixtures/ast_patch_scenarios/011_tokio_style_mpsc_channel_apply
 - ast-patch-scenario.json tests/fixtures/ast_patch_scenarios/012_tokio_style_join_handle_impl_apply
+- scenario.toml tests/unit/scenarios/software_criteria/async_backpressure_boundary_v1
+- scenario.toml tests/unit/scenarios/software_criteria/async_blocking_boundary_v1
+- scenario.toml tests/unit/scenarios/software_criteria/async_select_cancellation_safety_v1
+- scenario.toml tests/unit/scenarios/software_criteria/async_sync_lock_boundary_v1
+- scenario.toml tests/unit/scenarios/software_criteria/async_timeout_cancellation_safety_v1
 - scenario.toml tests/unit/scenarios/software_criteria/control_flow_v1
+- scenario.toml tests/unit/scenarios/software_criteria/data_structure_linear_membership_scan_v1
+- scenario.toml tests/unit/scenarios/software_criteria/process_command_probe_v1
 scenario_status:
 - pass tests/fixtures/ast_patch_scenarios/001_replace_fn_apply_formats
 - pass tests/fixtures/ast_patch_scenarios/002_dry_run_does_not_mutate
@@ -33,5 +40,24 @@ scenario_status:
 - pass tests/fixtures/ast_patch_scenarios/010_tokio_style_builder_struct_apply
 - pass tests/fixtures/ast_patch_scenarios/011_tokio_style_mpsc_channel_apply
 - pass tests/fixtures/ast_patch_scenarios/012_tokio_style_join_handle_impl_apply
+- pass tests/unit/scenarios/software_criteria/async_backpressure_boundary_v1
+- pass tests/unit/scenarios/software_criteria/async_blocking_boundary_v1
+- pass tests/unit/scenarios/software_criteria/async_select_cancellation_safety_v1
+- pass tests/unit/scenarios/software_criteria/async_sync_lock_boundary_v1
+- pass tests/unit/scenarios/software_criteria/async_timeout_cancellation_safety_v1
 - pass tests/unit/scenarios/software_criteria/control_flow_v1
+- pass tests/unit/scenarios/software_criteria/data_structure_linear_membership_scan_v1
+- pass tests/unit/scenarios/software_criteria/process_command_probe_v1
+agent_policy_coverage:
+- AGENT-R015 RUST-AGENT-CFG-001 control-flow-v1 tests/unit/scenarios/software_criteria/control_flow_v1
+- AGENT-R016 RUST-AGENT-CFG-001 control-flow-v1 tests/unit/scenarios/software_criteria/control_flow_v1
+- AGENT-R017 RUST-AGENT-CFG-001 control-flow-v1 tests/unit/scenarios/software_criteria/control_flow_v1
+- AGENT-R025 RUST-AGENT-CFG-001 control-flow-v1 tests/unit/scenarios/software_criteria/control_flow_v1
+- AGENT-R026 RUST-AGENT-CFG-001 control-flow-v1 tests/unit/scenarios/software_criteria/control_flow_v1
+- AGENT-R029 RUST-AGENT-DS-001 data-structure-linear-membership-scan-v1 tests/unit/scenarios/software_criteria/data_structure_linear_membership_scan_v1
+- AGENT-R030 RUST-AGENT-ASYNC-BLOCKING-001 async-blocking-boundary-v1 tests/unit/scenarios/software_criteria/async_blocking_boundary_v1
+- AGENT-R031 RUST-AGENT-ASYNC-SYNC-LOCK-001 async-sync-lock-boundary-v1 tests/unit/scenarios/software_criteria/async_sync_lock_boundary_v1
+- AGENT-R032 RUST-AGENT-ASYNC-BACKPRESSURE-001 async-backpressure-boundary-v1 tests/unit/scenarios/software_criteria/async_backpressure_boundary_v1
+- AGENT-R033 RUST-AGENT-ASYNC-CANCEL-SAFETY-001 async-select-cancellation-safety-v1 tests/unit/scenarios/software_criteria/async_select_cancellation_safety_v1
+- AGENT-R034 RUST-AGENT-ASYNC-CANCEL-SAFETY-002 async-timeout-cancellation-safety-v1 tests/unit/scenarios/software_criteria/async_timeout_cancellation_safety_v1
 violations: -

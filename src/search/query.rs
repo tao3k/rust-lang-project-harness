@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -748,12 +748,16 @@ fn api_hits(
     symbol_hits: &[SearchHit],
     query: &str,
 ) -> Vec<SearchHit> {
+    let modules_by_path = parsed_modules
+        .iter()
+        .map(|module| (module.report.path.clone(), module))
+        .collect::<BTreeMap<_, _>>();
     let mut hits = symbol_hits
         .iter()
         .map(|hit| {
-            parsed_modules
-                .iter()
-                .find(|module| module.report.path == hit.path)
+            modules_by_path
+                .get(&hit.path)
+                .copied()
                 .and_then(|module| {
                     module
                         .syntax_facts
@@ -775,6 +779,10 @@ fn api_hits(
                 .unwrap_or_else(|| hit.clone())
         })
         .collect::<Vec<_>>();
+    let mut hit_keys = hits
+        .iter()
+        .map(|hit| (hit.path.clone(), hit.name.clone()))
+        .collect::<BTreeSet<_>>();
     for module in parsed_modules {
         for return_fact in
             module
@@ -785,10 +793,10 @@ fn api_hits(
                     !return_fact.is_test_context && return_fact.function_name == query
                 })
         {
-            if hits
-                .iter()
-                .any(|hit| hit.path == module.report.path && hit.name == return_fact.function_name)
-            {
+            if !hit_keys.insert((
+                module.report.path.clone(),
+                return_fact.function_name.clone(),
+            )) {
                 continue;
             }
             hits.push(api_hit_for_return_fact(
@@ -841,10 +849,7 @@ fn public_external_type_hits(
         for dependency in dependencies {
             let aliases = dependency_aliases(module, dependency);
             for surface in &surfaces {
-                if aliases
-                    .iter()
-                    .any(|alias| type_text_mentions_alias(&surface.type_text, alias))
-                {
+                if type_text_mentions_any_alias(&surface.type_text, &aliases) {
                     hits.insert(format!(
                         "|external-type {}:{} dep={} surface={} item={} type={} source=native-parser next=dependency:{},docs:{}",
                         display_project_path(package_root, &surface.path),
@@ -861,6 +866,12 @@ fn public_external_type_hits(
         }
     }
     hits.into_iter().collect()
+}
+
+fn type_text_mentions_any_alias(type_text: &str, aliases: &BTreeSet<String>) -> bool {
+    aliases
+        .iter()
+        .any(|alias| type_text_mentions_alias(type_text, alias))
 }
 
 fn public_api_type_surfaces(module: &ParsedRustModule) -> Vec<PublicApiTypeSurface> {

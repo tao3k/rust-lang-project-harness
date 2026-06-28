@@ -10,6 +10,6 @@ observed_memory_bytes = 4194304
 target_rationale = "Parser-native owner selection should remain a small fixture test."
 
 [observed_timings]
-parse = "8ms"
-render = "3ms"
-snapshot = "2ms"
+contract_deserialize = "8ms"
+receipt_render = "3ms"
+snapshot_assertion = "2ms"

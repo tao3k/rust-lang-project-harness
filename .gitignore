@@ -4,7 +4,7 @@
 Cargo.lock
 /.devenv
 /.codex/harness-state/
-
+/.data/
 .vscode
 .gdb_history
 perf.data*

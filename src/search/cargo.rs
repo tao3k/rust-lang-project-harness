@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -165,7 +165,7 @@ fn render_search_dep(
             |api| dependency_api_usage(&context, &path_usage, api),
         );
         let public_api = if version_scope == DependencyVersionScope::Current
-            && options.pipes.iter().any(|pipe| pipe == "public-api")
+            && has_pipe(options, "public-api")
         {
             public_api_lines_for_dependency(
                 &context,
@@ -688,19 +688,26 @@ fn render_search_feature(
     let mut rendered = String::new();
     for context in contexts {
         let features = manifest_features(&context.package_root);
-        let enables = features
+        let features_by_name = features
             .iter()
-            .find(|(name, _)| name == query)
-            .map(|(_, enables)| enables.clone())
+            .map(|(name, enables)| (name.as_str(), enables))
+            .collect::<BTreeMap<_, _>>();
+        let feature_present = features_by_name.contains_key(query);
+        let enables = features_by_name
+            .get(query)
+            .map(|enables| (*enables).clone())
             .unwrap_or_default();
+        let enabled_dependency_keys = enables
+            .iter()
+            .map(|enabled| enabled.strip_prefix("dep:").unwrap_or(enabled))
+            .collect::<BTreeSet<_>>();
+        let requested_feature = query.to_string();
         let feature_deps = context
             .cargo_dependencies
             .iter()
             .filter(|dependency| {
-                enables.iter().any(|enabled| {
-                    enabled == &format!("dep:{}", dependency.dependency_key)
-                        || enabled == &dependency.dependency_key
-                }) || dependency.features.iter().any(|feature| feature == query)
+                enabled_dependency_keys.contains(dependency.dependency_key.as_str())
+                    || dependency.features.contains(&requested_feature)
             })
             .collect::<Vec<_>>();
         let cfgs = if has_pipe(options, "cfg") {
@@ -723,10 +730,14 @@ fn render_search_feature(
         } else {
             Vec::new()
         };
+        let owner_hit_paths = owner_hits
+            .iter()
+            .map(|hit| hit.path.clone())
+            .collect::<BTreeSet<_>>();
         let owner_modules = context
             .parsed_modules
             .iter()
-            .filter(|module| owner_hits.iter().any(|hit| hit.path == module.report.path))
+            .filter(|module| owner_hit_paths.contains(&module.report.path))
             .collect::<Vec<_>>();
         let mut test_lines = if has_pipe(options, "tests") {
             test_lines_for_owner_modules(&context, &owner_modules)
@@ -744,7 +755,7 @@ fn render_search_feature(
             "[search-features] q={} pkg={} feat={} dep={}",
             query,
             package_label(project_root, &context.package_root),
-            usize::from(features.iter().any(|(name, _)| name == query)),
+            usize::from(feature_present),
             feature_deps.len()
         );
         if has_pipe(options, "cfg") {

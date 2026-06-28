@@ -1,0 +1,11 @@
+id = "data-structure-linear-membership-scan-v1"
+title = "Linear membership scans are indexed before traversal"
+policy_ids = ["RUST-AGENT-DS-001"]
+agent_goal = "Replace loop-local linear membership scans with an indexed lookup before changing the traversal."
+reference_repositories = ["rust-lang/rust", "rust-lang/cargo", "BurntSushi/ripgrep"]
+reference_patterns = [
+  "Membership-heavy traversal builds an index before the hot loop",
+  "Complexity-changing refactors carry input and expected performance evidence",
+]
+inputs = "inputs"
+expected = "expected"

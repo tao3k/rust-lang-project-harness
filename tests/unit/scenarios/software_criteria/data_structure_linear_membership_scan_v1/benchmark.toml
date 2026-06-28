@@ -1,0 +1,22 @@
+harness = "libtest"
+test = "scenario_benchmark_data_structure_linear_membership_scan_v1_snapshot"
+snapshot = "scenario_benchmark_data_structure_linear_membership_scan_v1"
+target_total = "20ms"
+max_total = "75ms"
+observed_total = "12ms"
+regression_budget = "15ms"
+memory_budget_bytes = 8388608
+observed_memory_bytes = 3145728
+target_rationale = "Membership-indexing policy coverage should remain a small parser-native fixture."
+
+[observed_timings]
+contract_deserialize = "5ms"
+receipt_render = "2ms"
+snapshot_assertion = "1ms"
+
+[input_expected_comparison]
+input_total = "14ms"
+expected_total = "5ms"
+input_memory_bytes = 4194304
+expected_memory_bytes = 3145728
+interpretation = "expected indexes membership before traversal; observed speedup 2.80x and memory reduction 25.00%"

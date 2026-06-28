@@ -1,5 +1,7 @@
 //! Generic compaction for search line-protocol packets.
 
+use std::collections::BTreeMap;
+
 #[must_use]
 pub(crate) fn compact_search_packet(rendered: &str) -> String {
     let lines = compact_edge_blocks(compact_cfg_rows(rendered));
@@ -139,18 +141,18 @@ fn compact_edge_block(lines: Vec<String>) -> Vec<String> {
 
 fn edge_block_groups(lines: &[String]) -> Vec<EdgeBlockGroup> {
     let mut groups = Vec::<EdgeBlockGroup>::new();
+    let mut group_indices = BTreeMap::<(String, String), usize>::new();
     for (index, line) in lines.iter().enumerate() {
         let Some((left, relation, right)) = edge_parts(line) else {
             continue;
         };
-        if let Some(group_index) = groups
-            .iter()
-            .position(|group| group.left == left && group.relation == relation)
-        {
-            let group = &mut groups[group_index];
+        let group_key = (left.clone(), relation.clone());
+        if let Some(group_index) = group_indices.get(&group_key) {
+            let group = &mut groups[*group_index];
             group.rights.push(right);
             group.indices.push(index);
         } else {
+            group_indices.insert(group_key, groups.len());
             groups.push(EdgeBlockGroup {
                 left,
                 relation,

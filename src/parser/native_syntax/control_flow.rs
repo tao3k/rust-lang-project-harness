@@ -7,11 +7,19 @@ use syn::visit::{self, Visit};
 
 use quote::ToTokens;
 
+use super::async_queue_boundary::{
+    backpressure_boundary_signal_count, unbounded_async_queue_call_count,
+};
+use super::select_cancellation_safety::tokio_select_cancel_unsafe_io_count;
+use super::sync_lock_boundary::sync_lock_guard_across_await_count;
+use super::timeout_cancellation_safety::tokio_timeout_cancel_unsafe_io_count;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RustFunctionControlFlowSyntax {
     pub line: usize,
     pub function_name: String,
     pub is_public: bool,
+    pub is_async: bool,
     pub line_span: usize,
     pub statement_count: usize,
     pub max_block_statement_count: usize,
@@ -26,6 +34,13 @@ pub(crate) struct RustFunctionControlFlowSyntax {
     pub manual_numeric_accumulator_loop_count: usize,
     pub manual_count_loop_count: usize,
     pub repeated_iterator_source_loop_count: usize,
+    pub linear_membership_scan_loop_count: usize,
+    pub blocking_call_count: usize,
+    pub sync_lock_guard_across_await_count: usize,
+    pub unbounded_async_queue_call_count: usize,
+    pub backpressure_boundary_signal_count: usize,
+    pub tokio_select_cancel_unsafe_io_count: usize,
+    pub tokio_timeout_cancel_unsafe_io_count: usize,
     pub is_test_context: bool,
 }
 
@@ -65,6 +80,7 @@ fn item_function_control_flow_syntax(
             line: item_fn.sig.ident.span().start().line.max(1),
             function_name: item_fn.sig.ident.to_string(),
             is_public: is_public_visibility(&item_fn.vis),
+            is_async: item_fn.sig.asyncness.is_some(),
             line_span: item_line_span(item_fn),
             statement_count: 0,
             max_block_statement_count: 0,
@@ -79,6 +95,23 @@ fn item_function_control_flow_syntax(
             manual_numeric_accumulator_loop_count: 0,
             manual_count_loop_count: 0,
             repeated_iterator_source_loop_count: repeated_iterator_source_loop_count(
+                &item_fn.block,
+            ),
+            linear_membership_scan_loop_count: linear_membership_scan_loop_count(&item_fn.block),
+            blocking_call_count: blocking_call_count(&item_fn.block),
+            sync_lock_guard_across_await_count: sync_lock_guard_across_await_count(
+                &item_fn.sig,
+                &item_fn.block,
+            ),
+            unbounded_async_queue_call_count: unbounded_async_queue_call_count(&item_fn.block),
+            backpressure_boundary_signal_count: backpressure_boundary_signal_count(
+                &item_fn.sig.ident.to_string(),
+                &item_fn.block,
+            ),
+            tokio_select_cancel_unsafe_io_count: tokio_select_cancel_unsafe_io_count(
+                &item_fn.block,
+            ),
+            tokio_timeout_cancel_unsafe_io_count: tokio_timeout_cancel_unsafe_io_count(
                 &item_fn.block,
             ),
             is_test_context: inherited_test_context || attrs_have_cfg_test(&item_fn.attrs),
@@ -100,6 +133,7 @@ fn method_function_control_flow_syntax(
             line: method.sig.ident.span().start().line.max(1),
             function_name: method.sig.ident.to_string(),
             is_public: is_public_visibility(&method.vis),
+            is_async: method.sig.asyncness.is_some(),
             line_span: item_line_span(method),
             statement_count: 0,
             max_block_statement_count: 0,
@@ -114,6 +148,21 @@ fn method_function_control_flow_syntax(
             manual_numeric_accumulator_loop_count: 0,
             manual_count_loop_count: 0,
             repeated_iterator_source_loop_count: repeated_iterator_source_loop_count(&method.block),
+            linear_membership_scan_loop_count: linear_membership_scan_loop_count(&method.block),
+            blocking_call_count: blocking_call_count(&method.block),
+            sync_lock_guard_across_await_count: sync_lock_guard_across_await_count(
+                &method.sig,
+                &method.block,
+            ),
+            unbounded_async_queue_call_count: unbounded_async_queue_call_count(&method.block),
+            backpressure_boundary_signal_count: backpressure_boundary_signal_count(
+                &method.sig.ident.to_string(),
+                &method.block,
+            ),
+            tokio_select_cancel_unsafe_io_count: tokio_select_cancel_unsafe_io_count(&method.block),
+            tokio_timeout_cancel_unsafe_io_count: tokio_timeout_cancel_unsafe_io_count(
+                &method.block,
+            ),
             is_test_context: inherited_test_context || attrs_have_cfg_test(&method.attrs),
         },
         control_depth: 0,
@@ -377,6 +426,55 @@ fn repeated_iterator_source_loop_count(block: &syn::Block) -> usize {
     collector.repeated_loop_count()
 }
 
+fn linear_membership_scan_loop_count(block: &syn::Block) -> usize {
+    let mut collector = LinearMembershipScanLoopCollector::default();
+    collector.visit_block(block);
+    collector.loop_count
+}
+
+fn blocking_call_count(block: &syn::Block) -> usize {
+    let mut collector = BlockingCallCollector::default();
+    collector.visit_block(block);
+    collector.count
+}
+
+#[derive(Default)]
+struct BlockingCallCollector {
+    count: usize,
+    blocking_boundary_depth: usize,
+}
+
+impl<'ast> Visit<'ast> for BlockingCallCollector {
+    fn visit_expr_call(&mut self, call: &'ast syn::ExprCall) {
+        if expr_call_is_blocking_boundary(call) {
+            self.blocking_boundary_depth += 1;
+            for argument in &call.args {
+                self.visit_expr(argument);
+            }
+            self.blocking_boundary_depth -= 1;
+            return;
+        }
+        if self.blocking_boundary_depth == 0 && expr_call_is_blocking_operation(call) {
+            self.count += 1;
+        }
+        visit::visit_expr_call(self, call);
+    }
+}
+
+fn expr_call_is_blocking_boundary(call: &syn::ExprCall) -> bool {
+    expr_path_ends_with(call.func.as_ref(), &["spawn_blocking"])
+        || expr_path_ends_with(call.func.as_ref(), &["block_in_place"])
+}
+
+fn expr_call_is_blocking_operation(call: &syn::ExprCall) -> bool {
+    expr_path_ends_with(call.func.as_ref(), &["std", "thread", "sleep"])
+        || expr_path_ends_with(call.func.as_ref(), &["thread", "sleep"])
+        || expr_path_ends_with(call.func.as_ref(), &["std", "fs", "read"])
+        || expr_path_ends_with(call.func.as_ref(), &["std", "fs", "read_to_string"])
+        || expr_path_ends_with(call.func.as_ref(), &["std", "fs", "write"])
+        || expr_path_ends_with(call.func.as_ref(), &["std", "net", "TcpStream", "connect"])
+}
+
 #[derive(Default)]
 struct ForLoopIteratorCollector {
     iterator_counts: BTreeMap<String, usize>,
@@ -416,6 +514,68 @@ fn simple_iterator_source(expr: &syn::Expr) -> Option<String> {
         }
         _ => None,
     }
+}
+
+#[derive(Default)]
+struct LinearMembershipScanLoopCollector {
+    loop_count: usize,
+}
+
+impl<'ast> Visit<'ast> for LinearMembershipScanLoopCollector {
+    fn visit_expr_for_loop(&mut self, loop_expr: &'ast syn::ExprForLoop) {
+        if loop_body_has_linear_membership_scan(&loop_expr.body) {
+            self.loop_count += 1;
+        }
+        visit::visit_expr_for_loop(self, loop_expr);
+    }
+}
+
+fn loop_body_has_linear_membership_scan(block: &syn::Block) -> bool {
+    let mut collector = LinearMembershipScanCollector::default();
+    for statement in &block.stmts {
+        collector.visit_stmt(statement);
+    }
+    collector.found
+}
+
+#[derive(Default)]
+struct LinearMembershipScanCollector {
+    found: bool,
+}
+
+impl<'ast> Visit<'ast> for LinearMembershipScanCollector {
+    fn visit_expr_method_call(&mut self, method_call: &'ast syn::ExprMethodCall) {
+        if is_linear_membership_scan_call(method_call) {
+            self.found = true;
+            return;
+        }
+        visit::visit_expr_method_call(self, method_call);
+    }
+
+    fn visit_expr_for_loop(&mut self, _loop: &'ast syn::ExprForLoop) {}
+
+    fn visit_expr_loop(&mut self, _loop: &'ast syn::ExprLoop) {}
+
+    fn visit_expr_while(&mut self, _loop: &'ast syn::ExprWhile) {}
+
+    fn visit_expr_closure(&mut self, _closure: &'ast syn::ExprClosure) {}
+}
+
+fn is_linear_membership_scan_call(method_call: &syn::ExprMethodCall) -> bool {
+    matches!(
+        method_call.method.to_string().as_str(),
+        "any" | "find" | "position"
+    ) && method_call_receiver_is_iterator(method_call)
+}
+
+fn method_call_receiver_is_iterator(method_call: &syn::ExprMethodCall) -> bool {
+    let syn::Expr::MethodCall(receiver) = method_call.receiver.as_ref() else {
+        return false;
+    };
+    matches!(
+        receiver.method.to_string().as_str(),
+        "iter" | "iter_mut" | "into_iter"
+    )
 }
 
 fn literal_dispatch_chain_count(block: &syn::Block) -> usize {

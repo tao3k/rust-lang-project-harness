@@ -9,7 +9,10 @@ use crate::{RustHarnessFinding, RustHarnessRule};
 
 use crate::rules::display_path;
 
-use super::{AGENT_R015, AGENT_R016, AGENT_R017, AGENT_R025, AGENT_R026};
+use super::{
+    AGENT_R015, AGENT_R016, AGENT_R017, AGENT_R025, AGENT_R026, AGENT_R029, AGENT_R030, AGENT_R031,
+    AGENT_R032, AGENT_R033, AGENT_R034,
+};
 
 const MAX_LINEAR_NESTING_DEPTH: usize = 2;
 const MAX_NATIVE_IDIOM_NESTING_DEPTH: usize = 2;
@@ -25,7 +28,13 @@ const CONTROL_FLOW_BROAD_LINEAR_PHASE: &str = "control-flow.broad-linear-phase";
 const CONTROL_FLOW_DECISION_STACK: &str = "control-flow.decision-stack";
 const CONTROL_FLOW_LITERAL_DISPATCH_CHAIN: &str = "control-flow.literal-dispatch-chain";
 const CONTROL_FLOW_TRAVERSAL_KNOT: &str = "control-flow.traversal-knot";
+const DATA_STRUCTURE_LINEAR_MEMBERSHIP_SCAN: &str = "data-structure.linear-membership-scan";
 const NATIVE_IDIOM_MANUAL_TRANSFORM_LOOP: &str = "native-idiom.manual-transform-loop";
+const ASYNC_BLOCKING_BOUNDARY: &str = "async.blocking-boundary";
+const ASYNC_SYNC_LOCK_ACROSS_AWAIT: &str = "async.sync-lock-across-await";
+const ASYNC_UNBOUNDED_QUEUE_BACKPRESSURE: &str = "async.unbounded-queue-backpressure";
+const ASYNC_SELECT_CANCELLATION_SAFETY: &str = "async.select-cancellation-safety";
+const ASYNC_TIMEOUT_CANCELLATION_SAFETY: &str = "async.timeout-cancellation-safety";
 
 fn compact_software_criteria(criterion_ids: &[&'static str]) -> String {
     criterion_ids
@@ -54,6 +63,12 @@ pub(super) fn algorithm_shape_findings(
             findings.extend(broad_linear_algorithm_findings(module, rules));
             findings.extend(implementation_traversal_findings(module, rules));
             findings.extend(implementation_iterator_idiom_findings(module, rules));
+            findings.extend(linear_membership_scan_findings(module, rules));
+            findings.extend(async_blocking_boundary_findings(module, rules));
+            findings.extend(async_sync_lock_across_await_findings(module, rules));
+            findings.extend(async_unbounded_queue_backpressure_findings(module, rules));
+            findings.extend(async_select_cancellation_safety_findings(module, rules));
+            findings.extend(async_timeout_cancellation_safety_findings(module, rules));
             findings
         })
         .collect()
@@ -237,6 +252,209 @@ fn implementation_iterator_idiom_findings(
                 ),
                 &[NATIVE_IDIOM_MANUAL_TRANSFORM_LOOP],
             ))
+        })
+        .collect()
+}
+
+fn linear_membership_scan_findings(
+    module: &ParsedRustModule,
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let rule = &rules[AGENT_R029];
+    module
+        .syntax_facts
+        .all_function_control_flows
+        .iter()
+        .filter(|control_flow| !control_flow.is_test_context)
+        .filter(|control_flow| control_flow.linear_membership_scan_loop_count > 0)
+        .map(|control_flow| {
+            with_software_criteria(
+            RustHarnessFinding::from_rule(
+                rule,
+                format!(
+                    "{} function `{}` performs {} loop-local linear membership scan(s). Criteria: {}.",
+                    display_path(&module.report.path),
+                    control_flow.function_name,
+                    control_flow.linear_membership_scan_loop_count,
+                    compact_software_criterion(DATA_STRUCTURE_LINEAR_MEMBERSHIP_SCAN)
+                ),
+                path_line_location(&module.report.path, control_flow.line),
+                source_line(&module.source, control_flow.line),
+                "build a set or map index before the loop, or document why this scan is bounded",
+            ),
+            &[DATA_STRUCTURE_LINEAR_MEMBERSHIP_SCAN],
+        )
+        })
+        .collect()
+}
+
+fn async_blocking_boundary_findings(
+    module: &ParsedRustModule,
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let rule = &rules[AGENT_R030];
+    module
+        .syntax_facts
+        .all_function_control_flows
+        .iter()
+        .filter(|control_flow| !control_flow.is_test_context)
+        .filter(|control_flow| control_flow.is_async)
+        .filter(|control_flow| control_flow.blocking_call_count > 0)
+        .map(|control_flow| {
+            with_software_criteria(
+                RustHarnessFinding::from_rule(
+                    rule,
+                    format!(
+                        "{} async function `{}` performs {} blocking call(s) without an explicit runtime boundary. Criteria: {}.",
+                        display_path(&module.report.path),
+                        control_flow.function_name,
+                        control_flow.blocking_call_count,
+                        compact_software_criterion(ASYNC_BLOCKING_BOUNDARY)
+                    ),
+                    path_line_location(&module.report.path, control_flow.line),
+                    source_line(&module.source, control_flow.line),
+                    "move blocking work behind spawn_blocking, block_in_place, or a dedicated synchronous boundary",
+                ),
+                &[ASYNC_BLOCKING_BOUNDARY],
+            )
+        })
+        .collect()
+}
+
+fn async_sync_lock_across_await_findings(
+    module: &ParsedRustModule,
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let rule = &rules[AGENT_R031];
+    module
+        .syntax_facts
+        .all_function_control_flows
+        .iter()
+        .filter(|control_flow| !control_flow.is_test_context)
+        .filter(|control_flow| control_flow.is_async)
+        .filter(|control_flow| control_flow.sync_lock_guard_across_await_count > 0)
+        .map(|control_flow| {
+            with_software_criteria(
+                RustHarnessFinding::from_rule(
+                    rule,
+                    format!(
+                        "{} async function `{}` holds {} sync lock guard(s) across `.await`. Criteria: {}.",
+                        display_path(&module.report.path),
+                        control_flow.function_name,
+                        control_flow.sync_lock_guard_across_await_count,
+                        compact_software_criterion(ASYNC_SYNC_LOCK_ACROSS_AWAIT)
+                    ),
+                    path_line_location(&module.report.path, control_flow.line),
+                    source_line(&module.source, control_flow.line),
+                    "drop sync lock guards before `.await`, use `tokio::sync` primitives, or move the critical section behind a synchronous boundary",
+                ),
+                &[ASYNC_SYNC_LOCK_ACROSS_AWAIT],
+            )
+        })
+        .collect()
+}
+
+fn async_unbounded_queue_backpressure_findings(
+    module: &ParsedRustModule,
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let rule = &rules[AGENT_R032];
+    let has_backpressure_boundary = module
+        .syntax_facts
+        .all_function_control_flows
+        .iter()
+        .filter(|control_flow| !control_flow.is_test_context)
+        .any(|control_flow| control_flow.backpressure_boundary_signal_count > 0);
+    if has_backpressure_boundary {
+        return Vec::new();
+    }
+    module
+        .syntax_facts
+        .all_function_control_flows
+        .iter()
+        .filter(|control_flow| !control_flow.is_test_context)
+        .filter(|control_flow| control_flow.unbounded_async_queue_call_count > 0)
+        .map(|control_flow| {
+            with_software_criteria(
+                RustHarnessFinding::from_rule(
+                    rule,
+                    format!(
+                        "{} function `{}` creates {} unbounded async queue(s) without a readiness or capacity boundary. Criteria: {}.",
+                        display_path(&module.report.path),
+                        control_flow.function_name,
+                        control_flow.unbounded_async_queue_call_count,
+                        compact_software_criterion(ASYNC_UNBOUNDED_QUEUE_BACKPRESSURE)
+                    ),
+                    path_line_location(&module.report.path, control_flow.line),
+                    source_line(&module.source, control_flow.line),
+                    "use a bounded channel or add an explicit poll_ready, try_send, reserve, or semaphore backpressure boundary",
+                ),
+                &[ASYNC_UNBOUNDED_QUEUE_BACKPRESSURE],
+            )
+        })
+        .collect()
+}
+
+fn async_select_cancellation_safety_findings(
+    module: &ParsedRustModule,
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let rule = &rules[AGENT_R033];
+    module
+        .syntax_facts
+        .all_function_control_flows
+        .iter()
+        .filter(|control_flow| !control_flow.is_test_context)
+        .filter(|control_flow| control_flow.tokio_select_cancel_unsafe_io_count > 0)
+        .map(|control_flow| {
+            with_software_criteria(
+                RustHarnessFinding::from_rule(
+                    rule,
+                    format!(
+                        "{} function `{}` places {} cancellation-unsafe I/O future(s) inside `tokio::select!`. Criteria: {}.",
+                        display_path(&module.report.path),
+                        control_flow.function_name,
+                        control_flow.tokio_select_cancel_unsafe_io_count,
+                        compact_software_criterion(ASYNC_SELECT_CANCELLATION_SAFETY)
+                    ),
+                    path_line_location(&module.report.path, control_flow.line),
+                    source_line(&module.source, control_flow.line),
+                    "split exact read/write progress out of the select branch or use cancellation-safe read/write polling",
+                ),
+                &[ASYNC_SELECT_CANCELLATION_SAFETY],
+            )
+        })
+        .collect()
+}
+
+fn async_timeout_cancellation_safety_findings(
+    module: &ParsedRustModule,
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let rule = &rules[AGENT_R034];
+    module
+        .syntax_facts
+        .all_function_control_flows
+        .iter()
+        .filter(|control_flow| !control_flow.is_test_context)
+        .filter(|control_flow| control_flow.tokio_timeout_cancel_unsafe_io_count > 0)
+        .map(|control_flow| {
+            with_software_criteria(
+                RustHarnessFinding::from_rule(
+                    rule,
+                    format!(
+                        "{} function `{}` wraps {} cancellation-unsafe I/O future(s) in `tokio::time::timeout`. Criteria: {}.",
+                        display_path(&module.report.path),
+                        control_flow.function_name,
+                        control_flow.tokio_timeout_cancel_unsafe_io_count,
+                        compact_software_criterion(ASYNC_TIMEOUT_CANCELLATION_SAFETY)
+                    ),
+                    path_line_location(&module.report.path, control_flow.line),
+                    source_line(&module.source, control_flow.line),
+                    "move exact read/write progress outside the timeout future or use a cancellation-safe polling loop with explicit partial-progress state",
+                ),
+                &[ASYNC_TIMEOUT_CANCELLATION_SAFETY],
+            )
         })
         .collect()
 }

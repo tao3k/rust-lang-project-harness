@@ -65,7 +65,7 @@ fn harness_rules_markdown_is_plain_rule_id_list() {
         count += 1;
     }
 
-    assert_eq!(count, 61);
+    assert_eq!(count, 67);
 }
 
 #[test]

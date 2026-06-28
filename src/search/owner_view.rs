@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 use std::path::{Path, PathBuf};
 
@@ -76,7 +76,7 @@ fn render_exact_path_owner_query_set(
 ) -> Result<Option<String>, String> {
     let package_roots =
         package_roots_for_request(project_root, config, options.package.as_deref())?;
-    let include_items = options.pipes.iter().any(|pipe| pipe == "items");
+    let include_items = has_pipe(options, "items");
     let needs_context = !include_items || !options.item_names_only;
     let contexts = if needs_context {
         search_contexts(project_root, config, options)?
@@ -160,7 +160,7 @@ fn render_exact_path_owner(
     if !exact_rust_file_query(query) {
         return Ok(None);
     }
-    let include_items = options.pipes.iter().any(|pipe| pipe == "items");
+    let include_items = has_pipe(options, "items");
     if options.output_view.as_deref() == Some("seeds") && !include_items {
         return render_exact_path_owner_seed_view(project_root, config, query, options);
     }
@@ -211,7 +211,7 @@ fn render_exact_path_owner(
             query,
             module: &module,
             include_items,
-            include_tests: !include_items || options.pipes.iter().any(|pipe| pipe == "tests"),
+            include_tests: !include_items || has_pipe(options, "tests"),
             item_query: options.item_query.as_deref(),
             item_names_only: options.item_names_only,
             item_code: options.item_code,
@@ -690,17 +690,23 @@ fn append_reasoning_owner_lines(
     context: &PackageSearchContext,
     matching_branches: &[&RustReasoningOwnerBranchFacts],
 ) {
+    let modules_by_path = context
+        .parsed_modules
+        .iter()
+        .map(|module| (module.report.path.clone(), module))
+        .collect::<BTreeMap<_, _>>();
     for branch in matching_branches.iter().take(SEARCH_OWNER_LIMIT) {
-        let module = context
-            .parsed_modules
-            .iter()
-            .find(|module| module.report.path == branch.path);
+        let module = modules_by_path.get(&branch.path).copied();
         let _ = writeln!(
             block,
             "{}",
             render_owner_line(&context.package_root, branch, module)
         );
     }
+}
+
+fn has_pipe(options: &RustSearchOptions, pipe: &str) -> bool {
+    options.pipes.iter().any(|candidate| candidate == pipe)
 }
 
 fn append_owner_item_lines(

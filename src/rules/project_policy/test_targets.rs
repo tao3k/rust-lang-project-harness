@@ -118,15 +118,11 @@ pub(super) fn test_target_module_mount_findings(
             let Some(resolved) = item_mod.resolved_path_attr.as_ref() else {
                 continue;
             };
-            let mut candidates = vec![resolved.clone()];
-            if let Some(parent) = parsed.report.path.parent() {
-                candidates.push(parent.join(path_value));
-            }
-            let allowed = candidates.iter().any(|candidate| {
-                let project_relative = candidate.strip_prefix(project_root).unwrap_or(candidate);
-                candidate.exists()
-                    && is_allowed_test_suite_path(project_root, project_relative, policy)
-            });
+            let allowed = is_allowed_resolved_test_suite_path(project_root, resolved, policy)
+                || parsed.report.path.parent().is_some_and(|parent| {
+                    let candidate = parent.join(path_value);
+                    is_allowed_resolved_test_suite_path(project_root, &candidate, policy)
+                });
             if !allowed {
                 findings.push(RustHarnessFinding::from_rule(
                     rule,
@@ -146,4 +142,13 @@ pub(super) fn test_target_module_mount_findings(
 
 fn is_test_target_aggregate_item_syntax(item: &RustTopLevelItemSyntax) -> bool {
     item.is_macro || item.is_use || item.module.as_ref().is_some_and(|module| !module.is_inline)
+}
+
+fn is_allowed_resolved_test_suite_path(
+    project_root: &Path,
+    candidate: &Path,
+    policy: &LayoutPolicy,
+) -> bool {
+    let project_relative = candidate.strip_prefix(project_root).unwrap_or(candidate);
+    candidate.exists() && is_allowed_test_suite_path(project_root, project_relative, policy)
 }

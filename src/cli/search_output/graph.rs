@@ -735,11 +735,15 @@ fn header_query(header: &str) -> Option<&str> {
 
 pub(super) fn append_passthrough_lines(out: &mut String, rendered: &str, prefixes: &[&str]) {
     for line in rendered.lines() {
-        if prefixes.iter().any(|prefix| line.starts_with(prefix)) {
+        if has_passthrough_prefix(line, prefixes) {
             out.push_str(line);
             out.push('\n');
         }
     }
+}
+
+fn has_passthrough_prefix(line: &str, prefixes: &[&str]) -> bool {
+    prefixes.iter().any(|prefix| line.starts_with(prefix))
 }
 
 pub(super) fn synthesis_field<'a>(rendered: &'a str, key: &str) -> Option<&'a str> {

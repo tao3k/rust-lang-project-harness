@@ -1,0 +1,4 @@
+[package]
+name = "process-command-probe-v1"
+version = "0.0.0"
+edition = "2024"

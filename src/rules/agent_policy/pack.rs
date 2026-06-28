@@ -37,11 +37,120 @@ pub(super) const AGENT_R025: &str = "AGENT-R025";
 pub(super) const AGENT_R026: &str = "AGENT-R026";
 pub(super) const AGENT_R027: &str = "AGENT-R027";
 pub(super) const AGENT_R028: &str = "AGENT-R028";
+pub(super) const AGENT_R029: &str = "AGENT-R029";
+pub(super) const AGENT_R030: &str = "AGENT-R030";
+pub(super) const AGENT_R031: &str = "AGENT-R031";
+pub(super) const AGENT_R032: &str = "AGENT-R032";
+pub(super) const AGENT_R033: &str = "AGENT-R033";
+pub(super) const AGENT_R034: &str = "AGENT-R034";
+
+/// Scenario coverage required for an agent policy rule.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct RustAgentPolicyScenarioRequirement {
+    /// Agent policy rule id that must stay scenario-backed.
+    pub rule_id: &'static str,
+    /// Stable scenario id expected in `scenario.toml`.
+    pub scenario_id: &'static str,
+    /// Policy id expected in `scenario.toml` `policy_ids`.
+    pub policy_id: &'static str,
+    /// Crate-relative scenario root.
+    pub scenario_root: &'static str,
+}
+
+const AGENT_POLICY_SCENARIO_REQUIREMENTS: &[RustAgentPolicyScenarioRequirement] = &[
+    agent_policy_scenario_requirement(
+        AGENT_R015,
+        "control-flow-v1",
+        "RUST-AGENT-CFG-001",
+        "tests/unit/scenarios/software_criteria/control_flow_v1",
+    ),
+    agent_policy_scenario_requirement(
+        AGENT_R016,
+        "control-flow-v1",
+        "RUST-AGENT-CFG-001",
+        "tests/unit/scenarios/software_criteria/control_flow_v1",
+    ),
+    agent_policy_scenario_requirement(
+        AGENT_R017,
+        "control-flow-v1",
+        "RUST-AGENT-CFG-001",
+        "tests/unit/scenarios/software_criteria/control_flow_v1",
+    ),
+    agent_policy_scenario_requirement(
+        AGENT_R025,
+        "control-flow-v1",
+        "RUST-AGENT-CFG-001",
+        "tests/unit/scenarios/software_criteria/control_flow_v1",
+    ),
+    agent_policy_scenario_requirement(
+        AGENT_R026,
+        "control-flow-v1",
+        "RUST-AGENT-CFG-001",
+        "tests/unit/scenarios/software_criteria/control_flow_v1",
+    ),
+    agent_policy_scenario_requirement(
+        AGENT_R029,
+        "data-structure-linear-membership-scan-v1",
+        "RUST-AGENT-DS-001",
+        "tests/unit/scenarios/software_criteria/data_structure_linear_membership_scan_v1",
+    ),
+    agent_policy_scenario_requirement(
+        AGENT_R030,
+        "async-blocking-boundary-v1",
+        "RUST-AGENT-ASYNC-BLOCKING-001",
+        "tests/unit/scenarios/software_criteria/async_blocking_boundary_v1",
+    ),
+    agent_policy_scenario_requirement(
+        AGENT_R031,
+        "async-sync-lock-boundary-v1",
+        "RUST-AGENT-ASYNC-SYNC-LOCK-001",
+        "tests/unit/scenarios/software_criteria/async_sync_lock_boundary_v1",
+    ),
+    agent_policy_scenario_requirement(
+        AGENT_R032,
+        "async-backpressure-boundary-v1",
+        "RUST-AGENT-ASYNC-BACKPRESSURE-001",
+        "tests/unit/scenarios/software_criteria/async_backpressure_boundary_v1",
+    ),
+    agent_policy_scenario_requirement(
+        AGENT_R033,
+        "async-select-cancellation-safety-v1",
+        "RUST-AGENT-ASYNC-CANCEL-SAFETY-001",
+        "tests/unit/scenarios/software_criteria/async_select_cancellation_safety_v1",
+    ),
+    agent_policy_scenario_requirement(
+        AGENT_R034,
+        "async-timeout-cancellation-safety-v1",
+        "RUST-AGENT-ASYNC-CANCEL-SAFETY-002",
+        "tests/unit/scenarios/software_criteria/async_timeout_cancellation_safety_v1",
+    ),
+];
+
+const fn agent_policy_scenario_requirement(
+    rule_id: &'static str,
+    scenario_id: &'static str,
+    policy_id: &'static str,
+    scenario_root: &'static str,
+) -> RustAgentPolicyScenarioRequirement {
+    RustAgentPolicyScenarioRequirement {
+        rule_id,
+        scenario_id,
+        policy_id,
+        scenario_root,
+    }
+}
 
 /// Return compact metadata for agent-oriented Rust policy rules.
 #[must_use]
 pub fn rust_agent_policy_rules() -> Vec<RustHarnessRule> {
     rules_by_id().into_values().collect()
+}
+
+/// Return the agent policy rules that require scenario benchmark coverage.
+#[must_use]
+pub(crate) fn rust_agent_policy_scenario_requirements()
+-> &'static [RustAgentPolicyScenarioRequirement] {
+    AGENT_POLICY_SCENARIO_REQUIREMENTS
 }
 
 pub(crate) fn evaluate(
@@ -337,6 +446,54 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             RustDiagnosticSeverity::Info,
             "Public data model exposes a stringly state field",
             "Use a public enum, newtype, or typed catalog boundary instead of `String` or `Option<String>` for public state, status, kind, mode, phase, type, tag, or category fields.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R029,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Function performs a linear membership scan inside a loop",
+            "Build a `HashSet`, `BTreeSet`, `HashMap`, or `BTreeMap` index before the loop, or document why the nested linear scan is bounded, so agents preserve the algorithmic complexity contract.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R030,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Async task performs blocking work on the runtime",
+            "Move blocking I/O, sleeps, or CPU-heavy loops behind `spawn_blocking`, a dedicated worker, or an explicit sync boundary so agents preserve Tokio runtime responsiveness.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R031,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Async task holds a sync lock guard across await",
+            "Drop `std::sync` or `parking_lot` lock guards before `.await`, switch the boundary to `tokio::sync`, or isolate the critical section so agents preserve runtime progress and cancellation behavior.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R032,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Async queue lacks a backpressure boundary",
+            "Use a bounded channel, expose `poll_ready`/`try_send`/`reserve`, or guard an unbounded channel with an explicit capacity or semaphore boundary so agents preserve async backpressure and memory behavior.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R033,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Tokio select branch uses cancellation-unsafe I/O",
+            "Keep `tokio::select!` branches cancellation-safe; avoid `read_exact`, `read_to_end`, `read_to_string`, `write_all`, or `write_all_buf` inside select branches unless the partial-progress contract is explicit.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            AGENT_R034,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Tokio timeout wraps cancellation-unsafe I/O",
+            "Keep `tokio::time::timeout` boundaries cancellation-safe; avoid wrapping `read_exact`, `read_to_end`, `read_to_string`, `write_all`, or `write_all_buf` unless partial progress is owned outside the timed future.",
             labels("agent-policy"),
         ),
     ]

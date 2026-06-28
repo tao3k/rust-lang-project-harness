@@ -28,7 +28,7 @@ tests/unit/scenarios/<group>/<scenario-id>/
 ```toml
 id = "control-flow-v1"
 title = "Control-flow verification stays bounded"
-policy_ids = ["RUST-CFG-R001"]
+policy_ids = ["RUST-AGENT-CFG-001"]
 agent_goal = "Find the control-flow owner before editing."
 inputs = "inputs"
 expected = "expected"
@@ -98,7 +98,7 @@ The current default fixture budget for small AST patch scenario contracts is `ta
 ```text
 scenario: control-flow-v1
 status: pass
-policies: RUST-CFG-R001
+policies: RUST-AGENT-CFG-001
 bench_entry: harness=libtest test=scenario_benchmark_control_flow_v1_snapshot snapshot=scenario_benchmark_control_flow_v1
 observed_total: <measured>
 target_total: 25ms

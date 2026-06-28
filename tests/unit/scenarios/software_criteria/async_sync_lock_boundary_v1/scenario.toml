@@ -1,0 +1,11 @@
+id = "async-sync-lock-boundary-v1"
+title = "Sync lock guards do not cross async suspension points"
+policy_ids = ["RUST-AGENT-ASYNC-SYNC-LOCK-001"]
+agent_goal = "Detect async Rust code that holds a std::sync or parking_lot Mutex/RwLock guard across .await, then scope or drop the guard before the await or move the state boundary to tokio::sync."
+reference_repositories = ["tokio-rs/tokio", "hyperium/hyper", "tower-rs/tower"]
+reference_patterns = [
+  "Tokio exposes async-aware synchronization primitives when a guard must interact with async scheduling.",
+  "Runtime-facing code keeps synchronous Mutex and RwLock critical sections short and outside suspension points.",
+]
+inputs = "inputs"
+expected = "expected"

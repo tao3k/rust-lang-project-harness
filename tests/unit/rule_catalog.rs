@@ -72,6 +72,12 @@ fn rule_catalogs_expose_stable_rule_ids() {
             "AGENT-R026",
             "AGENT-R027",
             "AGENT-R028",
+            "AGENT-R029",
+            "AGENT-R030",
+            "AGENT-R031",
+            "AGENT-R032",
+            "AGENT-R033",
+            "AGENT-R034",
         ]
     );
 

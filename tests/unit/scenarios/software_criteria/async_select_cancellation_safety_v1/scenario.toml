@@ -1,0 +1,12 @@
+id = "async-select-cancellation-safety-v1"
+title = "Tokio select branches stay cancellation-safe around exact I/O"
+policy_ids = ["RUST-AGENT-ASYNC-CANCEL-SAFETY-001"]
+agent_goal = "Detect async Rust code that places cancellation-unsafe exact I/O helpers inside tokio::select!, then move partial-progress I/O outside cancellation competition or use a cancellation-safe read/write loop."
+reference_repositories = ["tokio-rs/tokio", "hyperium/hyper"]
+reference_patterns = [
+  "Tokio documents select cancellation safety and classifies exact async I/O helpers such as read_exact, read_to_end, read_to_string, write_all, and write_all_buf as not cancellation safe.",
+  "Hyper keeps async dispatch and readiness in explicit poll/state boundaries instead of racing partial-progress I/O helpers in select branches.",
+  "Cancellation-safe async code keeps partial-progress buffers and state outside branches that can be dropped before completion.",
+]
+inputs = "inputs"
+expected = "expected"

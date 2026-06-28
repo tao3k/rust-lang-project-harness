@@ -1,23 +1,29 @@
 //! Scenario benchmark contracts for Rust harness fixtures.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 use std::time::Duration;
 
 use super::contract::{RustScenarioBenchmarkContract, RustScenarioBenchmarkDuration};
-use super::contract_gate::benchmark_entry_targets_contract_gate;
+use super::contract_gate::{
+    benchmark_entry_targets_contract_gate, default_benchmark_toml_template,
+};
 use super::discovery::discover_required_rust_scenario_benchmarks;
-use super::render::{display_suite_path, render_rust_scenario_benchmark_gate_failure};
 use super::types::{
-    RustScenarioBenchmarkError, RustScenarioBenchmarkManifestKind, RustScenarioBenchmarkReceipt,
-    RustScenarioBenchmarkRequirement, RustScenarioBenchmarkStatus,
+    RustScenarioBenchmarkError, RustScenarioBenchmarkManifestKind,
+    RustScenarioBenchmarkPolicyCoverage, RustScenarioBenchmarkPolicyId,
+    RustScenarioBenchmarkPolicyRuleId, RustScenarioBenchmarkReceipt,
+    RustScenarioBenchmarkRequirement, RustScenarioBenchmarkScenarioId, RustScenarioBenchmarkStatus,
     RustScenarioBenchmarkSuiteReceipt, RustScenarioBenchmarkViolation,
     RustScenarioBenchmarkViolationKind, RustScenarioMetadata,
 };
+use crate::rules::agent_policy::rust_agent_policy_scenario_requirements;
 use serde::Deserialize;
 
 const RUST_SCENARIO_BENCHMARK_HARD_MAX_TOTAL: RustScenarioBenchmarkDuration =
     RustScenarioBenchmarkDuration(Duration::from_millis(500));
+const AGENT_POLICY_ID_GRAMMAR: &str = "<LANGUAGE>-AGENT-<TAGS>-<NUMBER>";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -69,11 +75,17 @@ pub fn validate_required_rust_scenario_benchmarks(
         }
         receipts.push(validate_rust_scenario_benchmark_requirement(requirement)?);
     }
+    let policy_coverage = if crate_root.join("src/rules/agent_policy/pack.rs").is_file() {
+        validate_agent_policy_scenario_coverage(crate_root, &receipts, &mut violations)
+    } else {
+        Vec::new()
+    };
     let status = scenario_benchmark_suite_status(&receipts, &violations);
     Ok(RustScenarioBenchmarkSuiteReceipt {
         root: crate_root.to_path_buf(),
         requirements,
         receipts,
+        policy_coverage,
         violations,
         status,
     })
@@ -92,8 +104,52 @@ pub fn assert_rule_fixture_scenario_benchmarks(crate_root: impl AsRef<Path>) {
         )
     });
     if receipt.status != RustScenarioBenchmarkStatus::Pass {
-        panic!("{}", render_rust_scenario_benchmark_gate_failure(&receipt));
+        panic!("{}", scenario_benchmark_hard_gate_failure_message(&receipt));
     }
+}
+
+fn scenario_benchmark_hard_gate_failure_message(
+    receipt: &RustScenarioBenchmarkSuiteReceipt,
+) -> String {
+    let mut lines = vec![
+        "scenario benchmark hard gate failed".to_string(),
+        "preferred fix: add benchmark.toml next to the scenario fixture".to_string(),
+        "do not add advisory mode, fixture-local opt-out, or expires".to_string(),
+        format!("status: {}", receipt.status.as_str()),
+    ];
+    for violation in &receipt.violations {
+        lines.push(format!(
+            "- {}:{}: {}",
+            violation.kind.as_str(),
+            violation.field,
+            violation.message
+        ));
+        if violation.field.ends_with("benchmark.toml") {
+            lines.push(format!("create: {}", violation.field));
+            lines.push(default_benchmark_toml_template());
+        }
+    }
+    for scenario_receipt in &receipt.receipts {
+        for violation in &scenario_receipt.violations {
+            lines.push(format!(
+                "- {}:{}:{}: {}",
+                violation.kind.as_str(),
+                display_suite_path(&receipt.root, &scenario_receipt.root),
+                violation.field,
+                violation.message
+            ));
+        }
+    }
+    lines.join("\n")
+}
+
+fn display_suite_path(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .components()
+        .map(|component| component.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 fn validate_rust_scenario_benchmark_requirement(
@@ -109,6 +165,92 @@ fn validate_rust_scenario_benchmark_requirement(
     }
 }
 
+fn validate_agent_policy_scenario_coverage(
+    crate_root: &Path,
+    receipts: &[RustScenarioBenchmarkReceipt],
+    violations: &mut Vec<RustScenarioBenchmarkViolation>,
+) -> Vec<RustScenarioBenchmarkPolicyCoverage> {
+    let receipt_by_root = receipts
+        .iter()
+        .map(|receipt| (receipt.root.clone(), receipt))
+        .collect::<BTreeMap<_, _>>();
+    let policy_ids_by_root = receipts
+        .iter()
+        .map(|receipt| {
+            (
+                receipt.root.clone(),
+                receipt
+                    .scenario
+                    .policy_ids
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<BTreeSet<_>>(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    let mut coverage = Vec::new();
+    for requirement in rust_agent_policy_scenario_requirements() {
+        if !is_agent_policy_id(requirement.policy_id) {
+            violations.push(RustScenarioBenchmarkViolation {
+                kind: RustScenarioBenchmarkViolationKind::Contract,
+                field: format!(
+                    "agent_policy_requirements.{}.policy_id",
+                    requirement.rule_id
+                ),
+                message: format!(
+                    "policy id {} must match {}",
+                    requirement.policy_id, AGENT_POLICY_ID_GRAMMAR
+                ),
+            });
+            continue;
+        }
+        let scenario_root = crate_root.join(requirement.scenario_root);
+        let Some(receipt) = receipt_by_root.get(&scenario_root) else {
+            violations.push(RustScenarioBenchmarkViolation {
+                kind: RustScenarioBenchmarkViolationKind::Contract,
+                field: display_suite_path(crate_root, &scenario_root),
+                message: format!(
+                    "agent policy {} requires scenario {} with policy {}",
+                    requirement.rule_id, requirement.scenario_id, requirement.policy_id
+                ),
+            });
+            continue;
+        };
+
+        let mut missing = Vec::new();
+        if receipt.scenario.id != requirement.scenario_id {
+            missing.push(format!("scenario.id={}", requirement.scenario_id));
+        }
+        if !policy_ids_by_root
+            .get(&scenario_root)
+            .is_some_and(|policy_ids| policy_ids.contains(requirement.policy_id))
+        {
+            missing.push(format!("policy_ids contains {}", requirement.policy_id));
+        }
+        if missing.is_empty() {
+            coverage.push(RustScenarioBenchmarkPolicyCoverage {
+                rule_id: RustScenarioBenchmarkPolicyRuleId::new(requirement.rule_id),
+                scenario_id: RustScenarioBenchmarkScenarioId::new(requirement.scenario_id),
+                policy_id: RustScenarioBenchmarkPolicyId::new(requirement.policy_id),
+                root: scenario_root,
+            });
+        } else {
+            violations.push(RustScenarioBenchmarkViolation {
+                kind: RustScenarioBenchmarkViolationKind::Contract,
+                field: display_suite_path(crate_root, &scenario_root),
+                message: format!(
+                    "agent policy {} scenario coverage is incomplete: {}",
+                    requirement.rule_id,
+                    missing.join(", ")
+                ),
+            });
+        }
+    }
+    coverage.sort_by(|left, right| left.rule_id.cmp(&right.rule_id));
+    coverage
+}
+
 fn validate_ast_patch_scenario_benchmark(
     root: &Path,
 ) -> Result<RustScenarioBenchmarkReceipt, RustScenarioBenchmarkError> {
@@ -120,13 +262,18 @@ fn validate_ast_patch_scenario_benchmark(
             .map(|file_name| file_name.to_string_lossy().into_owned())
             .unwrap_or_else(|| "ast-patch-scenario".to_string()),
         title: ast_patch_scenario_title(root),
-        policy_ids: vec!["RUST-AST-PATCH-SCENARIO".to_string()],
+        policy_ids: vec!["RUST-AGENT-AST-PATCH-SCENARIO-001".to_string()],
         agent_goal: format!(
             "Keep AST patch {mode} scenario bounded for {status}/{capability}.",
             mode = manifest.mode,
             status = manifest.expected_status,
             capability = manifest.expected_capability
         ),
+        reference_repositories: vec!["rust-lang/rust".to_string()],
+        reference_patterns: vec![
+            "AST edits are validated through explicit operation receipts before mutation"
+                .to_string(),
+        ],
         inputs: "input".to_string(),
         expected: "expected".to_string(),
     };
@@ -229,12 +376,17 @@ fn scenario_benchmark_violations(
     require_non_empty(&mut violations, "scenario.agent_goal", &scenario.agent_goal);
     require_non_empty(&mut violations, "scenario.inputs", &scenario.inputs);
     require_non_empty(&mut violations, "scenario.expected", &scenario.expected);
-    if scenario.policy_ids.is_empty() {
-        violations.push(contract_violation(
-            "scenario.policy_ids",
-            "at least one policy id is required",
-        ));
-    }
+    require_non_empty_list(
+        &mut violations,
+        "scenario.reference_repositories",
+        &scenario.reference_repositories,
+    );
+    require_non_empty_list(
+        &mut violations,
+        "scenario.reference_patterns",
+        &scenario.reference_patterns,
+    );
+    require_policy_ids(&mut violations, "scenario.policy_ids", &scenario.policy_ids);
     require_non_empty(&mut violations, "benchmark.harness", &benchmark.harness);
     require_supported_harness(&mut violations, &benchmark.harness);
     require_benchmark_entry(&mut violations, benchmark);
@@ -249,6 +401,7 @@ fn scenario_benchmark_violations(
         "benchmark.target_rationale",
         &benchmark.target_rationale,
     );
+    require_input_expected_comparison(&mut violations, benchmark);
     require_positive(
         &mut violations,
         "benchmark.target_total",
@@ -312,6 +465,52 @@ fn scenario_benchmark_violations(
     violations
 }
 
+fn require_input_expected_comparison(
+    violations: &mut Vec<RustScenarioBenchmarkViolation>,
+    benchmark: &RustScenarioBenchmarkContract,
+) {
+    let Some(comparison) = &benchmark.input_expected_comparison else {
+        return;
+    };
+    require_positive(
+        violations,
+        "benchmark.input_expected_comparison.input_total",
+        comparison.input_total.is_zero(),
+    );
+    require_positive(
+        violations,
+        "benchmark.input_expected_comparison.expected_total",
+        comparison.expected_total.is_zero(),
+    );
+    require_positive(
+        violations,
+        "benchmark.input_expected_comparison.input_memory_bytes",
+        comparison.input_memory_bytes.as_u64() == 0,
+    );
+    require_positive(
+        violations,
+        "benchmark.input_expected_comparison.expected_memory_bytes",
+        comparison.expected_memory_bytes.as_u64() == 0,
+    );
+    require_non_empty(
+        violations,
+        "benchmark.input_expected_comparison.interpretation",
+        &comparison.interpretation,
+    );
+    if comparison.expected_total >= comparison.input_total
+        || comparison.expected_memory_bytes >= comparison.input_memory_bytes
+    {
+        require_non_empty(
+            violations,
+            "benchmark.input_expected_comparison.expected_not_faster_annotation",
+            comparison
+                .expected_not_faster_annotation
+                .as_deref()
+                .unwrap_or(""),
+        );
+    }
+}
+
 fn require_non_empty(
     violations: &mut Vec<RustScenarioBenchmarkViolation>,
     field: &str,
@@ -320,6 +519,71 @@ fn require_non_empty(
     if value.trim().is_empty() {
         violations.push(contract_violation(field, "field must not be empty"));
     }
+}
+
+fn require_non_empty_list(
+    violations: &mut Vec<RustScenarioBenchmarkViolation>,
+    field: &str,
+    values: &[String],
+) {
+    if values.is_empty() || values.iter().any(|value| value.trim().is_empty()) {
+        violations.push(contract_violation(
+            field,
+            "list must contain at least one non-empty value",
+        ));
+    }
+}
+
+fn require_policy_ids(
+    violations: &mut Vec<RustScenarioBenchmarkViolation>,
+    field: &str,
+    policy_ids: &[String],
+) {
+    if policy_ids.is_empty() {
+        violations.push(contract_violation(
+            field,
+            "at least one policy id is required",
+        ));
+        return;
+    }
+    for (index, policy_id) in policy_ids.iter().enumerate() {
+        if !is_agent_policy_id(policy_id) {
+            violations.push(contract_violation(
+                &format!("{field}[{index}]"),
+                &format!("policy id must match {AGENT_POLICY_ID_GRAMMAR}"),
+            ));
+        }
+    }
+}
+
+fn is_agent_policy_id(value: &str) -> bool {
+    let parts = value.split('-').collect::<Vec<_>>();
+    if parts.len() < 4 {
+        return false;
+    }
+    let Some(agent_index) = parts.iter().position(|part| *part == "AGENT") else {
+        return false;
+    };
+    if agent_index == 0 || agent_index + 2 >= parts.len() {
+        return false;
+    }
+    parts[..agent_index].iter().all(|part| is_upper_token(part))
+        && parts[agent_index + 1..parts.len() - 1]
+            .iter()
+            .all(|part| is_upper_token(part))
+        && parts
+            .last()
+            .is_some_and(|number| number.len() >= 3 && is_ascii_digits(number))
+}
+
+fn is_upper_token(value: &str) -> bool {
+    let mut chars = value.chars();
+    chars.next().is_some_and(|ch| ch.is_ascii_uppercase())
+        && chars.all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit())
+}
+
+fn is_ascii_digits(value: &str) -> bool {
+    !value.is_empty() && value.chars().all(|ch| ch.is_ascii_digit())
 }
 
 fn require_positive(

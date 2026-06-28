@@ -1,0 +1,22 @@
+harness = "libtest"
+test = "sync_lock_guard_across_await_is_agent_advice"
+snapshot = "scenario_benchmark_async_sync_lock_boundary_v1"
+target_total = "20ms"
+max_total = "70ms"
+observed_total = "10ms"
+regression_budget = "15ms"
+memory_budget_bytes = 1048576
+observed_memory_bytes = 262144
+target_rationale = "The fixture is a tiny async boundary check; validating the lock-scope pattern should remain bounded in unit-test scale."
+
+[input_expected_comparison]
+input_total = "16ms"
+expected_total = "6ms"
+input_memory_bytes = 262144
+expected_memory_bytes = 196608
+interpretation = "Expected scopes the sync guard before .await; fixture receipt is 62.50% faster and uses 25.00% less memory than the input shape."
+
+[observed_timings]
+parse = "6ms"
+policy = "3ms"
+snapshot = "1ms"

@@ -37,8 +37,18 @@ pub(super) fn default_benchmark_toml_template() -> String {
         "observed_memory_bytes = 4194304",
         "target_rationale = \"Small rule fixture should stay bounded.\"",
         "",
+        "[input_expected_comparison]",
+        "input_total = \"30ms\"",
+        "expected_total = \"25ms\"",
+        "input_memory_bytes = 6291456",
+        "expected_memory_bytes = 4194304",
+        "interpretation = \"Record both fixture timings; expected should normally be faster or more memory efficient than input.\"",
+        "# expected_not_faster_annotation = \"Required when expected_total >= input_total or expected_memory_bytes >= input_memory_bytes.\"",
+        "",
         "[observed_timings]",
-        "fixture = \"25ms\"",
+        "contract_deserialize = \"8ms\"",
+        "receipt_render = \"5ms\"",
+        "snapshot_assertion = \"2ms\"",
     ]
     .join("\n")
 }

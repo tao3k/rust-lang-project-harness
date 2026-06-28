@@ -37,6 +37,73 @@ pub struct RustScenarioBenchmarkRequirement {
     pub manifest_kind: RustScenarioBenchmarkManifestKind,
 }
 
+/// Suite-level receipt proving a policy rule has scenario benchmark coverage.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RustScenarioBenchmarkPolicyCoverage {
+    /// Agent policy rule id covered by the scenario.
+    pub rule_id: RustScenarioBenchmarkPolicyRuleId,
+    /// Scenario id that carries the coverage.
+    pub scenario_id: RustScenarioBenchmarkScenarioId,
+    /// Policy id declared by the scenario metadata.
+    pub policy_id: RustScenarioBenchmarkPolicyId,
+    /// Scenario root directory.
+    pub root: PathBuf,
+}
+
+/// Agent policy rule id covered by a scenario benchmark.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct RustScenarioBenchmarkPolicyRuleId(String);
+
+impl RustScenarioBenchmarkPolicyRuleId {
+    /// Build a policy rule id.
+    #[must_use]
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    /// Return the raw rule id.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Scenario id used to prove agent policy coverage.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct RustScenarioBenchmarkScenarioId(String);
+
+impl RustScenarioBenchmarkScenarioId {
+    /// Build a scenario id.
+    #[must_use]
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    /// Return the raw scenario id.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Policy id declared by scenario metadata.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct RustScenarioBenchmarkPolicyId(String);
+
+impl RustScenarioBenchmarkPolicyId {
+    /// Build a policy id.
+    #[must_use]
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    /// Return the raw policy id.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 /// Validation receipt for all required scenario benchmark contracts in a crate.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RustScenarioBenchmarkSuiteReceipt {
@@ -46,6 +113,8 @@ pub struct RustScenarioBenchmarkSuiteReceipt {
     pub requirements: Vec<RustScenarioBenchmarkRequirement>,
     /// Successfully loaded per-scenario benchmark receipts.
     pub receipts: Vec<RustScenarioBenchmarkReceipt>,
+    /// Agent policy scenario coverage proven from policy-owned requirements.
+    pub policy_coverage: Vec<RustScenarioBenchmarkPolicyCoverage>,
     /// Suite-level contract violations, such as a missing `benchmark.toml`.
     pub violations: Vec<RustScenarioBenchmarkViolation>,
     /// Overall suite validation status.
@@ -64,6 +133,12 @@ pub struct RustScenarioMetadata {
     pub policy_ids: Vec<String>,
     /// Agent-facing goal that explains how the scenario should be used.
     pub agent_goal: String,
+    /// Reference repositories used to derive this scenario.
+    #[serde(default)]
+    pub reference_repositories: Vec<String>,
+    /// Compact engineering patterns observed in those references.
+    #[serde(default)]
+    pub reference_patterns: Vec<String>,
     /// Relative input fixture directory.
     pub inputs: String,
     /// Relative expected-output fixture directory.

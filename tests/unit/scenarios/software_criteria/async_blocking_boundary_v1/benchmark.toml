@@ -1,0 +1,22 @@
+harness = "libtest"
+test = "scenario_benchmark_async_blocking_boundary_v1_snapshot"
+snapshot = "scenario_benchmark_async_blocking_boundary_v1"
+target_total = "25ms"
+max_total = "80ms"
+observed_total = "11ms"
+regression_budget = "15ms"
+memory_budget_bytes = 8388608
+observed_memory_bytes = 3145728
+target_rationale = "The scenario is a metadata and snapshot gate; the expected fixture models Tokio-style blocking isolation without running a runtime benchmark in unit tests."
+
+[observed_timings]
+contract_deserialize = "5ms"
+receipt_render = "2ms"
+snapshot_assertion = "1ms"
+
+[input_expected_comparison]
+input_total = "18ms"
+expected_total = "6ms"
+input_memory_bytes = 4194304
+expected_memory_bytes = 3145728
+interpretation = "expected isolates blocking work from runtime workers; observed speedup 3.00x and memory reduction 25.00%"

@@ -32,6 +32,12 @@ Generated from embedded `src/harness-rules.md`.
 - **AGENT-R026**: Replaces internal manual iterator transforms with iterator adapters or named helpers.
 - **AGENT-R027**: Replaces public primitive type aliases for semantic values with public newtypes or structs.
 - **AGENT-R028**: Replaces public stringly state fields with enums, newtypes, or typed catalog boundaries.
+- **AGENT-R029**: Replaces loop-local linear membership scans with precomputed set or map indexes or an explicit bounded-scan explanation.
+- **AGENT-R030**: Async task performs blocking work on the runtime.
+- **AGENT-R031**: Drops sync lock guards before async suspension points or moves the state boundary to async-aware synchronization.
+- **AGENT-R032**: Keeps unbounded async queues behind explicit backpressure, readiness, or capacity boundaries.
+- **AGENT-R033**: Keeps Tokio select branches cancellation-safe around exact async I/O operations.
+- **AGENT-R034**: Keeps Tokio timeout wrappers cancellation-safe around exact async I/O operations.
 - **RUST-MOD-R001**: Keeps module interface files free of implementation.
 - **RUST-MOD-R002**: Splits oversized source files into smaller owner modules with clear public boundaries.
 - **RUST-MOD-R003**: Replaces deep relative imports with explicit owner or facade imports.

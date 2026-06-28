@@ -74,6 +74,25 @@ impl fmt::Display for RustScenarioBenchmarkMemoryBytes {
     }
 }
 
+/// Fixture-to-fixture comparison for the original input and expected output.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RustScenarioBenchmarkInputExpectedComparison {
+    /// Observed runtime for the original input fixture.
+    pub input_total: RustScenarioBenchmarkDuration,
+    /// Observed runtime for the expected fixture after the policy improvement.
+    pub expected_total: RustScenarioBenchmarkDuration,
+    /// Observed memory use for the original input fixture.
+    pub input_memory_bytes: RustScenarioBenchmarkMemoryBytes,
+    /// Observed memory use for the expected fixture after the policy improvement.
+    pub expected_memory_bytes: RustScenarioBenchmarkMemoryBytes,
+    /// Agent-facing interpretation of the trade-off.
+    pub interpretation: String,
+    /// Required when expected does not improve runtime or memory over input.
+    #[serde(default)]
+    pub expected_not_faster_annotation: Option<String>,
+}
+
 /// Scenario benchmark thresholds and observed receipts loaded from `benchmark.toml`.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -106,6 +125,9 @@ pub struct RustScenarioBenchmarkContract {
     pub observed_memory_bytes: RustScenarioBenchmarkMemoryBytes,
     /// Agent-facing explanation for why the target is credible.
     pub target_rationale: String,
+    /// Optional direct performance comparison between `inputs` and `expected`.
+    #[serde(default)]
+    pub input_expected_comparison: Option<RustScenarioBenchmarkInputExpectedComparison>,
     /// Phase-level observed timings, normalized in snapshots.
     #[serde(default)]
     pub observed_timings: BTreeMap<String, RustScenarioBenchmarkDuration>,

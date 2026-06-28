@@ -1,0 +1,11 @@
+id = "async-blocking-boundary-v1"
+title = "Blocking work is isolated from async runtime workers"
+policy_ids = ["RUST-AGENT-ASYNC-BLOCKING-001"]
+agent_goal = "Move blocking sleeps, file probes, and CPU-heavy loops behind an explicit Tokio blocking boundary before adding async orchestration."
+reference_repositories = ["tokio-rs/tokio", "hyperium/hyper", "tower-rs/tower"]
+reference_patterns = [
+  "Tokio keeps blocking work behind spawn_blocking or a dedicated runtime boundary",
+  "Async orchestration remains cancellation-aware and runtime-worker friendly",
+]
+inputs = "inputs"
+expected = "expected"

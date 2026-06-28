@@ -54,6 +54,48 @@ fn native_syntax_facts_record_manual_iterator_loop_shapes() {
 }
 
 #[test]
+fn native_syntax_facts_record_loop_local_linear_membership_scans() {
+    let temp = TempDir::new().expect("temp dir");
+    let source = temp.path().join("api.rs");
+    fs::write(
+        &source,
+        "pub fn select_allowed(rows: &[Row], allowed: &[String]) -> Vec<String> {\n\
+         \tlet mut selected = Vec::new();\n\
+         \tfor row in rows {\n\
+         \t\tif allowed.iter().any(|candidate| candidate == &row.id) {\n\
+         \t\t\tselected.push(row.id.clone());\n\
+         \t\t}\n\
+         \t}\n\
+         \tselected\n\
+         }\n\
+         pub fn select_indexed(rows: &[Row], allowed: &std::collections::BTreeSet<String>) -> Vec<String> {\n\
+         \tlet mut selected = Vec::new();\n\
+         \tfor row in rows {\n\
+         \t\tif allowed.contains(&row.id) {\n\
+         \t\t\tselected.push(row.id.clone());\n\
+         \t\t}\n\
+         \t}\n\
+         \tselected\n\
+         }\n\
+         pub struct Row { pub id: String }\n",
+    )
+    .expect("write source");
+
+    let module = parse_rust_file(&source);
+    let facts = module.syntax_facts.public_function_control_flows;
+    let select_allowed = facts
+        .iter()
+        .find(|control_flow| control_flow.function_name == "select_allowed")
+        .expect("select_allowed facts");
+    assert_eq!(select_allowed.linear_membership_scan_loop_count, 1);
+    let select_indexed = facts
+        .iter()
+        .find(|control_flow| control_flow.function_name == "select_indexed")
+        .expect("select_indexed facts");
+    assert_eq!(select_indexed.linear_membership_scan_loop_count, 0);
+}
+
+#[test]
 fn native_syntax_facts_record_private_function_and_impl_method_control_flow() {
     let temp = TempDir::new().expect("temp dir");
     let source = temp.path().join("api.rs");

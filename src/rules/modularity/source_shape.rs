@@ -58,6 +58,7 @@ pub(super) fn sibling_file_dir_owner_collision_findings(
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     let rust_sources = rust_source_paths(modules);
+    let rust_source_ancestor_dirs = rust_source_ancestor_dirs(&rust_sources);
     let mut reported = BTreeSet::new();
     let mut findings = Vec::new();
 
@@ -72,13 +73,7 @@ pub(super) fn sibling_file_dir_owner_collision_findings(
             continue;
         };
         let owner_dir = parent.join(stem);
-        let has_child_sources = rust_sources.iter().any(|candidate| {
-            candidate.starts_with(&owner_dir)
-                && candidate != file_path
-                && candidate
-                    .extension()
-                    .is_some_and(|extension| extension == "rs")
-        });
+        let has_child_sources = rust_source_ancestor_dirs.contains(&owner_dir);
         if !has_child_sources || !reported.insert(file_path.clone()) {
             continue;
         }
@@ -112,6 +107,17 @@ fn rust_source_paths(modules: &[ParsedRustModule]) -> BTreeSet<PathBuf> {
         })
         .map(|module| module.report.path.clone())
         .collect()
+}
+
+fn rust_source_ancestor_dirs(rust_sources: &BTreeSet<PathBuf>) -> BTreeSet<PathBuf> {
+    let mut dirs = BTreeSet::new();
+    for source in rust_sources {
+        let Some(parent) = source.parent() else {
+            continue;
+        };
+        dirs.extend(parent.ancestors().map(Path::to_path_buf));
+    }
+    dirs
 }
 
 fn is_named_rust_file(path: &Path) -> bool {

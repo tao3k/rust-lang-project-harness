@@ -1,0 +1,12 @@
+id = "async-backpressure-boundary-v1"
+title = "Async queues expose backpressure or capacity boundaries"
+policy_ids = ["RUST-AGENT-ASYNC-BACKPRESSURE-001"]
+agent_goal = "Detect async Rust code that creates an unbounded queue without a readiness, try_send, reserve, semaphore, or bounded-capacity boundary, then move the queue behind explicit backpressure."
+reference_repositories = ["tokio-rs/tokio", "hyperium/hyper", "tower-rs/tower"]
+reference_patterns = [
+  "Hyper wraps unbounded client dispatch senders behind poll_ready, can_send, and try_send boundaries instead of exposing fire-and-forget enqueue paths.",
+  "Tower service APIs make readiness and backpressure an explicit contract around request dispatch.",
+  "Tokio provides bounded mpsc channels and reserve-style capacity APIs when senders must respect runtime memory behavior.",
+]
+inputs = "inputs"
+expected = "expected"

@@ -126,11 +126,15 @@ fn render_ingest_owner_hits(
         source.input_count(input),
         owner_hits.len()
     );
+    let package_root_set = package_roots
+        .iter()
+        .map(PathBuf::as_path)
+        .collect::<BTreeSet<_>>();
     for (owner, locations) in owner_hits.iter().take(SEARCH_OWNER_LIMIT) {
-        let package_root = package_roots
-            .iter()
-            .find(|package_root| owner.starts_with(package_root))
-            .map_or(project_root, PathBuf::as_path);
+        let package_root = owner
+            .ancestors()
+            .find(|ancestor| package_root_set.contains(ancestor))
+            .unwrap_or(project_root);
         let mut line = format!(
             "|owner {} role={} hit_kind={} locations={}",
             display_project_path(package_root, owner),

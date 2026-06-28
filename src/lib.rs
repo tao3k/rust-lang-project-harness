@@ -306,9 +306,7 @@ pub use verification::{
     RustScenarioBenchmarkSuiteReceipt, RustScenarioBenchmarkViolation,
     RustScenarioBenchmarkViolationKind, RustScenarioMetadata,
     assert_rule_fixture_scenario_benchmarks, discover_required_rust_scenario_benchmarks,
-    render_rust_scenario_benchmark_gate_failure, render_rust_scenario_benchmark_snapshot,
-    render_rust_scenario_benchmark_suite_snapshot, validate_required_rust_scenario_benchmarks,
-    validate_rust_scenario_benchmark,
+    validate_required_rust_scenario_benchmarks, validate_rust_scenario_benchmark,
 };
 pub use workspace_evidence_graph::{
     RUST_PROJECT_HARNESS_WORKSPACE_EVIDENCE_GRAPH_RECEIPT_SCHEMA_ID,

@@ -1,0 +1,7 @@
+[package]
+name = "async-select-cancellation-safety-expected"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1", features = ["io-util", "sync"] }

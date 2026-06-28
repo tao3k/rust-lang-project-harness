@@ -7,7 +7,9 @@ use rust_lang_project_harness::{
 use serde::Serialize;
 use tempfile::TempDir;
 
-const SCENARIO: &str = "tests/unit/scenarios/software_criteria/control_flow_v1";
+const CONTROL_FLOW_SCENARIO: &str = "tests/unit/scenarios/software_criteria/control_flow_v1";
+const LINEAR_MEMBERSHIP_SCENARIO: &str =
+    "tests/unit/scenarios/software_criteria/data_structure_linear_membership_scan_v1";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -21,33 +23,56 @@ struct FindingSnapshot {
 
 #[test]
 fn agent_r015_control_flow_v1_snapshot() {
-    insta::assert_snapshot!("agent_r015_control_flow_v1", rule_snapshot("AGENT-R015"));
+    insta::assert_snapshot!(
+        "agent_r015_control_flow_v1",
+        rule_snapshot("AGENT-R015", CONTROL_FLOW_SCENARIO)
+    );
 }
 
 #[test]
 fn agent_r016_control_flow_v1_snapshot() {
-    insta::assert_snapshot!("agent_r016_control_flow_v1", rule_snapshot("AGENT-R016"));
+    insta::assert_snapshot!(
+        "agent_r016_control_flow_v1",
+        rule_snapshot("AGENT-R016", CONTROL_FLOW_SCENARIO)
+    );
 }
 
 #[test]
 fn agent_r017_control_flow_v1_snapshot() {
-    insta::assert_snapshot!("agent_r017_control_flow_v1", rule_snapshot("AGENT-R017"));
+    insta::assert_snapshot!(
+        "agent_r017_control_flow_v1",
+        rule_snapshot("AGENT-R017", CONTROL_FLOW_SCENARIO)
+    );
 }
 
 #[test]
 fn agent_r025_control_flow_v1_snapshot() {
-    insta::assert_snapshot!("agent_r025_control_flow_v1", rule_snapshot("AGENT-R025"));
+    insta::assert_snapshot!(
+        "agent_r025_control_flow_v1",
+        rule_snapshot("AGENT-R025", CONTROL_FLOW_SCENARIO)
+    );
 }
 
 #[test]
 fn agent_r026_control_flow_v1_snapshot() {
-    insta::assert_snapshot!("agent_r026_control_flow_v1", rule_snapshot("AGENT-R026"));
+    insta::assert_snapshot!(
+        "agent_r026_control_flow_v1",
+        rule_snapshot("AGENT-R026", CONTROL_FLOW_SCENARIO)
+    );
 }
 
-fn rule_snapshot(rule_id: &str) -> String {
+#[test]
+fn agent_r029_data_structure_linear_membership_scan_v1_snapshot() {
+    insta::assert_snapshot!(
+        "agent_r029_data_structure_linear_membership_scan_v1",
+        rule_snapshot("AGENT-R029", LINEAR_MEMBERSHIP_SCENARIO)
+    );
+}
+
+fn rule_snapshot(rule_id: &str, scenario: &str) -> String {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
-    copy_inputs(Path::new(SCENARIO).join("inputs"), root);
+    copy_inputs(Path::new(scenario).join("inputs"), root);
 
     let mut report = run_rust_project_harness(root).expect("run project harness");
     report.findings.retain(|finding| finding.rule_id == rule_id);
@@ -58,7 +83,7 @@ fn rule_snapshot(rule_id: &str) -> String {
         .collect::<Vec<_>>();
     assert!(
         !findings.is_empty(),
-        "expected {rule_id} finding in control_flow_v1 scenario"
+        "expected {rule_id} finding in {scenario} scenario"
     );
     let rendered = normalize_temp_root(&render_rust_project_harness(&report), root);
 

@@ -219,9 +219,7 @@ pub use scenario_benchmark::{
     RustScenarioBenchmarkSuiteReceipt, RustScenarioBenchmarkViolation,
     RustScenarioBenchmarkViolationKind, RustScenarioMetadata,
     assert_rule_fixture_scenario_benchmarks, discover_required_rust_scenario_benchmarks,
-    render_rust_scenario_benchmark_gate_failure, render_rust_scenario_benchmark_snapshot,
-    render_rust_scenario_benchmark_suite_snapshot, validate_required_rust_scenario_benchmarks,
-    validate_rust_scenario_benchmark,
+    validate_required_rust_scenario_benchmarks, validate_rust_scenario_benchmark,
 };
 pub use skill_descriptor::RustVerificationSkillDescriptor;
 pub use stability::{

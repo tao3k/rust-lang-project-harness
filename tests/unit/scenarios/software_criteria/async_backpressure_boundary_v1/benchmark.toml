@@ -1,0 +1,22 @@
+harness = "libtest"
+test = "unbounded_async_queue_without_backpressure_is_agent_advice"
+snapshot = "scenario_benchmark_async_backpressure_boundary_v1"
+target_total = "20ms"
+max_total = "70ms"
+observed_total = "9ms"
+regression_budget = "15ms"
+memory_budget_bytes = 1048576
+observed_memory_bytes = 245760
+target_rationale = "The fixture is a tiny async queue boundary check; detecting unbounded queue creation should remain bounded in unit-test scale."
+
+[input_expected_comparison]
+input_total = "15ms"
+expected_total = "5ms"
+input_memory_bytes = 262144
+expected_memory_bytes = 180224
+interpretation = "Expected uses a bounded channel with explicit capacity; fixture receipt is 66.67% faster and uses 31.25% less memory than the input shape."
+
+[observed_timings]
+parse = "5ms"
+policy = "3ms"
+snapshot = "1ms"

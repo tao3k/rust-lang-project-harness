@@ -1,0 +1,11 @@
+id = "process-command-probe-v1"
+title = "Process command probes keep typed receipts"
+policy_ids = ["RUST-AGENT-PROC-001"]
+agent_goal = "Keep command construction, environment shaping, output parsing, and receipts in separate owners before editing process probes."
+reference_repositories = ["rust-lang/cargo", "rust-lang/rust", "rust-lang/rustup"]
+reference_patterns = [
+  "Process command probes separate command construction from execution",
+  "Expected fixtures keep command arguments explicit and bounded",
+]
+inputs = "inputs"
+expected = "expected"

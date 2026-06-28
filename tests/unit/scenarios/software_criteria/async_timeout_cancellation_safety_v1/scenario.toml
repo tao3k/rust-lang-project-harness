@@ -1,0 +1,12 @@
+id = "async-timeout-cancellation-safety-v1"
+title = "Tokio timeout wrappers stay cancellation-safe around exact I/O"
+policy_ids = ["RUST-AGENT-ASYNC-CANCEL-SAFETY-002"]
+agent_goal = "Detect async Rust code that wraps cancellation-unsafe exact I/O helpers in tokio::time::timeout, then move partial-progress I/O outside the timed future or use a cancellation-safe polling loop."
+reference_repositories = ["tokio-rs/tokio", "hyperium/hyper"]
+reference_patterns = [
+  "Tokio timeout cancels its inner future by dropping it when elapsed, so the inner future must own a cancellation-safe progress contract.",
+  "Tokio documents exact async I/O helpers such as read_exact, read_to_end, read_to_string, write_all, and write_all_buf as not cancellation safe.",
+  "Runtime-facing timeout boundaries keep partial-progress buffers and state outside futures that may be dropped before completion.",
+]
+inputs = "inputs"
+expected = "expected"

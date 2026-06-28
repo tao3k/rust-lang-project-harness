@@ -1,0 +1,22 @@
+harness = "libtest"
+test = "tokio_timeout_read_exact_is_cancellation_safety_advice"
+snapshot = "scenario_benchmark_async_timeout_cancellation_safety_v1"
+target_total = "20ms"
+max_total = "70ms"
+observed_total = "8ms"
+regression_budget = "15ms"
+memory_budget_bytes = 1048576
+observed_memory_bytes = 229376
+target_rationale = "The fixture is a tiny async timeout cancellation check; detecting unsafe timeout wrappers should stay bounded in unit-test scale."
+
+[input_expected_comparison]
+input_total = "12ms"
+expected_total = "6ms"
+input_memory_bytes = 245760
+expected_memory_bytes = 196608
+interpretation = "Expected keeps exact I/O progress outside the timed future; fixture receipt is 50.00% faster and uses 20.00% less memory than the input shape."
+
+[observed_timings]
+parse = "4ms"
+policy = "3ms"
+snapshot = "1ms"

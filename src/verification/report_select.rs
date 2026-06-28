@@ -1,5 +1,6 @@
 //! Agent-facing selection advice for modular verification report artifacts.
 
+use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
 use serde::{Deserialize, Serialize};
@@ -269,15 +270,16 @@ fn ordered_artifacts<'a>(
     analysis_profile: Option<&RustVerificationAnalysisProfile>,
 ) -> Vec<&'a RustVerificationReportArtifact> {
     let mut ordered = vec![first];
+    let mut ordered_keys = BTreeSet::from([first.key.clone()]);
     for role in remaining_role_order(first, analysis_profile) {
         for artifact in bundle.artifacts_for_role(role) {
-            if !ordered.iter().any(|ordered| ordered.key == artifact.key) {
+            if ordered_keys.insert(artifact.key.clone()) {
                 ordered.push(artifact);
             }
         }
     }
     for artifact in &bundle.artifacts {
-        if !ordered.iter().any(|ordered| ordered.key == artifact.key) {
+        if ordered_keys.insert(artifact.key.clone()) {
             ordered.push(artifact);
         }
     }

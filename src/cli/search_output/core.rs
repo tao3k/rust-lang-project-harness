@@ -208,21 +208,20 @@ struct PackageHeaderGroup {
 
 fn compact_package_headers(headers: Vec<String>) -> Vec<String> {
     let mut entries = Vec::<HeaderEntry>::new();
+    let mut package_group_indices = BTreeMap::<(String, String), usize>::new();
     for header in headers {
         let Some(parts) = package_header_parts(&header) else {
             entries.push(HeaderEntry::Raw(header));
             continue;
         };
-        if let Some(HeaderEntry::PackageGroup(group)) = entries.iter_mut().find(|entry| match entry
+        let group_key = (parts.prefix.clone(), parts.suffix.clone());
+        if let Some(entry_index) = package_group_indices.get(&group_key)
+            && let HeaderEntry::PackageGroup(group) = &mut entries[*entry_index]
         {
-            HeaderEntry::PackageGroup(group) => {
-                group.prefix == parts.prefix && group.suffix == parts.suffix
-            }
-            HeaderEntry::Raw(_) => false,
-        }) {
             group.packages.push(parts.package);
             continue;
         }
+        package_group_indices.insert(group_key, entries.len());
         entries.push(HeaderEntry::PackageGroup(PackageHeaderGroup {
             prefix: parts.prefix,
             suffix: parts.suffix,
@@ -277,23 +276,19 @@ enum SeedLine {
 #[allow(dead_code)]
 fn compact_seed_lines(seeds: Vec<String>) -> Vec<String> {
     let mut entries = Vec::<SeedLine>::new();
+    let mut seed_group_indices = BTreeMap::<String, usize>::new();
     for seed in seeds {
         let Some((kind, target)) = groupable_seed_parts(&seed) else {
             entries.push(SeedLine::Raw(seed));
             continue;
         };
-        if let Some(SeedLine::Group { targets, .. }) = entries.iter_mut().find(|entry| {
-            matches!(
-                entry,
-                SeedLine::Group {
-                    kind: existing,
-                    ..
-                } if existing == kind
-            )
-        }) {
+        if let Some(entry_index) = seed_group_indices.get(kind)
+            && let SeedLine::Group { targets, .. } = &mut entries[*entry_index]
+        {
             targets.push(target.to_string());
             continue;
         }
+        seed_group_indices.insert(kind.to_string(), entries.len());
         entries.push(SeedLine::Group {
             kind: kind.to_string(),
             targets: vec![target.to_string()],

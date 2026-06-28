@@ -1,6 +1,11 @@
 id = "control-flow-v1"
 title = "Control-flow verification stays bounded"
-policy_ids = ["RUST-CFG-R001"]
+policy_ids = ["RUST-AGENT-CFG-001"]
 agent_goal = "Find the control-flow owner before editing."
+reference_repositories = ["rust-lang/rust", "rust-lang/cargo", "rust-lang/rust-analyzer"]
+reference_patterns = [
+  "Traversal state is named before control-flow expands",
+  "Iterator and predicate helpers own branch-specific reasoning",
+]
 inputs = "inputs"
 expected = "expected"
