@@ -6,7 +6,7 @@ use crate::parser::{ParsedRustModule, rust_reasoning_tree_facts};
 use crate::{RustDiagnosticSeverity, RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
 use super::{algorithm_shape, api_shape, data_shape, dependency_graph, source_surface};
-use crate::rules::labels;
+use crate::rules::{labels, project_policy::RUST_PROJ_R023};
 
 const PACK_ID: &str = "rust.agent_policy";
 pub(super) const AGENT_R001: &str = "AGENT-R001";
@@ -46,7 +46,7 @@ pub(super) const AGENT_R034: &str = "AGENT-R034";
 
 /// Scenario coverage required for an agent policy rule.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct RustAgentPolicyScenarioRequirement {
+pub(crate) struct RustPolicyScenarioRequirement {
     /// Agent policy rule id that must stay scenario-backed.
     pub rule_id: &'static str,
     /// Stable scenario id expected in `scenario.toml`.
@@ -57,82 +57,88 @@ pub(crate) struct RustAgentPolicyScenarioRequirement {
     pub scenario_root: &'static str,
 }
 
-const AGENT_POLICY_SCENARIO_REQUIREMENTS: &[RustAgentPolicyScenarioRequirement] = &[
-    agent_policy_scenario_requirement(
+const POLICY_SCENARIO_REQUIREMENTS: &[RustPolicyScenarioRequirement] = &[
+    policy_scenario_requirement(
         AGENT_R015,
         "control-flow-v1",
         "RUST-AGENT-CFG-001",
         "tests/unit/scenarios/software_criteria/control_flow_v1",
     ),
-    agent_policy_scenario_requirement(
+    policy_scenario_requirement(
         AGENT_R016,
         "control-flow-v1",
         "RUST-AGENT-CFG-001",
         "tests/unit/scenarios/software_criteria/control_flow_v1",
     ),
-    agent_policy_scenario_requirement(
+    policy_scenario_requirement(
         AGENT_R017,
         "control-flow-v1",
         "RUST-AGENT-CFG-001",
         "tests/unit/scenarios/software_criteria/control_flow_v1",
     ),
-    agent_policy_scenario_requirement(
+    policy_scenario_requirement(
         AGENT_R025,
         "control-flow-v1",
         "RUST-AGENT-CFG-001",
         "tests/unit/scenarios/software_criteria/control_flow_v1",
     ),
-    agent_policy_scenario_requirement(
+    policy_scenario_requirement(
         AGENT_R026,
         "control-flow-v1",
         "RUST-AGENT-CFG-001",
         "tests/unit/scenarios/software_criteria/control_flow_v1",
     ),
-    agent_policy_scenario_requirement(
+    policy_scenario_requirement(
         AGENT_R029,
         "data-structure-linear-membership-scan-v1",
         "RUST-AGENT-DS-001",
         "tests/unit/scenarios/software_criteria/data_structure_linear_membership_scan_v1",
     ),
-    agent_policy_scenario_requirement(
+    policy_scenario_requirement(
         AGENT_R030,
         "async-blocking-boundary-v1",
         "RUST-AGENT-ASYNC-BLOCKING-001",
         "tests/unit/scenarios/software_criteria/async_blocking_boundary_v1",
     ),
-    agent_policy_scenario_requirement(
+    policy_scenario_requirement(
         AGENT_R031,
         "async-sync-lock-boundary-v1",
         "RUST-AGENT-ASYNC-SYNC-LOCK-001",
         "tests/unit/scenarios/software_criteria/async_sync_lock_boundary_v1",
     ),
-    agent_policy_scenario_requirement(
+    policy_scenario_requirement(
         AGENT_R032,
         "async-backpressure-boundary-v1",
         "RUST-AGENT-ASYNC-BACKPRESSURE-001",
         "tests/unit/scenarios/software_criteria/async_backpressure_boundary_v1",
     ),
-    agent_policy_scenario_requirement(
+    policy_scenario_requirement(
         AGENT_R033,
         "async-select-cancellation-safety-v1",
         "RUST-AGENT-ASYNC-CANCEL-SAFETY-001",
         "tests/unit/scenarios/software_criteria/async_select_cancellation_safety_v1",
     ),
-    agent_policy_scenario_requirement(
+    policy_scenario_requirement(
         AGENT_R034,
         "async-timeout-cancellation-safety-v1",
         "RUST-AGENT-ASYNC-CANCEL-SAFETY-002",
         "tests/unit/scenarios/software_criteria/async_timeout_cancellation_safety_v1",
     ),
+    policy_scenario_requirement(
+        RUST_PROJ_R023,
+        "rust-package-edition-2024-v1",
+        "RUST-AGENT-PROJECT-MANIFEST-023",
+        "tests/unit/scenarios/software_criteria/rust_package_edition_2024_v1",
+    ),
 ];
 
-const fn agent_policy_scenario_requirement(
+const fn policy_scenario_requirement(
     rule_id: &'static str,
     scenario_id: &'static str,
     policy_id: &'static str,
     scenario_root: &'static str,
-) -> RustAgentPolicyScenarioRequirement {
-    RustAgentPolicyScenarioRequirement {
+) -> RustPolicyScenarioRequirement {
+    RustPolicyScenarioRequirement {
         rule_id,
         scenario_id,
         policy_id,
@@ -146,11 +152,11 @@ pub fn rust_agent_policy_rules() -> Vec<RustHarnessRule> {
     rules_by_id().into_values().collect()
 }
 
-/// Return the agent policy rules that require scenario benchmark coverage.
+/// Return Rust policy rules that require scenario benchmark coverage.
 #[must_use]
-pub(crate) fn rust_agent_policy_scenario_requirements()
--> &'static [RustAgentPolicyScenarioRequirement] {
-    AGENT_POLICY_SCENARIO_REQUIREMENTS
+pub(crate) fn rust_agent_policy_scenario_requirements() -> &'static [RustPolicyScenarioRequirement]
+{
+    POLICY_SCENARIO_REQUIREMENTS
 }
 
 pub(crate) fn evaluate(

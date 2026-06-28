@@ -3,7 +3,7 @@ source: tests/unit/path_policy/project/verification_integration/config_gate.rs
 assertion_line: 143
 expression: rendered
 ---
-[RUST-PROJ-R015] Warning: Retired cargo-test advice allowance lacks explanation
+[RUST-AGENT-PROJECT-015] Warning: Retired cargo-test advice allowance lacks explanation
 @ $TEMP/src/lib.rs:3:1
 fix: use with_cargo_test_advice_allow_explanation(...) to explain why advisory findings may pass this retired cargo-test gate
 line: 3 | rust_lang_project_harness::rust_project_harness_cargo_test_gate!(advice = allow, config = {

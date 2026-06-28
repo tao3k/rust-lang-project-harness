@@ -125,7 +125,7 @@ fn render_rust_scenario_benchmark_suite_snapshot(
             display_suite_path(&receipt.root, &scenario_receipt.root)
         ));
     }
-    lines.push("agent_policy_coverage:".to_string());
+    lines.push("policy_coverage:".to_string());
     for coverage in &receipt.policy_coverage {
         lines.push(format!(
             "- {} {} {} {}",
@@ -201,7 +201,11 @@ fn scenario_benchmark_control_flow_v1_snapshot() {
     let receipt = validate_rust_scenario_benchmark(&scenario_root)
         .expect("validate control-flow scenario benchmark");
 
-    assert_eq!(receipt.status, RustScenarioBenchmarkStatus::Pass);
+    assert_eq!(
+        receipt.status,
+        RustScenarioBenchmarkStatus::Pass,
+        "{receipt:?}"
+    );
     assert!(receipt.violations.is_empty(), "{:?}", receipt.violations);
     assert!(scenario_root.join(&receipt.scenario.inputs).is_dir());
     assert!(scenario_root.join(&receipt.scenario.expected).is_dir());
@@ -226,7 +230,11 @@ fn scenario_benchmark_data_structure_linear_membership_scan_v1_snapshot() {
     let receipt = validate_rust_scenario_benchmark(&scenario_root)
         .expect("validate data-structure linear membership scan scenario benchmark");
 
-    assert_eq!(receipt.status, RustScenarioBenchmarkStatus::Pass);
+    assert_eq!(
+        receipt.status,
+        RustScenarioBenchmarkStatus::Pass,
+        "{receipt:?}"
+    );
     assert!(receipt.violations.is_empty(), "{:?}", receipt.violations);
     assert!(scenario_root.join(&receipt.scenario.inputs).is_dir());
     assert!(scenario_root.join(&receipt.scenario.expected).is_dir());
@@ -535,6 +543,44 @@ fn scenario_benchmark_async_timeout_cancellation_safety_v1_snapshot() {
 }
 
 #[test]
+fn scenario_benchmark_rust_package_edition_2024_v1_snapshot() {
+    let scenario_root = fixture_root("software_criteria/rust_package_edition_2024_v1");
+    let receipt = validate_rust_scenario_benchmark(&scenario_root)
+        .expect("validate Rust package edition 2024 scenario benchmark");
+
+    assert_eq!(
+        receipt.status,
+        RustScenarioBenchmarkStatus::Pass,
+        "{receipt:?}"
+    );
+    assert!(receipt.violations.is_empty(), "{:?}", receipt.violations);
+    assert!(scenario_root.join(&receipt.scenario.inputs).is_dir());
+    assert!(scenario_root.join(&receipt.scenario.expected).is_dir());
+    assert!(
+        receipt.benchmark.observed_total <= receipt.benchmark.max_total,
+        "{receipt:?}"
+    );
+    assert!(
+        receipt.benchmark.observed_memory_bytes <= receipt.benchmark.memory_budget_bytes,
+        "{receipt:?}"
+    );
+    let comparison = receipt
+        .benchmark
+        .input_expected_comparison
+        .as_ref()
+        .expect("edition scenario should compare input and expected");
+    assert!(
+        comparison.expected_total <= comparison.input_total,
+        "{comparison:?}"
+    );
+
+    insta::assert_snapshot!(
+        "scenario_benchmark_rust_package_edition_2024_v1",
+        render_rust_scenario_benchmark_snapshot(&receipt)
+    );
+}
+
+#[test]
 fn scenario_benchmark_suite_covers_all_required_current_scenarios() {
     let receipt = validate_required_rust_scenario_benchmarks(env!("CARGO_MANIFEST_DIR"))
         .expect("validate required scenario benchmark suite");
@@ -554,6 +600,7 @@ fn scenario_benchmark_suite_covers_all_required_current_scenarios() {
         "AGENT-R032",
         "AGENT-R033",
         "AGENT-R034",
+        "RUST-AGENT-PROJECT-MANIFEST-023",
     ] {
         assert!(
             receipt

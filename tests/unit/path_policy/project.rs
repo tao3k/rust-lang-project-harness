@@ -7,6 +7,8 @@ use super::support::{findings_for_rule, has_rule, write_manifest};
 
 #[path = "project/build_gate.rs"]
 mod build_gate;
+#[path = "project/manifest.rs"]
+mod manifest;
 #[path = "project/quality.rs"]
 mod quality;
 #[path = "project/retired_gate.rs"]
@@ -30,12 +32,12 @@ fn source_test_policy_does_not_treat_latest_feature_as_cfg_test() {
     let report = run_rust_project_harness(root).expect("run project harness");
 
     assert!(
-        !has_rule(&report, "RUST-PROJ-R003"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-003"),
         "{:?}",
         report.findings
     );
     assert!(
-        !has_rule(&report, "RUST-PROJ-R004"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-004"),
         "{:?}",
         report.findings
     );
@@ -58,7 +60,7 @@ fn root_test_target_accepts_embedded_cargo_test_gate_macro() {
     let report = run_rust_project_harness(root).expect("run project harness");
 
     assert!(
-        !has_rule(&report, "RUST-PROJ-R006"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-006"),
         "{:?}",
         report.findings
     );
@@ -91,7 +93,7 @@ fn root_test_target_accepts_library_cargo_test_gate_macro() {
     let report = run_rust_project_harness(root).expect("run project harness");
 
     assert!(
-        !has_rule(&report, "RUST-PROJ-R006"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-006"),
         "{:?}",
         report.findings
     );
@@ -114,11 +116,15 @@ fn root_test_target_comment_mentions_do_not_count_as_structure() {
     let report = run_rust_project_harness(root).expect("run project harness");
 
     assert!(
-        !has_rule(&report, "RUST-PROJ-R006"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-006"),
         "{:?}",
         report.findings
     );
-    assert!(has_rule(&report, "RUST-PROJ-R007"), "{:?}", report.findings);
+    assert!(
+        has_rule(&report, "RUST-AGENT-PROJECT-007"),
+        "{:?}",
+        report.findings
+    );
 }
 
 #[test]
@@ -136,9 +142,13 @@ fn harness_dev_dependency_requires_cargo_check_build_gate() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R012"), "{:?}", report.findings);
     assert!(
-        !has_rule(&report, "RUST-PROJ-R009"),
+        has_rule(&report, "RUST-AGENT-PROJECT-012"),
+        "{:?}",
+        report.findings
+    );
+    assert!(
+        !has_rule(&report, "RUST-AGENT-PROJECT-009"),
         "{:?}",
         report.findings
     );
@@ -162,9 +172,13 @@ fn library_target_ignores_comment_mentions_of_embedded_cargo_test_gate() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R012"), "{:?}", report.findings);
     assert!(
-        !has_rule(&report, "RUST-PROJ-R009"),
+        has_rule(&report, "RUST-AGENT-PROJECT-012"),
+        "{:?}",
+        report.findings
+    );
+    assert!(
+        !has_rule(&report, "RUST-AGENT-PROJECT-009"),
         "{:?}",
         report.findings
     );
@@ -185,12 +199,12 @@ fn manifest_comment_does_not_enable_library_harness_policy() {
     let report = run_rust_project_harness(root).expect("run project harness");
 
     assert!(
-        !has_rule(&report, "RUST-PROJ-R009"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-009"),
         "{:?}",
         report.findings
     );
     assert!(
-        !has_rule(&report, "RUST-PROJ-R012"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-012"),
         "{:?}",
         report.findings
     );
@@ -210,9 +224,13 @@ fn manifest_package_field_uses_the_canonical_harness_identity() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R012"), "{:?}", report.findings);
     assert!(
-        !has_rule(&report, "RUST-PROJ-R009"),
+        has_rule(&report, "RUST-AGENT-PROJECT-012"),
+        "{:?}",
+        report.findings
+    );
+    assert!(
+        !has_rule(&report, "RUST-AGENT-PROJECT-009"),
         "{:?}",
         report.findings
     );
@@ -232,9 +250,13 @@ fn target_dependency_table_uses_canonical_harness_identity() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R012"), "{:?}", report.findings);
     assert!(
-        !has_rule(&report, "RUST-PROJ-R009"),
+        has_rule(&report, "RUST-AGENT-PROJECT-012"),
+        "{:?}",
+        report.findings
+    );
+    assert!(
+        !has_rule(&report, "RUST-AGENT-PROJECT-009"),
         "{:?}",
         report.findings
     );
@@ -252,7 +274,7 @@ fn large_unit_test_leaf_is_reported_from_parser_source_metrics() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "RUST-PROJ-R005");
+    let findings = findings_for_rule(&report, "RUST-AGENT-PROJECT-005");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("large.rs"));
 }

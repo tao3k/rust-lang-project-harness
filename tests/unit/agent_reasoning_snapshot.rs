@@ -109,7 +109,7 @@ fn agent_reasoning_tree_snapshot_ignores_test_context_owner_dependencies() {
         "//! Beta core.\n#[cfg(test)]\nmod tests {\n    use crate::alpha::Alpha;\n}\n/// Beta handle.\npub struct Beta;\n",
     )
     .expect("write beta core");
-    let config = default_rust_harness_config().with_disabled_rule("RUST-PROJ-R003");
+    let config = default_rust_harness_config().with_disabled_rule("RUST-AGENT-PROJECT-003");
 
     let rendered = render_rust_project_harness_agent_snapshot_with_config(root, &config)
         .expect("render snapshot");

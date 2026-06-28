@@ -2,7 +2,7 @@
 source: tests/unit/policy_config.rs
 expression: rendered
 ---
-[RUST-PROJ-R014] Warning: Cargo-backed harness scope reduction lacks explanation
+[RUST-AGENT-PROJECT-014] Warning: Cargo-backed harness scope reduction lacks explanation
 @ $TEMP/src:1:1
 fix: use with_source_path_excluded(path, explanation) so the Agent explains why this Cargo-backed scope is reduced
 Help: Config excludes Cargo-backed source scope path `src` without a non-empty explanation.

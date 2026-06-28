@@ -61,7 +61,7 @@ security scan has already executed.
 
 The build gate runs during `cargo check`, before libtest, test-name filters, or
 runtime evaluation. Once both the build-dependency and native function call are
-present, that gate satisfies the project harness contract. `RUST-PROJ-R012`
+present, that gate satisfies the project harness contract. `RUST-AGENT-PROJECT-012`
 reports partial states: a harness-enabled package without a root build gate, a
 harness build-dependency without the root build-script call, a root `build.rs`
 that omits the harness call, or a build gate call without the build-dependency.
@@ -94,7 +94,7 @@ fn main() {
 Cargo-test gates remain available for crates that cannot yet add a build
 script, and for this harness crate's self-apply path where a self build
 dependency would be cyclic. In downstream harness-enabled packages they are not
-silent compatibility: `RUST-PROJ-R006` and `RUST-PROJ-R009` emit compact
+silent compatibility: `RUST-AGENT-PROJECT-006` and `RUST-AGENT-PROJECT-009` emit compact
 migration warnings that tell the Agent to move parser-native policy to the
 cargo-check build gate.
 
@@ -125,9 +125,9 @@ rust_lang_project_harness::rust_project_harness_cargo_test_gate!(
 ```
 
 Cargo-test gates do not replace the `cargo check` gate for downstream packages.
-Once a parsed `Cargo.toml` references the harness package, `RUST-PROJ-R012`
+Once a parsed `Cargo.toml` references the harness package, `RUST-AGENT-PROJECT-012`
 asks for the build-dependency plus root `build.rs` closure, while
-`RUST-PROJ-R006` and `RUST-PROJ-R009` keep retired cargo-test mounts visible
+`RUST-AGENT-PROJECT-006` and `RUST-AGENT-PROJECT-009` keep retired cargo-test mounts visible
 until they are removed or replaced by local policy.
 
 ## Configuration
@@ -148,12 +148,12 @@ a second hand-written scanner that quietly avoids old debt.
 Custom scope paths must explain why they exist. Prefer
 `with_source_path(path, explanation)` and `with_test_path(path, explanation)`;
 directly mutating `source_dir_names` or `test_dir_names` without the matching
-explanation map triggers `RUST-PROJ-R013`. This prevents an Agent from shrinking
+explanation map triggers `RUST-AGENT-PROJECT-013`. This prevents an Agent from shrinking
 the harness to a few files just to avoid old policy debt.
 
 Removing Cargo-backed scopes also needs a reason. If `src`, `tests`, or a
 manifest-declared test target exists but an Agent removes it from the configured
-scope, `RUST-PROJ-R014` reports the attempt unless the config uses
+scope, `RUST-AGENT-PROJECT-014` reports the attempt unless the config uses
 `with_source_path_excluded(path, explanation)`,
 `with_test_path_excluded(path, explanation)`, or
 `with_tests_excluded(explanation)`.
@@ -185,7 +185,7 @@ local policy.
 Cargo-test `advice = allow` is not a generic pass switch. If a source gate uses
 `rust_project_harness_cargo_test_gate!(advice = allow, config = { ... })`, the
 same config should call `with_cargo_test_advice_allow_explanation(...)`.
-Without that compact explanation, `RUST-PROJ-R015` keeps the finding visible so
+Without that compact explanation, `RUST-AGENT-PROJECT-015` keeps the finding visible so
 an Agent has to state why advisory policy may pass in the test layer instead of
 silently using `allow` to avoid repairs.
 

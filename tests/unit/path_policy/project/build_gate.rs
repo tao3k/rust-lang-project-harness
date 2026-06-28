@@ -18,12 +18,12 @@ fn complete_build_gate_clears_source_cargo_test_gate_requirement() {
     let report = run_rust_project_harness(root).expect("run project harness");
 
     assert!(
-        !has_rule(&report, "RUST-PROJ-R009"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-009"),
         "{:?}",
         report.findings
     );
     assert!(
-        !has_rule(&report, "RUST-PROJ-R012"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-012"),
         "{:?}",
         report.findings
     );
@@ -41,7 +41,7 @@ fn downstream_policy_build_gate_clears_build_gate_requirement() {
     let report = run_rust_project_harness(root).expect("run project harness");
 
     assert!(
-        !has_rule(&report, "RUST-PROJ-R012"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-012"),
         "{:?}",
         report.findings
     );
@@ -59,7 +59,7 @@ fn workspace_wrapper_build_gate_clears_direct_harness_dependency_requirement() {
     let report = run_rust_project_harness(root).expect("run project harness");
 
     assert!(
-        !has_rule(&report, "RUST-PROJ-R012"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-012"),
         "{:?}",
         report.findings
     );
@@ -76,7 +76,11 @@ fn ordinary_workspace_alias_does_not_clear_build_gate_requirement() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R012"), "{:?}", report.findings);
+    assert!(
+        has_rule(&report, "RUST-AGENT-PROJECT-012"),
+        "{:?}",
+        report.findings
+    );
 }
 
 #[test]
@@ -103,12 +107,12 @@ fn complete_build_gate_clears_root_test_target_gate_requirement() {
     let report = run_rust_project_harness(root).expect("run project harness");
 
     assert!(
-        !has_rule(&report, "RUST-PROJ-R006"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-006"),
         "{:?}",
         report.findings
     );
     assert!(
-        !has_rule(&report, "RUST-PROJ-R012"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-012"),
         "{:?}",
         report.findings
     );
@@ -134,7 +138,11 @@ fn harness_enabled_build_script_requires_build_gate_snapshot() {
     let report = run_rust_project_harness(root).expect("run project harness");
     let rendered = normalize_temp_root(&render_rust_project_harness(&report), root);
 
-    assert!(has_rule(&report, "RUST-PROJ-R012"), "{:?}", report.findings);
+    assert!(
+        has_rule(&report, "RUST-AGENT-PROJECT-012"),
+        "{:?}",
+        report.findings
+    );
     insta::assert_snapshot!("harness_enabled_build_script_requires_build_gate", rendered);
 }
 
@@ -152,9 +160,13 @@ fn harness_dependency_requires_cargo_check_build_gate_without_build_script() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R012"), "{:?}", report.findings);
     assert!(
-        !has_rule(&report, "RUST-PROJ-R009"),
+        has_rule(&report, "RUST-AGENT-PROJECT-012"),
+        "{:?}",
+        report.findings
+    );
+    assert!(
+        !has_rule(&report, "RUST-AGENT-PROJECT-009"),
         "{:?}",
         report.findings
     );
@@ -170,7 +182,11 @@ fn harness_build_dependency_requires_root_build_script() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R012"), "{:?}", report.findings);
+    assert!(
+        has_rule(&report, "RUST-AGENT-PROJECT-012"),
+        "{:?}",
+        report.findings
+    );
 }
 
 #[test]
@@ -188,9 +204,13 @@ fn build_gate_default_config_requires_explicit_verification_config() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R011"), "{:?}", report.findings);
     assert!(
-        !has_rule(&report, "RUST-PROJ-R012"),
+        has_rule(&report, "RUST-AGENT-PROJECT-011"),
+        "{:?}",
+        report.findings
+    );
+    assert!(
+        !has_rule(&report, "RUST-AGENT-PROJECT-012"),
         "{:?}",
         report.findings
     );
@@ -207,7 +227,11 @@ fn build_gate_call_requires_build_dependency() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R012"), "{:?}", report.findings);
+    assert!(
+        has_rule(&report, "RUST-AGENT-PROJECT-012"),
+        "{:?}",
+        report.findings
+    );
 }
 
 #[test]
@@ -222,7 +246,7 @@ fn non_harness_build_script_does_not_require_build_gate() {
     let report = run_rust_project_harness(root).expect("run project harness");
 
     assert!(
-        !has_rule(&report, "RUST-PROJ-R012"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-012"),
         "{:?}",
         report.findings
     );

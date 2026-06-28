@@ -47,9 +47,9 @@ dependencies. Comments and prose in the manifest do not count as dependency
 evidence.
 Root Cargo test targets follow that parser boundary too: conventional
 `tests/*.rs` targets and manifest-declared `[[test]]` paths are collected and
-parsed under `src/parser/` before `RUST-PROJ-R007` and `RUST-PROJ-R008` render
+parsed under `src/parser/` before `RUST-AGENT-PROJECT-007` and `RUST-AGENT-PROJECT-008` render
 findings about test-target structure. If a harness-enabled package still mounts
-a cargo-test harness macro from a root test target, `RUST-PROJ-R006` reports a
+a cargo-test harness macro from a root test target, `RUST-AGENT-PROJECT-006` reports a
 migration warning that points the Agent to the `cargo check` build gate.
 Rust `#[path]` attributes are also resolved there, so project policy consumes
 both the native attribute text and its normalized target path as parser facts.
@@ -117,7 +117,7 @@ structure instead of losing the message inside passing build output.
 Projects can clear that notification by fixing the structure, by configuring
 the relevant rule surface, or by using an explicit
 `with_cargo_check_advice_allow_explanation(...)` rationale. Cargo-test advice
-allowance is still audited by `RUST-PROJ-R015`; this keeps `allow` from
+allowance is still audited by `RUST-AGENT-PROJECT-015`; this keeps `allow` from
 becoming a cheap Agent escape hatch for passing gates while ignoring advisory
 policy.
 
@@ -133,8 +133,8 @@ The layer split is deliberate:
 New source-backed test modules should stay under `tests/unit` and be mounted
 with `#[path]`. Harness-enabled library crates should mount a complete
 build-time gate from root `build.rs`; otherwise they will be reported by
-`RUST-PROJ-R012`. Source cargo-test gates remain supported only as compatibility
-mounts for crates that cannot yet add a build script, and `RUST-PROJ-R009`
+`RUST-AGENT-PROJECT-012`. Source cargo-test gates remain supported only as compatibility
+mounts for crates that cannot yet add a build script, and `RUST-AGENT-PROJECT-009`
 keeps warning until the Agent migrates parser-native policy to the build gate.
 Root Cargo test targets are thin aggregates: they should mount external suite
 modules only, while test bodies and helpers belong in suite files under

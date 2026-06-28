@@ -3,20 +3,20 @@ source: tests/unit/sample_project.rs
 assertion_line: 39
 expression: rendered
 ---
-[RUST-PROJ-R001] Warning: Root test file lacks explicit harness role
+[RUST-AGENT-PROJECT-001] Warning: Root test file lacks explicit harness role
 @ $TEMP/tests/test_root.rs:1:1
 fix: move this file under tests/unit or tests/integration
 Help: tests/test_root.rs is a root-level test file without an explicit harness role.
 Contract: Move root-level test files under tests/unit or tests/integration, or justify an explicit harness entry point in tests/rust-project-harness-rules.toml.
 
-[RUST-PROJ-R003] Warning: Inline source test module
+[RUST-AGENT-PROJECT-003] Warning: Inline source test module
 @ $TEMP/src/lib.rs:2:1
 fix: move this test module to tests/unit and mount it with #[path]
 line: 2 | #[cfg(test)] mod tests { #[test] fn it_works() {} }
 Help: $TEMP/src/lib.rs contains inline #[cfg(test)] module `tests`.
 Contract: Keep test bodies out of src files; mount source-backed unit tests from tests/unit with #[path].
 
-[RUST-PROJ-R007] Warning: Root test target contains implementation
+[RUST-AGENT-PROJECT-007] Warning: Root test target contains implementation
 @ $TEMP/tests/test_root.rs:1:1
 fix: move test implementation into a suite module and mount it from the root target
 line: 1 | #[test] fn root_test() {}

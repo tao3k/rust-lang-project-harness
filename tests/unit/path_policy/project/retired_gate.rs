@@ -29,7 +29,7 @@ fn retired_root_cargo_test_gate_reports_migration_warning() {
     let mut focused_report = report.clone();
     focused_report
         .findings
-        .retain(|finding| finding.rule_id == "RUST-PROJ-R006");
+        .retain(|finding| finding.rule_id == "RUST-AGENT-PROJECT-006");
     assert_eq!(focused_report.findings.len(), 1, "{:?}", report.findings);
     let rendered = normalize_temp_root(&render_rust_project_harness(&focused_report), root);
     insta::assert_snapshot!(
@@ -56,13 +56,21 @@ fn retired_source_cargo_test_gate_reports_migration_warning() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R012"), "{:?}", report.findings);
-    assert!(has_rule(&report, "RUST-PROJ-R009"), "{:?}", report.findings);
+    assert!(
+        has_rule(&report, "RUST-AGENT-PROJECT-012"),
+        "{:?}",
+        report.findings
+    );
+    assert!(
+        has_rule(&report, "RUST-AGENT-PROJECT-009"),
+        "{:?}",
+        report.findings
+    );
 
     let mut focused_report = report.clone();
     focused_report
         .findings
-        .retain(|finding| finding.rule_id == "RUST-PROJ-R009");
+        .retain(|finding| finding.rule_id == "RUST-AGENT-PROJECT-009");
     let rendered = normalize_temp_root(&render_rust_project_harness(&focused_report), root);
     insta::assert_snapshot!(
         "retired_source_cargo_test_gate_reports_migration_warning",

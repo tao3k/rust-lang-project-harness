@@ -259,7 +259,7 @@ fn cli_exits_nonzero_for_blocking_findings() {
         &String::from_utf8(output.stdout).expect("utf8 stdout"),
         root,
     );
-    assert!(stdout.starts_with("[RUST-PROJ-R003]"), "{stdout}");
-    assert!(stdout.contains("RUST-PROJ-R003"), "{stdout}");
+    assert!(stdout.starts_with("[RUST-AGENT-PROJECT-003]"), "{stdout}");
+    assert!(stdout.contains("RUST-AGENT-PROJECT-003"), "{stdout}");
     insta::assert_snapshot!("cli_blocking_finding", stdout);
 }

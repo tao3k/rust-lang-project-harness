@@ -29,22 +29,22 @@ version labels, searchable domains, and default modes. The first three packs are
 ## Blocking Rules
 
 - `RUST-SYN-R001`: Rust source must parse through `syn`
-- `RUST-PROJ-R001`: root test file must be an explicit harness entry point
-- `RUST-PROJ-R002`: directory under `tests/` must be an allowed suite directory
-- `RUST-PROJ-R003`: source tests must be externalized instead of inline
-- `RUST-PROJ-R004`: external test mount must point to an existing `tests/unit` file
-- `RUST-PROJ-R005`: large test leaf should split into a folder-first suite
-- `RUST-PROJ-R006`: retired root Cargo test target harness gate should migrate to the cargo-check build gate
-- `RUST-PROJ-R007`: root Cargo test target should stay a thin harness aggregate
-- `RUST-PROJ-R008`: root Cargo test target modules should use explicit suite `#[path]` mounts
-- `RUST-PROJ-R009`: retired source cargo-test harness gate should migrate to the cargo-check build gate
-- `RUST-PROJ-R010`: Rust-native performance verification bindings must have a runnable `harness = false` Cargo bench target
-- `RUST-PROJ-R011`: cargo-check build gates must run with explicit verification config
-- `RUST-PROJ-R012`: harness-enabled packages must mount the build-time harness gate for `cargo check`
-- `RUST-PROJ-R013`: custom harness source/test scope paths must carry an explicit explanation
-- `RUST-PROJ-R014`: Cargo-backed harness scopes must not be silently removed
-- `RUST-PROJ-R015`: retired cargo-test advice allowance must carry an explicit explanation
-- `RUST-PROJ-R016`: retired cargo-test compatibility gates must run with explicit verification config
+- `RUST-AGENT-PROJECT-001`: root test file must be an explicit harness entry point
+- `RUST-AGENT-PROJECT-002`: directory under `tests/` must be an allowed suite directory
+- `RUST-AGENT-PROJECT-003`: source tests must be externalized instead of inline
+- `RUST-AGENT-PROJECT-004`: external test mount must point to an existing `tests/unit` file
+- `RUST-AGENT-PROJECT-005`: large test leaf should split into a folder-first suite
+- `RUST-AGENT-PROJECT-006`: retired root Cargo test target harness gate should migrate to the cargo-check build gate
+- `RUST-AGENT-PROJECT-007`: root Cargo test target should stay a thin harness aggregate
+- `RUST-AGENT-PROJECT-008`: root Cargo test target modules should use explicit suite `#[path]` mounts
+- `RUST-AGENT-PROJECT-009`: retired source cargo-test harness gate should migrate to the cargo-check build gate
+- `RUST-AGENT-PROJECT-010`: Rust-native performance verification bindings must have a runnable `harness = false` Cargo bench target
+- `RUST-AGENT-PROJECT-011`: cargo-check build gates must run with explicit verification config
+- `RUST-AGENT-PROJECT-012`: harness-enabled packages must mount the build-time harness gate for `cargo check`
+- `RUST-AGENT-PROJECT-013`: custom harness source/test scope paths must carry an explicit explanation
+- `RUST-AGENT-PROJECT-014`: Cargo-backed harness scopes must not be silently removed
+- `RUST-AGENT-PROJECT-015`: retired cargo-test advice allowance must carry an explicit explanation
+- `RUST-AGENT-PROJECT-016`: retired cargo-test compatibility gates must run with explicit verification config
 - `RUST-MOD-R001`: `mod.rs` should stay interface-only with external module declarations and re-exports
 - `RUST-MOD-R002`: oversized source file should split by responsibility, including private implementation piles
 - `RUST-MOD-R003`: native `use` trees containing `super::super` should use `crate::...` owner/facade imports
@@ -103,15 +103,15 @@ fn main() {
 }
 ```
 
-`RUST-PROJ-R011` keeps the cargo-check gate from silently running the default
+`RUST-AGENT-PROJECT-011` keeps the cargo-check gate from silently running the default
 empty verification policy: use the configured form to declare profile hints,
 explicit suppressions, receipts, waivers, or skill bindings for the
-Agent-facing verification surface. `RUST-PROJ-R012` is the Agent-facing closure rule: when a
+Agent-facing verification surface. `RUST-AGENT-PROJECT-012` is the Agent-facing closure rule: when a
 harness-enabled package lacks the build-dependency, lacks root `build.rs`, has a
 root `build.rs` that omits the harness call, or calls the gate without the build
 dependency, `cargo check` prints a compact finding that tells the next Agent
-exactly which configuration surface to add. `RUST-PROJ-R006` and
-`RUST-PROJ-R009` are migration warnings: if a harness-enabled package still
+exactly which configuration surface to add. `RUST-AGENT-PROJECT-006` and
+`RUST-AGENT-PROJECT-009` are migration warnings: if a harness-enabled package still
 mounts parser-native policy through a root test target or source cargo-test
 macro, the compact finding tells the next Agent to move that policy to
 `[build-dependencies]` plus root `build.rs`.
@@ -119,14 +119,14 @@ macro, the compact finding tells the next Agent to move that policy to
 Cargo-test policy is intentionally narrower. Use it only for behavior that is
 about the test layer itself: retired source gate configuration, explicit advice
 allowance, or future checks that consume runtime test/verification receipts.
-`RUST-PROJ-R015` and `RUST-PROJ-R016` are therefore cargo-test compatibility
+`RUST-AGENT-PROJECT-015` and `RUST-AGENT-PROJECT-016` are therefore cargo-test compatibility
 rules. Parser-native structure, module ownership, import clarity, scope
 coverage, and verification planning reminders belong to cargo check.
 
 Verification policy wiring also has a physical Cargo target check. When a
 project configures an active Rust-native performance binding such as
 `rust-verification-performance@criterion`, `@divan`, or `@iai-callgrind`,
-`RUST-PROJ-R010` requires a real `[[bench]]` target with `harness = false` and
+`RUST-AGENT-PROJECT-010` requires a real `[[bench]]` target with `harness = false` and
 an existing bench source file. This keeps the compact verification plan from
 claiming a performance skill exists while Cargo has no runnable benchmark
 target for the Agent to execute.
@@ -136,10 +136,10 @@ conventional Cargo layout form the baseline coverage: `src`, explicit
 `[lib]`/`[[bin]]` target roots, `tests`, explicit `[[test]]` target roots,
 `examples`, explicit `[[example]]` targets, `benches`, explicit `[[bench]]`
 targets, and root `build.rs`. A build-script gate therefore cannot shrink the
-scan surface just by passing a smaller config. `RUST-PROJ-R013` requires every
+scan surface just by passing a smaller config. `RUST-AGENT-PROJECT-013` requires every
 custom source or test scope path to have a non-empty explanation, preferably by
 using `RustHarnessConfig::with_source_path(path, explanation)` or
-`with_test_path(path, explanation)`. `RUST-PROJ-R014` catches attempts to
+`with_test_path(path, explanation)`. `RUST-AGENT-PROJECT-014` catches attempts to
 remove Cargo-backed `src`, `tests`, or manifest-declared test coverage without
 a matching explanation through `with_source_path_excluded(path, explanation)`,
 `with_test_path_excluded(path, explanation)`, or

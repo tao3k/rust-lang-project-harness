@@ -43,25 +43,26 @@
 - RUST-MOD-R009: Requires every scanned source file to be reachable from a crate or binary root.
 - RUST-MOD-R010: Replaces glob imports with explicit owner imports.
 - RUST-MOD-R011: Prevents sibling file and directory owners from sharing the same name.
-- RUST-PROJ-R001: Moves root-level test files under standard suites or requires an explicit harness entry explanation.
-- RUST-PROJ-R002: Keeps only standard suite directories directly under tests or requires documented exceptions.
-- RUST-PROJ-R003: Keeps test bodies out of source files by mounting source-backed unit tests externally.
-- RUST-PROJ-R004: Requires external source-backed tests to resolve to existing files under tests unit.
-- RUST-PROJ-R005: Splits oversized test leaves into folder-first suites with focused modules.
-- RUST-PROJ-R006: Migrates retired root cargo-test harness gates toward cargo-check build gates.
-- RUST-PROJ-R007: Keeps root Cargo test targets as thin aggregates with external module mounts only.
-- RUST-PROJ-R008: Requires root Cargo test targets to mount external modules with explicit path attributes.
-- RUST-PROJ-R009: Migrates retired source cargo-test harness gates toward cargo-check build gates.
-- RUST-PROJ-R010: Requires Rust-native performance skills to expose runnable bench targets.
-- RUST-PROJ-R011: Requires cargo-check harness gates to declare verification hints, suppressions, or skill bindings.
-- RUST-PROJ-R012: Requires harness-enabled packages to mount the build-time harness gate.
-- RUST-PROJ-R013: Requires custom harness scope paths to carry explicit explanations.
-- RUST-PROJ-R014: Requires cargo-backed scope reductions to be explained or removed from coverage.
-- RUST-PROJ-R015: Requires retired cargo-test advice allowances to include explicit explanations.
-- RUST-PROJ-R016: Requires remaining source cargo-test gates to declare verification hints, suppressions, or skill bindings.
-- RUST-PROJ-R017: Requires advice allowance explanations to state scope, owner, finding category, current safety, and cleanup trigger.
-- RUST-PROJ-R018: Rejects fake Cargo package identity fallbacks in policy and evidence code.
-- RUST-PROJ-R019: Rejects redundant public workspace member build-gate wrapper aliases.
-- RUST-PROJ-R020: Rejects silent default values for missing evidence-bearing data.
-- RUST-PROJ-R021: Rejects sentinel source locations in line, column, and range conversion.
-- RUST-PROJ-R022: Advises candidate loops to record skipped or filtered row telemetry.
+- RUST-AGENT-PROJECT-001: Moves root-level test files under standard suites or requires an explicit harness entry explanation.
+- RUST-AGENT-PROJECT-002: Keeps only standard suite directories directly under tests or requires documented exceptions.
+- RUST-AGENT-PROJECT-003: Keeps test bodies out of source files by mounting source-backed unit tests externally.
+- RUST-AGENT-PROJECT-004: Requires external source-backed tests to resolve to existing files under tests unit.
+- RUST-AGENT-PROJECT-005: Splits oversized test leaves into folder-first suites with focused modules.
+- RUST-AGENT-PROJECT-006: Migrates retired root cargo-test harness gates toward cargo-check build gates.
+- RUST-AGENT-PROJECT-007: Keeps root Cargo test targets as thin aggregates with external module mounts only.
+- RUST-AGENT-PROJECT-008: Requires root Cargo test targets to mount external modules with explicit path attributes.
+- RUST-AGENT-PROJECT-009: Migrates retired source cargo-test harness gates toward cargo-check build gates.
+- RUST-AGENT-PROJECT-010: Requires Rust-native performance skills to expose runnable bench targets.
+- RUST-AGENT-PROJECT-011: Requires cargo-check harness gates to declare verification hints, suppressions, or skill bindings.
+- RUST-AGENT-PROJECT-012: Requires harness-enabled packages to mount the build-time harness gate.
+- RUST-AGENT-PROJECT-013: Requires custom harness scope paths to carry explicit explanations.
+- RUST-AGENT-PROJECT-014: Requires cargo-backed scope reductions to be explained or removed from coverage.
+- RUST-AGENT-PROJECT-015: Requires retired cargo-test advice allowances to include explicit explanations.
+- RUST-AGENT-PROJECT-016: Requires remaining source cargo-test gates to declare verification hints, suppressions, or skill bindings.
+- RUST-AGENT-PROJECT-017: Requires advice allowance explanations to state scope, owner, finding category, current safety, and cleanup trigger.
+- RUST-AGENT-PROJECT-018: Rejects fake Cargo package identity fallbacks in policy and evidence code.
+- RUST-AGENT-PROJECT-019: Rejects redundant public workspace member build-gate wrapper aliases.
+- RUST-AGENT-PROJECT-020: Rejects silent default values for missing evidence-bearing data.
+- RUST-AGENT-PROJECT-021: Rejects sentinel source locations in line, column, and range conversion.
+- RUST-AGENT-PROJECT-022: Advises candidate loops to record skipped or filtered row telemetry.
+- RUST-AGENT-PROJECT-MANIFEST-023: Requires Cargo package manifests to target Rust edition 2024 or document a compatibility boundary.

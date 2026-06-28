@@ -36,8 +36,13 @@ fn failure_frontier_render_points_to_deduplicated_hot_blocks() {
     let second_path = temp_root.join("src/query.rs");
     let mut report = snapshot_report();
     report.invariant_candidates = vec![
-        invariant_candidate("candidate-1", "RUST-PROJ-R003", first_path.clone(), 20),
-        invariant_candidate("candidate-2", "RUST-PROJ-R004", first_path, 28),
+        invariant_candidate(
+            "candidate-1",
+            "RUST-AGENT-PROJECT-003",
+            first_path.clone(),
+            20,
+        ),
+        invariant_candidate("candidate-2", "RUST-AGENT-PROJECT-004", first_path, 28),
         invariant_candidate("candidate-3", "RUST-MOD-R001", second_path, 3),
     ];
 
@@ -49,12 +54,12 @@ fn failure_frontier_render_points_to_deduplicated_hot_blocks() {
     assert!(rendered.contains("|failureFrontier status=ready source=rust-check hotBlocks=2"));
     assert!(rendered.contains("directSourceReadCode<=2"));
     assert!(rendered.contains(
-        "|hotBlock selector=src/lib.rs:8-32 source=invariant rule=RUST-PROJ-R003 line=20"
+        "|hotBlock selector=src/lib.rs:8-32 source=invariant rule=RUST-AGENT-PROJECT-003 line=20"
     ));
     assert!(rendered.contains(
         "|hotBlock selector=src/query.rs:1-15 source=invariant rule=RUST-MOD-R001 line=3"
     ));
-    assert!(!rendered.contains("RUST-PROJ-R004"));
+    assert!(!rendered.contains("RUST-AGENT-PROJECT-004"));
     assert!(rendered.contains("--selector 'src/lib.rs:8-32' --code ."));
 }
 
@@ -67,7 +72,7 @@ fn snapshot_report() -> RustHarnessReport {
             parse_error: None,
         }],
         findings: vec![RustHarnessFinding {
-            rule_id: "RUST-PROJ-R003".to_string(),
+            rule_id: "RUST-AGENT-PROJECT-003".to_string(),
             pack_id: "rust.project_policy".to_string(),
             severity: RustDiagnosticSeverity::Warning,
             title: "Inline source test module".to_string(),

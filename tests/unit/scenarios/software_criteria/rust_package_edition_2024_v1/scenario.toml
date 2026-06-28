@@ -1,0 +1,11 @@
+id = "rust-package-edition-2024-v1"
+title = "Rust packages target edition 2024"
+policy_ids = ["RUST-AGENT-PROJECT-MANIFEST-023"]
+agent_goal = "Keep new Rust packages on the current edition baseline so agent-authored code can use modern Rust syntax and lints without stale template drift."
+reference_repositories = ["rust-lang/rust", "rust-lang/cargo"]
+reference_patterns = [
+  "Cargo package metadata declares the current Rust edition explicitly",
+  "Expected fixtures keep edition policy in Cargo.toml rather than hidden source checks",
+]
+inputs = "inputs"
+expected = "expected"

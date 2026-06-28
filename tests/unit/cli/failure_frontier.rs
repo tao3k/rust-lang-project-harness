@@ -28,7 +28,7 @@ fn cli_check_changed_renders_failure_frontier() {
     assert!(stdout.contains("directSourceReadCode<=1"), "{stdout}");
     assert!(
         stdout.contains(
-            "|hotBlock selector=src/lib.rs:1-14 source=finding rule=RUST-PROJ-R003 line=2"
+            "|hotBlock selector=src/lib.rs:1-14 source=finding rule=RUST-AGENT-PROJECT-003 line=2"
         ),
         "{stdout}"
     );
@@ -38,7 +38,7 @@ fn cli_check_changed_renders_failure_frontier() {
         ),
         "{stdout}"
     );
-    assert!(!stdout.contains("[RUST-PROJ-R003]"), "{stdout}");
+    assert!(!stdout.contains("[RUST-AGENT-PROJECT-003]"), "{stdout}");
 }
 
 #[test]

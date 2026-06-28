@@ -25,7 +25,7 @@ fn performance_verification_binding_requires_cargo_bench_target() {
     let report = run_rust_project_harness_with_config(root, &performance_config())
         .expect("run project harness");
 
-    let findings = findings_for_rule(&report, "RUST-PROJ-R010");
+    let findings = findings_for_rule(&report, "RUST-AGENT-PROJECT-010");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(
         findings[0].summary.contains("harness=false [[bench]]"),
@@ -61,7 +61,7 @@ fn performance_verification_binding_accepts_cargo_bench_target() {
         .expect("run project harness");
 
     assert!(
-        findings_for_rule(&report, "RUST-PROJ-R010").is_empty(),
+        findings_for_rule(&report, "RUST-AGENT-PROJECT-010").is_empty(),
         "{:?}",
         report.findings
     );
@@ -94,7 +94,7 @@ fn performance_verification_binding_accepts_manual_criterion_main_bench_target()
         .expect("run project harness");
 
     assert!(
-        findings_for_rule(&report, "RUST-PROJ-R010").is_empty(),
+        findings_for_rule(&report, "RUST-AGENT-PROJECT-010").is_empty(),
         "{:?}",
         report.findings
     );
@@ -122,7 +122,7 @@ fn performance_verification_binding_rejects_raw_harness_false_bench() {
     let report = run_rust_project_harness_with_config(root, &performance_config())
         .expect("run project harness");
 
-    let findings = findings_for_rule(&report, "RUST-PROJ-R010");
+    let findings = findings_for_rule(&report, "RUST-AGENT-PROJECT-010");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(
         findings[0]

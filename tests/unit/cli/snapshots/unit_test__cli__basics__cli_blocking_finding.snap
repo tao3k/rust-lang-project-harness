@@ -3,7 +3,7 @@ source: tests/unit/cli/basics.rs
 assertion_line: 174
 expression: stdout
 ---
-[RUST-PROJ-R003] Warning: Inline source test module
+[RUST-AGENT-PROJECT-003] Warning: Inline source test module
 @ $TEMP/src/lib.rs:2:1
 fix: move this test module to tests/unit and mount it with #[path]
 line: 2 | #[cfg(test)] mod tests { #[test] fn it_works() {} }

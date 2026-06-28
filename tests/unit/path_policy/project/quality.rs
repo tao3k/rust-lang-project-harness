@@ -18,7 +18,7 @@ fn weak_advice_allow_explanation_is_flagged() {
 
     let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "RUST-PROJ-R017");
+    let findings = findings_for_rule(&report, "RUST-AGENT-PROJECT-017");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(
         findings[0]
@@ -43,7 +43,7 @@ fn structured_advice_allow_explanation_is_allowed() {
     let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
 
     assert!(
-        !has_rule(&report, "RUST-PROJ-R017"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-017"),
         "{:?}",
         report.findings
     );
@@ -64,7 +64,11 @@ fn fake_cargo_package_identity_fallback_is_flagged() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R018"), "{:?}", report.findings);
+    assert!(
+        has_rule(&report, "RUST-AGENT-PROJECT-018"),
+        "{:?}",
+        report.findings
+    );
 }
 
 #[test]
@@ -82,7 +86,11 @@ fn redundant_workspace_member_build_gate_alias_is_flagged() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R019"), "{:?}", report.findings);
+    assert!(
+        has_rule(&report, "RUST-AGENT-PROJECT-019"),
+        "{:?}",
+        report.findings
+    );
 }
 
 #[test]
@@ -99,7 +107,11 @@ fn silent_evidence_default_is_flagged_in_search_graph_code() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R020"), "{:?}", report.findings);
+    assert!(
+        has_rule(&report, "RUST-AGENT-PROJECT-020"),
+        "{:?}",
+        report.findings
+    );
 }
 
 #[test]
@@ -116,7 +128,11 @@ fn source_location_sentinel_is_flagged_in_candidate_code() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R021"), "{:?}", report.findings);
+    assert!(
+        has_rule(&report, "RUST-AGENT-PROJECT-021"),
+        "{:?}",
+        report.findings
+    );
 }
 
 #[test]
@@ -143,7 +159,11 @@ fn candidate_loop_without_rejection_telemetry_is_flagged() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R022"), "{:?}", report.findings);
+    assert!(
+        has_rule(&report, "RUST-AGENT-PROJECT-022"),
+        "{:?}",
+        report.findings
+    );
 }
 
 #[test]
@@ -173,7 +193,7 @@ fn candidate_loop_with_rejection_telemetry_is_allowed() {
     let report = run_rust_project_harness(root).expect("run project harness");
 
     assert!(
-        !has_rule(&report, "RUST-PROJ-R022"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-022"),
         "{:?}",
         report.findings
     );

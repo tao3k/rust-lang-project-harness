@@ -50,7 +50,7 @@ fn harness_rules_markdown_is_plain_rule_id_list() {
         assert!(
             rule_id.starts_with("AGENT-R")
                 || rule_id.starts_with("RUST-MOD-R")
-                || rule_id.starts_with("RUST-PROJ-R"),
+                || rule_id.starts_with("RUST-AGENT-PROJECT"),
             "unexpected policy id prefix: {rule_id}"
         );
         assert!(
@@ -65,7 +65,7 @@ fn harness_rules_markdown_is_plain_rule_id_list() {
         count += 1;
     }
 
-    assert_eq!(count, 67);
+    assert_eq!(count, 68);
 }
 
 #[test]

@@ -1,4 +1,4 @@
-[RUST-PROJ-R003] Warning: Inline source test module
+[RUST-AGENT-PROJECT-003] Warning: Inline source test module
 @ $TEMP/src/lib.rs:5:5
 fix: move this test module to tests/unit and mount it with #[path]
 line: 5 |     #[cfg(test)] mod tests { #[test] fn it_works() {} }

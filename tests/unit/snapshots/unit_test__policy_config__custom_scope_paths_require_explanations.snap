@@ -2,13 +2,13 @@
 source: tests/unit/policy_config.rs
 expression: rendered
 ---
-[RUST-PROJ-R013] Warning: Custom harness scope path lacks explanation
+[RUST-AGENT-PROJECT-013] Warning: Custom harness scope path lacks explanation
 @ $TEMP/src/lib.rs:1:1
 fix: use with_source_path(path, explanation) or with_test_path(path, explanation) so the Agent explains why this scope is necessary
 Help: Config adds custom source scope path `src/lib.rs` without a non-empty explanation.
 Contract: Custom source or test scope paths must be added with an explicit explanation so agents cannot shrink the harness to avoid existing policy debt.
 
-[RUST-PROJ-R013] Warning: Custom harness scope path lacks explanation
+[RUST-AGENT-PROJECT-013] Warning: Custom harness scope path lacks explanation
 @ $TEMP/src/integration_support/search_strategy_flow.rs:1:1
 fix: use with_source_path(path, explanation) or with_test_path(path, explanation) so the Agent explains why this scope is necessary
 Help: Config adds custom source scope path `src/integration_support/search_strategy_flow.rs` without a non-empty explanation.

@@ -3,7 +3,7 @@ source: tests/unit/path_policy/project/verification_integration/config_gate.rs
 assertion_line: 45
 expression: rendered
 ---
-[RUST-PROJ-R016] Warning: Retired cargo-test gate uses empty verification config
+[RUST-AGENT-PROJECT-016] Warning: Retired cargo-test gate uses empty verification config
 @ $TEMP/src/lib.rs:3:1
 fix: use rust_project_harness_cargo_test_gate!(config = { ... }) and declare verification profile hints, explicit suppressions, or skill bindings
 line: 3 | rust_lang_project_harness::rust_project_harness_cargo_test_gate!();

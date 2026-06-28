@@ -44,9 +44,9 @@ fn project_runner_discovers_member_crates_under_package_collection_root() {
     assert_eq!(report.workspace_member_scopes.len(), 2);
     assert!(has_module_path(&report, "crates/gated/src/lib.rs"));
     assert!(has_module_path(&report, "crates/inline/src/lib.rs"));
-    assert!(has_rule(&report, "RUST-PROJ-R003"));
+    assert!(has_rule(&report, "RUST-AGENT-PROJECT-003"));
     assert!(
-        !has_rule(&report, "RUST-PROJ-R009"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-009"),
         "{:?}",
         report.findings
     );
@@ -54,7 +54,7 @@ fn project_runner_discovers_member_crates_under_package_collection_root() {
     let mut focused_report = report;
     focused_report
         .findings
-        .retain(|finding| finding.rule_id == "RUST-PROJ-R003");
+        .retain(|finding| finding.rule_id == "RUST-AGENT-PROJECT-003");
     let rendered = normalize_temp_root(&render_rust_project_harness(&focused_report), root);
     insta::assert_snapshot!("workspace_member_inline_source_test", rendered);
 }
@@ -82,7 +82,7 @@ fn workspace_manifest_member_globs_are_scanned_as_member_crates() {
 
     assert_eq!(report.workspace_member_scopes.len(), 1);
     assert!(has_module_path(&report, "crates/member/src/lib.rs"));
-    assert!(has_rule(&report, "RUST-PROJ-R003"));
+    assert!(has_rule(&report, "RUST-AGENT-PROJECT-003"));
 }
 
 #[test]
@@ -109,7 +109,7 @@ fn workspace_member_test_target_policy_accepts_crate_local_suite_mounts() {
     assert!(
         !has_rule_for_path_suffix(
             &report,
-            "RUST-PROJ-R008",
+            "RUST-AGENT-PROJECT-008",
             "crates/member/tests/unit_test.rs"
         ),
         "{:?}",

@@ -23,7 +23,7 @@ use serde::Deserialize;
 
 const RUST_SCENARIO_BENCHMARK_HARD_MAX_TOTAL: RustScenarioBenchmarkDuration =
     RustScenarioBenchmarkDuration(Duration::from_millis(500));
-const AGENT_POLICY_ID_GRAMMAR: &str = "<LANGUAGE>-AGENT-<TAGS>-<NUMBER>";
+const SCENARIO_POLICY_ID_GRAMMAR: &str = "<LANGUAGE>-AGENT-<TAGS>-<NUMBER>";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -200,7 +200,7 @@ fn validate_agent_policy_scenario_coverage(
                 ),
                 message: format!(
                     "policy id {} must match {}",
-                    requirement.policy_id, AGENT_POLICY_ID_GRAMMAR
+                    requirement.policy_id, SCENARIO_POLICY_ID_GRAMMAR
                 ),
             });
             continue;
@@ -547,13 +547,17 @@ fn require_policy_ids(
         return;
     }
     for (index, policy_id) in policy_ids.iter().enumerate() {
-        if !is_agent_policy_id(policy_id) {
+        if !is_scenario_policy_id(policy_id) {
             violations.push(contract_violation(
                 &format!("{field}[{index}]"),
-                &format!("policy id must match {AGENT_POLICY_ID_GRAMMAR}"),
+                &format!("policy id must match {SCENARIO_POLICY_ID_GRAMMAR}"),
             ));
         }
     }
+}
+
+fn is_scenario_policy_id(value: &str) -> bool {
+    is_agent_policy_id(value)
 }
 
 fn is_agent_policy_id(value: &str) -> bool {

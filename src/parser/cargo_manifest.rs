@@ -16,6 +16,7 @@ pub(crate) struct CargoManifestFacts {
     pub(crate) has_package: bool,
     #[cfg(feature = "cli")]
     pub(crate) package_name: Option<String>,
+    pub(crate) package_edition: Option<String>,
     pub(crate) workspace_members: Vec<String>,
     pub(crate) workspace_excludes: Vec<String>,
     pub(crate) path_dependency_roots: Vec<PathBuf>,
@@ -61,6 +62,10 @@ pub(crate) fn parse_cargo_manifest(project_root: &Path) -> CargoManifestFacts {
         .package
         .as_ref()
         .map(|package| package.name.clone());
+    let package_edition = manifest
+        .package
+        .as_ref()
+        .map(|package| package.edition().to_string());
     let has_package = package_name
         .as_deref()
         .is_some_and(|name| !name.trim().is_empty());
@@ -78,6 +83,7 @@ pub(crate) fn parse_cargo_manifest(project_root: &Path) -> CargoManifestFacts {
         has_package,
         #[cfg(feature = "cli")]
         package_name,
+        package_edition,
         workspace_members,
         workspace_excludes,
         path_dependency_roots,

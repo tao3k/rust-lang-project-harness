@@ -16,7 +16,7 @@ fn cli_search_policy_renders_semantic_handles() {
     let seeds = run_cli([
         "search".as_ref(),
         "policy".as_ref(),
-        "RUST-PROJ-R001".as_ref(),
+        "RUST-AGENT-PROJECT-001".as_ref(),
         "owner".as_ref(),
         "tests".as_ref(),
         "--view".as_ref(),
@@ -26,7 +26,7 @@ fn cli_search_policy_renders_semantic_handles() {
     assert!(seeds.status.success(), "{seeds:?}");
     let stdout = String::from_utf8(seeds.stdout).expect("utf8 stdout");
     assert!(
-        stdout.starts_with("[search-policy] q=RUST-PROJ-R001 alg=policy-handle-catalog"),
+        stdout.starts_with("[search-policy] q=RUST-AGENT-PROJECT-001 alg=policy-handle-catalog"),
         "{stdout}"
     );
     assert!(

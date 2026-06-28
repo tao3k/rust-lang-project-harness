@@ -3,7 +3,7 @@ source: tests/unit/path_policy/project/retired_gate.rs
 assertion_line: 67
 expression: rendered
 ---
-[RUST-PROJ-R009] Warning: Retired source cargo-test gate should migrate
+[RUST-AGENT-PROJECT-009] Warning: Retired source cargo-test gate should migrate
 @ $TEMP/src/lib.rs:3:1
 fix: move parser-native harness policy to [build-dependencies] plus root build.rs using assert_rust_project_harness_downstream_policy_from_env(...), then remove this cargo-test source gate
 line: 3 | rust_lang_project_harness::rust_project_harness_cargo_test_gate!();

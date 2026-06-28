@@ -22,7 +22,7 @@ fn cargo_test_gate_requires_explicit_verification_config() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "RUST-PROJ-R016");
+    let findings = findings_for_rule(&report, "RUST-AGENT-PROJECT-016");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(
         findings[0]
@@ -32,7 +32,7 @@ fn cargo_test_gate_requires_explicit_verification_config() {
         findings[0]
     );
     assert!(
-        findings_for_rule(&report, "RUST-PROJ-R011").is_empty(),
+        findings_for_rule(&report, "RUST-AGENT-PROJECT-011").is_empty(),
         "{:?}",
         report.findings
     );
@@ -40,7 +40,7 @@ fn cargo_test_gate_requires_explicit_verification_config() {
     let mut focused_report = report.clone();
     focused_report
         .findings
-        .retain(|finding| finding.rule_id == "RUST-PROJ-R016");
+        .retain(|finding| finding.rule_id == "RUST-AGENT-PROJECT-016");
     let rendered = normalize_temp_root(&render_rust_project_harness(&focused_report), root);
     insta::assert_snapshot!("cargo_test_gate_requires_verification_config", rendered);
 }
@@ -61,7 +61,7 @@ fn configured_cargo_test_gate_clears_verification_config_warning() {
         .expect("run project harness");
 
     assert!(
-        findings_for_rule(&report, "RUST-PROJ-R016").is_empty(),
+        findings_for_rule(&report, "RUST-AGENT-PROJECT-016").is_empty(),
         "{:?}",
         report.findings
     );
@@ -81,7 +81,7 @@ fn positional_config_gate_still_requires_named_verification_config() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "RUST-PROJ-R016");
+    let findings = findings_for_rule(&report, "RUST-AGENT-PROJECT-016");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
 }
 
@@ -99,9 +99,9 @@ fn advice_allow_gate_still_requires_explicit_verification_config() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "RUST-PROJ-R016");
+    let findings = findings_for_rule(&report, "RUST-AGENT-PROJECT-016");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
-    let allow_findings = findings_for_rule(&report, "RUST-PROJ-R015");
+    let allow_findings = findings_for_rule(&report, "RUST-AGENT-PROJECT-015");
     assert_eq!(allow_findings.len(), 1, "{:?}", report.findings);
 }
 
@@ -121,11 +121,11 @@ fn advice_allow_with_config_still_requires_allow_explanation() {
         .expect("run project harness");
 
     assert!(
-        findings_for_rule(&report, "RUST-PROJ-R016").is_empty(),
+        findings_for_rule(&report, "RUST-AGENT-PROJECT-016").is_empty(),
         "{:?}",
         report.findings
     );
-    let findings = findings_for_rule(&report, "RUST-PROJ-R015");
+    let findings = findings_for_rule(&report, "RUST-AGENT-PROJECT-015");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(
         findings[0]
@@ -138,7 +138,7 @@ fn advice_allow_with_config_still_requires_allow_explanation() {
     let mut focused_report = report.clone();
     focused_report
         .findings
-        .retain(|finding| finding.rule_id == "RUST-PROJ-R015");
+        .retain(|finding| finding.rule_id == "RUST-AGENT-PROJECT-015");
     let rendered = normalize_temp_root(&render_rust_project_harness(&focused_report), root);
     insta::assert_snapshot!("advice_allow_requires_explanation", rendered);
 }
@@ -164,12 +164,12 @@ fn advice_allow_with_explanation_clears_allow_warning() {
     .expect("run project harness");
 
     assert!(
-        findings_for_rule(&report, "RUST-PROJ-R016").is_empty(),
+        findings_for_rule(&report, "RUST-AGENT-PROJECT-016").is_empty(),
         "{:?}",
         report.findings
     );
     assert!(
-        findings_for_rule(&report, "RUST-PROJ-R015").is_empty(),
+        findings_for_rule(&report, "RUST-AGENT-PROJECT-015").is_empty(),
         "{:?}",
         report.findings
     );

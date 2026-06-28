@@ -388,7 +388,7 @@ fn downstream_policy_requires_criterion_bench_manifest_when_performance_adapter_
     .expect_err("criterion performance gate should require a bench manifest");
     let message = panic_message(missing_bench);
 
-    assert!(message.contains("RUST-PROJ-R010"), "{message}");
+    assert!(message.contains("RUST-AGENT-PROJECT-010"), "{message}");
     assert!(
         message.contains("Performance verification skill lacks Cargo bench target"),
         "{message}"

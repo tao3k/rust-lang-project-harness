@@ -61,7 +61,7 @@ fn custom_source_roots_are_policy_source_roots() {
     .with_source_path("crates/core", "custom source root fixture");
     let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R003"));
+    assert!(has_rule(&report, "RUST-AGENT-PROJECT-003"));
     assert!(has_rule(&report, "AGENT-R001"));
     assert!(has_rule(&report, "AGENT-R002"));
 }
@@ -96,7 +96,7 @@ fn include_tests_false_skips_test_root_parsing_not_test_layout_policy() {
     let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
 
     assert!(!has_rule(&report, "RUST-SYN-R001"));
-    assert!(has_rule(&report, "RUST-PROJ-R001"));
+    assert!(has_rule(&report, "RUST-AGENT-PROJECT-001"));
     assert_eq!(report.file_count(), 1);
     assert!(
         report
@@ -122,7 +122,7 @@ fn root_test_target_policy_rejects_top_level_test_implementation() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R007"));
+    assert!(has_rule(&report, "RUST-AGENT-PROJECT-007"));
 }
 
 #[test]
@@ -143,7 +143,7 @@ fn root_test_target_policy_accepts_thin_aggregate() {
     let report = run_rust_project_harness(root).expect("run project harness");
 
     assert!(
-        !has_rule(&report, "RUST-PROJ-R007"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-007"),
         "{:?}",
         report.findings
     );
@@ -166,7 +166,7 @@ fn root_test_target_policy_rejects_implicit_module_mounts() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(has_rule(&report, "RUST-PROJ-R008"));
+    assert!(has_rule(&report, "RUST-AGENT-PROJECT-008"));
 }
 
 #[test]
@@ -192,7 +192,7 @@ fn root_test_target_policy_accepts_documented_suite_mounts() {
     let report = run_rust_project_harness(root).expect("run project harness");
 
     assert!(
-        !has_rule(&report, "RUST-PROJ-R008"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-008"),
         "{:?}",
         report.findings
     );

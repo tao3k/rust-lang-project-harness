@@ -30,8 +30,8 @@ fn project_runner_reports_blocking_policy_and_agent_advice() {
     let rendered = normalize_temp_root(&render_rust_project_harness(&report), root);
 
     assert!(!report.is_clean());
-    assert!(rendered.contains("RUST-PROJ-R001"));
-    assert!(rendered.contains("RUST-PROJ-R003"));
+    assert!(rendered.contains("RUST-AGENT-PROJECT-001"));
+    assert!(rendered.contains("RUST-AGENT-PROJECT-003"));
     assert!(rendered.contains("AGENT-R001"));
     assert!(rendered.contains("Help: tests/test_root.rs is a root-level test file"));
     assert!(rendered.contains("Contract: Move root-level test files under tests/unit"));
