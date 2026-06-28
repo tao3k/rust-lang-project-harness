@@ -17,7 +17,8 @@ use super::module_facts::{
 };
 use super::path_facts::path_reference_syntax;
 use super::signature::{
-    public_function_param_syntax, public_function_return_syntax, public_function_tuple_api_syntax,
+    public_function_dynamic_json_api_syntax, public_function_param_syntax,
+    public_function_return_syntax, public_function_tuple_api_syntax,
 };
 use crate::parser::{RustUseStatementContext, rust_use_statement_syntax};
 
@@ -76,6 +77,11 @@ pub(crate) fn rust_native_syntax_facts(
         .items
         .iter()
         .flat_map(public_function_tuple_api_syntax)
+        .collect();
+    collector.facts.public_dynamic_json_api_surfaces = syntax
+        .items
+        .iter()
+        .flat_map(public_function_dynamic_json_api_syntax)
         .collect();
     collector.facts.all_function_control_flows = syntax
         .items

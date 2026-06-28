@@ -1,0 +1,12 @@
+id = "async-task-lifecycle-boundary-v1"
+title = "Tokio spawned tasks keep an explicit lifecycle boundary"
+policy_ids = ["RUST-AGENT-ASYNC-TASK-LIFECYCLE-001"]
+agent_goal = "Detect async Rust code that discards Tokio JoinHandles, then preserve the task lifecycle by returning, storing, joining, aborting, or supervising the spawned task."
+reference_repositories = ["tokio-rs/tokio", "hyperium/hyper", "tower-rs/tower"]
+reference_patterns = [
+  "Tokio spawn returns a JoinHandle that is the ownership boundary for awaiting task completion or aborting work during shutdown.",
+  "Runtime-facing services keep background workers supervised by a driver, worker handle, cancellation token, or shutdown boundary instead of silently detaching them.",
+  "Agent edits should not introduce fire-and-forget tasks unless a named detached-task boundary documents the lifecycle contract.",
+]
+inputs = "inputs"
+expected = "expected"

@@ -161,7 +161,7 @@ impl RustRulePack {
                 "AGENT-R020",
                 "AGENT-R021",
                 "AGENT-R022",
-                "AGENT-R023",
+                "RUST-AGENT-API-SHAPE-023",
                 "AGENT-R024",
                 "AGENT-R025",
                 "AGENT-R026",

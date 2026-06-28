@@ -31,7 +31,7 @@ pub(super) const AGENT_R019: &str = "AGENT-R019";
 pub(super) const AGENT_R020: &str = "AGENT-R020";
 pub(super) const AGENT_R021: &str = "AGENT-R021";
 pub(super) const AGENT_R022: &str = "AGENT-R022";
-pub(super) const AGENT_R023: &str = "AGENT-R023";
+pub(super) const RUST_AGENT_POLICY_PUBLIC_TUPLE_API_SURFACE_V1: &str = "RUST-AGENT-API-SHAPE-023";
 pub(super) const AGENT_R024: &str = "AGENT-R024";
 pub(super) const AGENT_R025: &str = "AGENT-R025";
 pub(super) const AGENT_R026: &str = "AGENT-R026";
@@ -43,6 +43,10 @@ pub(super) const AGENT_R031: &str = "AGENT-R031";
 pub(super) const AGENT_R032: &str = "AGENT-R032";
 pub(super) const AGENT_R033: &str = "AGENT-R033";
 pub(super) const AGENT_R034: &str = "AGENT-R034";
+pub(super) const RUST_AGENT_POLICY_ASYNC_TASK_LIFECYCLE_V1: &str =
+    "RUST-AGENT-ASYNC-TASK-LIFECYCLE-001";
+pub(super) const RUST_AGENT_POLICY_PUBLIC_DYNAMIC_JSON_API_BOUNDARY_V1: &str =
+    "RUST-AGENT-API-SHAPE-036";
 
 /// Scenario coverage required for an agent policy rule.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -123,6 +127,18 @@ const POLICY_SCENARIO_REQUIREMENTS: &[RustPolicyScenarioRequirement] = &[
         "async-timeout-cancellation-safety-v1",
         "RUST-AGENT-ASYNC-CANCEL-SAFETY-002",
         "tests/unit/scenarios/software_criteria/async_timeout_cancellation_safety_v1",
+    ),
+    policy_scenario_requirement(
+        RUST_AGENT_POLICY_ASYNC_TASK_LIFECYCLE_V1,
+        "async-task-lifecycle-boundary-v1",
+        "RUST-AGENT-ASYNC-TASK-LIFECYCLE-001",
+        "tests/unit/scenarios/software_criteria/async_task_lifecycle_boundary_v1",
+    ),
+    policy_scenario_requirement(
+        RUST_AGENT_POLICY_PUBLIC_DYNAMIC_JSON_API_BOUNDARY_V1,
+        "public-dynamic-json-api-boundary-v1",
+        "RUST-AGENT-API-SHAPE-036",
+        "tests/unit/scenarios/software_criteria/public_dynamic_json_api_boundary_v1",
     ),
     policy_scenario_requirement(
         RUST_PROJ_R023,
@@ -407,7 +423,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R023,
+            RUST_AGENT_POLICY_PUBLIC_TUPLE_API_SURFACE_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Public API exposes an anonymous primitive tuple",
@@ -500,6 +516,22 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             RustDiagnosticSeverity::Info,
             "Tokio timeout wraps cancellation-unsafe I/O",
             "Keep `tokio::time::timeout` boundaries cancellation-safe; avoid wrapping `read_exact`, `read_to_end`, `read_to_string`, `write_all`, or `write_all_buf` unless partial progress is owned outside the timed future.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            RUST_AGENT_POLICY_ASYNC_TASK_LIFECYCLE_V1,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Tokio task handle is discarded",
+            "Keep spawned Tokio tasks behind an explicit lifecycle contract: return, store, await, abort, or supervise the `JoinHandle`, or isolate intentionally detached work behind a named boundary.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            RUST_AGENT_POLICY_PUBLIC_DYNAMIC_JSON_API_BOUNDARY_V1,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Public API exposes dynamic JSON",
+            "Replace public `serde_json::Value` parameters or returns with named request, response, enum, or documented boundary types so agents preserve payload contracts without re-reading untyped JSON shape.",
             labels("agent-policy"),
         ),
     ]

@@ -9,7 +9,8 @@ use super::data_shape::{
 };
 use super::item_projection::RustItemProjectionNodeSyntax;
 use super::signature::{
-    RustFunctionParamSyntax, RustFunctionReturnSyntax, RustFunctionTupleApiSyntax,
+    RustFunctionDynamicJsonApiSyntax, RustFunctionParamSyntax, RustFunctionReturnSyntax,
+    RustFunctionTupleApiSyntax,
 };
 use crate::parser::RustUseStatementSyntax;
 
@@ -29,6 +30,7 @@ pub(crate) struct RustNativeSyntaxFacts {
     pub public_function_params: Vec<RustFunctionParamSyntax>,
     pub public_function_returns: Vec<RustFunctionReturnSyntax>,
     pub public_tuple_api_surfaces: Vec<RustFunctionTupleApiSyntax>,
+    pub public_dynamic_json_api_surfaces: Vec<RustFunctionDynamicJsonApiSyntax>,
     pub all_function_control_flows: Vec<RustFunctionControlFlowSyntax>,
     pub public_function_control_flows: Vec<RustFunctionControlFlowSyntax>,
     pub macro_invocations: Vec<RustInvocationSyntax>,

@@ -66,7 +66,6 @@ fn rule_catalogs_expose_stable_rule_ids() {
             "AGENT-R020",
             "AGENT-R021",
             "AGENT-R022",
-            "AGENT-R023",
             "AGENT-R024",
             "AGENT-R025",
             "AGENT-R026",
@@ -78,6 +77,9 @@ fn rule_catalogs_expose_stable_rule_ids() {
             "AGENT-R032",
             "AGENT-R033",
             "AGENT-R034",
+            "RUST-AGENT-API-SHAPE-023",
+            "RUST-AGENT-API-SHAPE-036",
+            "RUST-AGENT-ASYNC-TASK-LIFECYCLE-001",
         ]
     );
 

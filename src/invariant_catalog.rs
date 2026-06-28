@@ -95,7 +95,7 @@ fn invariant_spec(rule_id: &str) -> Option<InvariantSpec> {
             required_receipts: BASE_RECEIPTS,
             proof_targets: &[RustInvariantKind::PublicApiShape],
         }),
-        "AGENT-R023" => Some(InvariantSpec {
+        "RUST-AGENT-API-SHAPE-023" => Some(InvariantSpec {
             kind: RustInvariantKind::AnonymousTupleApiSurface,
             hypothesis: "Public APIs should not expose anonymous tuple payloads when named structs, enums, or newtypes can carry field intent.",
             required_receipts: BEHAVIOR_RECEIPTS,

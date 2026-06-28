@@ -150,7 +150,7 @@ fn agent_r022_public_generic_data_bounds_snapshot() {
 }
 
 #[test]
-fn agent_r023_public_tuple_api_surface_snapshot() {
+fn rust_agent_api_shape_023_public_tuple_api_surface_snapshot() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_manifest(root, "agent-r023-tuple-api-surface");
@@ -164,7 +164,12 @@ fn agent_r023_public_tuple_api_surface_snapshot() {
     )
     .expect("write api");
 
-    assert_agent_snapshot(root, "AGENT-R023", 2, "agent_r023_public_tuple_api_surface");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-API-SHAPE-023",
+        2,
+        "rust_agent_api_shape_023_public_tuple_api_surface",
+    );
 }
 
 #[test]

@@ -23,7 +23,7 @@ use serde::Deserialize;
 
 const RUST_SCENARIO_BENCHMARK_HARD_MAX_TOTAL: RustScenarioBenchmarkDuration =
     RustScenarioBenchmarkDuration(Duration::from_millis(500));
-const SCENARIO_POLICY_ID_GRAMMAR: &str = "<LANGUAGE>-AGENT-<TAGS>-<NUMBER>";
+const SCENARIO_POLICY_ID_GRAMMAR: &str = "RUST-AGENT-<TAGS>-<NUMBER>";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]

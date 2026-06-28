@@ -1,0 +1,12 @@
+id = "public-dynamic-json-api-boundary-v1"
+title = "Public Rust APIs keep JSON behind typed payload boundaries"
+policy_ids = ["RUST-AGENT-API-SHAPE-036"]
+agent_goal = "Detect public Rust APIs that expose `serde_json::Value`, then replace the untyped boundary with named request, response, enum, or documented adapter types."
+reference_repositories = ["serde-rs/json", "tokio-rs/axum", "hyperium/hyper"]
+reference_patterns = [
+  "`serde_json::Value` belongs at parser, adapter, or intentionally documented dynamic boundaries; public library APIs expose typed contracts.",
+  "HTTP and async service layers translate raw wire payloads into named request and response types before crossing domain boundaries.",
+  "Agent edits should not spread untyped JSON shape through public APIs because that forces later agents to infer payload contracts from call-site archaeology.",
+]
+inputs = "inputs"
+expected = "expected"

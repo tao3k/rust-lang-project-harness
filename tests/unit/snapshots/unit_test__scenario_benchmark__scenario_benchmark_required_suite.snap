@@ -3,9 +3,9 @@ source: tests/unit/scenario_benchmark.rs
 expression: render_rust_scenario_benchmark_suite_snapshot(&receipt)
 ---
 status: pass
-requirements: 21
-receipts: 21
-policy_coverage: 12
+requirements: 23
+receipts: 23
+policy_coverage: 14
 required:
 - ast-patch-scenario.json tests/fixtures/ast_patch_scenarios/001_replace_fn_apply_formats
 - ast-patch-scenario.json tests/fixtures/ast_patch_scenarios/002_dry_run_does_not_mutate
@@ -23,10 +23,12 @@ required:
 - scenario.toml tests/unit/scenarios/software_criteria/async_blocking_boundary_v1
 - scenario.toml tests/unit/scenarios/software_criteria/async_select_cancellation_safety_v1
 - scenario.toml tests/unit/scenarios/software_criteria/async_sync_lock_boundary_v1
+- scenario.toml tests/unit/scenarios/software_criteria/async_task_lifecycle_boundary_v1
 - scenario.toml tests/unit/scenarios/software_criteria/async_timeout_cancellation_safety_v1
 - scenario.toml tests/unit/scenarios/software_criteria/control_flow_v1
 - scenario.toml tests/unit/scenarios/software_criteria/data_structure_linear_membership_scan_v1
 - scenario.toml tests/unit/scenarios/software_criteria/process_command_probe_v1
+- scenario.toml tests/unit/scenarios/software_criteria/public_dynamic_json_api_boundary_v1
 - scenario.toml tests/unit/scenarios/software_criteria/rust_package_edition_2024_v1
 scenario_status:
 - pass tests/fixtures/ast_patch_scenarios/001_replace_fn_apply_formats
@@ -45,10 +47,12 @@ scenario_status:
 - pass tests/unit/scenarios/software_criteria/async_blocking_boundary_v1
 - pass tests/unit/scenarios/software_criteria/async_select_cancellation_safety_v1
 - pass tests/unit/scenarios/software_criteria/async_sync_lock_boundary_v1
+- pass tests/unit/scenarios/software_criteria/async_task_lifecycle_boundary_v1
 - pass tests/unit/scenarios/software_criteria/async_timeout_cancellation_safety_v1
 - pass tests/unit/scenarios/software_criteria/control_flow_v1
 - pass tests/unit/scenarios/software_criteria/data_structure_linear_membership_scan_v1
 - pass tests/unit/scenarios/software_criteria/process_command_probe_v1
+- pass tests/unit/scenarios/software_criteria/public_dynamic_json_api_boundary_v1
 - pass tests/unit/scenarios/software_criteria/rust_package_edition_2024_v1
 policy_coverage:
 - AGENT-R015 RUST-AGENT-CFG-001 control-flow-v1 tests/unit/scenarios/software_criteria/control_flow_v1
@@ -62,5 +66,7 @@ policy_coverage:
 - AGENT-R032 RUST-AGENT-ASYNC-BACKPRESSURE-001 async-backpressure-boundary-v1 tests/unit/scenarios/software_criteria/async_backpressure_boundary_v1
 - AGENT-R033 RUST-AGENT-ASYNC-CANCEL-SAFETY-001 async-select-cancellation-safety-v1 tests/unit/scenarios/software_criteria/async_select_cancellation_safety_v1
 - AGENT-R034 RUST-AGENT-ASYNC-CANCEL-SAFETY-002 async-timeout-cancellation-safety-v1 tests/unit/scenarios/software_criteria/async_timeout_cancellation_safety_v1
+- RUST-AGENT-API-SHAPE-036 RUST-AGENT-API-SHAPE-036 public-dynamic-json-api-boundary-v1 tests/unit/scenarios/software_criteria/public_dynamic_json_api_boundary_v1
+- RUST-AGENT-ASYNC-TASK-LIFECYCLE-001 RUST-AGENT-ASYNC-TASK-LIFECYCLE-001 async-task-lifecycle-boundary-v1 tests/unit/scenarios/software_criteria/async_task_lifecycle_boundary_v1
 - RUST-AGENT-PROJECT-MANIFEST-023 RUST-AGENT-PROJECT-MANIFEST-023 rust-package-edition-2024-v1 tests/unit/scenarios/software_criteria/rust_package_edition_2024_v1
 violations: -

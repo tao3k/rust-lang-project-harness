@@ -26,7 +26,6 @@ Generated from embedded `src/harness-rules.md`.
 - **AGENT-R020**: Wraps repeated public primitive data fields in named domain types.
 - **AGENT-R021**: Moves broad public enum payloads into named domain types or payload structs.
 - **AGENT-R022**: Moves duplicated derivable bounds off public data type definitions.
-- **AGENT-R023**: Replaces anonymous public primitive tuples with named structs, enums, or newtypes.
 - **AGENT-R024**: Replaces public enum tuple variants that bundle primitives with named payload shapes.
 - **AGENT-R025**: Extracts nested internal traversals into named helpers with visible algorithm boundaries.
 - **AGENT-R026**: Replaces internal manual iterator transforms with iterator adapters or named helpers.
@@ -38,6 +37,7 @@ Generated from embedded `src/harness-rules.md`.
 - **AGENT-R032**: Keeps unbounded async queues behind explicit backpressure, readiness, or capacity boundaries.
 - **AGENT-R033**: Keeps Tokio select branches cancellation-safe around exact async I/O operations.
 - **AGENT-R034**: Keeps Tokio timeout wrappers cancellation-safe around exact async I/O operations.
+- **RUST-AGENT-ASYNC-TASK-LIFECYCLE-001**: Keeps spawned Tokio tasks behind an explicit lifecycle boundary.
 - **RUST-MOD-R001**: Keeps module interface files free of implementation.
 - **RUST-MOD-R002**: Splits oversized source files into smaller owner modules with clear public boundaries.
 - **RUST-MOD-R003**: Replaces deep relative imports with explicit owner or facade imports.
@@ -72,3 +72,5 @@ Generated from embedded `src/harness-rules.md`.
 - **RUST-AGENT-PROJECT-021**: Rejects sentinel source locations in line, column, and range conversion.
 - **RUST-AGENT-PROJECT-022**: Advises candidate loops to record skipped or filtered row telemetry.
 - **RUST-AGENT-PROJECT-MANIFEST-023**: Requires Cargo package manifests to target Rust edition 2024 or document a compatibility boundary.
+- **RUST-AGENT-API-SHAPE-036**: Replaces public dynamic JSON payload boundaries with named request, response, enum, or documented adapter types.
+- **RUST-AGENT-API-SHAPE-023**: Replaces anonymous public primitive tuples with named structs, enums, or newtypes.

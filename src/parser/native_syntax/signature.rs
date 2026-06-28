@@ -40,6 +40,17 @@ pub(crate) struct RustFunctionTupleApiSyntax {
     pub is_test_context: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RustFunctionDynamicJsonApiSyntax {
+    pub line: usize,
+    pub function_line: usize,
+    pub function_name: String,
+    pub surface_name: String,
+    pub type_text: String,
+    pub json_type_name: String,
+    pub is_test_context: bool,
+}
+
 pub(crate) fn public_function_param_syntax(item: &syn::Item) -> Vec<RustFunctionParamSyntax> {
     match item {
         syn::Item::Fn(item_fn) => public_item_function_param_syntax(item_fn, false),
@@ -64,6 +75,16 @@ pub(crate) fn public_function_tuple_api_syntax(
     match item {
         syn::Item::Fn(item_fn) => public_item_function_tuple_api_syntax(item_fn, false),
         syn::Item::Impl(item_impl) => public_impl_function_tuple_api_syntax(item_impl),
+        _ => Vec::new(),
+    }
+}
+
+pub(crate) fn public_function_dynamic_json_api_syntax(
+    item: &syn::Item,
+) -> Vec<RustFunctionDynamicJsonApiSyntax> {
+    match item {
+        syn::Item::Fn(item_fn) => public_item_function_dynamic_json_api_syntax(item_fn, false),
+        syn::Item::Impl(item_impl) => public_impl_function_dynamic_json_api_syntax(item_impl),
         _ => Vec::new(),
     }
 }
@@ -144,6 +165,19 @@ fn public_item_function_tuple_api_syntax(
     )
 }
 
+fn public_item_function_dynamic_json_api_syntax(
+    item_fn: &syn::ItemFn,
+    inherited_test_context: bool,
+) -> Vec<RustFunctionDynamicJsonApiSyntax> {
+    if !is_public_visibility(&item_fn.vis) {
+        return Vec::new();
+    }
+    signature_dynamic_json_api_syntax(
+        &item_fn.sig,
+        inherited_test_context || attrs_have_cfg_test(&item_fn.attrs),
+    )
+}
+
 fn public_impl_function_tuple_api_syntax(
     item_impl: &syn::ItemImpl,
 ) -> Vec<RustFunctionTupleApiSyntax> {
@@ -159,6 +193,28 @@ fn public_impl_function_tuple_api_syntax(
         })
         .flat_map(|method| {
             signature_tuple_api_syntax(
+                &method.sig,
+                inherited_test_context || attrs_have_cfg_test(&method.attrs),
+            )
+        })
+        .collect()
+}
+
+fn public_impl_function_dynamic_json_api_syntax(
+    item_impl: &syn::ItemImpl,
+) -> Vec<RustFunctionDynamicJsonApiSyntax> {
+    let inherited_test_context = attrs_have_cfg_test(&item_impl.attrs);
+    item_impl
+        .items
+        .iter()
+        .filter_map(|impl_item| {
+            let syn::ImplItem::Fn(method) = impl_item else {
+                return None;
+            };
+            impl_method_is_public_api(item_impl, method).then_some(method)
+        })
+        .flat_map(|method| {
+            signature_dynamic_json_api_syntax(
                 &method.sig,
                 inherited_test_context || attrs_have_cfg_test(&method.attrs),
             )
@@ -205,6 +261,52 @@ fn signature_tuple_api_syntax(
             surface_name: "return value".to_owned(),
             type_text: return_type.to_token_stream().to_string(),
             element_contract_types,
+            is_test_context,
+        });
+    }
+
+    facts
+}
+
+fn signature_dynamic_json_api_syntax(
+    signature: &syn::Signature,
+    is_test_context: bool,
+) -> Vec<RustFunctionDynamicJsonApiSyntax> {
+    let function_name = signature.ident.to_string();
+    let function_line = signature.ident.span().start().line.max(1);
+    let mut facts = signature
+        .inputs
+        .iter()
+        .filter_map(|arg| {
+            let syn::FnArg::Typed(pat_type) = arg else {
+                return None;
+            };
+            let syn::Pat::Ident(pat_ident) = pat_type.pat.as_ref() else {
+                return None;
+            };
+            let json_type_name = dynamic_json_api_type_name(&pat_type.ty)?;
+            Some(RustFunctionDynamicJsonApiSyntax {
+                line: pat_ident.span().start().line.max(1),
+                function_line,
+                function_name: function_name.clone(),
+                surface_name: format!("parameter `{}`", pat_ident.ident),
+                type_text: pat_type.ty.to_token_stream().to_string(),
+                json_type_name,
+                is_test_context,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    if let syn::ReturnType::Type(_, return_type) = &signature.output
+        && let Some(json_type_name) = dynamic_json_api_type_name(return_type)
+    {
+        facts.push(RustFunctionDynamicJsonApiSyntax {
+            line: function_line,
+            function_line,
+            function_name,
+            surface_name: "return value".to_owned(),
+            type_text: return_type.to_token_stream().to_string(),
+            json_type_name,
             is_test_context,
         });
     }
@@ -326,6 +428,37 @@ fn tuple_api_contract_types(ty: &syn::Type) -> Option<Vec<String>> {
         syn::Type::Path(type_path) => wrapper_tuple_contract_types(type_path),
         _ => None,
     }
+}
+
+fn dynamic_json_api_type_name(ty: &syn::Type) -> Option<String> {
+    match ty {
+        syn::Type::Paren(paren) => dynamic_json_api_type_name(&paren.elem),
+        syn::Type::Group(group) => dynamic_json_api_type_name(&group.elem),
+        syn::Type::Reference(reference) => dynamic_json_api_type_name(&reference.elem),
+        syn::Type::Path(type_path) => dynamic_json_path_type_name(type_path),
+        _ => None,
+    }
+}
+
+fn dynamic_json_path_type_name(type_path: &syn::TypePath) -> Option<String> {
+    if type_path.qself.is_some() {
+        return None;
+    }
+    let path_text = path_segments_text(&type_path.path);
+    if path_text == "Value" || path_text == "serde_json::Value" {
+        return Some(type_path.to_token_stream().to_string());
+    }
+    type_path.path.segments.iter().find_map(|segment| {
+        let syn::PathArguments::AngleBracketed(args) = &segment.arguments else {
+            return None;
+        };
+        args.args.iter().find_map(|argument| {
+            let syn::GenericArgument::Type(argument_type) = argument else {
+                return None;
+            };
+            dynamic_json_api_type_name(argument_type)
+        })
+    })
 }
 
 fn wrapper_tuple_contract_types(type_path: &syn::TypePath) -> Option<Vec<String>> {

@@ -10,6 +10,7 @@ use quote::ToTokens;
 use super::async_queue_boundary::{
     backpressure_boundary_signal_count, unbounded_async_queue_call_count,
 };
+use super::async_task_lifecycle::discarded_tokio_spawn_count;
 use super::select_cancellation_safety::tokio_select_cancel_unsafe_io_count;
 use super::sync_lock_boundary::sync_lock_guard_across_await_count;
 use super::timeout_cancellation_safety::tokio_timeout_cancel_unsafe_io_count;
@@ -41,6 +42,7 @@ pub(crate) struct RustFunctionControlFlowSyntax {
     pub backpressure_boundary_signal_count: usize,
     pub tokio_select_cancel_unsafe_io_count: usize,
     pub tokio_timeout_cancel_unsafe_io_count: usize,
+    pub discarded_tokio_spawn_count: usize,
     pub is_test_context: bool,
 }
 
@@ -114,6 +116,7 @@ fn item_function_control_flow_syntax(
             tokio_timeout_cancel_unsafe_io_count: tokio_timeout_cancel_unsafe_io_count(
                 &item_fn.block,
             ),
+            discarded_tokio_spawn_count: discarded_tokio_spawn_count(&item_fn.block),
             is_test_context: inherited_test_context || attrs_have_cfg_test(&item_fn.attrs),
         },
         control_depth: 0,
@@ -163,6 +166,7 @@ fn method_function_control_flow_syntax(
             tokio_timeout_cancel_unsafe_io_count: tokio_timeout_cancel_unsafe_io_count(
                 &method.block,
             ),
+            discarded_tokio_spawn_count: discarded_tokio_spawn_count(&method.block),
             is_test_context: inherited_test_context || attrs_have_cfg_test(&method.attrs),
         },
         control_depth: 0,

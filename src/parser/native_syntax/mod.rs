@@ -1,6 +1,7 @@
 //! Native Rust syntax facts shared by harness policies.
 
 mod async_queue_boundary;
+mod async_task_lifecycle;
 mod collect;
 mod control_flow;
 mod data_shape;

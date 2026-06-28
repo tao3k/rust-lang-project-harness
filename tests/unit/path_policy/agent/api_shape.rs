@@ -22,7 +22,7 @@ fn public_tuple_api_surface_is_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R023");
+    let findings = findings_for_rule(&report, "RUST-AGENT-API-SHAPE-023");
     assert_eq!(findings.len(), 2, "{:?}", report.findings);
     assert!(findings[0].summary.contains("`load_users`"));
     assert!(findings[0].summary.contains("parameter `cursor`"));
@@ -48,7 +48,7 @@ fn documented_public_tuple_api_surface_clears_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R023").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-API-SHAPE-023").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -75,6 +75,6 @@ fn named_api_surface_clears_tuple_api_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R023").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-API-SHAPE-023").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }

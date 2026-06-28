@@ -11,7 +11,7 @@ use crate::rules::display_path;
 
 use super::{
     AGENT_R015, AGENT_R016, AGENT_R017, AGENT_R025, AGENT_R026, AGENT_R029, AGENT_R030, AGENT_R031,
-    AGENT_R032, AGENT_R033, AGENT_R034,
+    AGENT_R032, AGENT_R033, AGENT_R034, RUST_AGENT_POLICY_ASYNC_TASK_LIFECYCLE_V1,
 };
 
 const MAX_LINEAR_NESTING_DEPTH: usize = 2;
@@ -35,6 +35,7 @@ const ASYNC_SYNC_LOCK_ACROSS_AWAIT: &str = "async.sync-lock-across-await";
 const ASYNC_UNBOUNDED_QUEUE_BACKPRESSURE: &str = "async.unbounded-queue-backpressure";
 const ASYNC_SELECT_CANCELLATION_SAFETY: &str = "async.select-cancellation-safety";
 const ASYNC_TIMEOUT_CANCELLATION_SAFETY: &str = "async.timeout-cancellation-safety";
+const ASYNC_TASK_LIFECYCLE_BOUNDARY: &str = "async.task-lifecycle-boundary";
 
 fn compact_software_criteria(criterion_ids: &[&'static str]) -> String {
     criterion_ids
@@ -69,6 +70,7 @@ pub(super) fn algorithm_shape_findings(
             findings.extend(async_unbounded_queue_backpressure_findings(module, rules));
             findings.extend(async_select_cancellation_safety_findings(module, rules));
             findings.extend(async_timeout_cancellation_safety_findings(module, rules));
+            findings.extend(async_task_lifecycle_boundary_findings(module, rules));
             findings
         })
         .collect()
@@ -454,6 +456,38 @@ fn async_timeout_cancellation_safety_findings(
                     "move exact read/write progress outside the timeout future or use a cancellation-safe polling loop with explicit partial-progress state",
                 ),
                 &[ASYNC_TIMEOUT_CANCELLATION_SAFETY],
+            )
+        })
+        .collect()
+}
+
+fn async_task_lifecycle_boundary_findings(
+    module: &ParsedRustModule,
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let rule = &rules[RUST_AGENT_POLICY_ASYNC_TASK_LIFECYCLE_V1];
+    module
+        .syntax_facts
+        .all_function_control_flows
+        .iter()
+        .filter(|control_flow| !control_flow.is_test_context)
+        .filter(|control_flow| control_flow.discarded_tokio_spawn_count > 0)
+        .map(|control_flow| {
+            with_software_criteria(
+                RustHarnessFinding::from_rule(
+                    rule,
+                    format!(
+                        "{} function `{}` discards {} Tokio task handle(s) without a lifecycle boundary. Criteria: {}.",
+                        display_path(&module.report.path),
+                        control_flow.function_name,
+                        control_flow.discarded_tokio_spawn_count,
+                        compact_software_criterion(ASYNC_TASK_LIFECYCLE_BOUNDARY)
+                    ),
+                    path_line_location(&module.report.path, control_flow.line),
+                    source_line(&module.source, control_flow.line),
+                    "return, store, await, abort, or supervise the JoinHandle, or isolate the task behind an explicit detached-task boundary",
+                ),
+                &[ASYNC_TASK_LIFECYCLE_BOUNDARY],
             )
         })
         .collect()

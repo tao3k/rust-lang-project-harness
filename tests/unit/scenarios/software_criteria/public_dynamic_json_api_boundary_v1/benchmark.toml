@@ -1,0 +1,22 @@
+harness = "libtest"
+test = "public_dynamic_json_api_uses_typed_boundaries"
+snapshot = "scenario_benchmark_public_dynamic_json_api_boundary_v1"
+target_total = "20ms"
+max_total = "70ms"
+observed_total = "7ms"
+regression_budget = "15ms"
+memory_budget_bytes = 1048576
+observed_memory_bytes = 212992
+target_rationale = "The fixture is a tiny public API shape check; detecting dynamic JSON boundaries should remain bounded in unit-test scale."
+
+[input_expected_comparison]
+input_total = "10ms"
+expected_total = "5ms"
+input_memory_bytes = 237568
+expected_memory_bytes = 188416
+interpretation = "Expected replaces raw JSON API shape with typed payload contracts; fixture receipt is 50.00% faster and uses 20.69% less memory than the input shape."
+
+[observed_timings]
+parse = "4ms"
+policy = "2ms"
+snapshot = "1ms"
