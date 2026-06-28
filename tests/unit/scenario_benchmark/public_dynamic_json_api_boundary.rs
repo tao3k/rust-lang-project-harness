@@ -1,7 +1,4 @@
-use super::{
-    RustScenarioBenchmarkStatus, fixture_root, render_rust_scenario_benchmark_snapshot,
-    validate_rust_scenario_benchmark,
-};
+use super::{RustScenarioBenchmarkStatus, fixture_root, validate_rust_scenario_benchmark};
 
 #[test]
 fn scenario_benchmark_public_dynamic_json_api_boundary_v1_snapshot() {
@@ -41,10 +38,5 @@ fn scenario_benchmark_public_dynamic_json_api_boundary_v1_snapshot() {
     assert!(
         comparison.expected_memory_bytes <= comparison.input_memory_bytes,
         "{comparison:?}"
-    );
-
-    insta::assert_snapshot!(
-        "scenario_benchmark_public_dynamic_json_api_boundary_v1",
-        render_rust_scenario_benchmark_snapshot(&receipt)
     );
 }

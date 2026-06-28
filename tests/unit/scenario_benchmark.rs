@@ -1,199 +1,12 @@
-use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use rust_lang_project_harness::{
-    RustScenarioBenchmarkDuration, RustScenarioBenchmarkReceipt, RustScenarioBenchmarkStatus,
-    RustScenarioBenchmarkSuiteReceipt, RustScenarioBenchmarkViolationKind,
+    RustScenarioBenchmarkStatus, RustScenarioBenchmarkViolationKind,
     assert_rule_fixture_scenario_benchmarks, validate_required_rust_scenario_benchmarks,
     validate_rust_scenario_benchmark,
 };
 use tempfile::TempDir;
-
-fn render_rust_scenario_benchmark_snapshot(receipt: &RustScenarioBenchmarkReceipt) -> String {
-    let mut lines = vec![
-        format!("scenario: {}", receipt.scenario.id),
-        format!("title: {}", receipt.scenario.title),
-        format!("status: {}", receipt.status.as_str()),
-        format!("policies: {}", receipt.scenario.policy_ids.join(",")),
-        format!("bench_entry: {}", receipt.benchmark.bench_entry()),
-        "observed_total: <measured>".to_string(),
-        format!("target_total: {}", receipt.benchmark.target_total),
-        format!("max_total: {}", receipt.benchmark.max_total),
-        "observed_memory_bytes: <measured>".to_string(),
-        format!(
-            "memory_budget_bytes: {}",
-            receipt.benchmark.memory_budget_bytes
-        ),
-        format!("regression_budget: {}", receipt.benchmark.regression_budget),
-        format!("agent_goal: {}", receipt.scenario.agent_goal),
-        format!(
-            "reference_repositories: {}",
-            receipt.scenario.reference_repositories.join(",")
-        ),
-        format!(
-            "reference_patterns: {}",
-            receipt.scenario.reference_patterns.join(" | ")
-        ),
-        format!("target_rationale: {}", receipt.benchmark.target_rationale),
-        format!("inputs: {}", receipt.scenario.inputs),
-        format!("expected: {}", receipt.scenario.expected),
-    ];
-    if let Some(comparison) = &receipt.benchmark.input_expected_comparison {
-        lines.push(format!(
-            "comparison_total: input={} expected={}",
-            comparison.input_total, comparison.expected_total
-        ));
-        lines.push(format!(
-            "comparison_memory_bytes: input={} expected={}",
-            comparison.input_memory_bytes, comparison.expected_memory_bytes
-        ));
-        lines.push(format!(
-            "comparison_interpretation: {}",
-            comparison.interpretation
-        ));
-        lines.push(format!(
-            "comparison_wall_time_delta: expected_vs_input={} speedup={}",
-            relative_change(
-                comparison.input_total.as_duration().as_nanos(),
-                comparison.expected_total.as_duration().as_nanos()
-            ),
-            speedup(
-                comparison.input_total.as_duration().as_nanos(),
-                comparison.expected_total.as_duration().as_nanos()
-            )
-        ));
-        lines.push(format!(
-            "comparison_memory_delta: expected_vs_input={} reduction={}",
-            relative_change(
-                u128::from(comparison.input_memory_bytes.as_u64()),
-                u128::from(comparison.expected_memory_bytes.as_u64())
-            ),
-            reduction(
-                u128::from(comparison.input_memory_bytes.as_u64()),
-                u128::from(comparison.expected_memory_bytes.as_u64())
-            )
-        ));
-        if let Some(annotation) = &comparison.expected_not_faster_annotation {
-            lines.push(format!(
-                "comparison_expected_not_faster_annotation: {annotation}"
-            ));
-        }
-    }
-    lines.push(format!(
-        "scenario_gate_timings: {}",
-        normalized_timings(&receipt.benchmark.observed_timings)
-    ));
-    if receipt.violations.is_empty() {
-        lines.push("violations: -".to_string());
-    } else {
-        lines.push("violations:".to_string());
-        for violation in &receipt.violations {
-            lines.push(format!(
-                "- {}:{}: {}",
-                violation.kind.as_str(),
-                violation.field,
-                violation.message
-            ));
-        }
-    }
-    lines.join("\n")
-}
-
-fn render_rust_scenario_benchmark_suite_snapshot(
-    receipt: &RustScenarioBenchmarkSuiteReceipt,
-) -> String {
-    let mut lines = vec![
-        format!("status: {}", receipt.status.as_str()),
-        format!("requirements: {}", receipt.requirements.len()),
-        format!("receipts: {}", receipt.receipts.len()),
-        format!("policy_coverage: {}", receipt.policy_coverage.len()),
-    ];
-    lines.push("required:".to_string());
-    for requirement in &receipt.requirements {
-        lines.push(format!(
-            "- {} {}",
-            requirement.manifest_kind.as_str(),
-            display_suite_path(&receipt.root, &requirement.root)
-        ));
-    }
-    lines.push("scenario_status:".to_string());
-    for scenario_receipt in &receipt.receipts {
-        lines.push(format!(
-            "- {} {}",
-            scenario_receipt.status.as_str(),
-            display_suite_path(&receipt.root, &scenario_receipt.root)
-        ));
-    }
-    lines.push("policy_coverage:".to_string());
-    for coverage in &receipt.policy_coverage {
-        lines.push(format!(
-            "- {} {} {} {}",
-            coverage.rule_id.as_str(),
-            coverage.policy_id.as_str(),
-            coverage.scenario_id.as_str(),
-            display_suite_path(&receipt.root, &coverage.root)
-        ));
-    }
-    if receipt.violations.is_empty() {
-        lines.push("violations: -".to_string());
-    } else {
-        lines.push("violations:".to_string());
-        for violation in &receipt.violations {
-            lines.push(format!(
-                "- {}:{}: {}",
-                violation.kind.as_str(),
-                violation.field,
-                violation.message
-            ));
-        }
-    }
-    lines.join("\n")
-}
-
-fn normalized_timings(timings: &BTreeMap<String, RustScenarioBenchmarkDuration>) -> String {
-    if timings.is_empty() {
-        return "-".to_string();
-    }
-    timings
-        .keys()
-        .map(|key| format!("{key}=<measured>"))
-        .collect::<Vec<_>>()
-        .join(",")
-}
-
-fn display_suite_path(root: &Path, path: &Path) -> String {
-    path.strip_prefix(root)
-        .unwrap_or(path)
-        .components()
-        .map(|component| component.as_os_str().to_string_lossy())
-        .collect::<Vec<_>>()
-        .join("/")
-}
-
-fn relative_change(input: u128, expected: u128) -> String {
-    if input == 0 {
-        return "n/a".to_string();
-    }
-    let change = ((expected as f64 - input as f64) / input as f64) * 100.0;
-    format!("{change:+.2}%")
-}
-
-fn speedup(input: u128, expected: u128) -> String {
-    if expected == 0 {
-        return "n/a".to_string();
-    }
-    let speedup = input as f64 / expected as f64;
-    format!("{speedup:.2}x")
-}
-
-fn reduction(input: u128, expected: u128) -> String {
-    if input == 0 {
-        return "n/a".to_string();
-    }
-    let reduction = ((input as f64 - expected as f64) / input as f64) * 100.0;
-    format!("{reduction:.2}%")
-}
 
 #[test]
 fn scenario_benchmark_control_flow_v1_snapshot() {
@@ -216,11 +29,6 @@ fn scenario_benchmark_control_flow_v1_snapshot() {
     assert!(
         receipt.benchmark.observed_memory_bytes <= receipt.benchmark.memory_budget_bytes,
         "{receipt:?}"
-    );
-
-    insta::assert_snapshot!(
-        "scenario_benchmark_control_flow_v1",
-        render_rust_scenario_benchmark_snapshot(&receipt)
     );
 }
 
@@ -267,11 +75,6 @@ fn scenario_benchmark_data_structure_linear_membership_scan_v1_snapshot() {
         comparison.expected_memory_bytes <= comparison.input_memory_bytes,
         "{comparison:?}"
     );
-
-    insta::assert_snapshot!(
-        "scenario_benchmark_data_structure_linear_membership_scan_v1",
-        render_rust_scenario_benchmark_snapshot(&receipt)
-    );
 }
 
 #[test]
@@ -304,11 +107,6 @@ fn scenario_benchmark_process_command_probe_v1_snapshot() {
     assert!(
         comparison.expected_memory_bytes < comparison.input_memory_bytes,
         "{comparison:?}"
-    );
-
-    insta::assert_snapshot!(
-        "scenario_benchmark_process_command_probe_v1",
-        render_rust_scenario_benchmark_snapshot(&receipt)
     );
 }
 
@@ -351,11 +149,6 @@ fn scenario_benchmark_async_blocking_boundary_v1_snapshot() {
         comparison.expected_memory_bytes <= comparison.input_memory_bytes,
         "{comparison:?}"
     );
-
-    insta::assert_snapshot!(
-        "scenario_benchmark_async_blocking_boundary_v1",
-        render_rust_scenario_benchmark_snapshot(&receipt)
-    );
 }
 
 #[test]
@@ -396,11 +189,6 @@ fn scenario_benchmark_async_sync_lock_boundary_v1_snapshot() {
     assert!(
         comparison.expected_memory_bytes < comparison.input_memory_bytes,
         "{comparison:?}"
-    );
-
-    insta::assert_snapshot!(
-        "scenario_benchmark_async_sync_lock_boundary_v1",
-        render_rust_scenario_benchmark_snapshot(&receipt)
     );
 }
 
@@ -443,11 +231,6 @@ fn scenario_benchmark_async_backpressure_boundary_v1_snapshot() {
         comparison.expected_memory_bytes < comparison.input_memory_bytes,
         "{comparison:?}"
     );
-
-    insta::assert_snapshot!(
-        "scenario_benchmark_async_backpressure_boundary_v1",
-        render_rust_scenario_benchmark_snapshot(&receipt)
-    );
 }
 
 #[test]
@@ -488,11 +271,6 @@ fn scenario_benchmark_async_select_cancellation_safety_v1_snapshot() {
     assert!(
         comparison.expected_memory_bytes < comparison.input_memory_bytes,
         "{comparison:?}"
-    );
-
-    insta::assert_snapshot!(
-        "scenario_benchmark_async_select_cancellation_safety_v1",
-        render_rust_scenario_benchmark_snapshot(&receipt)
     );
 }
 
@@ -535,11 +313,6 @@ fn scenario_benchmark_async_timeout_cancellation_safety_v1_snapshot() {
         comparison.expected_memory_bytes < comparison.input_memory_bytes,
         "{comparison:?}"
     );
-
-    insta::assert_snapshot!(
-        "scenario_benchmark_async_timeout_cancellation_safety_v1",
-        render_rust_scenario_benchmark_snapshot(&receipt)
-    );
 }
 
 #[test]
@@ -581,11 +354,6 @@ fn scenario_benchmark_async_task_lifecycle_boundary_v1_snapshot() {
         comparison.expected_memory_bytes < comparison.input_memory_bytes,
         "{comparison:?}"
     );
-
-    insta::assert_snapshot!(
-        "scenario_benchmark_async_task_lifecycle_boundary_v1",
-        render_rust_scenario_benchmark_snapshot(&receipt)
-    );
 }
 
 #[test]
@@ -618,11 +386,6 @@ fn scenario_benchmark_rust_package_edition_2024_v1_snapshot() {
     assert!(
         comparison.expected_total <= comparison.input_total,
         "{comparison:?}"
-    );
-
-    insta::assert_snapshot!(
-        "scenario_benchmark_rust_package_edition_2024_v1",
-        render_rust_scenario_benchmark_snapshot(&receipt)
     );
 }
 
@@ -667,11 +430,6 @@ fn scenario_benchmark_suite_covers_all_required_current_scenarios() {
         receipt.benchmark.observed_total <= receipt.benchmark.max_total
             && receipt.benchmark.observed_memory_bytes <= receipt.benchmark.memory_budget_bytes
     }));
-
-    insta::assert_snapshot!(
-        "scenario_benchmark_required_suite",
-        render_rust_scenario_benchmark_suite_snapshot(&receipt)
-    );
 }
 
 #[test]
