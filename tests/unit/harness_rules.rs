@@ -48,10 +48,7 @@ fn harness_rules_markdown_is_plain_rule_id_list() {
         };
 
         assert!(
-            rule_id.starts_with("AGENT-R")
-                || rule_id.starts_with("RUST-AGENT-")
-                || rule_id.starts_with("RUST-MOD-R")
-                || rule_id.starts_with("RUST-AGENT-PROJECT"),
+            rule_id.starts_with("RUST-AGENT-") || rule_id.starts_with("RUST-MOD-R"),
             "unexpected policy id prefix: {rule_id}"
         );
         assert!(
@@ -66,7 +63,7 @@ fn harness_rules_markdown_is_plain_rule_id_list() {
         count += 1;
     }
 
-    assert_eq!(count, 70);
+    assert_eq!(count, 73);
 }
 
 #[test]

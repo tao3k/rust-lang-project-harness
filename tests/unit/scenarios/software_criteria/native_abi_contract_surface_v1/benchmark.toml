@@ -1,0 +1,22 @@
+harness = "libtest"
+test = "scenario_benchmark_native_abi_contract_surface_v1_snapshot"
+snapshot = "scenario_benchmark_native_abi_contract_surface_v1"
+target_total = "20ms"
+max_total = "70ms"
+observed_total = "8ms"
+regression_budget = "12ms"
+memory_budget_bytes = 8388608
+observed_memory_bytes = 3145728
+target_rationale = "The policy is parser-native and scans only item attributes plus module-level constants; native ABI fixture checks should stay in the small metadata budget."
+
+[input_expected_comparison]
+input_total = "16ms"
+expected_total = "6ms"
+input_memory_bytes = 4194304
+expected_memory_bytes = 3145728
+interpretation = "expected co-locates ABI metadata with layout types; observed speedup 2.67x and memory reduction 25.00% because agents do not need separate source/header discovery"
+
+[observed_timings]
+contract_deserialize = "4ms"
+native_syntax_collect = "2ms"
+snapshot_assertion = "1ms"

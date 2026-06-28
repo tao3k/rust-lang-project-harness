@@ -21,7 +21,7 @@ fn agent_r012_public_primitive_identifier_snapshot() {
 
     assert_agent_snapshot(
         root,
-        "AGENT-R012",
+        "RUST-AGENT-API-TYPE-012",
         1,
         "agent_r012_public_primitive_identifier",
     );
@@ -42,7 +42,12 @@ fn agent_r018_public_flag_params_snapshot() {
     )
     .expect("write api");
 
-    assert_agent_snapshot(root, "AGENT-R018", 1, "agent_r018_public_flag_params");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-API-FLAGS-018",
+        1,
+        "agent_r018_public_flag_params",
+    );
 }
 
 #[test]
@@ -66,7 +71,7 @@ fn agent_r019_public_positional_surface_snapshot() {
 
     assert_agent_snapshot(
         root,
-        "AGENT-R019",
+        "RUST-AGENT-API-PARAMETERS-019",
         1,
         "agent_r019_public_positional_surface",
     );
@@ -92,7 +97,12 @@ fn agent_r020_public_data_shape_snapshot() {
     )
     .expect("write api");
 
-    assert_agent_snapshot(root, "AGENT-R020", 1, "agent_r020_public_data_shape");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-DATA-FIELD-020",
+        1,
+        "agent_r020_public_data_shape",
+    );
 }
 
 #[test]
@@ -115,7 +125,7 @@ fn agent_r021_public_enum_payload_shape_snapshot() {
 
     assert_agent_snapshot(
         root,
-        "AGENT-R021",
+        "RUST-AGENT-DATA-ENUM-PAYLOAD-021",
         1,
         "agent_r021_public_enum_payload_shape",
     );
@@ -143,7 +153,7 @@ fn agent_r022_public_generic_data_bounds_snapshot() {
 
     assert_agent_snapshot(
         root,
-        "AGENT-R022",
+        "RUST-AGENT-DATA-BOUNDS-022",
         1,
         "agent_r022_public_generic_data_bounds",
     );
@@ -192,7 +202,7 @@ fn agent_r024_public_enum_tuple_payload_snapshot() {
 
     assert_agent_snapshot(
         root,
-        "AGENT-R024",
+        "RUST-AGENT-DATA-ENUM-TUPLE-024",
         1,
         "agent_r024_public_enum_tuple_payload",
     );
@@ -215,7 +225,7 @@ fn agent_r027_public_primitive_type_alias_snapshot() {
 
     assert_agent_snapshot(
         root,
-        "AGENT-R027",
+        "RUST-AGENT-API-TYPE-ALIAS-027",
         1,
         "agent_r027_public_primitive_type_alias",
     );
@@ -240,7 +250,7 @@ fn agent_r028_public_stringly_state_field_snapshot() {
 
     assert_agent_snapshot(
         root,
-        "AGENT-R028",
+        "RUST-AGENT-DATA-STATE-028",
         1,
         "agent_r028_public_stringly_state_field",
     );

@@ -2,14 +2,14 @@
 source: tests/unit/public_api/core.rs
 expression: rendered
 ---
-[AGENT-R001] Info: Public module lacks an intent doc
+[RUST-AGENT-DOCS-MODULE-001] Info: Public module lacks an intent doc
 @ $TEMP/src/owned.rs:1:1
 fix: add a module intent doc using doc_markdown style
 line: 1 | pub fn public_api() {}
 Help: $TEMP/src/owned.rs has public Rust surface without a module intent doc.
 Contract: Add a concise `//!` module-level intent doc using `clippy::doc_markdown` style, with technical identifiers in backticks.
 
-[AGENT-R002] Info: Public item lacks a doc comment
+[RUST-AGENT-DOCS-PUBLIC-002] Info: Public item lacks a doc comment
 @ $TEMP/src/owned.rs:1:1
 fix: add a doc comment using clippy::doc_markdown style
 line: 1 | pub fn public_api() {}

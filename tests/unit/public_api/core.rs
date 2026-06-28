@@ -133,8 +133,8 @@ fn default_renderer_keeps_info_advice_visible_without_blocking() {
     let rendered = normalize_temp_root(&render_rust_project_harness(&report), root);
 
     assert!(report.is_clean(), "{rendered}");
-    assert!(rendered.contains("AGENT-R001"));
-    assert!(rendered.contains("AGENT-R002"));
+    assert!(rendered.contains("RUST-AGENT-DOCS-MODULE-001"));
+    assert!(rendered.contains("RUST-AGENT-DOCS-PUBLIC-002"));
     assert!(rendered.contains("Help:"));
     assert!(rendered.contains("Contract:"));
     assert!(!rendered.contains("[ok]"), "{rendered}");
@@ -158,8 +158,14 @@ fn cargo_test_assertion_promotes_agent_advice_to_repair_feedback() {
     .expect_err("agent advice should fail cargo-test assertion");
     let normalized = normalize_temp_root(&panic_message(panic), root);
 
-    assert!(normalized.contains("AGENT-R001"), "{normalized}");
-    assert!(normalized.contains("AGENT-R002"), "{normalized}");
+    assert!(
+        normalized.contains("RUST-AGENT-DOCS-MODULE-001"),
+        "{normalized}"
+    );
+    assert!(
+        normalized.contains("RUST-AGENT-DOCS-PUBLIC-002"),
+        "{normalized}"
+    );
     assert!(normalized.contains("Help:"), "{normalized}");
     assert!(normalized.contains("Contract:"), "{normalized}");
     assert!(!normalized.contains("[advice]"), "{normalized}");
@@ -237,7 +243,10 @@ fn json_renderer_preserves_structured_report_fields() {
     let json = render_rust_project_harness_json(&report).expect("render json");
     let value: serde_json::Value = serde_json::from_str(&json).expect("parse json");
 
-    assert_eq!(value["findings"][0]["rule_id"], "AGENT-R001");
+    assert_eq!(
+        value["findings"][0]["rule_id"],
+        "RUST-AGENT-DOCS-MODULE-001"
+    );
     assert!(value["findings"][0]["summary"].as_str().is_some());
     assert!(value["findings"][0]["requirement"].as_str().is_some());
     assert!(value["project_scope"].is_object());

@@ -15,11 +15,14 @@ use super::item_facts::top_level_item_syntax;
 use super::module_facts::{
     attrs_have_cfg_test, attrs_have_doc, attrs_have_test, module_declaration_from_item_mod,
 };
+use super::native_abi_boundary::native_abi_surface_syntax;
 use super::path_facts::path_reference_syntax;
+use super::process_boundary::process_command_execution_syntax;
 use super::signature::{
     public_function_dynamic_json_api_syntax, public_function_param_syntax,
     public_function_return_syntax, public_function_tuple_api_syntax,
 };
+use super::tokio_runtime_boundary::tokio_runtime_operation_syntax;
 use crate::parser::{RustUseStatementContext, rust_use_statement_syntax};
 
 pub(crate) fn rust_native_syntax_facts(
@@ -82,6 +85,17 @@ pub(crate) fn rust_native_syntax_facts(
         .items
         .iter()
         .flat_map(public_function_dynamic_json_api_syntax)
+        .collect();
+    collector.facts.native_abi_surfaces = native_abi_surface_syntax(&syntax.items, source_file);
+    collector.facts.process_command_executions = syntax
+        .items
+        .iter()
+        .flat_map(process_command_execution_syntax)
+        .collect();
+    collector.facts.tokio_runtime_operations = syntax
+        .items
+        .iter()
+        .flat_map(tokio_runtime_operation_syntax)
         .collect();
     collector.facts.all_function_control_flows = syntax
         .items

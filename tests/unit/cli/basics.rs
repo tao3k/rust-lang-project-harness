@@ -234,7 +234,7 @@ fn cli_keeps_agent_advice_non_blocking() {
         &String::from_utf8(output.stdout).expect("utf8 stdout"),
         root,
     );
-    assert!(stdout.contains("AGENT-R002"), "{stdout}");
+    assert!(stdout.contains("RUST-AGENT-DOCS-PUBLIC-002"), "{stdout}");
     assert!(!stdout.contains("[advice]"), "{stdout}");
     assert!(!stdout.contains("No blocking issues found."), "{stdout}");
     insta::assert_snapshot!("cli_agent_advice", stdout);

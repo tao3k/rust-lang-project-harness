@@ -2,7 +2,7 @@
 source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
-[AGENT-R019] Info: Public function exposes a broad positional parameter surface
+[RUST-AGENT-API-PARAMETERS-019] Info: Public function exposes a broad positional parameter surface
 @ $TEMP/src/api.rs:6:1
 fix: replace this positional surface with a named config, request type, or builder
 line: 6 | 	pub fn new(endpoint: String, token: String, retries: usize, timeout_ms: u64, batch_size: usize) -> Self { Self }

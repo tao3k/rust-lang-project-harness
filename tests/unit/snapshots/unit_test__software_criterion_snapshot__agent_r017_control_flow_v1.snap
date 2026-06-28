@@ -1,10 +1,10 @@
 ---
 source: tests/unit/software_criterion_snapshot.rs
-expression: "rule_snapshot(\"AGENT-R017\")"
+expression: "rule_snapshot(\"RUST-AGENT-ITER-PUBLIC-017\")"
 ---
 [
   {
-    "ruleId": "AGENT-R017",
+    "ruleId": "RUST-AGENT-ITER-PUBLIC-017",
     "summary": "$TEMP/src/api.rs public function `summarize_loop` manually spells iterator boilerplate. Criteria: native-idiom.manual-transform-loop.",
     "line": 66,
     "label": "replace this boilerplate loop with a Rust iterator idiom",
@@ -13,7 +13,7 @@ expression: "rule_snapshot(\"AGENT-R017\")"
 ]
 
 --- rendered ---
-[AGENT-R017] Info: Public function manually spells an iterator transform
+[RUST-AGENT-ITER-PUBLIC-017] Info: Public function manually spells an iterator transform
 @ $TEMP/src/api.rs:66:1
 fix: replace this boilerplate loop with a Rust iterator idiom
 line: 66 | pub fn summarize_loop(values: &[usize]) -> bool {

@@ -2,7 +2,7 @@
 source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
-[AGENT-R010] Info: Owner branch imports another owner leaf
+[RUST-AGENT-OWNER-BOUNDARY-010] Info: Owner branch imports another owner leaf
 @ $TEMP/src/ui.rs:2:1
 fix: depend on the target owner branch instead of reaching into its leaf module
 line: 2 | use crate::domain::leaf::Leaf;

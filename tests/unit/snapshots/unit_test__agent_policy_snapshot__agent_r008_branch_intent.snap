@@ -2,7 +2,7 @@
 source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
-[AGENT-R008] Info: Branch module lacks reasoning-tree intent doc
+[RUST-AGENT-DOCS-BRANCH-008] Info: Branch module lacks reasoning-tree intent doc
 @ $TEMP/src/domain.rs:1:1
 fix: add a branch intent doc using doc_markdown style
 line: 1 | mod parse;

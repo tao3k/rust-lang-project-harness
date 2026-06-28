@@ -3,7 +3,7 @@ source: tests/unit/agent_policy_snapshot.rs
 assertion_line: 190
 expression: rendered
 ---
-[AGENT-R026] Info: Implementation function manually spells an iterator transform
+[RUST-AGENT-ITER-IMPL-026] Info: Implementation function manually spells an iterator transform
 @ $TEMP/src/receipt.rs:3:1
 fix: extract this loop into Rust iterator adapters or a named helper
 line: 3 | fn failed_query_names(queries: &[QueryReceipt]) -> Vec<String> {

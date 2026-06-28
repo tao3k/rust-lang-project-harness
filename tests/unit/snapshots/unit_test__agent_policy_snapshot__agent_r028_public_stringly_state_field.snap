@@ -2,7 +2,7 @@
 source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
-[AGENT-R028] Info: Public data model exposes a stringly state field
+[RUST-AGENT-DATA-STATE-028] Info: Public data model exposes a stringly state field
 @ $TEMP/src/api.rs:3:1
 fix: replace this stringly state surface with an enum, newtype, or typed catalog boundary
 line: 3 | pub struct JobSnapshot {

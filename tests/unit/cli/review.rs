@@ -346,7 +346,7 @@ fn proof_pilot_json() -> Value {
         "target": {
             "kind": "dependency-graph-acyclicity",
             "name": "owner dependency graph cycle detection",
-            "ruleIds": ["AGENT-R009"],
+            "ruleIds": ["RUST-AGENT-OWNER-GRAPH-009"],
             "ownerPath": "src/rules/agent_policy/dependency_graph.rs",
             "symbol": "owner_dependency_cycle_indices"
         },

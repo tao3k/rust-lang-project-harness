@@ -1,0 +1,12 @@
+id = "native-abi-contract-surface-v1"
+title = "Native ABI layouts stay co-located with their ABI contract"
+policy_ids = ["RUST-AGENT-NATIVE-ABI-001"]
+agent_goal = "Keep Rust `repr(C)` layouts, C header source, ABI id, and ABI version in one owner before editing native or projection boundaries."
+reference_repositories = ["rust-lang/rust", "tokio-rs/tokio", "bytecodealliance/wasmtime"]
+reference_patterns = [
+  "Native ABI modules make layout versioning explicit instead of relying on reader memory.",
+  "Header source and header path stay next to Rust layout types so cross-language projections can validate drift.",
+  "Agent edits must preserve Rust/C/projection compatibility when changing FFI structs or status codes.",
+]
+inputs = "inputs"
+expected = "expected"

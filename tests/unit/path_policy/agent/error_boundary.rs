@@ -22,7 +22,7 @@ fn public_application_error_boundary_is_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R013");
+    let findings = findings_for_rule(&report, "RUST-AGENT-API-ERROR-013");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("`load_user`"));
     assert!(findings[0].summary.contains("`anyhow::Result`"));
@@ -50,6 +50,6 @@ fn typed_and_test_error_boundaries_are_not_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R013").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-API-ERROR-013").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }

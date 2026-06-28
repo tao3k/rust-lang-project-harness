@@ -11,7 +11,12 @@ fn agent_r014_test_support_reexport_snapshot() {
     write_manifest(root, "agent-r014-test-support");
     write_unused_test_support_reexport_fixture(root);
 
-    assert_agent_snapshot(root, "AGENT-R014", 1, "agent_r014_test_support_reexport");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-TEST-SUPPORT-014",
+        1,
+        "agent_r014_test_support_reexport",
+    );
 }
 
 fn write_unused_test_support_reexport_fixture(root: &std::path::Path) {

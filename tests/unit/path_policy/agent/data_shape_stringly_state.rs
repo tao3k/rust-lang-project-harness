@@ -30,7 +30,7 @@ fn public_stringly_state_fields_are_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R028");
+    let findings = findings_for_rule(&report, "RUST-AGENT-DATA-STATE-028");
     assert_eq!(findings.len(), 2, "{:?}", report.findings);
     assert!(findings[0].summary.contains("`JobSnapshot`"));
     assert!(findings[0].summary.contains("status: String"));
@@ -65,7 +65,7 @@ fn documented_public_stringly_state_fields_clear_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R028").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-DATA-STATE-028").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -97,6 +97,6 @@ fn typed_and_static_state_fields_clear_stringly_state_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R028").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-DATA-STATE-028").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }

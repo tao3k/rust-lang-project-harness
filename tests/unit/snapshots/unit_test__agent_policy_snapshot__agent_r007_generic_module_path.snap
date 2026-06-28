@@ -2,7 +2,7 @@
 source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
-[AGENT-R007] Info: Module path segment is generic
+[RUST-AGENT-SOURCE-PATH-007] Info: Module path segment is generic
 @ $TEMP/src/helpers.rs:1:1
 fix: rename this module path segment to the responsibility it owns
 line: 1 | //! Helper bucket.

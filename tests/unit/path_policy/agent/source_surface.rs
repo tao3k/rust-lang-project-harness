@@ -25,7 +25,7 @@ fn repeated_namespace_policy_includes_file_stems() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R003");
+    let findings = findings_for_rule(&report, "RUST-AGENT-SOURCE-NAMESPACE-003");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("src/domain/domain"));
     assert!(
@@ -51,7 +51,7 @@ fn branch_module_without_intent_doc_is_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R008");
+    let findings = findings_for_rule(&report, "RUST-AGENT-DOCS-BRANCH-008");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("2 resolved child edges"));
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -69,7 +69,7 @@ fn branch_intent_counts_resolved_reasoning_tree_edges() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R008");
+    let findings = findings_for_rule(&report, "RUST-AGENT-DOCS-BRANCH-008");
     assert!(findings.is_empty(), "{:?}", report.findings);
     assert!(report.is_clean(), "{:?}", report.findings);
 }
@@ -85,7 +85,7 @@ fn generic_source_module_paths_are_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R007");
+    let findings = findings_for_rule(&report, "RUST-AGENT-SOURCE-PATH-007");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("`helpers`"));
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -107,7 +107,7 @@ fn generic_public_module_names_are_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R006");
+    let findings = findings_for_rule(&report, "RUST-AGENT-SOURCE-MODULE-006");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(
         findings[0]
@@ -132,7 +132,7 @@ fn public_doc_policy_ignores_comment_text_that_mentions_docs() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R002");
+    let findings = findings_for_rule(&report, "RUST-AGENT-DOCS-PUBLIC-002");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("`MissingDoc`"));
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -153,7 +153,7 @@ fn module_intent_policy_uses_native_inner_doc_attributes() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R001");
+    let findings = findings_for_rule(&report, "RUST-AGENT-DOCS-MODULE-001");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("src/owner.rs"));
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -183,7 +183,7 @@ fn repeated_namespace_policy_covers_default_test_roots() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R003");
+    let findings = findings_for_rule(&report, "RUST-AGENT-SOURCE-NAMESPACE-003");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("tests/unit/unit"));
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -224,7 +224,10 @@ fn duplicated_public_names_are_reported_as_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert_eq!(findings_for_rule(&report, "AGENT-R004").len(), 2);
+    assert_eq!(
+        findings_for_rule(&report, "RUST-AGENT-API-NAME-004").len(),
+        2
+    );
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -245,7 +248,7 @@ fn public_primitive_identifier_params_are_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R012");
+    let findings = findings_for_rule(&report, "RUST-AGENT-API-TYPE-012");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("`load_user`"));
     assert!(findings[0].summary.contains("`user_id`"));
@@ -274,6 +277,6 @@ fn public_typed_identifier_params_are_not_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R012").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-API-TYPE-012").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }

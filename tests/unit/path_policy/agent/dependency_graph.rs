@@ -14,7 +14,7 @@ fn owner_dependency_cycle_is_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R009");
+    let findings = findings_for_rule(&report, "RUST-AGENT-OWNER-GRAPH-009");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("src/alpha/mod.rs"));
     assert!(findings[0].summary.contains("src/beta/mod.rs"));
@@ -30,7 +30,7 @@ fn cross_owner_leaf_import_is_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R010");
+    let findings = findings_for_rule(&report, "RUST-AGENT-OWNER-BOUNDARY-010");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("src/ui/mod.rs"));
     assert!(findings[0].summary.contains("src/domain/leaf.rs"));
@@ -46,7 +46,7 @@ fn owner_fan_out_without_intent_doc_is_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R011");
+    let findings = findings_for_rule(&report, "RUST-AGENT-DOCS-OWNER-FANOUT-011");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("src/orchestrator/mod.rs"));
     assert!(findings[0].summary.contains("3 owner branches"));
@@ -106,8 +106,8 @@ fn cfg_test_owner_dependencies_do_not_trigger_structural_agent_policies() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R009").is_empty());
-    assert!(findings_for_rule(&report, "AGENT-R011").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-OWNER-GRAPH-009").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-DOCS-OWNER-FANOUT-011").is_empty());
 }
 
 fn write_owner_cycle_fixture(root: &std::path::Path) {

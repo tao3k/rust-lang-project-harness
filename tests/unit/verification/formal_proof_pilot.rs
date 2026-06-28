@@ -11,7 +11,10 @@ fn p4_dependency_graph_proof_pilot_checks_exhaustive_small_models() {
     .expect("proof pilot");
 
     assert_eq!(proof.status, RustFormalProofPilotStatus::ProvedBounded);
-    assert_eq!(proof.target.rule_ids, vec!["AGENT-R009".to_string()]);
+    assert_eq!(
+        proof.target.rule_ids,
+        vec!["RUST-AGENT-OWNER-GRAPH-009".to_string()]
+    );
     assert_eq!(proof.checks[0].models_checked, Some(4166));
     assert_eq!(proof.checks[0].max_nodes, Some(4));
     assert!(proof.checks[0].counterexample.is_none());

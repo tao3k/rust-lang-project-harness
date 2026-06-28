@@ -32,7 +32,7 @@ fn project_runner_reports_blocking_policy_and_agent_advice() {
     assert!(!report.is_clean());
     assert!(rendered.contains("RUST-AGENT-PROJECT-001"));
     assert!(rendered.contains("RUST-AGENT-PROJECT-003"));
-    assert!(rendered.contains("AGENT-R001"));
+    assert!(rendered.contains("RUST-AGENT-DOCS-MODULE-001"));
     assert!(rendered.contains("Help: tests/test_root.rs is a root-level test file"));
     assert!(rendered.contains("Contract: Move root-level test files under tests/unit"));
     assert!(!rendered.contains("Required:"));

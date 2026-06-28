@@ -27,7 +27,7 @@ fn documented_public_struct_primitive_semantic_fields_clear_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R020").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-DATA-FIELD-020").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -51,7 +51,7 @@ fn documented_public_enum_variant_primitive_payload_fields_clear_agent_advice() 
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R021").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-DATA-ENUM-PAYLOAD-021").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -75,7 +75,7 @@ fn documented_public_enum_tuple_variant_primitive_payload_clears_agent_advice() 
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R024").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-DATA-ENUM-TUPLE-024").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -101,6 +101,6 @@ fn documented_public_generic_data_type_bounds_clear_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R022").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-DATA-BOUNDS-022").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }

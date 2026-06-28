@@ -83,13 +83,13 @@ struct InvariantSpec {
 
 fn invariant_spec(rule_id: &str) -> Option<InvariantSpec> {
     match rule_id {
-        "AGENT-R012" => Some(InvariantSpec {
+        "RUST-AGENT-API-TYPE-012" => Some(InvariantSpec {
             kind: RustInvariantKind::PrimitiveIdentifierBoundary,
             hypothesis: "Public identifier parameters should cross API boundaries as owner-named types or documented raw boundaries.",
             required_receipts: BASE_RECEIPTS,
             proof_targets: &[RustInvariantKind::PublicApiShape],
         }),
-        "AGENT-R020" => Some(InvariantSpec {
+        "RUST-AGENT-DATA-FIELD-020" => Some(InvariantSpec {
             kind: RustInvariantKind::PublicDataPrimitiveFields,
             hypothesis: "Public data structs with several semantic primitive fields should expose named domain fields or documented raw DTO boundaries.",
             required_receipts: BASE_RECEIPTS,
@@ -101,13 +101,13 @@ fn invariant_spec(rule_id: &str) -> Option<InvariantSpec> {
             required_receipts: BEHAVIOR_RECEIPTS,
             proof_targets: &[RustInvariantKind::PublicApiShape],
         }),
-        "AGENT-R027" => Some(InvariantSpec {
+        "RUST-AGENT-API-TYPE-ALIAS-027" => Some(InvariantSpec {
             kind: RustInvariantKind::PrimitiveTypeAliasBoundary,
             hypothesis: "Public semantic aliases over primitive carriers should become named newtype or struct boundaries.",
             required_receipts: BASE_RECEIPTS,
             proof_targets: &[RustInvariantKind::PublicApiShape],
         }),
-        "AGENT-R028" => Some(InvariantSpec {
+        "RUST-AGENT-DATA-STATE-028" => Some(InvariantSpec {
             kind: RustInvariantKind::StringlyStateBoundary,
             hypothesis: "Public stringly state fields should become enums, newtypes, or typed catalog boundaries.",
             required_receipts: BEHAVIOR_RECEIPTS,

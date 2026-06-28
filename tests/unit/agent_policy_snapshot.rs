@@ -24,7 +24,12 @@ fn agent_r001_public_module_intent_snapshot() {
     fs::create_dir(root.join("src")).expect("create src");
     fs::write(root.join("src/lib.rs"), "pub fn public_api() {}\n").expect("write lib");
 
-    assert_agent_snapshot(root, "AGENT-R001", 1, "agent_r001_public_module_intent");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-DOCS-MODULE-001",
+        1,
+        "agent_r001_public_module_intent",
+    );
 }
 
 #[test]
@@ -40,7 +45,12 @@ fn agent_r002_public_item_doc_snapshot() {
     )
     .expect("write owned");
 
-    assert_agent_snapshot(root, "AGENT-R002", 1, "agent_r002_public_item_doc");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-DOCS-PUBLIC-002",
+        1,
+        "agent_r002_public_item_doc",
+    );
 }
 
 #[test]
@@ -61,7 +71,12 @@ fn agent_r003_repeated_namespace_snapshot() {
     )
     .expect("write repeated");
 
-    assert_agent_snapshot(root, "AGENT-R003", 1, "agent_r003_repeated_namespace");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-SOURCE-NAMESPACE-003",
+        1,
+        "agent_r003_repeated_namespace",
+    );
 }
 
 #[test]
@@ -86,7 +101,12 @@ fn agent_r004_public_name_conflict_snapshot() {
     )
     .expect("write beta");
 
-    assert_agent_snapshot(root, "AGENT-R004", 2, "agent_r004_public_name_conflict");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-API-NAME-004",
+        2,
+        "agent_r004_public_name_conflict",
+    );
 }
 
 #[test]
@@ -97,7 +117,12 @@ fn agent_r005_facade_reexports_snapshot() {
     fs::create_dir(root.join("src")).expect("create src");
     fs::write(root.join("src/lib.rs"), facade_reexports()).expect("write lib");
 
-    assert_agent_snapshot(root, "AGENT-R005", 1, "agent_r005_facade_reexports");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-API-FACADE-005",
+        1,
+        "agent_r005_facade_reexports",
+    );
 }
 
 #[test]
@@ -113,7 +138,12 @@ fn agent_r006_generic_public_module_snapshot() {
     .expect("write lib");
     fs::write(root.join("src/utils.rs"), "//! Utility bucket.\n").expect("write utils");
 
-    assert_agent_snapshot(root, "AGENT-R006", 1, "agent_r006_generic_public_module");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-SOURCE-MODULE-006",
+        1,
+        "agent_r006_generic_public_module",
+    );
 }
 
 #[test]
@@ -125,7 +155,12 @@ fn agent_r007_generic_module_path_snapshot() {
     fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod helpers;\n").expect("write lib");
     fs::write(root.join("src/helpers.rs"), "//! Helper bucket.\n").expect("write helpers");
 
-    assert_agent_snapshot(root, "AGENT-R007", 1, "agent_r007_generic_module_path");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-SOURCE-PATH-007",
+        1,
+        "agent_r007_generic_module_path",
+    );
 }
 
 #[test]
@@ -139,7 +174,12 @@ fn agent_r008_branch_intent_snapshot() {
     fs::write(root.join("src/domain/parse.rs"), "//! Parse leaf.\n").expect("write parse");
     fs::write(root.join("src/domain/render.rs"), "//! Render leaf.\n").expect("write render");
 
-    assert_agent_snapshot(root, "AGENT-R008", 1, "agent_r008_branch_intent");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-DOCS-BRANCH-008",
+        1,
+        "agent_r008_branch_intent",
+    );
 }
 
 #[test]
@@ -149,7 +189,12 @@ fn agent_r009_owner_dependency_cycle_snapshot() {
     write_manifest(root, "agent-r009-cycle");
     write_owner_cycle_fixture(root);
 
-    assert_agent_snapshot(root, "AGENT-R009", 1, "agent_r009_owner_dependency_cycle");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-OWNER-GRAPH-009",
+        1,
+        "agent_r009_owner_dependency_cycle",
+    );
 }
 
 #[test]
@@ -159,7 +204,12 @@ fn agent_r010_cross_owner_leaf_snapshot() {
     write_manifest(root, "agent-r010-leaf");
     write_cross_owner_leaf_fixture(root);
 
-    assert_agent_snapshot(root, "AGENT-R010", 1, "agent_r010_cross_owner_leaf");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-OWNER-BOUNDARY-010",
+        1,
+        "agent_r010_cross_owner_leaf",
+    );
 }
 
 #[test]
@@ -169,7 +219,88 @@ fn agent_r011_owner_fan_out_snapshot() {
     write_manifest(root, "agent-r011-fan-out");
     write_owner_fan_out_fixture(root);
 
-    assert_agent_snapshot(root, "AGENT-R011", 1, "agent_r011_owner_fan_out");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-DOCS-OWNER-FANOUT-011",
+        1,
+        "agent_r011_owner_fan_out",
+    );
+}
+
+#[test]
+fn rust_agent_tokio_runtime_boundary_snapshot() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "rust-agent-tokio-runtime-boundary");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(
+        root.join("src/lib.rs"),
+        "//! Test crate.\n\
+         pub struct TokioAgentRuntime;\n\
+         impl TokioAgentRuntime {\n\
+             pub fn new() -> Self { Self }\n\
+         }\n\
+         pub fn uses_facade() {\n\
+             let _runtime = TokioAgentRuntime::new();\n\
+         }\n\
+         pub fn block_on() {\n\
+             let _runtime = tokio::runtime::Builder::new_current_thread().enable_all().build();\n\
+         }\n",
+    )
+    .expect("write lib");
+
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-TOKIO-RUNTIME-002",
+        1,
+        "rust_agent_tokio_runtime_boundary",
+    );
+}
+
+#[test]
+fn rust_agent_native_abi_contract_snapshot() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "rust-agent-native-abi-contract");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(
+        root.join("src/lib.rs"),
+        "//! Test crate.\n\
+         pub mod native_abi;\n\
+         pub mod owned_abi;\n",
+    )
+    .expect("write lib");
+    fs::write(
+        root.join("src/native_abi.rs"),
+        "//! Native ABI owner missing its contract constants.\n\
+         #[repr(C)]\n\
+         pub struct NativeUtf8 {\n\
+             pub ptr: *const u8,\n\
+             pub len: usize,\n\
+         }\n",
+    )
+    .expect("write native abi");
+    fs::write(
+        root.join("src/owned_abi.rs"),
+        "//! Native ABI owner with its contract constants.\n\
+         pub const OWNED_ABI_VERSION: u32 = 1;\n\
+         pub const OWNED_ABI_ID: &str = \"owned.v1\";\n\
+         pub const OWNED_HEADER_PATH: &str = \"include/owned.h\";\n\
+         pub const OWNED_HEADER_SOURCE: &str = \"typedef struct OwnedUtf8 OwnedUtf8;\";\n\
+         #[repr(C)]\n\
+         pub struct OwnedUtf8 {\n\
+             pub ptr: *const u8,\n\
+             pub len: usize,\n\
+         }\n",
+    )
+    .expect("write owned abi");
+
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-NATIVE-ABI-001",
+        1,
+        "rust_agent_native_abi_contract",
+    );
 }
 
 fn assert_agent_snapshot(

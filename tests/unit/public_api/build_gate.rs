@@ -19,7 +19,10 @@ fn build_gate_assertion_promotes_agent_advice_for_cargo_check_feedback() {
     .expect_err("agent advice should fail the cargo-check build gate");
     let normalized = normalize_temp_root(&panic_message(panic), root);
 
-    assert!(normalized.contains("AGENT-R001"), "{normalized}");
+    assert!(
+        normalized.contains("RUST-AGENT-DOCS-MODULE-001"),
+        "{normalized}"
+    );
     assert!(
         normalized.contains("add a module intent doc"),
         "{normalized}"

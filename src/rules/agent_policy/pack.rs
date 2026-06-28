@@ -5,48 +5,68 @@ use std::collections::BTreeMap;
 use crate::parser::{ParsedRustModule, rust_reasoning_tree_facts};
 use crate::{RustDiagnosticSeverity, RustHarnessFinding, RustHarnessRule, RustProjectHarnessScope};
 
-use super::{algorithm_shape, api_shape, data_shape, dependency_graph, source_surface};
-use crate::rules::{labels, project_policy::RUST_PROJ_R023};
+use super::{
+    algorithm_shape, api_shape, data_shape, dependency_graph, native_abi, process_command,
+    source_surface, tokio_runtime,
+};
+use crate::rules::labels;
 
 const PACK_ID: &str = "rust.agent_policy";
-pub(super) const AGENT_R001: &str = "AGENT-R001";
-pub(super) const AGENT_R002: &str = "AGENT-R002";
-pub(super) const AGENT_R003: &str = "AGENT-R003";
-pub(super) const AGENT_R004: &str = "AGENT-R004";
-pub(super) const AGENT_R005: &str = "AGENT-R005";
-pub(super) const AGENT_R006: &str = "AGENT-R006";
-pub(super) const AGENT_R007: &str = "AGENT-R007";
-pub(super) const AGENT_R008: &str = "AGENT-R008";
-pub(super) const AGENT_R009: &str = "AGENT-R009";
-pub(super) const AGENT_R010: &str = "AGENT-R010";
-pub(super) const AGENT_R011: &str = "AGENT-R011";
-pub(super) const AGENT_R012: &str = "AGENT-R012";
-pub(super) const AGENT_R013: &str = "AGENT-R013";
-pub(super) const AGENT_R014: &str = "AGENT-R014";
-pub(super) const AGENT_R015: &str = "AGENT-R015";
-pub(super) const AGENT_R016: &str = "AGENT-R016";
-pub(super) const AGENT_R017: &str = "AGENT-R017";
-pub(super) const AGENT_R018: &str = "AGENT-R018";
-pub(super) const AGENT_R019: &str = "AGENT-R019";
-pub(super) const AGENT_R020: &str = "AGENT-R020";
-pub(super) const AGENT_R021: &str = "AGENT-R021";
-pub(super) const AGENT_R022: &str = "AGENT-R022";
+pub(super) const RUST_AGENT_POLICY_DOCS_MODULE_INTENT_V1: &str = "RUST-AGENT-DOCS-MODULE-001";
+pub(super) const RUST_AGENT_POLICY_DOCS_PUBLIC_ITEM_V1: &str = "RUST-AGENT-DOCS-PUBLIC-002";
+pub(super) const RUST_AGENT_POLICY_SOURCE_NAMESPACE_REPEAT_V1: &str =
+    "RUST-AGENT-SOURCE-NAMESPACE-003";
+pub(super) const RUST_AGENT_POLICY_API_PUBLIC_NAME_CONFLICT_V1: &str = "RUST-AGENT-API-NAME-004";
+pub(super) const RUST_AGENT_POLICY_API_FACADE_EXPORT_GROUPS_V1: &str = "RUST-AGENT-API-FACADE-005";
+pub(super) const RUST_AGENT_POLICY_SOURCE_PUBLIC_MODULE_NAME_V1: &str =
+    "RUST-AGENT-SOURCE-MODULE-006";
+pub(super) const RUST_AGENT_POLICY_SOURCE_MODULE_PATH_NAME_V1: &str = "RUST-AGENT-SOURCE-PATH-007";
+pub(super) const RUST_AGENT_POLICY_DOCS_BRANCH_INTENT_V1: &str = "RUST-AGENT-DOCS-BRANCH-008";
+pub(super) const RUST_AGENT_POLICY_OWNER_DEPENDENCY_CYCLE_V1: &str = "RUST-AGENT-OWNER-GRAPH-009";
+pub(super) const RUST_AGENT_POLICY_OWNER_LEAF_IMPORT_V1: &str = "RUST-AGENT-OWNER-BOUNDARY-010";
+pub(super) const RUST_AGENT_POLICY_DOCS_OWNER_FAN_OUT_V1: &str = "RUST-AGENT-DOCS-OWNER-FANOUT-011";
+pub(super) const RUST_AGENT_POLICY_API_SEMANTIC_IDENTIFIER_TYPE_V1: &str =
+    "RUST-AGENT-API-TYPE-012";
+pub(super) const RUST_AGENT_POLICY_API_ERROR_BOUNDARY_V1: &str = "RUST-AGENT-API-ERROR-013";
+pub(super) const RUST_AGENT_POLICY_TEST_SUPPORT_REEXPORT_V1: &str = "RUST-AGENT-TEST-SUPPORT-014";
+pub(super) const RUST_AGENT_POLICY_CFG_PUBLIC_NESTED_FLOW_V1: &str = "RUST-AGENT-CFG-PUBLIC-015";
+pub(super) const RUST_AGENT_POLICY_CFG_PUBLIC_BROAD_SURFACE_V1: &str = "RUST-AGENT-CFG-PUBLIC-016";
+pub(super) const RUST_AGENT_POLICY_ITER_PUBLIC_MANUAL_TRANSFORM_V1: &str =
+    "RUST-AGENT-ITER-PUBLIC-017";
+pub(super) const RUST_AGENT_POLICY_API_FLAG_PARAMETER_SURFACE_V1: &str = "RUST-AGENT-API-FLAGS-018";
+pub(super) const RUST_AGENT_POLICY_API_POSITIONAL_PARAMETER_SURFACE_V1: &str =
+    "RUST-AGENT-API-PARAMETERS-019";
+pub(super) const RUST_AGENT_POLICY_DATA_PRIMITIVE_FIELD_V1: &str = "RUST-AGENT-DATA-FIELD-020";
+pub(super) const RUST_AGENT_POLICY_DATA_ENUM_PRIMITIVE_PAYLOAD_V1: &str =
+    "RUST-AGENT-DATA-ENUM-PAYLOAD-021";
+pub(super) const RUST_AGENT_POLICY_DATA_DERIVABLE_BOUNDS_V1: &str = "RUST-AGENT-DATA-BOUNDS-022";
 pub(super) const RUST_AGENT_POLICY_PUBLIC_TUPLE_API_SURFACE_V1: &str = "RUST-AGENT-API-SHAPE-023";
-pub(super) const AGENT_R024: &str = "AGENT-R024";
-pub(super) const AGENT_R025: &str = "AGENT-R025";
-pub(super) const AGENT_R026: &str = "AGENT-R026";
-pub(super) const AGENT_R027: &str = "AGENT-R027";
-pub(super) const AGENT_R028: &str = "AGENT-R028";
-pub(super) const AGENT_R029: &str = "AGENT-R029";
-pub(super) const AGENT_R030: &str = "AGENT-R030";
-pub(super) const AGENT_R031: &str = "AGENT-R031";
-pub(super) const AGENT_R032: &str = "AGENT-R032";
-pub(super) const AGENT_R033: &str = "AGENT-R033";
-pub(super) const AGENT_R034: &str = "AGENT-R034";
+pub(super) const RUST_AGENT_POLICY_DATA_ENUM_TUPLE_PAYLOAD_V1: &str =
+    "RUST-AGENT-DATA-ENUM-TUPLE-024";
+pub(super) const RUST_AGENT_POLICY_CFG_IMPL_NESTED_TRAVERSAL_V1: &str = "RUST-AGENT-CFG-IMPL-025";
+pub(super) const RUST_AGENT_POLICY_ITER_IMPL_MANUAL_TRANSFORM_V1: &str = "RUST-AGENT-ITER-IMPL-026";
+pub(super) const RUST_AGENT_POLICY_API_PRIMITIVE_TYPE_ALIAS_V1: &str =
+    "RUST-AGENT-API-TYPE-ALIAS-027";
+pub(super) const RUST_AGENT_POLICY_DATA_STRINGLY_STATE_FIELD_V1: &str = "RUST-AGENT-DATA-STATE-028";
+pub(super) const RUST_AGENT_POLICY_DATA_LINEAR_MEMBERSHIP_SCAN_V1: &str =
+    "RUST-AGENT-DATA-MEMBERSHIP-029";
+pub(super) const RUST_AGENT_POLICY_ASYNC_BLOCKING_BOUNDARY_V1: &str =
+    "RUST-AGENT-ASYNC-BLOCKING-030";
+pub(super) const RUST_AGENT_POLICY_ASYNC_SYNC_LOCK_BOUNDARY_V1: &str =
+    "RUST-AGENT-ASYNC-SYNC-LOCK-031";
+pub(super) const RUST_AGENT_POLICY_ASYNC_BACKPRESSURE_BOUNDARY_V1: &str =
+    "RUST-AGENT-ASYNC-BACKPRESSURE-032";
+pub(super) const RUST_AGENT_POLICY_ASYNC_SELECT_CANCEL_SAFETY_V1: &str =
+    "RUST-AGENT-ASYNC-CANCEL-SAFETY-033";
+pub(super) const RUST_AGENT_POLICY_ASYNC_TIMEOUT_CANCEL_SAFETY_V1: &str =
+    "RUST-AGENT-ASYNC-CANCEL-SAFETY-034";
 pub(super) const RUST_AGENT_POLICY_ASYNC_TASK_LIFECYCLE_V1: &str =
     "RUST-AGENT-ASYNC-TASK-LIFECYCLE-001";
 pub(super) const RUST_AGENT_POLICY_PUBLIC_DYNAMIC_JSON_API_BOUNDARY_V1: &str =
     "RUST-AGENT-API-SHAPE-036";
+pub(super) const RUST_AGENT_POLICY_PROCESS_COMMAND_PROBE_V1: &str = "RUST-AGENT-PROC-001";
+pub(super) const RUST_AGENT_POLICY_TOKIO_RUNTIME_BOUNDARY_V1: &str = "RUST-AGENT-TOKIO-RUNTIME-002";
+pub(super) const RUST_AGENT_POLICY_NATIVE_ABI_CONTRACT_V1: &str = "RUST-AGENT-NATIVE-ABI-001";
 
 /// Scenario coverage required for an agent policy rule.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -61,107 +81,6 @@ pub(crate) struct RustPolicyScenarioRequirement {
     pub scenario_root: &'static str,
 }
 
-const POLICY_SCENARIO_REQUIREMENTS: &[RustPolicyScenarioRequirement] = &[
-    policy_scenario_requirement(
-        AGENT_R015,
-        "control-flow-v1",
-        "RUST-AGENT-CFG-001",
-        "tests/unit/scenarios/software_criteria/control_flow_v1",
-    ),
-    policy_scenario_requirement(
-        AGENT_R016,
-        "control-flow-v1",
-        "RUST-AGENT-CFG-001",
-        "tests/unit/scenarios/software_criteria/control_flow_v1",
-    ),
-    policy_scenario_requirement(
-        AGENT_R017,
-        "control-flow-v1",
-        "RUST-AGENT-CFG-001",
-        "tests/unit/scenarios/software_criteria/control_flow_v1",
-    ),
-    policy_scenario_requirement(
-        AGENT_R025,
-        "control-flow-v1",
-        "RUST-AGENT-CFG-001",
-        "tests/unit/scenarios/software_criteria/control_flow_v1",
-    ),
-    policy_scenario_requirement(
-        AGENT_R026,
-        "control-flow-v1",
-        "RUST-AGENT-CFG-001",
-        "tests/unit/scenarios/software_criteria/control_flow_v1",
-    ),
-    policy_scenario_requirement(
-        AGENT_R029,
-        "data-structure-linear-membership-scan-v1",
-        "RUST-AGENT-DS-001",
-        "tests/unit/scenarios/software_criteria/data_structure_linear_membership_scan_v1",
-    ),
-    policy_scenario_requirement(
-        AGENT_R030,
-        "async-blocking-boundary-v1",
-        "RUST-AGENT-ASYNC-BLOCKING-001",
-        "tests/unit/scenarios/software_criteria/async_blocking_boundary_v1",
-    ),
-    policy_scenario_requirement(
-        AGENT_R031,
-        "async-sync-lock-boundary-v1",
-        "RUST-AGENT-ASYNC-SYNC-LOCK-001",
-        "tests/unit/scenarios/software_criteria/async_sync_lock_boundary_v1",
-    ),
-    policy_scenario_requirement(
-        AGENT_R032,
-        "async-backpressure-boundary-v1",
-        "RUST-AGENT-ASYNC-BACKPRESSURE-001",
-        "tests/unit/scenarios/software_criteria/async_backpressure_boundary_v1",
-    ),
-    policy_scenario_requirement(
-        AGENT_R033,
-        "async-select-cancellation-safety-v1",
-        "RUST-AGENT-ASYNC-CANCEL-SAFETY-001",
-        "tests/unit/scenarios/software_criteria/async_select_cancellation_safety_v1",
-    ),
-    policy_scenario_requirement(
-        AGENT_R034,
-        "async-timeout-cancellation-safety-v1",
-        "RUST-AGENT-ASYNC-CANCEL-SAFETY-002",
-        "tests/unit/scenarios/software_criteria/async_timeout_cancellation_safety_v1",
-    ),
-    policy_scenario_requirement(
-        RUST_AGENT_POLICY_ASYNC_TASK_LIFECYCLE_V1,
-        "async-task-lifecycle-boundary-v1",
-        "RUST-AGENT-ASYNC-TASK-LIFECYCLE-001",
-        "tests/unit/scenarios/software_criteria/async_task_lifecycle_boundary_v1",
-    ),
-    policy_scenario_requirement(
-        RUST_AGENT_POLICY_PUBLIC_DYNAMIC_JSON_API_BOUNDARY_V1,
-        "public-dynamic-json-api-boundary-v1",
-        "RUST-AGENT-API-SHAPE-036",
-        "tests/unit/scenarios/software_criteria/public_dynamic_json_api_boundary_v1",
-    ),
-    policy_scenario_requirement(
-        RUST_PROJ_R023,
-        "rust-package-edition-2024-v1",
-        "RUST-AGENT-PROJECT-MANIFEST-023",
-        "tests/unit/scenarios/software_criteria/rust_package_edition_2024_v1",
-    ),
-];
-
-const fn policy_scenario_requirement(
-    rule_id: &'static str,
-    scenario_id: &'static str,
-    policy_id: &'static str,
-    scenario_root: &'static str,
-) -> RustPolicyScenarioRequirement {
-    RustPolicyScenarioRequirement {
-        rule_id,
-        scenario_id,
-        policy_id,
-        scenario_root,
-    }
-}
-
 /// Return compact metadata for agent-oriented Rust policy rules.
 #[must_use]
 pub fn rust_agent_policy_rules() -> Vec<RustHarnessRule> {
@@ -172,7 +91,7 @@ pub fn rust_agent_policy_rules() -> Vec<RustHarnessRule> {
 #[must_use]
 pub(crate) fn rust_agent_policy_scenario_requirements() -> &'static [RustPolicyScenarioRequirement]
 {
-    POLICY_SCENARIO_REQUIREMENTS
+    super::scenario_requirements::rust_agent_policy_scenario_requirements()
 }
 
 pub(crate) fn evaluate(
@@ -208,6 +127,11 @@ pub(crate) fn evaluate(
         ));
         findings.extend(data_shape::data_shape_findings(module, &rules));
         findings.extend(api_shape::api_shape_findings(module, &rules));
+        findings.extend(process_command::process_command_findings(module, &rules));
+        findings.extend(tokio_runtime::tokio_runtime_boundary_findings(
+            module, &rules,
+        ));
+        findings.extend(native_abi::native_abi_contract_findings(module, &rules));
     }
     findings.extend(source_surface::repeated_namespace_findings(
         &reasoning_tree,
@@ -247,7 +171,7 @@ pub(crate) fn evaluate(
 fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
     [
         RustHarnessRule::new(
-            AGENT_R001,
+            RUST_AGENT_POLICY_DOCS_MODULE_INTENT_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Public module lacks an intent doc",
@@ -255,7 +179,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R002,
+            RUST_AGENT_POLICY_DOCS_PUBLIC_ITEM_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Public item lacks a doc comment",
@@ -263,7 +187,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R003,
+            RUST_AGENT_POLICY_SOURCE_NAMESPACE_REPEAT_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Namespace path repeats a segment",
@@ -271,7 +195,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R004,
+            RUST_AGENT_POLICY_API_PUBLIC_NAME_CONFLICT_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Public item name conflicts across namespaces",
@@ -279,7 +203,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R005,
+            RUST_AGENT_POLICY_API_FACADE_EXPORT_GROUPS_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Facade exports too many public groups",
@@ -287,7 +211,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R006,
+            RUST_AGENT_POLICY_SOURCE_PUBLIC_MODULE_NAME_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Public module name is generic",
@@ -295,7 +219,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R007,
+            RUST_AGENT_POLICY_SOURCE_MODULE_PATH_NAME_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Module path segment is generic",
@@ -303,7 +227,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R008,
+            RUST_AGENT_POLICY_DOCS_BRANCH_INTENT_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Branch module lacks reasoning-tree intent doc",
@@ -311,7 +235,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R009,
+            RUST_AGENT_POLICY_OWNER_DEPENDENCY_CYCLE_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Owner dependency cycle crosses branches",
@@ -319,7 +243,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R010,
+            RUST_AGENT_POLICY_OWNER_LEAF_IMPORT_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Owner branch imports another owner leaf",
@@ -327,7 +251,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R011,
+            RUST_AGENT_POLICY_DOCS_OWNER_FAN_OUT_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Owner fan-out lacks intent doc",
@@ -335,7 +259,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R012,
+            RUST_AGENT_POLICY_API_SEMANTIC_IDENTIFIER_TYPE_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Public semantic identifier uses a primitive type",
@@ -343,7 +267,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R013,
+            RUST_AGENT_POLICY_API_ERROR_BOUNDARY_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Public error boundary uses an application error type",
@@ -351,7 +275,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R014,
+            RUST_AGENT_POLICY_TEST_SUPPORT_REEXPORT_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Test support re-export is unused",
@@ -359,7 +283,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R015,
+            RUST_AGENT_POLICY_CFG_PUBLIC_NESTED_FLOW_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Public function hides algorithm behind nested control flow",
@@ -367,7 +291,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R016,
+            RUST_AGENT_POLICY_CFG_PUBLIC_BROAD_SURFACE_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Public function owns a broad linear algorithm surface",
@@ -375,7 +299,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R017,
+            RUST_AGENT_POLICY_ITER_PUBLIC_MANUAL_TRANSFORM_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Public function manually spells an iterator transform",
@@ -383,7 +307,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R018,
+            RUST_AGENT_POLICY_API_FLAG_PARAMETER_SURFACE_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Public function exposes multiple flag parameters",
@@ -391,7 +315,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R019,
+            RUST_AGENT_POLICY_API_POSITIONAL_PARAMETER_SURFACE_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Public function exposes a broad positional parameter surface",
@@ -399,7 +323,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R020,
+            RUST_AGENT_POLICY_DATA_PRIMITIVE_FIELD_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Public data struct exposes primitive semantic fields",
@@ -407,7 +331,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R021,
+            RUST_AGENT_POLICY_DATA_ENUM_PRIMITIVE_PAYLOAD_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Public enum variant exposes primitive semantic payload fields",
@@ -415,7 +339,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R022,
+            RUST_AGENT_POLICY_DATA_DERIVABLE_BOUNDS_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Public generic data type carries duplicated derivable bounds",
@@ -431,7 +355,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R024,
+            RUST_AGENT_POLICY_DATA_ENUM_TUPLE_PAYLOAD_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Public enum tuple variant exposes anonymous primitive payload",
@@ -439,7 +363,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R025,
+            RUST_AGENT_POLICY_CFG_IMPL_NESTED_TRAVERSAL_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Implementation function nests traversal scaffolding",
@@ -447,7 +371,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R026,
+            RUST_AGENT_POLICY_ITER_IMPL_MANUAL_TRANSFORM_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Implementation function manually spells an iterator transform",
@@ -455,7 +379,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R027,
+            RUST_AGENT_POLICY_API_PRIMITIVE_TYPE_ALIAS_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Public semantic type alias hides a primitive carrier",
@@ -463,7 +387,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R028,
+            RUST_AGENT_POLICY_DATA_STRINGLY_STATE_FIELD_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Public data model exposes a stringly state field",
@@ -471,7 +395,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R029,
+            RUST_AGENT_POLICY_DATA_LINEAR_MEMBERSHIP_SCAN_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Function performs a linear membership scan inside a loop",
@@ -479,7 +403,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R030,
+            RUST_AGENT_POLICY_ASYNC_BLOCKING_BOUNDARY_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Async task performs blocking work on the runtime",
@@ -487,7 +411,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R031,
+            RUST_AGENT_POLICY_ASYNC_SYNC_LOCK_BOUNDARY_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Async task holds a sync lock guard across await",
@@ -495,7 +419,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R032,
+            RUST_AGENT_POLICY_ASYNC_BACKPRESSURE_BOUNDARY_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Async queue lacks a backpressure boundary",
@@ -503,7 +427,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R033,
+            RUST_AGENT_POLICY_ASYNC_SELECT_CANCEL_SAFETY_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Tokio select branch uses cancellation-unsafe I/O",
@@ -511,7 +435,7 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             labels("agent-policy"),
         ),
         RustHarnessRule::new(
-            AGENT_R034,
+            RUST_AGENT_POLICY_ASYNC_TIMEOUT_CANCEL_SAFETY_V1,
             PACK_ID,
             RustDiagnosticSeverity::Info,
             "Tokio timeout wraps cancellation-unsafe I/O",
@@ -532,6 +456,30 @@ fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             RustDiagnosticSeverity::Info,
             "Public API exposes dynamic JSON",
             "Replace public `serde_json::Value` parameters or returns with named request, response, enum, or documented boundary types so agents preserve payload contracts without re-reading untyped JSON shape.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            RUST_AGENT_POLICY_PROCESS_COMMAND_PROBE_V1,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Process command probe mixes execution and receipt ownership",
+            "Keep process command probes split into command construction, execution, environment/path shaping, and typed receipt parsing owners so agents can edit runtime behavior without coupling all effects.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            RUST_AGENT_POLICY_TOKIO_RUNTIME_BOUNDARY_V1,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Tokio runtime operation bypasses a runtime owner",
+            "Route Tokio spawn, blocking work, and runtime construction through a typed runtime facade so agents preserve task tracking, shutdown, cancellation, thread model, and observability behavior.",
+            labels("agent-policy"),
+        ),
+        RustHarnessRule::new(
+            RUST_AGENT_POLICY_NATIVE_ABI_CONTRACT_V1,
+            PACK_ID,
+            RustDiagnosticSeverity::Info,
+            "Native ABI layout lacks a co-located contract",
+            "Keep public `repr(C)` native ABI layouts beside ABI version, ABI id, header path, and header source constants so agents preserve Rust, C, and projection compatibility.",
             labels("agent-policy"),
         ),
     ]

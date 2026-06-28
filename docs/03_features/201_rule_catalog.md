@@ -162,34 +162,34 @@ Rules that ask an agent to add Rust doc comments require Clippy-compatible
 Markdown: use `clippy::doc_markdown` style and wrap API names, rule IDs, command
 names, and other literal identifiers in backticks.
 
-- `AGENT-R001`: public module surface lacks an intent doc
-- `AGENT-R002`: public item lacks a doc comment
-- `AGENT-R003`: namespace path repeats a segment, including ordinary Rust file stems
-- `AGENT-R004`: public item name appears in multiple modules
-- `AGENT-R005`: facade re-exports too many names without a tighter owner surface
-- `AGENT-R006`: public module name is a generic bucket such as `utils`, `common`, `helpers`, or `shared`
-- `AGENT-R007`: source module file or directory path uses a generic bucket segment
-- `AGENT-R008`: branch module owns multiple resolved child edges without a reasoning-tree intent doc
-- `AGENT-R009`: owner dependency graph contains a local owner cycle
-- `AGENT-R010`: owner branch imports another owner's leaf implementation module
-- `AGENT-R011`: branch module fans out to three or more local owners without an intent doc
-- `AGENT-R012`: public semantic identifier parameter uses a primitive string or integer type
-- `AGENT-R013`: public error boundary uses an application error type such as `anyhow::Result`
-- `AGENT-R014`: test support facade re-exports a name that is not used locally or consumed through the support surface
-- `AGENT-R015`: public function hides an algorithm behind nested control flow
-- `AGENT-R016`: public function owns a broad linear algorithm surface without named steps
-- `AGENT-R017`: public function manually spells simple iterator boilerplate loops
-- `AGENT-R018`: public function exposes multiple `bool` or `Option<bool>` flag parameters
-- `AGENT-R019`: public function exposes a broad positional parameter surface
-- `AGENT-R020`: public data struct exposes multiple primitive semantic fields
-- `AGENT-R021`: public enum variant exposes multiple primitive semantic payload fields
-- `AGENT-R022`: public generic data type carries duplicated derivable trait bounds
-- `AGENT-R023`: public API exposes an anonymous tuple of primitive semantic values
-- `AGENT-R024`: public enum tuple variant exposes anonymous primitive semantic payload
-- `AGENT-R025`: implementation function nests traversal scaffolding
-- `AGENT-R026`: implementation function manually spells simple iterator boilerplate loops
-- `AGENT-R027`: public semantic type alias hides a primitive carrier
-- `AGENT-R028`: public data model exposes a stringly state, status, kind, mode, type, tag, phase, or category field
+- `RUST-AGENT-DOCS-MODULE-001`: public module surface lacks an intent doc
+- `RUST-AGENT-DOCS-PUBLIC-002`: public item lacks a doc comment
+- `RUST-AGENT-SOURCE-NAMESPACE-003`: namespace path repeats a segment, including ordinary Rust file stems
+- `RUST-AGENT-API-NAME-004`: public item name appears in multiple modules
+- `RUST-AGENT-API-FACADE-005`: facade re-exports too many names without a tighter owner surface
+- `RUST-AGENT-SOURCE-MODULE-006`: public module name is a generic bucket such as `utils`, `common`, `helpers`, or `shared`
+- `RUST-AGENT-SOURCE-PATH-007`: source module file or directory path uses a generic bucket segment
+- `RUST-AGENT-DOCS-BRANCH-008`: branch module owns multiple resolved child edges without a reasoning-tree intent doc
+- `RUST-AGENT-OWNER-GRAPH-009`: owner dependency graph contains a local owner cycle
+- `RUST-AGENT-OWNER-BOUNDARY-010`: owner branch imports another owner's leaf implementation module
+- `RUST-AGENT-DOCS-OWNER-FANOUT-011`: branch module fans out to three or more local owners without an intent doc
+- `RUST-AGENT-API-TYPE-012`: public semantic identifier parameter uses a primitive string or integer type
+- `RUST-AGENT-API-ERROR-013`: public error boundary uses an application error type such as `anyhow::Result`
+- `RUST-AGENT-TEST-SUPPORT-014`: test support facade re-exports a name that is not used locally or consumed through the support surface
+- `RUST-AGENT-CFG-PUBLIC-015`: public function hides an algorithm behind nested control flow
+- `RUST-AGENT-CFG-PUBLIC-016`: public function owns a broad linear algorithm surface without named steps
+- `RUST-AGENT-ITER-PUBLIC-017`: public function manually spells simple iterator boilerplate loops
+- `RUST-AGENT-API-FLAGS-018`: public function exposes multiple `bool` or `Option<bool>` flag parameters
+- `RUST-AGENT-API-PARAMETERS-019`: public function exposes a broad positional parameter surface
+- `RUST-AGENT-DATA-FIELD-020`: public data struct exposes multiple primitive semantic fields
+- `RUST-AGENT-DATA-ENUM-PAYLOAD-021`: public enum variant exposes multiple primitive semantic payload fields
+- `RUST-AGENT-DATA-BOUNDS-022`: public generic data type carries duplicated derivable trait bounds
+- `RUST-AGENT-API-SHAPE-023`: public API exposes an anonymous tuple of primitive semantic values
+- `RUST-AGENT-DATA-ENUM-TUPLE-024`: public enum tuple variant exposes anonymous primitive semantic payload
+- `RUST-AGENT-CFG-IMPL-025`: implementation function nests traversal scaffolding
+- `RUST-AGENT-ITER-IMPL-026`: implementation function manually spells simple iterator boilerplate loops
+- `RUST-AGENT-API-TYPE-ALIAS-027`: public semantic type alias hides a primitive carrier
+- `RUST-AGENT-DATA-STATE-028`: public data model exposes a stringly state, status, kind, mode, type, tag, phase, or category field
 
 ## Rendered Diagnostic Policy
 
@@ -248,8 +248,8 @@ the owner facade first instead of adding another relative hop. The concrete
 module namespace and inline-module context; the policy renderer only consumes
 that parser fact.
 
-`AGENT-R001`, `AGENT-R002`, `AGENT-R004`, `AGENT-R005`, `AGENT-R006`,
-`AGENT-R008`, and `AGENT-R012` through `AGENT-R028` consume native facts from
+`RUST-AGENT-DOCS-MODULE-001`, `RUST-AGENT-DOCS-PUBLIC-002`, `RUST-AGENT-API-NAME-004`, `RUST-AGENT-API-FACADE-005`, `RUST-AGENT-SOURCE-MODULE-006`,
+`RUST-AGENT-DOCS-BRANCH-008`, and `RUST-AGENT-API-TYPE-012` through `RUST-AGENT-DATA-STATE-028` consume native facts from
 `src/parser/`, including file-level inner doc attributes, public names, public
 item doc attributes, public re-export groups, public function parameters, public
 function return types, public and internal function or method control-flow
@@ -257,33 +257,33 @@ shape, public data-struct field shape, public enum named and tuple variant
 payload shape, public generic data-type bounds, public type aliases, public
 anonymous tuple API surfaces, support facade re-export names, support-surface
 path references, and resolved reasoning-tree child edges.
-`AGENT-R003` evaluates the default
+`RUST-AGENT-SOURCE-NAMESPACE-003` evaluates the default
 package harness surface,
 including `src/` and `tests/`. It treats
 normal Rust file stems as namespace segments, so both `src/domain/domain.rs` and
 `tests/unit/unit/helper.rs` produce advisory path clarity findings.
-`AGENT-R004` separately reports duplicated public item names across source
-modules as non-blocking ambiguity advice. `AGENT-R006` catches public generic
+`RUST-AGENT-API-NAME-004` separately reports duplicated public item names across source
+modules as non-blocking ambiguity advice. `RUST-AGENT-SOURCE-MODULE-006` catches public generic
 bucket modules such as `pub mod utils;`; those names are often where
 LLM-generated code loses a real owner boundary without violating Rust syntax,
-rustfmt, or Clippy. `AGENT-R007` catches the same drift at the file system
+rustfmt, or Clippy. `RUST-AGENT-SOURCE-PATH-007` catches the same drift at the file system
 level, such as `src/helpers.rs` or `src/common/mod.rs`, even when the module is
-private. `AGENT-R009`, `AGENT-R010`, and `AGENT-R011` consume parser-derived
+private. `RUST-AGENT-OWNER-GRAPH-009`, `RUST-AGENT-OWNER-BOUNDARY-010`, and `RUST-AGENT-DOCS-OWNER-FANOUT-011` consume parser-derived
 owner dependency edges. They stay advisory because Rust permits these import
 shapes, but they are high-signal LLM repair risks: circular owner reasoning,
 reaching into another owner's leaf module, and fan-out branches without local
-intent documentation. `AGENT-R012` is derived from type-driven Rust practice:
+intent documentation. `RUST-AGENT-API-TYPE-012` is derived from type-driven Rust practice:
 when a public function exposes a parameter named `id` or `*_id` as `String`,
 `&str`, an integer primitive, or `Option` around those primitive carriers, the
 harness asks for an owner-named newtype or an explicit primitive-boundary
 rationale. Clippy cannot know that a primitive is a semantic identifier, but the
-parser can expose the native signature fact for agent repair. `AGENT-R013` is
+parser can expose the native signature fact for agent repair. `RUST-AGENT-API-ERROR-013` is
 derived from Rust error-boundary practice: public library functions should expose
 typed recovery contracts rather than application-level catch-all errors such as
 `anyhow::Result`, `eyre::Result`, or `Result<_, Box<dyn Error>>`. The rule stays
 advisory because binaries and application crates may choose that boundary
 intentionally.
-`AGENT-R014` is narrower than Clippy's ordinary unused-import surface: it only
+`RUST-AGENT-TEST-SUPPORT-014` is narrower than Clippy's ordinary unused-import surface: it only
 looks at `tests/**/support.rs` re-exports and asks agents to remove names that
 are neither used by the support helpers nor imported or referenced through that
 exact `support::Name` surface elsewhere in the package. The support surface is
@@ -291,7 +291,7 @@ resolved from parser-derived module namespaces, so a consumed name in
 `tests/unit/alpha/support.rs` does not clear the same unused name in
 `tests/unit/beta/support.rs`. This catches broad support facades left by LLM
 repairs without second-guessing normal private imports.
-`AGENT-R015` and `AGENT-R016` use parser-owned public function and public method
+`RUST-AGENT-CFG-PUBLIC-015` and `RUST-AGENT-CFG-PUBLIC-016` use parser-owned public function and public method
 control-flow facts: source line, line span, statement count, largest block
 width, branch count, loop count, match count, literal dispatch chain count,
 nesting depth, loop nesting depth, and test context. They intentionally do not
@@ -305,7 +305,7 @@ dispatch signal follows Rust's native `match` model from the Book and
 Reference: a `match` compares one scrutinee against a series of patterns, which
 is exactly the intent an agent loses when LLM code repeats `kind == "..."`
 across a public branch ladder.
-`AGENT-R017` is the Rust native-iterator idiom layer. It is backed by
+`RUST-AGENT-ITER-PUBLIC-017` is the Rust native-iterator idiom layer. It is backed by
 parser-owned loop facts for simple `for` bodies that manually collect into a
 mutable collection, return a boolean predicate answer, increment a count,
 accumulate a numeric value, or repeatedly pass over the same simple iterator
@@ -316,14 +316,14 @@ dense. Repeated simple passes are advisory rather than blocking: sometimes two
 passes are clearer, but a public function that performs several small scans over
 the same input is often LLM boilerplate that should become a named pipeline or
 one explicit accumulator step. It stays conservative: deeply nested algorithm
-shapes are left to `AGENT-R015`, broad flat procedures are left to `AGENT-R016`,
+shapes are left to `RUST-AGENT-CFG-PUBLIC-015`, broad flat procedures are left to `RUST-AGENT-CFG-PUBLIC-016`,
 and explicit loops remain valid for effects, state machines, debuggability, or
 measured performance work. This mirrors the Rust Book's guidance that iterators
 express high-level ideas at low-level performance, the standard `Iterator`
 consumer surface, and the Rust Performance Book's narrower performance notes
 around iteration, without turning the harness into a blanket "prefer iterators
 over every loop" lint.
-`AGENT-R025` extends the same parser-owned control-flow facts to internal
+`RUST-AGENT-CFG-IMPL-025` extends the same parser-owned control-flow facts to internal
 implementation functions and `impl` methods. It is aimed at LLM-generated
 receipt and report walkers such as `if has_failures { for repo { for query { if
 !query.passed { ... }}}}`: Rust allows the code, and Clippy may have nothing to
@@ -332,15 +332,15 @@ fires only on non-test internal functions with nested loop traversal and guard
 branches, then asks for named iterator, predicate, or receipt-processing helpers
 instead of more raw loop scaffolding. Small named helper pipelines and public
 API algorithm rules stay separate.
-`AGENT-R026` covers the flatter internal companion case: a private function or
+`RUST-AGENT-ITER-IMPL-026` covers the flatter internal companion case: a private function or
 method whose loop body only collects, filters, counts, sums, answers a predicate,
 or repeats a simple scan over the same iterator source. It reuses the same
-parser-owned iterator facts as `AGENT-R017`, but keeps the message scoped to
+parser-owned iterator facts as `RUST-AGENT-ITER-PUBLIC-017`, but keeps the message scoped to
 implementation helpers instead of public API shape. The rule deliberately skips
-functions already reported by `AGENT-R025`, so an agent receives one compact
+functions already reported by `RUST-AGENT-CFG-IMPL-025`, so an agent receives one compact
 piece of advice: deep traversal should become a named traversal boundary, while
 flat boilerplate should become iterator adapters or a named iterator helper.
-`AGENT-R018` is the public flag-surface layer. It is backed by parser-owned
+`RUST-AGENT-API-FLAGS-018` is the public flag-surface layer. It is backed by parser-owned
 signature facts for `bool`, `&bool`, `Option<bool>`, and referenced optional
 booleans. The rule only fires when one public function exposes multiple flag
 parameters, because that is where LLM-generated Rust tends to hide modes in
@@ -350,7 +350,7 @@ should convey meaning through deliberate types rather than raw `bool` or
 replacement: use an enum when one mode is selected, a newtype when one boolean
 has domain meaning, or a config struct when several independent toggles are
 truly part of the public contract.
-`AGENT-R019` is the public positional-surface layer. It is backed by
+`RUST-AGENT-API-PARAMETERS-019` is the public positional-surface layer. It is backed by
 parser-owned public signature facts, including inherent `impl` methods such as
 constructors. The rule fires when one public function exposes five or more
 positional parameters outside test context. Rust allows that API shape, but it
@@ -360,7 +360,7 @@ meaning requires re-reading callers. The advice follows the Rust builder/config
 practice used for broad construction and option surfaces: prefer a named
 config/request type or a builder when the public contract has enough knobs that
 positional parameters stop carrying clear intent.
-`AGENT-R020` moves the same type-safety concern from function signatures to
+`RUST-AGENT-DATA-FIELD-020` moves the same type-safety concern from function signatures to
 public data models. It is backed by parser-owned public struct field facts and
 fires when a public struct exposes several semantic primitive fields such as
 `*_id`, `*_token`, `*_path`, `*_url`, `*_ms`, or boolean mode fields. This is not
@@ -370,14 +370,14 @@ to extend the same primitive model instead of preserving invariants. The advice
 follows Rust API Guidelines `C-NEWTYPE` and `C-CUSTOM-TYPE`: create named domain
 types for values whose interpretation matters, or explicitly document that this
 is a raw transport boundary.
-`AGENT-R027` closes the weak-alias escape hatch for that same boundary. A public
+`RUST-AGENT-API-TYPE-ALIAS-027` closes the weak-alias escape hatch for that same boundary. A public
 alias such as `pub type UserId = String` gives an agent a named symbol but does
 not create a Rust type boundary, so later repairs can still mix identifiers,
 tokens, paths, durations, byte counts, and flags across call sites. The parser
 records public type aliases and their primitive carriers; the rule only fires
 when the alias name looks semantic, and asks for a tuple newtype or named struct
 instead of a primitive alias.
-`AGENT-R028` catches another stringly data-model shape that is especially noisy
+`RUST-AGENT-DATA-STATE-028` catches another stringly data-model shape that is especially noisy
 for agents: public fields named like `status`, `state`, `kind`, `mode`, `type`,
 `tag`, `phase`, or `category` whose carrier is `String` or `Option<String>`.
 Rust permits these fields and Clippy cannot know whether they
@@ -385,7 +385,7 @@ are closed state catalogs, but LLM repairs tend to extend them with literal
 string comparisons. The rule stays advisory and parser-backed, asking for an
 enum, newtype, or typed catalog boundary when the public model exposes that
 state surface.
-`AGENT-R021` applies the same data-model boundary to public enum variants with
+`RUST-AGENT-DATA-ENUM-PAYLOAD-021` applies the same data-model boundary to public enum variants with
 named payload fields. It does not count enum variants, require
 `#[non_exhaustive]`, or judge closed state catalogs. Instead, it catches event,
 command, and state variants that expose multiple semantic primitive payload
@@ -394,7 +394,7 @@ where agents often extend raw event state instead of preserving payload
 invariants. The repair direction is to use named domain types for semantic
 values or move the payload into a named struct when the variant is carrying a
 real event/request contract.
-`AGENT-R022` covers public generic data-type bounds. It is backed by
+`RUST-AGENT-DATA-BOUNDS-022` covers public generic data-type bounds. It is backed by
 parser-owned generic parameter and `where` clause facts for public structs and
 enums. The rule follows Rust API Guidelines `C-STRUCT-BOUNDS`: bounds such as
 `Clone`, `Debug`, `Default`, `Serialize`, and `Deserialize` should not be placed
@@ -403,7 +403,7 @@ Putting those bounds on the type makes every consumer satisfy them and turns a
 future derive or formatting need into a public API commitment. The repair
 direction is to keep the data type generic and place bounds on derived impls,
 inherent impls, or methods that actually use the capability.
-`AGENT-R023` covers public tuple API surfaces such as
+`RUST-AGENT-API-SHAPE-023` covers public tuple API surfaces such as
 `pub fn load(cursor: (String, usize, bool)) -> Result<(String, usize), Error>`.
 It follows Rust API Guidelines `C-CUSTOM-TYPE` and `C-NEWTYPE`: public API
 arguments and return values should convey semantic meaning through named types
@@ -413,7 +413,7 @@ return values that bundle at least two primitive semantic values, including
 `Option<(...)>` and `Result<(...)>`. The repair direction is to replace the
 tuple with a named request, response, enum, or newtype that gives agents stable
 field intent without reading every call site.
-`AGENT-R024` covers the enum version of the same ambiguity:
+`RUST-AGENT-DATA-ENUM-TUPLE-024` covers the enum version of the same ambiguity:
 `pub enum Event { Loaded(String, usize, bool) }`. Tuple variants are native
 Rust, but when a public event or command variant bundles several primitive
 semantic values without names, an agent cannot preserve payload intent from
@@ -437,7 +437,7 @@ by rejecting inline source modules outside special entrypoints and `#[cfg(test)]
 test modules. `RUST-MOD-R009` then verifies parser-owned module-tree facts: a
 scanned source file must be reachable from crate roots or binary roots through
 external `mod` declarations, explicit `#[path]` mounts, or literal `include!`
-source shards. `AGENT-R008` adds non-blocking advice when a branch file has
+source shards. `RUST-AGENT-DOCS-BRANCH-008` adds non-blocking advice when a branch file has
 multiple resolved child edges without a `//!` intent doc, because agents need a
 local navigation summary before they choose which subtree to edit. Those `//!`
 intent docs should follow `clippy::doc_markdown` style so harness-generated

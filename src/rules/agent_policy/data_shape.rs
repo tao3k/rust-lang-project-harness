@@ -11,7 +11,11 @@ use crate::{RustHarnessFinding, RustHarnessRule};
 use crate::rules::display_path;
 
 use super::doc_boundary::documented_agent_boundary;
-use super::{AGENT_R020, AGENT_R021, AGENT_R022, AGENT_R024, AGENT_R027, AGENT_R028};
+use super::{
+    RUST_AGENT_POLICY_API_PRIMITIVE_TYPE_ALIAS_V1, RUST_AGENT_POLICY_DATA_DERIVABLE_BOUNDS_V1,
+    RUST_AGENT_POLICY_DATA_ENUM_PRIMITIVE_PAYLOAD_V1, RUST_AGENT_POLICY_DATA_ENUM_TUPLE_PAYLOAD_V1,
+    RUST_AGENT_POLICY_DATA_PRIMITIVE_FIELD_V1, RUST_AGENT_POLICY_DATA_STRINGLY_STATE_FIELD_V1,
+};
 
 const MIN_SEMANTIC_PRIMITIVE_FIELDS: usize = 3;
 const MIN_ENUM_VARIANT_SEMANTIC_PRIMITIVE_FIELDS: usize = 2;
@@ -51,7 +55,7 @@ fn public_data_struct_primitive_field_findings(
             .push((field.line, format!("{}: {contract_type}", field.field_name)));
     }
 
-    let rule = &rules[AGENT_R020];
+    let rule = &rules[RUST_AGENT_POLICY_DATA_PRIMITIVE_FIELD_V1];
     fields_by_struct
         .into_iter()
         .filter_map(|((struct_line, struct_name), mut fields)| {
@@ -111,7 +115,7 @@ fn public_enum_variant_primitive_payload_findings(
             .push((field.line, format!("{}: {contract_type}", field.field_name)));
     }
 
-    let rule = &rules[AGENT_R021];
+    let rule = &rules[RUST_AGENT_POLICY_DATA_ENUM_PRIMITIVE_PAYLOAD_V1];
     fields_by_variant
         .into_iter()
         .filter_map(|((variant_line, enum_name, variant_name), mut fields)| {
@@ -167,7 +171,7 @@ fn public_type_generic_bound_findings(
             ));
     }
 
-    let rule = &rules[AGENT_R022];
+    let rule = &rules[RUST_AGENT_POLICY_DATA_DERIVABLE_BOUNDS_V1];
     bounds_by_type
         .into_iter()
         .filter_map(|((type_line, type_kind, type_name), mut bounds)| {
@@ -224,7 +228,7 @@ fn public_enum_tuple_variant_payload_findings(
             ));
     }
 
-    let rule = &rules[AGENT_R024];
+    let rule = &rules[RUST_AGENT_POLICY_DATA_ENUM_TUPLE_PAYLOAD_V1];
     fields_by_variant
         .into_iter()
         .filter_map(|((variant_line, enum_name, variant_name), mut fields)| {
@@ -266,7 +270,7 @@ fn public_type_alias_primitive_findings(
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let rule = &rules[AGENT_R027];
+    let rule = &rules[RUST_AGENT_POLICY_API_PRIMITIVE_TYPE_ALIAS_V1];
     module
         .syntax_facts
         .public_type_aliases
@@ -301,7 +305,7 @@ fn public_stringly_state_field_findings(
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let rule = &rules[AGENT_R028];
+    let rule = &rules[RUST_AGENT_POLICY_DATA_STRINGLY_STATE_FIELD_V1];
     let mut findings = Vec::new();
     findings.extend(public_struct_stringly_state_field_findings(module, rule));
     findings.extend(public_enum_variant_stringly_state_field_findings(

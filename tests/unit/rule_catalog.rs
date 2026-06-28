@@ -37,51 +37,54 @@ fn rule_catalogs_expose_stable_rule_ids() {
         .collect::<Vec<_>>();
     assert_eq!(syntax_ids, vec!["RUST-SYN-R001"]);
 
-    let agent_ids = rust_agent_policy_rules()
+    let mut agent_ids = rust_agent_policy_rules()
         .into_iter()
         .map(|rule| rule.rule_id)
         .collect::<Vec<_>>();
-    assert_eq!(
-        agent_ids,
-        vec![
-            "AGENT-R001",
-            "AGENT-R002",
-            "AGENT-R003",
-            "AGENT-R004",
-            "AGENT-R005",
-            "AGENT-R006",
-            "AGENT-R007",
-            "AGENT-R008",
-            "AGENT-R009",
-            "AGENT-R010",
-            "AGENT-R011",
-            "AGENT-R012",
-            "AGENT-R013",
-            "AGENT-R014",
-            "AGENT-R015",
-            "AGENT-R016",
-            "AGENT-R017",
-            "AGENT-R018",
-            "AGENT-R019",
-            "AGENT-R020",
-            "AGENT-R021",
-            "AGENT-R022",
-            "AGENT-R024",
-            "AGENT-R025",
-            "AGENT-R026",
-            "AGENT-R027",
-            "AGENT-R028",
-            "AGENT-R029",
-            "AGENT-R030",
-            "AGENT-R031",
-            "AGENT-R032",
-            "AGENT-R033",
-            "AGENT-R034",
-            "RUST-AGENT-API-SHAPE-023",
-            "RUST-AGENT-API-SHAPE-036",
-            "RUST-AGENT-ASYNC-TASK-LIFECYCLE-001",
-        ]
-    );
+    agent_ids.sort_unstable();
+    let mut expected_agent_ids = vec![
+        "RUST-AGENT-DOCS-MODULE-001",
+        "RUST-AGENT-DOCS-PUBLIC-002",
+        "RUST-AGENT-SOURCE-NAMESPACE-003",
+        "RUST-AGENT-API-NAME-004",
+        "RUST-AGENT-API-FACADE-005",
+        "RUST-AGENT-SOURCE-MODULE-006",
+        "RUST-AGENT-SOURCE-PATH-007",
+        "RUST-AGENT-DOCS-BRANCH-008",
+        "RUST-AGENT-OWNER-GRAPH-009",
+        "RUST-AGENT-OWNER-BOUNDARY-010",
+        "RUST-AGENT-DOCS-OWNER-FANOUT-011",
+        "RUST-AGENT-API-TYPE-012",
+        "RUST-AGENT-API-ERROR-013",
+        "RUST-AGENT-TEST-SUPPORT-014",
+        "RUST-AGENT-CFG-PUBLIC-015",
+        "RUST-AGENT-CFG-PUBLIC-016",
+        "RUST-AGENT-ITER-PUBLIC-017",
+        "RUST-AGENT-API-FLAGS-018",
+        "RUST-AGENT-API-PARAMETERS-019",
+        "RUST-AGENT-DATA-FIELD-020",
+        "RUST-AGENT-DATA-ENUM-PAYLOAD-021",
+        "RUST-AGENT-DATA-BOUNDS-022",
+        "RUST-AGENT-DATA-ENUM-TUPLE-024",
+        "RUST-AGENT-CFG-IMPL-025",
+        "RUST-AGENT-ITER-IMPL-026",
+        "RUST-AGENT-API-TYPE-ALIAS-027",
+        "RUST-AGENT-DATA-STATE-028",
+        "RUST-AGENT-DATA-MEMBERSHIP-029",
+        "RUST-AGENT-ASYNC-BLOCKING-030",
+        "RUST-AGENT-ASYNC-SYNC-LOCK-031",
+        "RUST-AGENT-ASYNC-BACKPRESSURE-032",
+        "RUST-AGENT-ASYNC-CANCEL-SAFETY-033",
+        "RUST-AGENT-ASYNC-CANCEL-SAFETY-034",
+        "RUST-AGENT-API-SHAPE-023",
+        "RUST-AGENT-API-SHAPE-036",
+        "RUST-AGENT-ASYNC-TASK-LIFECYCLE-001",
+        "RUST-AGENT-NATIVE-ABI-001",
+        "RUST-AGENT-PROC-001",
+        "RUST-AGENT-TOKIO-RUNTIME-002",
+    ];
+    expected_agent_ids.sort_unstable();
+    assert_eq!(agent_ids, expected_agent_ids);
 
     let project_ids = rust_project_policy_rules()
         .into_iter()

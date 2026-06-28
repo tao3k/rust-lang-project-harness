@@ -10,8 +10,13 @@ use crate::{RustHarnessFinding, RustHarnessRule};
 use crate::rules::display_path;
 
 use super::{
-    AGENT_R015, AGENT_R016, AGENT_R017, AGENT_R025, AGENT_R026, AGENT_R029, AGENT_R030, AGENT_R031,
-    AGENT_R032, AGENT_R033, AGENT_R034, RUST_AGENT_POLICY_ASYNC_TASK_LIFECYCLE_V1,
+    RUST_AGENT_POLICY_ASYNC_BACKPRESSURE_BOUNDARY_V1, RUST_AGENT_POLICY_ASYNC_BLOCKING_BOUNDARY_V1,
+    RUST_AGENT_POLICY_ASYNC_SELECT_CANCEL_SAFETY_V1, RUST_AGENT_POLICY_ASYNC_SYNC_LOCK_BOUNDARY_V1,
+    RUST_AGENT_POLICY_ASYNC_TASK_LIFECYCLE_V1, RUST_AGENT_POLICY_ASYNC_TIMEOUT_CANCEL_SAFETY_V1,
+    RUST_AGENT_POLICY_CFG_IMPL_NESTED_TRAVERSAL_V1, RUST_AGENT_POLICY_CFG_PUBLIC_BROAD_SURFACE_V1,
+    RUST_AGENT_POLICY_CFG_PUBLIC_NESTED_FLOW_V1, RUST_AGENT_POLICY_DATA_LINEAR_MEMBERSHIP_SCAN_V1,
+    RUST_AGENT_POLICY_ITER_IMPL_MANUAL_TRANSFORM_V1,
+    RUST_AGENT_POLICY_ITER_PUBLIC_MANUAL_TRANSFORM_V1,
 };
 
 const MAX_LINEAR_NESTING_DEPTH: usize = 2;
@@ -80,7 +85,7 @@ pub(super) fn native_iterator_idiom_findings(
     modules: &[&ParsedRustModule],
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let rule = &rules[AGENT_R017];
+    let rule = &rules[RUST_AGENT_POLICY_ITER_PUBLIC_MANUAL_TRANSFORM_V1];
     modules
         .iter()
         .flat_map(|module| {
@@ -119,7 +124,7 @@ fn nested_algorithm_findings(
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let rule = &rules[AGENT_R015];
+    let rule = &rules[RUST_AGENT_POLICY_CFG_PUBLIC_NESTED_FLOW_V1];
     module
         .syntax_facts
         .public_function_control_flows
@@ -154,7 +159,7 @@ fn broad_linear_algorithm_findings(
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let rule = &rules[AGENT_R016];
+    let rule = &rules[RUST_AGENT_POLICY_CFG_PUBLIC_BROAD_SURFACE_V1];
     module
         .syntax_facts
         .public_function_control_flows
@@ -191,7 +196,7 @@ fn implementation_traversal_findings(
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let rule = &rules[AGENT_R025];
+    let rule = &rules[RUST_AGENT_POLICY_CFG_IMPL_NESTED_TRAVERSAL_V1];
     module
         .syntax_facts
         .all_function_control_flows
@@ -226,7 +231,7 @@ fn implementation_iterator_idiom_findings(
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let rule = &rules[AGENT_R026];
+    let rule = &rules[RUST_AGENT_POLICY_ITER_IMPL_MANUAL_TRANSFORM_V1];
     module
         .syntax_facts
         .all_function_control_flows
@@ -262,7 +267,7 @@ fn linear_membership_scan_findings(
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let rule = &rules[AGENT_R029];
+    let rule = &rules[RUST_AGENT_POLICY_DATA_LINEAR_MEMBERSHIP_SCAN_V1];
     module
         .syntax_facts
         .all_function_control_flows
@@ -294,7 +299,7 @@ fn async_blocking_boundary_findings(
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let rule = &rules[AGENT_R030];
+    let rule = &rules[RUST_AGENT_POLICY_ASYNC_BLOCKING_BOUNDARY_V1];
     module
         .syntax_facts
         .all_function_control_flows
@@ -327,7 +332,7 @@ fn async_sync_lock_across_await_findings(
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let rule = &rules[AGENT_R031];
+    let rule = &rules[RUST_AGENT_POLICY_ASYNC_SYNC_LOCK_BOUNDARY_V1];
     module
         .syntax_facts
         .all_function_control_flows
@@ -360,7 +365,7 @@ fn async_unbounded_queue_backpressure_findings(
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let rule = &rules[AGENT_R032];
+    let rule = &rules[RUST_AGENT_POLICY_ASYNC_BACKPRESSURE_BOUNDARY_V1];
     let has_backpressure_boundary = module
         .syntax_facts
         .all_function_control_flows
@@ -401,7 +406,7 @@ fn async_select_cancellation_safety_findings(
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let rule = &rules[AGENT_R033];
+    let rule = &rules[RUST_AGENT_POLICY_ASYNC_SELECT_CANCEL_SAFETY_V1];
     module
         .syntax_facts
         .all_function_control_flows
@@ -433,7 +438,7 @@ fn async_timeout_cancellation_safety_findings(
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let rule = &rules[AGENT_R034];
+    let rule = &rules[RUST_AGENT_POLICY_ASYNC_TIMEOUT_CANCEL_SAFETY_V1];
     module
         .syntax_facts
         .all_function_control_flows

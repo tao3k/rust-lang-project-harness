@@ -58,7 +58,10 @@ pub fn load_user(user_id: String) -> (String, u64) {
         .iter()
         .find(|candidate| candidate.kind == RustInvariantKind::PrimitiveTypeAliasBoundary)
         .expect("alias candidate");
-    assert_eq!(alias_candidate.source_rule_id.as_str(), "AGENT-R027");
+    assert_eq!(
+        alias_candidate.source_rule_id.as_str(),
+        "RUST-AGENT-API-TYPE-ALIAS-027"
+    );
     assert_eq!(alias_candidate.rule_pack_id.as_str(), "rust.agent_policy");
     assert_eq!(
         alias_candidate.status,
@@ -68,7 +71,7 @@ pub fn load_user(user_id: String) -> (String, u64) {
         alias_candidate
             .invariant_id
             .as_str()
-            .starts_with("agent-r027:")
+            .starts_with("rust-agent-api-type-alias-027:")
     );
     assert!(
         alias_candidate

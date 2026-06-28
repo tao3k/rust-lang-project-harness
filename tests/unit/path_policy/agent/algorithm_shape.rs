@@ -34,7 +34,7 @@ fn public_nested_algorithm_shape_is_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R015");
+    let findings = findings_for_rule(&report, "RUST-AGENT-CFG-PUBLIC-015");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("control-flow.decision-stack"));
     assert_eq!(
@@ -58,7 +58,7 @@ fn public_broad_linear_algorithm_surface_is_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R016");
+    let findings = findings_for_rule(&report, "RUST-AGENT-CFG-PUBLIC-016");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(
         findings[0]
@@ -103,8 +103,8 @@ fn public_match_dispatch_is_not_nested_algorithm_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R015").is_empty());
-    assert!(findings_for_rule(&report, "AGENT-R016").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-CFG-PUBLIC-015").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-CFG-PUBLIC-016").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -119,7 +119,7 @@ fn public_literal_dispatch_chain_is_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R015");
+    let findings = findings_for_rule(&report, "RUST-AGENT-CFG-PUBLIC-015");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(
         findings[0]
@@ -147,7 +147,7 @@ fn public_manual_iterator_boilerplate_is_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R017");
+    let findings = findings_for_rule(&report, "RUST-AGENT-ITER-PUBLIC-017");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(
         findings[0]
@@ -175,7 +175,7 @@ fn loop_local_linear_membership_scan_is_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R029");
+    let findings = findings_for_rule(&report, "RUST-AGENT-DATA-MEMBERSHIP-029");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(
         findings[0]
@@ -203,7 +203,7 @@ fn indexed_membership_lookup_clears_linear_scan_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R029").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-DATA-MEMBERSHIP-029").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -227,7 +227,7 @@ fn async_blocking_call_is_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R030");
+    let findings = findings_for_rule(&report, "RUST-AGENT-ASYNC-BLOCKING-030");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("async.blocking-boundary"));
     assert_eq!(
@@ -263,7 +263,7 @@ fn spawn_blocking_boundary_clears_async_blocking_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R030").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-ASYNC-BLOCKING-030").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -290,7 +290,7 @@ fn sync_lock_guard_across_await_is_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R031");
+    let findings = findings_for_rule(&report, "RUST-AGENT-ASYNC-SYNC-LOCK-031");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("async.sync-lock-across-await"));
     assert_eq!(
@@ -325,7 +325,7 @@ fn std_rwlock_read_guard_across_await_is_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R031");
+    let findings = findings_for_rule(&report, "RUST-AGENT-ASYNC-SYNC-LOCK-031");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("async.sync-lock-across-await"));
     assert_eq!(
@@ -360,7 +360,7 @@ fn tokio_rwlock_read_guard_clears_sync_lock_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R031").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-ASYNC-SYNC-LOCK-031").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -390,7 +390,7 @@ fn dropped_sync_lock_guard_clears_across_await_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R031").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-ASYNC-SYNC-LOCK-031").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -423,7 +423,7 @@ fn unbounded_async_queue_without_backpressure_is_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R032");
+    let findings = findings_for_rule(&report, "RUST-AGENT-ASYNC-BACKPRESSURE-032");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(
         findings[0]
@@ -469,7 +469,7 @@ fn bounded_async_queue_clears_backpressure_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R032").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-ASYNC-BACKPRESSURE-032").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -506,7 +506,7 @@ fn try_send_boundary_clears_unbounded_queue_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R032").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-ASYNC-BACKPRESSURE-032").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -534,7 +534,7 @@ fn tokio_select_read_exact_is_cancellation_safety_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R033");
+    let findings = findings_for_rule(&report, "RUST-AGENT-ASYNC-CANCEL-SAFETY-033");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(
         findings[0]
@@ -575,7 +575,7 @@ fn tokio_select_read_clears_cancellation_safety_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R033").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-ASYNC-CANCEL-SAFETY-033").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -601,7 +601,7 @@ fn read_exact_outside_select_clears_cancellation_safety_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R033").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-ASYNC-CANCEL-SAFETY-033").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -628,7 +628,7 @@ fn tokio_timeout_read_exact_is_cancellation_safety_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R034");
+    let findings = findings_for_rule(&report, "RUST-AGENT-ASYNC-CANCEL-SAFETY-034");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(
         findings[0]
@@ -668,7 +668,7 @@ fn tokio_timeout_read_clears_cancellation_safety_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R034").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-ASYNC-CANCEL-SAFETY-034").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -696,7 +696,7 @@ fn read_exact_outside_timeout_clears_cancellation_safety_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R034").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-ASYNC-CANCEL-SAFETY-034").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -729,8 +729,11 @@ fn deeply_nested_algorithm_does_not_duplicate_native_iterator_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert_eq!(findings_for_rule(&report, "AGENT-R015").len(), 1);
-    assert!(findings_for_rule(&report, "AGENT-R017").is_empty());
+    assert_eq!(
+        findings_for_rule(&report, "RUST-AGENT-CFG-PUBLIC-015").len(),
+        1
+    );
+    assert!(findings_for_rule(&report, "RUST-AGENT-ITER-PUBLIC-017").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 

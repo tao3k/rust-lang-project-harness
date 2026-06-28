@@ -316,7 +316,7 @@ pub fn build_rust_dependency_graph_acyclicity_proof_pilot(
             name: RustFormalProofPilotTargetName(
                 "owner dependency graph cycle detection".to_owned(),
             ),
-            rule_ids: vec!["AGENT-R009".to_owned()],
+            rule_ids: vec!["RUST-AGENT-OWNER-GRAPH-009".to_owned()],
             owner_path: Some("src/rules/agent_policy/dependency_graph.rs".to_owned()),
             symbol: Some("owner_dependency_cycle_indices".to_owned()),
             fields: BTreeMap::new(),
@@ -339,7 +339,7 @@ pub fn build_rust_dependency_graph_acyclicity_proof_pilot(
         claims: vec![RustFormalProofPilotClaim {
             claim_id: RustFormalProofPilotClaimId("cycle-detection-iff-directed-cycle".to_owned()),
             statement: RustFormalProofPilotStatement(format!(
-                "For all directed graphs up to {} nodes, the AGENT-R009 rule core reports a cycle iff the graph contains a directed cycle.",
+                "For all directed graphs up to {} nodes, the RUST-AGENT-OWNER-GRAPH-009 rule core reports a cycle iff the graph contains a directed cycle.",
                 input.max_nodes
             )),
             status,

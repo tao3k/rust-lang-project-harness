@@ -62,8 +62,8 @@ fn custom_source_roots_are_policy_source_roots() {
     let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
 
     assert!(has_rule(&report, "RUST-AGENT-PROJECT-003"));
-    assert!(has_rule(&report, "AGENT-R001"));
-    assert!(has_rule(&report, "AGENT-R002"));
+    assert!(has_rule(&report, "RUST-AGENT-DOCS-MODULE-001"));
+    assert!(has_rule(&report, "RUST-AGENT-DOCS-PUBLIC-002"));
 }
 
 #[test]

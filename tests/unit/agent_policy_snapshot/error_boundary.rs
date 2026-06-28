@@ -19,5 +19,10 @@ fn agent_r013_public_error_boundary_snapshot() {
     )
     .expect("write api");
 
-    assert_agent_snapshot(root, "AGENT-R013", 1, "agent_r013_public_error_boundary");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-API-ERROR-013",
+        1,
+        "agent_r013_public_error_boundary",
+    );
 }

@@ -24,7 +24,7 @@ fn cli_proof_pilot_renders_formal_proof_contract() {
     assert_eq!(value["target"]["kind"], "dependency-graph-acyclicity");
     assert_eq!(
         value["target"]["ruleIds"],
-        serde_json::json!(["AGENT-R009"])
+        serde_json::json!(["RUST-AGENT-OWNER-GRAPH-009"])
     );
     assert_eq!(value["checks"][0]["modelsChecked"], 4166);
 }

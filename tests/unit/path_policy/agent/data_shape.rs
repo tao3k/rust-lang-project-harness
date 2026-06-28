@@ -27,7 +27,7 @@ fn public_struct_primitive_semantic_fields_are_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R020");
+    let findings = findings_for_rule(&report, "RUST-AGENT-DATA-FIELD-020");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("`UserProfile`"));
     assert!(findings[0].summary.contains("user_id: String"));
@@ -64,7 +64,7 @@ fn public_struct_typed_fields_clear_primitive_data_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R020").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-DATA-FIELD-020").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -88,7 +88,7 @@ fn public_enum_variant_primitive_payload_fields_are_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R021");
+    let findings = findings_for_rule(&report, "RUST-AGENT-DATA-ENUM-PAYLOAD-021");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("`DomainEvent`"));
     assert!(findings[0].summary.contains("`UserLoaded`"));
@@ -123,7 +123,7 @@ fn public_enum_variant_typed_payload_clears_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R021").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-DATA-ENUM-PAYLOAD-021").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -147,7 +147,7 @@ fn public_enum_tuple_variant_primitive_payload_is_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R024");
+    let findings = findings_for_rule(&report, "RUST-AGENT-DATA-ENUM-TUPLE-024");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("`DomainEvent`"));
     assert!(findings[0].summary.contains("tuple variant `UserLoaded`"));
@@ -182,7 +182,7 @@ fn public_enum_named_or_typed_tuple_payload_clears_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R024").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-DATA-ENUM-TUPLE-024").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -208,7 +208,7 @@ fn public_generic_data_type_bounds_are_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R022");
+    let findings = findings_for_rule(&report, "RUST-AGENT-DATA-BOUNDS-022");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("`CacheEntry`"));
     assert!(findings[0].summary.contains("T: Clone"));
@@ -245,6 +245,6 @@ fn generic_method_bounds_clear_public_data_type_bound_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R022").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-DATA-BOUNDS-022").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }

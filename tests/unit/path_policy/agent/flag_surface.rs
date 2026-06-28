@@ -22,7 +22,7 @@ fn public_multiple_flag_params_are_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R018");
+    let findings = findings_for_rule(&report, "RUST-AGENT-API-FLAGS-018");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("`load_users`"));
     assert!(findings[0].summary.contains("include_inactive: bool"));
@@ -47,7 +47,7 @@ fn documented_public_multiple_flag_params_clear_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R018").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-API-FLAGS-018").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -70,7 +70,7 @@ fn single_public_flag_param_is_not_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R018").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-API-FLAGS-018").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -95,7 +95,7 @@ fn public_many_constructor_params_are_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R019");
+    let findings = findings_for_rule(&report, "RUST-AGENT-API-PARAMETERS-019");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("`new`"));
     assert!(findings[0].summary.contains("5 positional parameters"));
@@ -124,7 +124,7 @@ fn documented_public_many_constructor_params_clear_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R019").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-API-PARAMETERS-019").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -153,6 +153,6 @@ fn public_config_object_clears_many_param_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R019").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-API-PARAMETERS-019").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }

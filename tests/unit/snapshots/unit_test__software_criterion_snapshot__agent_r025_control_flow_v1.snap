@@ -1,11 +1,11 @@
 ---
 source: tests/unit/software_criterion_snapshot.rs
 assertion_line: 39
-expression: "rule_snapshot(\"AGENT-R025\")"
+expression: "rule_snapshot(\"RUST-AGENT-CFG-IMPL-025\")"
 ---
 [
   {
-    "ruleId": "AGENT-R025",
+    "ruleId": "RUST-AGENT-CFG-IMPL-025",
     "summary": "$TEMP/src/receipt.rs implementation function `collect_failed_queries` nests traversal scaffolding. Criteria: software-criterion/control-flow.traversal-knot.",
     "line": 21,
     "label": "extract this traversal into named iterator, predicate, or receipt-processing helpers",
@@ -14,7 +14,7 @@ expression: "rule_snapshot(\"AGENT-R025\")"
 ]
 
 --- rendered ---
-[AGENT-R025] Info: Implementation function nests traversal scaffolding
+[RUST-AGENT-CFG-IMPL-025] Info: Implementation function nests traversal scaffolding
 @ $TEMP/src/receipt.rs:21:1
 fix: extract this traversal into named iterator, predicate, or receipt-processing helpers
 line: 21 | fn collect_failed_queries(receipt: &ContractReceipt) -> Vec<String> {

@@ -2,7 +2,7 @@
 source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
-[AGENT-R012] Info: Public semantic identifier uses a primitive type
+[RUST-AGENT-API-TYPE-012] Info: Public semantic identifier uses a primitive type
 @ $TEMP/src/api.rs:3:1
 fix: wrap this identifier in an owner-named newtype or document why the primitive boundary is intentional
 line: 3 | pub fn load_user(user_id: String) {}

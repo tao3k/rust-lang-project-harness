@@ -20,7 +20,7 @@ fn p5_review_packet_summarizes_invariants_receipts_and_stale_waivers() {
         findings: Vec::new(),
         invariant_candidates: vec![RustInvariantCandidate {
             invariant_id: candidate_id.clone(),
-            source_rule_id: RustInvariantSourceRuleId("AGENT-R027".to_owned()),
+            source_rule_id: RustInvariantSourceRuleId("RUST-AGENT-API-TYPE-ALIAS-027".to_owned()),
             rule_pack_id: RustInvariantRulePackId("agent".to_owned()),
             kind: RustInvariantKind::PublicDataPrimitiveFields,
             status: RustInvariantCandidateStatus::Candidate,
@@ -34,7 +34,7 @@ fn p5_review_packet_summarizes_invariants_receipts_and_stale_waivers() {
             },
             evidence: vec![RustInvariantEvidence {
                 kind: RustInvariantEvidenceKind::Finding,
-                summary: "AGENT-R027 matched public data field".to_owned(),
+                summary: "RUST-AGENT-API-TYPE-ALIAS-027 matched public data field".to_owned(),
                 location: None,
                 fields: BTreeMap::new(),
             }],

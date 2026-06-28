@@ -1,0 +1,12 @@
+id = "tokio-runtime-boundary-v1"
+title = "Tokio runtime operations stay behind a runtime owner"
+policy_ids = ["RUST-AGENT-TOKIO-RUNTIME-002"]
+agent_goal = "Keep Tokio spawn, blocking work, and runtime construction behind a typed runtime facade before changing agent orchestration."
+reference_repositories = ["tokio-rs/tokio", "hyperium/hyper", "tower-rs/tower"]
+reference_patterns = [
+  "Tokio runtime builders define the thread model and belong in a runtime owner, not scattered call sites.",
+  "Spawn and blocking operations flow through a facade that can attach tracing, cancellation, shutdown, and task accounting.",
+  "Agent edits should preserve the runtime lifecycle boundary when adding background workers or CPU-heavy work.",
+]
+inputs = "inputs"
+expected = "expected"

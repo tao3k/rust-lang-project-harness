@@ -8,10 +8,13 @@ use super::data_shape::{
     RustPublicStructFieldSyntax, RustPublicTypeAliasSyntax, RustPublicTypeGenericBoundSyntax,
 };
 use super::item_projection::RustItemProjectionNodeSyntax;
+use super::native_abi_boundary::RustNativeAbiSurfaceSyntax;
+use super::process_boundary::RustProcessCommandExecutionSyntax;
 use super::signature::{
     RustFunctionDynamicJsonApiSyntax, RustFunctionParamSyntax, RustFunctionReturnSyntax,
     RustFunctionTupleApiSyntax,
 };
+use super::tokio_runtime_boundary::RustTokioRuntimeOperationSyntax;
 use crate::parser::RustUseStatementSyntax;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -31,6 +34,9 @@ pub(crate) struct RustNativeSyntaxFacts {
     pub public_function_returns: Vec<RustFunctionReturnSyntax>,
     pub public_tuple_api_surfaces: Vec<RustFunctionTupleApiSyntax>,
     pub public_dynamic_json_api_surfaces: Vec<RustFunctionDynamicJsonApiSyntax>,
+    pub native_abi_surfaces: Vec<RustNativeAbiSurfaceSyntax>,
+    pub process_command_executions: Vec<RustProcessCommandExecutionSyntax>,
+    pub tokio_runtime_operations: Vec<RustTokioRuntimeOperationSyntax>,
     pub all_function_control_flows: Vec<RustFunctionControlFlowSyntax>,
     pub public_function_control_flows: Vec<RustFunctionControlFlowSyntax>,
     pub macro_invocations: Vec<RustInvocationSyntax>,

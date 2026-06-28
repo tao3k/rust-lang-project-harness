@@ -2,7 +2,7 @@
 source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
-[AGENT-R011] Info: Owner fan-out lacks intent doc
+[RUST-AGENT-DOCS-OWNER-FANOUT-011] Info: Owner fan-out lacks intent doc
 @ $TEMP/src/orchestrator.rs:1:1
 fix: add an owner fan-out intent doc using doc_markdown style
 line: 1 | use crate::alpha::Alpha;

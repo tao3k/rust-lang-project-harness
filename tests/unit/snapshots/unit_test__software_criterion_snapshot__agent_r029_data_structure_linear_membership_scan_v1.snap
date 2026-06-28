@@ -1,10 +1,10 @@
 ---
 source: tests/unit/software_criterion_snapshot.rs
-expression: "rule_snapshot(\"AGENT-R029\", LINEAR_MEMBERSHIP_SCENARIO)"
+expression: "rule_snapshot(\"RUST-AGENT-DATA-MEMBERSHIP-029\", LINEAR_MEMBERSHIP_SCENARIO)"
 ---
 [
   {
-    "ruleId": "AGENT-R029",
+    "ruleId": "RUST-AGENT-DATA-MEMBERSHIP-029",
     "summary": "$TEMP/src/lib.rs function `selected_labels` performs 1 loop-local linear membership scan(s). Criteria: software-criterion/data-structure.linear-membership-scan.",
     "line": 9,
     "label": "build a set or map index before the loop, or document why this scan is bounded",
@@ -13,7 +13,7 @@ expression: "rule_snapshot(\"AGENT-R029\", LINEAR_MEMBERSHIP_SCENARIO)"
 ]
 
 --- rendered ---
-[AGENT-R029] Info: Function performs a linear membership scan inside a loop
+[RUST-AGENT-DATA-MEMBERSHIP-029] Info: Function performs a linear membership scan inside a loop
 @ $TEMP/src/lib.rs:9:1
 fix: build a set or map index before the loop, or document why this scan is bounded
 line: 9 | pub fn selected_labels(allowed_ids: &[u64], candidates: &[Candidate]) -> Vec<String> {

@@ -2,7 +2,7 @@
 source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
-[AGENT-R021] Info: Public enum variant exposes primitive semantic payload fields
+[RUST-AGENT-DATA-ENUM-PAYLOAD-021] Info: Public enum variant exposes primitive semantic payload fields
 @ $TEMP/src/api.rs:5:1
 fix: wrap this variant payload in named domain types or move it into a named payload struct
 line: 5 | 	UserLoaded { user_id: String, request_id: String, include_inactive: bool },

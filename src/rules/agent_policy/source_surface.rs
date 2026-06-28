@@ -13,8 +13,14 @@ use crate::rules::display_path;
 
 use super::doc_boundary::{documented_agent_boundary, module_doc_contains};
 use super::{
-    AGENT_R001, AGENT_R002, AGENT_R003, AGENT_R004, AGENT_R005, AGENT_R006, AGENT_R007, AGENT_R008,
-    AGENT_R012, AGENT_R013, AGENT_R014, AGENT_R018, AGENT_R019,
+    RUST_AGENT_POLICY_API_ERROR_BOUNDARY_V1, RUST_AGENT_POLICY_API_FACADE_EXPORT_GROUPS_V1,
+    RUST_AGENT_POLICY_API_FLAG_PARAMETER_SURFACE_V1,
+    RUST_AGENT_POLICY_API_POSITIONAL_PARAMETER_SURFACE_V1,
+    RUST_AGENT_POLICY_API_PUBLIC_NAME_CONFLICT_V1,
+    RUST_AGENT_POLICY_API_SEMANTIC_IDENTIFIER_TYPE_V1, RUST_AGENT_POLICY_DOCS_BRANCH_INTENT_V1,
+    RUST_AGENT_POLICY_DOCS_MODULE_INTENT_V1, RUST_AGENT_POLICY_DOCS_PUBLIC_ITEM_V1,
+    RUST_AGENT_POLICY_SOURCE_MODULE_PATH_NAME_V1, RUST_AGENT_POLICY_SOURCE_NAMESPACE_REPEAT_V1,
+    RUST_AGENT_POLICY_SOURCE_PUBLIC_MODULE_NAME_V1, RUST_AGENT_POLICY_TEST_SUPPORT_REEXPORT_V1,
 };
 
 const MAX_FACADE_REEXPORTS: usize = 28;
@@ -47,7 +53,7 @@ pub(super) fn repeated_namespace_findings(
     modules: &[ParsedRustModule],
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let rule = &rules[AGENT_R003];
+    let rule = &rules[RUST_AGENT_POLICY_SOURCE_NAMESPACE_REPEAT_V1];
     let mut branches = BTreeMap::<PathBuf, (PathBuf, BTreeSet<String>)>::new();
     for module in modules {
         let Some(module_facts) = reasoning_tree.module(&module.report.path) else {
@@ -91,7 +97,7 @@ pub(super) fn generic_module_path_findings(
     modules: &[&ParsedRustModule],
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let rule = &rules[AGENT_R007];
+    let rule = &rules[RUST_AGENT_POLICY_SOURCE_MODULE_PATH_NAME_V1];
     modules
         .iter()
         .filter_map(|module| {
@@ -147,7 +153,7 @@ pub(super) fn public_name_conflict_findings(
                 .push((module, item.line));
         }
     }
-    let rule = &rules[AGENT_R004];
+    let rule = &rules[RUST_AGENT_POLICY_API_PUBLIC_NAME_CONFLICT_V1];
     let mut findings = Vec::new();
     for (name, locations) in names {
         if locations.len() < 2 {
@@ -201,7 +207,7 @@ fn module_intent_findings(
     if module.syntax_facts.has_module_doc || !has_public_surface(module) {
         return Vec::new();
     }
-    let rule = &rules[AGENT_R001];
+    let rule = &rules[RUST_AGENT_POLICY_DOCS_MODULE_INTENT_V1];
     vec![RustHarnessFinding::from_rule(
         rule,
         format!(
@@ -218,7 +224,7 @@ fn public_doc_findings(
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let rule = &rules[AGENT_R002];
+    let rule = &rules[RUST_AGENT_POLICY_DOCS_PUBLIC_ITEM_V1];
     module
         .syntax_facts
         .top_level_items
@@ -263,7 +269,7 @@ fn facade_reexport_findings(
     if reexport_count <= MAX_FACADE_REEXPORTS {
         return Vec::new();
     }
-    let rule = &rules[AGENT_R005];
+    let rule = &rules[RUST_AGENT_POLICY_API_FACADE_EXPORT_GROUPS_V1];
     vec![RustHarnessFinding::from_rule(
         rule,
         format!(
@@ -280,7 +286,7 @@ fn generic_public_module_findings(
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let rule = &rules[AGENT_R006];
+    let rule = &rules[RUST_AGENT_POLICY_SOURCE_PUBLIC_MODULE_NAME_V1];
     module
         .syntax_facts
         .top_level_items
@@ -322,7 +328,7 @@ fn branch_module_intent_findings(
     if child_modules < MIN_BRANCH_CHILD_MODULES {
         return Vec::new();
     }
-    let rule = &rules[AGENT_R008];
+    let rule = &rules[RUST_AGENT_POLICY_DOCS_BRANCH_INTENT_V1];
     vec![RustHarnessFinding::from_rule(
         rule,
         format!(
@@ -339,7 +345,7 @@ fn public_primitive_identifier_findings(
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let rule = &rules[AGENT_R012];
+    let rule = &rules[RUST_AGENT_POLICY_API_SEMANTIC_IDENTIFIER_TYPE_V1];
     module
         .syntax_facts
         .public_function_params
@@ -392,7 +398,7 @@ fn public_flag_parameter_findings(
             .push(index);
     }
 
-    let rule = &rules[AGENT_R018];
+    let rule = &rules[RUST_AGENT_POLICY_API_FLAG_PARAMETER_SURFACE_V1];
     params_by_function
         .into_iter()
         .filter_map(|(function_name, param_indices)| {
@@ -455,7 +461,7 @@ fn public_broad_parameter_surface_findings(
             .push(index);
     }
 
-    let rule = &rules[AGENT_R019];
+    let rule = &rules[RUST_AGENT_POLICY_API_POSITIONAL_PARAMETER_SURFACE_V1];
     params_by_function
         .into_iter()
         .filter_map(|((function_line, function_name), param_indices)| {
@@ -497,7 +503,7 @@ fn public_application_error_boundary_findings(
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
-    let rule = &rules[AGENT_R013];
+    let rule = &rules[RUST_AGENT_POLICY_API_ERROR_BOUNDARY_V1];
     module
         .syntax_facts
         .public_function_returns
@@ -548,7 +554,7 @@ fn test_support_module_reexport_findings(
                 .push(reexport.exposed_name.clone());
         }
     }
-    let rule = &rules[AGENT_R014];
+    let rule = &rules[RUST_AGENT_POLICY_TEST_SUPPORT_REEXPORT_V1];
     unused_names_by_line
         .into_iter()
         .map(|(line, mut names)| {

@@ -397,29 +397,27 @@ fn scenario_benchmark_suite_covers_all_required_current_scenarios() {
     assert_eq!(receipt.status, RustScenarioBenchmarkStatus::Pass);
     assert!(receipt.violations.is_empty(), "{:?}", receipt.violations);
     assert_eq!(receipt.receipts.len(), receipt.requirements.len());
-    for rule_id in [
-        "AGENT-R015",
-        "AGENT-R016",
-        "AGENT-R017",
-        "AGENT-R025",
-        "AGENT-R026",
-        "AGENT-R029",
-        "AGENT-R030",
-        "AGENT-R031",
-        "AGENT-R032",
-        "AGENT-R033",
-        "AGENT-R034",
-        "RUST-AGENT-ASYNC-TASK-LIFECYCLE-001",
-        "RUST-AGENT-PROJECT-MANIFEST-023",
-    ] {
-        assert!(
-            receipt
-                .policy_coverage
-                .iter()
-                .any(|coverage| coverage.rule_id.as_str() == rule_id),
-            "missing policy scenario coverage for {rule_id}: {receipt:?}"
-        );
-    }
+    let covered_rule_ids = receipt
+        .policy_coverage
+        .iter()
+        .map(|coverage| coverage.rule_id.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    let required_rule_ids = rust_lang_project_harness::rust_agent_policy_rules()
+        .into_iter()
+        .map(|rule| rule.rule_id)
+        .collect::<std::collections::BTreeSet<_>>();
+    let missing_rule_ids = required_rule_ids
+        .difference(&covered_rule_ids)
+        .copied()
+        .collect::<Vec<_>>();
+    assert!(
+        missing_rule_ids.is_empty(),
+        "missing policy scenario coverage for {missing_rule_ids:?}: {receipt:?}"
+    );
+    assert!(
+        covered_rule_ids.contains("RUST-AGENT-PROJECT-MANIFEST-023"),
+        "missing project manifest scenario coverage: {receipt:?}"
+    );
     assert!(receipt.policy_coverage.iter().all(|coverage| {
         receipt
             .receipts
@@ -430,6 +428,74 @@ fn scenario_benchmark_suite_covers_all_required_current_scenarios() {
         receipt.benchmark.observed_total <= receipt.benchmark.max_total
             && receipt.benchmark.observed_memory_bytes <= receipt.benchmark.memory_budget_bytes
     }));
+}
+
+#[test]
+fn agent_policy_schema_ids_do_not_expose_legacy_aliases() {
+    let crate_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut offenders = Vec::new();
+    for relative_root in ["src", "tests", "docs"] {
+        collect_legacy_agent_policy_aliases(&crate_root.join(relative_root), &mut offenders);
+    }
+    offenders.sort();
+
+    assert!(
+        offenders.is_empty(),
+        "legacy agent policy aliases must not be public: {offenders:?}"
+    );
+}
+
+fn collect_legacy_agent_policy_aliases(path: &std::path::Path, offenders: &mut Vec<String>) {
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return;
+    };
+    if metadata.is_dir() {
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            return;
+        };
+        if matches!(name, "target" | ".git") {
+            return;
+        }
+        let Ok(entries) = std::fs::read_dir(path) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            collect_legacy_agent_policy_aliases(&entry.path(), offenders);
+        }
+        return;
+    }
+
+    let Some(extension) = path.extension().and_then(|extension| extension.to_str()) else {
+        return;
+    };
+    if !matches!(extension, "rs" | "md" | "toml") {
+        return;
+    }
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return;
+    };
+    if contains_legacy_agent_policy_alias(&content) {
+        offenders.push(path.display().to_string());
+    }
+}
+
+fn contains_legacy_agent_policy_alias(content: &str) -> bool {
+    let hyphen_alias = ["AGENT", "-R"].concat();
+    let underscore_alias = ["AGENT", "_R"].concat();
+    content
+        .split(|character: char| {
+            !(character.is_ascii_alphanumeric() || character == '-' || character == '_')
+        })
+        .any(|token| {
+            [&hyphen_alias, &underscore_alias].iter().any(|prefix| {
+                token.strip_prefix(prefix.as_str()).is_some_and(|suffix| {
+                    suffix
+                        .chars()
+                        .take(3)
+                        .all(|character| character.is_ascii_digit())
+                })
+            })
+        })
 }
 
 #[test]

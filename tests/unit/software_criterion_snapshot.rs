@@ -25,7 +25,7 @@ struct FindingSnapshot {
 fn agent_r015_control_flow_v1_snapshot() {
     insta::assert_snapshot!(
         "agent_r015_control_flow_v1",
-        rule_snapshot("AGENT-R015", CONTROL_FLOW_SCENARIO)
+        rule_snapshot("RUST-AGENT-CFG-PUBLIC-015", CONTROL_FLOW_SCENARIO)
     );
 }
 
@@ -33,7 +33,7 @@ fn agent_r015_control_flow_v1_snapshot() {
 fn agent_r016_control_flow_v1_snapshot() {
     insta::assert_snapshot!(
         "agent_r016_control_flow_v1",
-        rule_snapshot("AGENT-R016", CONTROL_FLOW_SCENARIO)
+        rule_snapshot("RUST-AGENT-CFG-PUBLIC-016", CONTROL_FLOW_SCENARIO)
     );
 }
 
@@ -41,7 +41,7 @@ fn agent_r016_control_flow_v1_snapshot() {
 fn agent_r017_control_flow_v1_snapshot() {
     insta::assert_snapshot!(
         "agent_r017_control_flow_v1",
-        rule_snapshot("AGENT-R017", CONTROL_FLOW_SCENARIO)
+        rule_snapshot("RUST-AGENT-ITER-PUBLIC-017", CONTROL_FLOW_SCENARIO)
     );
 }
 
@@ -49,7 +49,7 @@ fn agent_r017_control_flow_v1_snapshot() {
 fn agent_r025_control_flow_v1_snapshot() {
     insta::assert_snapshot!(
         "agent_r025_control_flow_v1",
-        rule_snapshot("AGENT-R025", CONTROL_FLOW_SCENARIO)
+        rule_snapshot("RUST-AGENT-CFG-IMPL-025", CONTROL_FLOW_SCENARIO)
     );
 }
 
@@ -57,7 +57,7 @@ fn agent_r025_control_flow_v1_snapshot() {
 fn agent_r026_control_flow_v1_snapshot() {
     insta::assert_snapshot!(
         "agent_r026_control_flow_v1",
-        rule_snapshot("AGENT-R026", CONTROL_FLOW_SCENARIO)
+        rule_snapshot("RUST-AGENT-ITER-IMPL-026", CONTROL_FLOW_SCENARIO)
     );
 }
 
@@ -65,7 +65,7 @@ fn agent_r026_control_flow_v1_snapshot() {
 fn agent_r029_data_structure_linear_membership_scan_v1_snapshot() {
     insta::assert_snapshot!(
         "agent_r029_data_structure_linear_membership_scan_v1",
-        rule_snapshot("AGENT-R029", LINEAR_MEMBERSHIP_SCENARIO)
+        rule_snapshot("RUST-AGENT-DATA-MEMBERSHIP-029", LINEAR_MEMBERSHIP_SCENARIO)
     );
 }
 

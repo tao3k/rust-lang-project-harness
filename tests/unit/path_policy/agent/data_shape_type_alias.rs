@@ -24,7 +24,7 @@ fn public_semantic_primitive_type_alias_is_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R027");
+    let findings = findings_for_rule(&report, "RUST-AGENT-API-TYPE-ALIAS-027");
     assert_eq!(findings.len(), 2, "{:?}", report.findings);
     assert!(findings[0].summary.contains("`UserId`"));
     assert!(findings[0].summary.contains("String"));
@@ -52,7 +52,7 @@ fn documented_public_semantic_primitive_type_alias_clears_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R027").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-API-TYPE-ALIAS-027").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -77,6 +77,6 @@ fn public_newtype_and_domain_alias_clear_primitive_type_alias_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R027").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-API-TYPE-ALIAS-027").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }

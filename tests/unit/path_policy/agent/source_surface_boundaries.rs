@@ -20,7 +20,7 @@ fn documented_generic_source_module_paths_clear_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R007").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-SOURCE-PATH-007").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -59,7 +59,7 @@ fn documented_public_name_conflicts_clear_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R004").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-API-NAME-004").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -80,6 +80,6 @@ fn documented_public_primitive_identifier_params_clear_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R012").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-API-TYPE-012").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }

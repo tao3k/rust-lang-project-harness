@@ -56,7 +56,7 @@ fn cli_search_policy_renders_semantic_handles() {
     assert!(compact.status.success(), "{compact:?}");
     let stdout = String::from_utf8(compact.stdout).expect("utf8 stdout");
     assert!(
-        stdout.contains("|handle AGENT-R008 kind=policy-rule"),
+        stdout.contains("|handle RUST-AGENT-DOCS-BRANCH-008 kind=policy-rule"),
         "{stdout}"
     );
     assert!(
@@ -67,7 +67,7 @@ fn cli_search_policy_renders_semantic_handles() {
     let json = run_cli([
         "search".as_ref(),
         "policy".as_ref(),
-        "AGENT-R008".as_ref(),
+        "RUST-AGENT-DOCS-BRANCH-008".as_ref(),
         "owner".as_ref(),
         "tests".as_ref(),
         "--json".as_ref(),
@@ -76,7 +76,10 @@ fn cli_search_policy_renders_semantic_handles() {
     assert!(json.status.success(), "{json:?}");
     let packet = serde_json::from_slice::<Value>(&json.stdout).expect("policy json");
     assert_eq!(packet["view"], "policy");
-    assert_eq!(packet["semanticHandles"][0]["id"], "AGENT-R008");
+    assert_eq!(
+        packet["semanticHandles"][0]["id"],
+        "RUST-AGENT-DOCS-BRANCH-008"
+    );
     assert_eq!(
         packet["semanticHandles"][0]["ownerPath"],
         "src/rules/agent_policy/pack.rs"

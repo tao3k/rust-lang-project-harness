@@ -2,7 +2,7 @@
 source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
-[AGENT-R005] Info: Facade exports too many public groups
+[RUST-AGENT-API-FACADE-005] Info: Facade exports too many public groups
 @ $TEMP/src/lib.rs:1:1
 fix: group facade exports behind smaller owner modules
 line: 1 | //! Test crate.

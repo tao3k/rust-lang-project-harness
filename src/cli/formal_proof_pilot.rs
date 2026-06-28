@@ -103,7 +103,7 @@ impl ProofOptions {
 fn print_proof_help() {
     println!(
         "rs-harness proof pilot dependency-graph-acyclicity [--max-nodes N] [--json]\n\n\
-Runs the P4 proof pilot over the AGENT-R009 dependency graph cycle core.\n\
+Runs the P4 proof pilot over the RUST-AGENT-OWNER-GRAPH-009 dependency graph cycle core.\n\
 Use --json to emit the semantic-formal-proof-pilot JSON contract."
     );
 }

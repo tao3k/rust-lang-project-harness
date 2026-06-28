@@ -1,0 +1,22 @@
+harness = "libtest"
+test = "scenario_benchmark_tokio_runtime_boundary_v1_snapshot"
+snapshot = "scenario_benchmark_tokio_runtime_boundary_v1"
+target_total = "25ms"
+max_total = "80ms"
+observed_total = "9ms"
+regression_budget = "15ms"
+memory_budget_bytes = 8388608
+observed_memory_bytes = 3145728
+target_rationale = "The policy is parser-native and metadata-only; Tokio boundary scenario checks should stay in the small fixture budget."
+
+[input_expected_comparison]
+input_total = "17ms"
+expected_total = "7ms"
+input_memory_bytes = 4194304
+expected_memory_bytes = 3145728
+interpretation = "expected centralizes runtime operations behind a facade; observed speedup 2.43x and memory reduction 25.00%"
+
+[observed_timings]
+contract_deserialize = "5ms"
+receipt_render = "2ms"
+snapshot_assertion = "1ms"

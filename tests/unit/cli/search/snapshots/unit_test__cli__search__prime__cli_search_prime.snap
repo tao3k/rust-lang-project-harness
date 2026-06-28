@@ -13,8 +13,8 @@ expression: stdout
 |owner src/domain/mod.rs role=interface owner=src/domain next=owner:src/domain/mod.rs
 |edge O:src/lib.rs -mod-> O:src/domain/mod.rs
 |edge O:src/lib.rs -crate:crate-> O:src/domain/mod.rs
-|find AGENT-R001 x1 at=O:src/hook_runtime.rs severity=info
-|find AGENT-R002 x3 at=O:src/domain/mod.rs severity=info
+|find RUST-AGENT-DOCS-MODULE-001 x1 at=O:src/hook_runtime.rs severity=info
+|find RUST-AGENT-DOCS-PUBLIC-002 x3 at=O:src/domain/mod.rs severity=info
 |find RUST-MOD-R001 x1 at=O:src/domain/mod.rs severity=warning
 |find RUST-MOD-R004 x1 at=O:src/lib.rs severity=warning
 |find RUST-MOD-R009 x1 at=O:src/hook_runtime.rs severity=warning

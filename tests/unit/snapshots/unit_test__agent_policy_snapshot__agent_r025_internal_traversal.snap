@@ -3,7 +3,7 @@ source: tests/unit/agent_policy_snapshot.rs
 assertion_line: 190
 expression: rendered
 ---
-[AGENT-R025] Info: Implementation function nests traversal scaffolding
+[RUST-AGENT-CFG-IMPL-025] Info: Implementation function nests traversal scaffolding
 @ $TEMP/src/receipt.rs:9:1
 fix: extract this traversal into named iterator, predicate, or receipt-processing helpers
 line: 9 | fn collect_failed_queries(receipt: &ContractReceipt) -> Vec<String> {

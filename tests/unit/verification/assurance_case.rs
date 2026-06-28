@@ -106,7 +106,7 @@ fn review_packet_json() -> Value {
         "changedInvariants": [
             {
                 "invariantId": "agent-r027:src.model.rs:42",
-                "sourceRuleId": "AGENT-R027",
+                "sourceRuleId": "RUST-AGENT-API-TYPE-ALIAS-027",
                 "kind": "public-data-primitive-fields",
                 "severity": "warning",
                 "title": "semantic fields need named type",

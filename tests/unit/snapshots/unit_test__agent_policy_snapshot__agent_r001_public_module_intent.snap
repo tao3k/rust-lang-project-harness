@@ -2,7 +2,7 @@
 source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
-[AGENT-R001] Info: Public module lacks an intent doc
+[RUST-AGENT-DOCS-MODULE-001] Info: Public module lacks an intent doc
 @ $TEMP/src/lib.rs:1:1
 fix: add a module intent doc using doc_markdown style
 line: 1 | pub fn public_api() {}

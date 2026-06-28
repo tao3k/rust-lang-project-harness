@@ -1,0 +1,10 @@
+---
+source: tests/unit/agent_policy_snapshot.rs
+expression: rendered
+---
+[RUST-AGENT-TOKIO-RUNTIME-002] Info: Tokio runtime operation bypasses a runtime owner
+@ $TEMP/src/lib.rs:10:1
+fix: route Tokio spawn/blocking/runtime construction through a typed runtime facade with task tracking, shutdown, cancellation, and observability
+line: 10 | let _runtime = tokio::runtime::Builder::new_current_thread().enable_all().build();
+Help: $TEMP/src/lib.rs calls Tokio runtime operation `tokio::runtime::Builder::new_current_thread` in `block_on` without a runtime owner boundary.
+Contract: Route Tokio spawn, blocking work, and runtime construction through a typed runtime facade so agents preserve task tracking, shutdown, cancellation, thread model, and observability behavior.

@@ -16,7 +16,7 @@ fn private_nested_receipt_traversal_is_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R025");
+    let findings = findings_for_rule(&report, "RUST-AGENT-CFG-IMPL-025");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(findings[0].summary.contains("control-flow.traversal-knot"));
     assert_eq!(
@@ -44,7 +44,7 @@ fn named_receipt_traversal_helper_clears_private_nesting_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R025").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-CFG-IMPL-025").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -59,7 +59,7 @@ fn private_manual_iterator_boilerplate_is_agent_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    let findings = findings_for_rule(&report, "AGENT-R026");
+    let findings = findings_for_rule(&report, "RUST-AGENT-ITER-IMPL-026");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
     assert!(
         findings[0]
@@ -73,7 +73,7 @@ fn private_manual_iterator_boilerplate_is_agent_advice() {
             .map(String::as_str),
         Some("native-idiom.manual-transform-loop")
     );
-    assert!(findings_for_rule(&report, "AGENT-R025").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-CFG-IMPL-025").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 
@@ -88,8 +88,8 @@ fn named_private_iterator_helper_clears_boilerplate_advice() {
 
     let report = run_rust_project_harness(root).expect("run project harness");
 
-    assert!(findings_for_rule(&report, "AGENT-R026").is_empty());
-    assert!(findings_for_rule(&report, "AGENT-R025").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-ITER-IMPL-026").is_empty());
+    assert!(findings_for_rule(&report, "RUST-AGENT-CFG-IMPL-025").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
 }
 

@@ -189,14 +189,14 @@ Harness implications:
    Rust code-level latency, throughput, allocation, instruction, and cache
    regression evidence.
 8. The actionbook type-driven skill maps cleanly to advisory parser policy when
-   it is restricted to semantic API boundaries. `AGENT-R012` therefore records
+   it is restricted to semantic API boundaries. `RUST-AGENT-API-TYPE-012` therefore records
    public function parameters through `syn` and flags `id` or `*_id` parameters
    carried by `String`, `&str`, integer primitives, or `Option` wrappers. This
    keeps the useful "primitive obsession" signal without turning clone usage,
    unwraps, index loops, or other Clippy-shaped anti-pattern examples into
    harness rules.
 9. The actionbook error-handling skill maps to parser policy at the public
-   boundary, not at every `unwrap` or `?` site. `AGENT-R013` records public
+   boundary, not at every `unwrap` or `?` site. `RUST-AGENT-API-ERROR-013` records public
    function return types through `syn` and flags application-style catch-all
    boundaries such as `anyhow::Result`, `eyre::Result`, and
    `Result<_, Box<dyn Error>>`. This preserves the library-vs-application

@@ -11,7 +11,10 @@ use crate::{RustHarnessFinding, RustHarnessRule};
 
 use crate::rules::display_path;
 
-use super::{AGENT_R009, AGENT_R010, AGENT_R011};
+use super::{
+    RUST_AGENT_POLICY_DOCS_OWNER_FAN_OUT_V1, RUST_AGENT_POLICY_OWNER_DEPENDENCY_CYCLE_V1,
+    RUST_AGENT_POLICY_OWNER_LEAF_IMPORT_V1,
+};
 
 const MIN_OWNER_FAN_OUT: usize = 3;
 
@@ -61,7 +64,7 @@ fn owner_dependency_cycle_findings(
         let Some(dependency) = cycle.first().copied() else {
             continue;
         };
-        let rule = &rules[AGENT_R009];
+        let rule = &rules[RUST_AGENT_POLICY_OWNER_DEPENDENCY_CYCLE_V1];
         findings.push(RustHarnessFinding::from_rule(
             rule,
             format!(
@@ -184,7 +187,7 @@ fn cross_owner_leaf_import_findings(
 ) -> Vec<RustHarnessFinding> {
     let owner_branch_namespaces = owner_branch_namespaces(reasoning_tree);
     let owner_branch_paths = owner_branch_paths(reasoning_tree);
-    let rule = &rules[AGENT_R010];
+    let rule = &rules[RUST_AGENT_POLICY_OWNER_LEAF_IMPORT_V1];
     reasoning_tree
         .owner_dependencies
         .iter()
@@ -240,7 +243,7 @@ fn owner_fan_out_intent_findings(
             .insert(target_owner);
     }
 
-    let rule = &rules[AGENT_R011];
+    let rule = &rules[RUST_AGENT_POLICY_DOCS_OWNER_FAN_OUT_V1];
     reasoning_tree
         .owner_branches
         .iter()

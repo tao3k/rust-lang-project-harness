@@ -2,7 +2,7 @@
 source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
-[AGENT-R006] Info: Public module name is generic
+[RUST-AGENT-SOURCE-MODULE-006] Info: Public module name is generic
 @ $TEMP/src/lib.rs:2:1
 fix: rename this public module to the domain it owns
 line: 2 | /// Shared utility bucket.

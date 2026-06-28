@@ -1,11 +1,11 @@
 ---
 source: tests/unit/software_criterion_snapshot.rs
 assertion_line: 44
-expression: "rule_snapshot(\"AGENT-R026\")"
+expression: "rule_snapshot(\"RUST-AGENT-ITER-IMPL-026\")"
 ---
 [
   {
-    "ruleId": "AGENT-R026",
+    "ruleId": "RUST-AGENT-ITER-IMPL-026",
     "summary": "$TEMP/src/receipt.rs implementation function `failed_query_names` manually spells iterator boilerplate. Criteria: software-criterion/native-idiom.manual-transform-loop.",
     "line": 35,
     "label": "extract this loop into Rust iterator adapters or a named helper",
@@ -14,7 +14,7 @@ expression: "rule_snapshot(\"AGENT-R026\")"
 ]
 
 --- rendered ---
-[AGENT-R026] Info: Implementation function manually spells an iterator transform
+[RUST-AGENT-ITER-IMPL-026] Info: Implementation function manually spells an iterator transform
 @ $TEMP/src/receipt.rs:35:1
 fix: extract this loop into Rust iterator adapters or a named helper
 line: 35 | fn failed_query_names(queries: &[QueryReceipt]) -> Vec<String> {

@@ -2,7 +2,7 @@
 source: tests/unit/agent_policy_snapshot.rs
 expression: rendered
 ---
-[AGENT-R002] Info: Public item lacks a doc comment
+[RUST-AGENT-DOCS-PUBLIC-002] Info: Public item lacks a doc comment
 @ $TEMP/src/owned.rs:2:1
 fix: add a doc comment using clippy::doc_markdown style
 line: 2 | pub struct MissingDoc;

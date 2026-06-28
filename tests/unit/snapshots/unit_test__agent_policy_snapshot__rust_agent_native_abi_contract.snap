@@ -1,0 +1,10 @@
+---
+source: tests/unit/agent_policy_snapshot.rs
+expression: rendered
+---
+[RUST-AGENT-NATIVE-ABI-001] Info: Native ABI layout lacks a co-located contract
+@ $TEMP/src/native_abi.rs:3:1
+fix: co-locate native ABI layout types with ABI version, ABI id, header path, and header source constants so agents update Rust, C, and projection contracts together
+line: 3 | pub struct NativeUtf8 {
+Help: $TEMP/src/native_abi.rs exposes native ABI struct `NativeUtf8` without ABI_VERSION, ABI_ID, HEADER_PATH, HEADER_SOURCE in the same owner.
+Contract: Keep public `repr(C)` native ABI layouts beside ABI version, ABI id, header path, and header source constants so agents preserve Rust, C, and projection compatibility.

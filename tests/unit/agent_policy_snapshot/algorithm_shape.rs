@@ -31,7 +31,12 @@ fn agent_r015_nested_algorithm_shape_snapshot() {
     )
     .expect("write api");
 
-    assert_agent_snapshot(root, "AGENT-R015", 1, "agent_r015_nested_algorithm_shape");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-CFG-PUBLIC-015",
+        1,
+        "agent_r015_nested_algorithm_shape",
+    );
 }
 
 #[test]
@@ -43,7 +48,12 @@ fn agent_r015_literal_dispatch_chain_snapshot() {
     fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod api;\n").expect("write lib");
     fs::write(root.join("src/api.rs"), literal_dispatch_source()).expect("write api");
 
-    assert_agent_snapshot(root, "AGENT-R015", 1, "agent_r015_literal_dispatch_chain");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-CFG-PUBLIC-015",
+        1,
+        "agent_r015_literal_dispatch_chain",
+    );
 }
 
 #[test]
@@ -55,7 +65,12 @@ fn agent_r016_broad_linear_algorithm_snapshot() {
     fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod api;\n").expect("write lib");
     fs::write(root.join("src/api.rs"), broad_linear_algorithm_source()).expect("write api");
 
-    assert_agent_snapshot(root, "AGENT-R016", 1, "agent_r016_broad_linear_algorithm");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-CFG-PUBLIC-016",
+        1,
+        "agent_r016_broad_linear_algorithm",
+    );
 }
 
 #[test]
@@ -67,7 +82,12 @@ fn agent_r017_native_iterator_idiom_snapshot() {
     fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod api;\n").expect("write lib");
     fs::write(root.join("src/api.rs"), manual_iterator_source()).expect("write api");
 
-    assert_agent_snapshot(root, "AGENT-R017", 1, "agent_r017_native_iterator_idiom");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-ITER-PUBLIC-017",
+        1,
+        "agent_r017_native_iterator_idiom",
+    );
 }
 
 #[test]
@@ -79,7 +99,12 @@ fn agent_r025_internal_traversal_snapshot() {
     fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod receipt;\n").expect("write lib");
     fs::write(root.join("src/receipt.rs"), internal_traversal_source()).expect("write receipt");
 
-    assert_agent_snapshot(root, "AGENT-R025", 1, "agent_r025_internal_traversal");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-CFG-IMPL-025",
+        1,
+        "agent_r025_internal_traversal",
+    );
 }
 
 #[test]
@@ -91,7 +116,12 @@ fn agent_r026_internal_iterator_idiom_snapshot() {
     fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod receipt;\n").expect("write lib");
     fs::write(root.join("src/receipt.rs"), internal_iterator_source()).expect("write receipt");
 
-    assert_agent_snapshot(root, "AGENT-R026", 1, "agent_r026_internal_iterator_idiom");
+    assert_agent_snapshot(
+        root,
+        "RUST-AGENT-ITER-IMPL-026",
+        1,
+        "agent_r026_internal_iterator_idiom",
+    );
 }
 
 fn broad_linear_algorithm_source() -> String {

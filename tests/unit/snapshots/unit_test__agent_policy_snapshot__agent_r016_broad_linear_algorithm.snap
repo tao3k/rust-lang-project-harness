@@ -3,7 +3,7 @@ source: tests/unit/agent_policy_snapshot.rs
 assertion_line: 190
 expression: rendered
 ---
-[AGENT-R016] Info: Public function owns a broad linear algorithm surface
+[RUST-AGENT-CFG-PUBLIC-016] Info: Public function owns a broad linear algorithm surface
 @ $TEMP/src/api.rs:3:1
 fix: split this broad function into named algorithm steps
 line: 3 | pub fn summarize(value: usize) -> usize {
