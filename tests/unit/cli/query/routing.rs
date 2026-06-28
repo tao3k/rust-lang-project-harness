@@ -85,7 +85,7 @@ fn cli_query_broad_glob_selector_routes_to_prime_seeds() {
     );
     assert!(!stdout.contains("G>{O:selects}"), "{stdout}");
     assert!(!stdout.contains("rank=O frontier=O.owner"), "{stdout}");
-    assert!(stdout.contains("frontier=O.owner"), "{stdout}");
+    assert!(stdout.contains("frontier ID.next"), "{stdout}");
     assert!(
         stdout.contains("entries=owner-tests(O=>covering-tests+test-entrypoints+fixtures)"),
         "{stdout}"

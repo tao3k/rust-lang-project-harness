@@ -173,7 +173,7 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
         &[
             "[search-prime] root=ext/web-search",
             "O=owner:path(src/tool.rs)!owner",
-            "frontier=O.owner",
+            "frontier ID.next",
             "entries=owner-tests",
         ],
         FORBIDDEN_FLOW_PATTERNS,
