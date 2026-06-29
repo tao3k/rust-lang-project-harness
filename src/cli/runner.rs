@@ -303,7 +303,7 @@ fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
         return Ok(ExitCode::SUCCESS);
     }
     let raw_rendered = if let Some(rendered) =
-        render_search_owner_item_frontier_fast_path(&project_root, options)?
+        render_search_owner_item_frontier_from_owner_file(&project_root, options)?
     {
         rendered
     } else if options.view == "ingest" {
@@ -364,7 +364,7 @@ fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
 }
 
 #[cfg(feature = "search")]
-fn render_search_owner_item_frontier_fast_path(
+fn render_search_owner_item_frontier_from_owner_file(
     project_root: &std::path::Path,
     options: &SearchOptions,
 ) -> Result<Option<String>, String> {
@@ -377,15 +377,13 @@ fn render_search_owner_item_frontier_fast_path(
     {
         return Ok(None);
     }
-    let (Some(selector), Some(item_query)) =
-        (options.query.as_deref(), options.item_query.as_deref())
-    else {
+    let Some(selector) = options.query.as_deref() else {
         return Ok(None);
     };
     render_query_local_item_frontier(
         project_root,
         selector,
-        item_query,
+        options.item_query.as_deref().unwrap_or_default(),
         options.source_version,
         false,
     )

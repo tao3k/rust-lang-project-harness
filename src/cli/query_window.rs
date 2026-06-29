@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use std::path::Path;
 
 use super::query_source::{QuerySourceVersion, query_source_path, read_query_source_text};
@@ -62,6 +63,15 @@ pub(super) fn render_query_local_item_frontier(
         return Ok(None);
     }
     let parsed = parse_rust_file(&source_path);
+    if item_query.trim().is_empty() {
+        let source = read_query_source_text(project_root, path, &source_path, source_version)?;
+        return Ok(Some(render_query_local_item_inventory(
+            path,
+            source.lines().count(),
+            &parsed.syntax_facts.top_level_items,
+            names_only,
+        )));
+    }
     let Some(item) = parsed
         .syntax_facts
         .top_level_items
@@ -87,6 +97,95 @@ pub(super) fn render_query_local_item_frontier(
         syntax_atom_for_kind(item.kind),
         RUST_OWNER_ITEMS_QUERY_REF
     )))
+}
+
+fn render_query_local_item_inventory(
+    path: &str,
+    line_count: usize,
+    items: &[RustTopLevelItemSyntax],
+    names_only: bool,
+) -> String {
+    let named_items = items
+        .iter()
+        .filter_map(|item| query_local_item_name(item).map(|name| (item, name)))
+        .collect::<Vec<_>>();
+    let output_field = if names_only { " output=names" } else { "" };
+    let mut rendered = format!(
+        "[search-owner] q={path} pkg=. selector=items alg=item-frontier{output_field}\n\
+legend: ID=kind:role(value)!next; edge SRC>{{DST:rel}}; frontier ID.next\n\
+aliases: graph:{{G=search,O=owner,I=item}}\n\
+O=owner:path({path})!owner"
+    );
+    for (index, (item, name)) in named_items.iter().enumerate() {
+        let item_id = item_graph_id(index);
+        let _ = write!(
+            rendered,
+            ";{item_id}=item:symbol({name})@{path}:{}:{}!syntax",
+            item.line, item.end_line
+        );
+    }
+    rendered.push('\n');
+    let _ = writeln!(
+        rendered,
+        "|owner {path} role=source source=parser-visible-module lines={line_count} imports=0"
+    );
+    for (index, (item, name)) in named_items.iter().enumerate() {
+        let item_id = item_graph_id(index);
+        let _ = writeln!(
+            rendered,
+            "syntax {item_id} selector={path}:{}:{} syn={} tsqRef={}",
+            item.line,
+            item.end_line,
+            syntax_atom_for_kind(item.kind),
+            RUST_OWNER_ITEMS_QUERY_REF
+        );
+        let _ = writeln!(
+            rendered,
+            "|item {name} kind={} next=syntax:{name} read={path}:{}:{} syn={} tsqRef={}",
+            item.kind,
+            item.line,
+            item.end_line,
+            syntax_atom_for_kind(item.kind),
+            RUST_OWNER_ITEMS_QUERY_REF
+        );
+    }
+    if named_items.is_empty() {
+        rendered.push_str("G>{O:selects}\nrank=O frontier=O.owner\n");
+    } else {
+        rendered.push_str("G>{O:selects}\nO>{");
+        for index in 0..named_items.len() {
+            if index > 0 {
+                rendered.push(',');
+            }
+            let _ = write!(rendered, "{}:contains", item_graph_id(index));
+        }
+        rendered.push_str("}\nrank=");
+        for index in 0..named_items.len() {
+            if index > 0 {
+                rendered.push(',');
+            }
+            rendered.push_str(&item_graph_id(index));
+        }
+        rendered.push_str(",O frontier=");
+        for index in 0..named_items.len() {
+            if index > 0 {
+                rendered.push(',');
+            }
+            let _ = write!(rendered, "{}.syntax", item_graph_id(index));
+        }
+        rendered.push('\n');
+    }
+    rendered.push_str("omit=code,projection-nodes,large-item-text\n");
+    rendered.push_str("avoid=inline-code-in-search,raw-read,repeat-owner\n");
+    rendered
+}
+
+fn item_graph_id(index: usize) -> String {
+    if index == 0 {
+        "I".to_string()
+    } else {
+        format!("I{}", index + 1)
+    }
 }
 
 pub(super) fn render_query_local_window(
@@ -149,57 +248,6 @@ fn source_line_window(source: &str, start_line: usize, end_line: usize) -> Strin
     source[start_index..end_index].to_string()
 }
 
-#[allow(dead_code)]
-fn render_query_local_window_items(
-    source_path: &Path,
-    source: &str,
-    start_line: usize,
-    end_line: usize,
-) -> Option<String> {
-    if source.trim().is_empty() {
-        return None;
-    }
-    let parsed = parse_rust_file(source_path);
-    let mut rows = Vec::new();
-    for item in parsed
-        .syntax_facts
-        .top_level_items
-        .iter()
-        .filter(|item| query_lines_overlap(item.line, item.end_line, start_line, end_line))
-    {
-        append_query_local_window_item_rows(&mut rows, item, start_line, end_line)
-    }
-    let rendered =
-        crate::parser::native_syntax::projection_code::compact_code_from_projection_nodes(
-            &rows,
-            |node| Some((node.0, node.1.clone())),
-        );
-    if rendered.trim().is_empty() {
-        None
-    } else {
-        Some(format!("{rendered}\n"))
-    }
-}
-
-#[allow(dead_code)]
-fn append_query_local_window_item_rows(
-    rows: &mut Vec<(usize, String)>,
-    item: &RustTopLevelItemSyntax,
-    start_line: usize,
-    end_line: usize,
-) {
-    for node in &item.projection_nodes {
-        if !query_lines_overlap(node.line, node.end_line, start_line, end_line) {
-            continue;
-        }
-        let label = compact_query_local_window_line(&node.label);
-        if label.is_empty() || rows.last().is_some_and(|(_, previous)| previous == &label) {
-            continue;
-        }
-        rows.push((node.depth, label))
-    }
-}
-
 fn query_lines_overlap(
     left_start: usize,
     left_end: usize,
@@ -234,11 +282,6 @@ fn parse_query_local_window_range<'a>(
     let start_line = start.parse::<usize>().ok()?;
     let end_line = end.parse::<usize>().ok()?;
     (start_line != 0 && end_line >= start_line).then_some((path, start_line, end_line))
-}
-
-#[allow(dead_code)]
-fn compact_query_local_window_line(line: &str) -> String {
-    line.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn is_low_signal_query_local_window(text: &str) -> bool {
