@@ -123,6 +123,18 @@ pub struct RustScenarioBenchmarkContract {
     pub memory_budget_bytes: RustScenarioBenchmarkMemoryBytes,
     /// Last observed memory use.
     pub observed_memory_bytes: RustScenarioBenchmarkMemoryBytes,
+    /// Expected first route or dominant hot-path source for agent search gates.
+    #[serde(default)]
+    pub route_source: Option<String>,
+    /// Maximum allowed provider process count for the measured path.
+    #[serde(default)]
+    pub max_provider_process_count: Option<u32>,
+    /// Maximum allowed stdout size for compact agent-facing output.
+    #[serde(default)]
+    pub max_stdout_bytes: Option<u64>,
+    /// Expected fallback reason, usually `none` for hot-path scenario gates.
+    #[serde(default)]
+    pub fallback_reason: Option<String>,
     /// Agent-facing explanation for why the target is credible.
     pub target_rationale: String,
     /// Optional direct performance comparison between `inputs` and `expected`.

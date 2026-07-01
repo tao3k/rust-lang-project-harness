@@ -118,7 +118,7 @@ pub(super) fn print_guide(_project_root: &Path) {
 |rule query-code-stdout pure=true when="--code + exact-selector|unique-match"
 |rule displayLineRange/sourceLocatorHint are display hints; execute structural selectors or owner/symbol routes, not line ranges
 |rule tree-sitter-base enabled=true native-extension=true
-|avoid raw-read,manual-window-scan,inline-code-in-search,broad-fzf,search-json-in-prompt,repeat-wide-read
+|avoid raw-read,manual-window-scan,inline-code-in-search,broad-lexical,search-json-in-prompt,repeat-wide-read
 "#
     );
 }

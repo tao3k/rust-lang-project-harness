@@ -98,7 +98,7 @@ fn render_prime_graph(
         out.push_str("entries=owner-tests(O=>covering-tests+test-entrypoints+fixtures)\n");
     }
     out.push_str("omit=items,blocks,code,full-test-list\n");
-    out.push_str("avoid=raw-read,full-json,broad-fzf\n");
+    out.push_str("avoid=raw-read,full-json,broad-lexical\n");
     if !header.ends_with('\n') && out.is_empty() {
         out.push('\n');
     }
@@ -203,7 +203,7 @@ fn render_fzf_graph(
     }
     append_edges_rank_frontier(&mut out, &nodes, "selects", Some(("Q", "matches")));
     out.push_str("entries=owner-query(O,Q=>items+tests+dependency-usage),owner-tests(O=>covering-tests+test-entrypoints+fixtures)\n");
-    out.push_str("avoid=broad-fzf,raw-read,repeat-glob\n");
+    out.push_str("avoid=broad-lexical,raw-read,repeat-glob\n");
     out
 }
 

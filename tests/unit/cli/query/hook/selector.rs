@@ -87,7 +87,7 @@ fn cli_query_hook_glob_code_shaped_term_uses_compact_frontier() {
     assert!(stdout.contains("rank=Q,O"), "{stdout}");
     assert!(stdout.contains("frontier=Q.fzf,O.owner"), "{stdout}");
     assert!(
-        stdout.contains("avoid=broad-fzf,raw-read,repeat-glob"),
+        stdout.contains("avoid=broad-lexical,raw-read,repeat-glob"),
         "{stdout}"
     );
 }

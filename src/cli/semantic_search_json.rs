@@ -268,7 +268,7 @@ fn base_packet(
         packet["finder"] = super::semantic_search_finder_json::fzf_finder(options);
         packet["avoidNextActions"] = json!([
             {
-                "kind": "broad-fzf",
+                "kind": "broad-lexical",
                 "target": "search",
                 "reason": "reasoning-profile"
             },

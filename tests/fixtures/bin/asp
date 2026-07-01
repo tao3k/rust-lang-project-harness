@@ -498,7 +498,7 @@ function defaultAvoid(kind, fields = {}) {
     return "web-search,docs.rs-search,raw-read";
   }
   return kind === "search-fzf" || kind === "search-query"
-    ? "broad-fzf,raw-read,repeat-glob"
+    ? "broad-lexical,raw-read,repeat-glob"
     : undefined;
 }
 

@@ -49,7 +49,7 @@ fn cli_query_terms_route_to_fzf_query_set_seeds() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("avoid=broad-fzf,raw-read,repeat-glob"),
+        stdout.contains("avoid=broad-lexical,raw-read,repeat-glob"),
         "{stdout}"
     );
     assert!(!stdout.contains("|seed "), "{stdout}");
