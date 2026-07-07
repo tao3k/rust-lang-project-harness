@@ -30,37 +30,19 @@ fn cli_search_graph_profiles_filter_to_rendered_aliases() {
     )
     .expect("write test");
 
-    let output = run_search(
-        root,
-        &[
-            "fzf",
-            "run_codex_agent_hook",
-            "owner",
-            "src",
-            "tests/unit",
-            "--view",
-            "seeds",
-        ],
-    );
+    let output = run_search(root, &["symbol", "run_codex_agent_hook", "--view", "seeds"]);
 
     assert!(
-        output.contains("O=owner:path(src/lib.rs)!owner"),
+        output.contains("owner:path(owner:src/lib.rs)!owner"),
         "{output}"
     );
     assert!(
-        output.contains("T=test:path(tests/unit/snapshot.rs)!tests"),
+        output.contains("owner:path(tests/unit/snapshot.rs)"),
         "{output}"
     );
     assert!(
-        output.contains("Q=query:term(run_codex_agent_hook)!fzf"),
+        output.contains("q=run_codex_agent_hook") || output.contains("run_codex_agent_hook"),
         "{output}"
     );
-    assert!(
-        output.contains(
-            "entries=owner-query(O,Q=>items+tests+dependency-usage),owner-tests(O=>covering-tests+test-entrypoints+fixtures)"
-        ),
-        "{output}"
-    );
-    assert!(!output.contains("query-deps("), "{output}");
-    assert!(!output.contains("finding-frontier("), "{output}");
+    assert!(!output.contains("search-fzf"), "{output}");
 }

@@ -87,7 +87,7 @@ pub(super) fn render_query_local_item_frontier(
     };
     let output_field = if names_only { " output=names" } else { "" };
     Ok(Some(format!(
-        "[search-owner] q={path} pkg=. own=1 item=1 itemQuery={item_query}{output_field}\n\
+        "[query-item] q={path} pkg=. own=1 item=1 itemQuery={item_query}{output_field}\n\
 |owner {path} role=source source=parser-visible-module lines={line_count} imports=0\n\
 |query itemQuery={item_query} status=hit match=exact item=1 reason=parser-item-exact{output_field} next=query-code\n\
 |item {item_name} kind={} next=syntax:{item_name} read={path}:{}:{} syn={} tsqRef={}\n",
@@ -111,9 +111,9 @@ fn render_query_local_item_inventory(
         .collect::<Vec<_>>();
     let output_field = if names_only { " output=names" } else { "" };
     let mut rendered = format!(
-        "[search-owner] q={path} pkg=. selector=items alg=item-frontier{output_field}\n\
+        "[query-item] q={path} pkg=. selector=items alg=item-frontier{output_field}\n\
 legend: ID=kind:role(value)!next; edge SRC>{{DST:rel}}; frontier ID.next\n\
-aliases: graph:{{G=search,O=owner,I=item}}\n\
+aliases: graph:{{Q=query,O=owner,I=item}}\n\
 O=owner:path({path})!owner"
     );
     for (index, (item, name)) in named_items.iter().enumerate() {
@@ -150,9 +150,9 @@ O=owner:path({path})!owner"
         );
     }
     if named_items.is_empty() {
-        rendered.push_str("G>{O:selects}\nrank=O frontier=O.owner\n");
+        rendered.push_str("Q>{O:selects}\nrank=O frontier=O.owner\n");
     } else {
-        rendered.push_str("G>{O:selects}\nO>{");
+        rendered.push_str("Q>{O:selects}\nO>{");
         for index in 0..named_items.len() {
             if index > 0 {
                 rendered.push(',');

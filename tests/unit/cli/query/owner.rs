@@ -56,7 +56,7 @@ fn cli_query_owner_selector_extracts_parser_item_code() {
         root,
     );
     assert!(
-        stdout.starts_with("[search-owner] q=src/lib.rs pkg=. own=1 item=1 itemQuery=load"),
+        stdout.starts_with("[query-item] q=src/lib.rs pkg=. own=1 item=1 itemQuery=load"),
         "{stdout}"
     );
     assert!(
@@ -84,7 +84,7 @@ fn cli_query_owner_selector_extracts_parser_item_code() {
     );
     assert!(
         stdout.starts_with(
-            "[search-owner] q=src/lib.rs pkg=. own=1 item=1 itemQuery=load output=names"
+            "[query-item] q=src/lib.rs pkg=. own=1 item=1 itemQuery=load output=names"
         ),
         "{stdout}"
     );
@@ -121,6 +121,7 @@ fn cli_query_owner_selector_extracts_parser_item_code() {
     assert!(stdout.contains("fn load"), "{stdout}");
     assert!(stdout.contains("domain::make_thing()"), "{stdout}");
     assert!(!stdout.contains("[search-owner]"), "{stdout}");
+    assert!(!stdout.contains("[query-item]"), "{stdout}");
     assert!(!stdout.contains("|code path=src/lib.rs"), "{stdout}");
     let search_code = run_cli([
         "search".as_ref(),
@@ -140,6 +141,7 @@ fn cli_query_owner_selector_extracts_parser_item_code() {
     assert!(stdout.contains("fn load"), "{stdout}");
     assert!(stdout.contains("domain::make_thing()"), "{stdout}");
     assert!(!stdout.contains("[search-owner]"), "{stdout}");
+    assert!(!stdout.contains("[query-item]"), "{stdout}");
     assert!(!stdout.contains("|code path=src/lib.rs"), "{stdout}");
     let names_only = run_cli([
         "query".as_ref(),

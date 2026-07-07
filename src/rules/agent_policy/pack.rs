@@ -116,6 +116,12 @@ pub(crate) fn evaluate(
                 .is_some_and(|module_facts| module_facts.is_source_module)
         })
         .collect::<Vec<_>>();
+    for module in modules {
+        if !module.report.is_valid {
+            continue;
+        };
+        findings.extend(process_command::process_command_findings(module, &rules));
+    }
     for module in &source_modules {
         if !module.report.is_valid {
             continue;
@@ -127,7 +133,6 @@ pub(crate) fn evaluate(
         ));
         findings.extend(data_shape::data_shape_findings(module, &rules));
         findings.extend(api_shape::api_shape_findings(module, &rules));
-        findings.extend(process_command::process_command_findings(module, &rules));
         findings.extend(tokio_runtime::tokio_runtime_boundary_findings(
             module, &rules,
         ));

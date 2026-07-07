@@ -5,8 +5,7 @@ use std::path::Path;
 use crate::RustHarnessConfig;
 
 use super::{
-    cargo, compact, compare, dependency, format, fzf_query, guide, namespace, owner, owner_view,
-    prime, query,
+    cargo, compact, compare, dependency, format, guide, namespace, owner, owner_view, prime, query,
 };
 
 /// Options shared by RFC search renderers.
@@ -30,7 +29,6 @@ pub struct RustSearchOptions {
     pub seeds: Option<usize>,
     /// Optional exact-set query terms for providers that can merge same-view probes.
     pub query_set: Vec<String>,
-    pub fzf_args: Vec<String>,
     /// Optional parser-native item query inside an owner/module result.
     pub item_query: Option<String>,
     /// Suppress compact code for item queries and render only parser item names.
@@ -142,12 +140,6 @@ fn render_search_view_packet(request: &RustSearchViewRequest<'_>) -> Result<Stri
             format::required_query(request.view, request.query)?,
             options,
         ),
-        "fzf" => fzf_query::render_search_fzf(
-            project_root,
-            config,
-            format::required_query(request.view, request.query)?,
-            options,
-        ),
         "cfg" => cargo::render_search_cfg(
             project_root,
             config,
@@ -234,7 +226,6 @@ fn clone_reasoning_options(options: &RustSearchOptions) -> RustSearchOptions {
         output_view: options.output_view.clone(),
         seeds: options.seeds,
         query_set: options.query_set.clone(),
-        fzf_args: options.fzf_args.clone(),
         item_query: options.item_query.clone(),
         item_names_only: options.item_names_only,
         item_code: options.item_code,
@@ -406,12 +397,7 @@ fn render_reasoning_profile(
             let feature = required_reasoning_selector("query", options.item_query.as_deref())?;
             let mut cfg_options = clone_reasoning_options(options);
             ensure_reasoning_pipe(&mut cfg_options, "owner");
-            let mut body = cargo::render_search_cfg(project_root, config, feature, &cfg_options)?;
-            let mut fzf_options = clone_reasoning_options(options);
-            ensure_reasoning_pipe(&mut fzf_options, "owner");
-            ensure_reasoning_pipe(&mut fzf_options, "tests");
-            let fzf_body = query::render_search_fzf(project_root, config, feature, &fzf_options)?;
-            push_reasoning_body(&mut body, &fzf_body);
+            let body = cargo::render_search_cfg(project_root, config, feature, &cfg_options)?;
             Ok(reasoning_block(
                 "feature-cfg",
                 &format!("feature={feature}"),
@@ -423,11 +409,10 @@ fn render_reasoning_profile(
         "finding-frontier" => {
             let finding = required_reasoning_selector("query", options.item_query.as_deref())?;
             let mut body = String::new();
-            let mut fzf_options = clone_reasoning_options(options);
-            ensure_reasoning_pipe(&mut fzf_options, "owner");
-            ensure_reasoning_pipe(&mut fzf_options, "tests");
-            let fzf_body = query::render_search_fzf(project_root, config, finding, &fzf_options)?;
-            push_reasoning_body(&mut body, &fzf_body);
+            let symbol_body = query::render_search_symbol(project_root, config, finding, options)?;
+            push_reasoning_body(&mut body, &symbol_body);
+            let api_body = query::render_search_api(project_root, config, finding, options)?;
+            push_reasoning_body(&mut body, &api_body);
             if let Some(owner) = options
                 .owner
                 .as_deref()

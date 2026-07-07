@@ -11,18 +11,18 @@ use crate::rules::display_path;
 use crate::{RustHarnessFinding, RustHarnessRule};
 
 use super::{
-    MAX_SOURCE_EFFECTIVE_LINES, MIN_SOURCE_IMPLEMENTATION_ITEMS, MIN_SOURCE_PUBLIC_ITEMS,
-    RUST_MOD_R002, RUST_MOD_R003, RUST_MOD_R010, RUST_MOD_R011,
+    MAX_SOURCE_EFFECTIVE_LINES, MAX_SOURCE_LINES, MIN_SOURCE_IMPLEMENTATION_ITEMS,
+    MIN_SOURCE_PUBLIC_ITEMS, RUST_MOD_R002, RUST_MOD_R003, RUST_MOD_R010, RUST_MOD_R011,
 };
 
 pub(super) fn source_file_bloat_findings(
     module: &ParsedRustModule,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
+    let source_lines = module.source_metrics.source_lines;
     let effective_lines = module.source_metrics.effective_code_lines;
-    if effective_lines < MAX_SOURCE_EFFECTIVE_LINES {
-        return Vec::new();
-    }
+    let has_absolute_line_pressure = source_lines >= MAX_SOURCE_LINES;
+    let has_effective_line_pressure = effective_lines >= MAX_SOURCE_EFFECTIVE_LINES;
     let public_items = module
         .syntax_facts
         .top_level_items
@@ -35,17 +35,23 @@ pub(super) fn source_file_bloat_findings(
         .iter()
         .filter(|item| item.is_implementation_item)
         .count();
-    if public_items < MIN_SOURCE_PUBLIC_ITEMS
-        && implementation_items < MIN_SOURCE_IMPLEMENTATION_ITEMS
-    {
+    let has_item_pressure = public_items >= MIN_SOURCE_PUBLIC_ITEMS
+        || implementation_items >= MIN_SOURCE_IMPLEMENTATION_ITEMS;
+    let has_effective_item_pressure = has_effective_line_pressure && has_item_pressure;
+    if !has_absolute_line_pressure && !has_effective_item_pressure {
         return Vec::new();
     }
     let rule = &rules[RUST_MOD_R002];
     vec![RustHarnessFinding::from_rule(
         rule,
         format!(
-            "{} carries {effective_lines} effective lines, {public_items} public items, and {implementation_items} top-level implementation items.",
-            display_path(&module.report.path)
+            "{} carries {source_lines} source lines, {effective_lines} effective code lines, {public_items} public items, {implementation_items} top-level implementation items, and {}.",
+            display_path(&module.report.path),
+            if has_item_pressure {
+                "large item pressure"
+            } else {
+                "absolute source line pressure"
+            }
         ),
         file_location(&module.report.path),
         None,

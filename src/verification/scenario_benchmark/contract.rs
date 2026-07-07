@@ -111,6 +111,9 @@ pub struct RustScenarioBenchmarkContract {
     /// Insta snapshot name that freezes the receipt shape, when present.
     #[serde(default)]
     pub snapshot: Option<String>,
+    /// Scenario phase, such as cold, warm, or cold-functional.
+    #[serde(default)]
+    pub phase: Option<RustScenarioBenchmarkPhase>,
     /// Intended steady-state target duration.
     pub target_total: RustScenarioBenchmarkDuration,
     /// Hard maximum duration enforced by the scenario gate.
@@ -164,6 +167,15 @@ impl RustScenarioBenchmarkContract {
         }
         parts.join(" ")
     }
+}
+
+/// Typed benchmark execution phase declared by a scenario benchmark manifest.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub enum RustScenarioBenchmarkPhase {
+    Cold,
+    Warm,
+    ColdFunctional,
 }
 
 fn non_empty_opt(value: Option<&str>) -> Option<&str> {

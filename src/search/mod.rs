@@ -7,7 +7,6 @@ mod compare;
 mod context;
 mod dependency;
 mod format;
-mod fzf_query;
 pub(crate) mod guide;
 mod hits;
 mod ingest;

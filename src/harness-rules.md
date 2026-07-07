@@ -66,6 +66,7 @@
 - RUST-AGENT-PROJECT-020: Rejects silent default values for missing evidence-bearing data.
 - RUST-AGENT-PROJECT-021: Rejects sentinel source locations in line, column, and range conversion.
 - RUST-AGENT-PROJECT-022: Advises candidate loops to record skipped or filtered row telemetry.
+- RUST-AGENT-PROJECT-024: Advises oversized test support and fixture modules to split into focused support owners.
 - RUST-AGENT-PROJECT-MANIFEST-023: Requires Cargo package manifests to target Rust edition 2024 or document a compatibility boundary.
 - RUST-AGENT-TOKIO-RUNTIME-002: Routes Tokio spawn, blocking work, and runtime construction through a typed runtime facade.
 - RUST-AGENT-NATIVE-ABI-001: Keeps public `repr(C)` native ABI layouts beside ABI version, ABI id, header path, and header source constants.

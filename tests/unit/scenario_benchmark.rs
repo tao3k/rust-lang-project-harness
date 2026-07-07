@@ -2,9 +2,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use rust_lang_project_harness::{
-    RustScenarioBenchmarkStatus, RustScenarioBenchmarkViolationKind,
-    assert_rule_fixture_scenario_benchmarks, validate_required_rust_scenario_benchmarks,
-    validate_rust_scenario_benchmark,
+    RustScenarioBenchmarkContract, RustScenarioBenchmarkPhase, RustScenarioBenchmarkStatus,
+    RustScenarioBenchmarkViolationKind, assert_rule_fixture_scenario_benchmarks,
+    validate_required_rust_scenario_benchmarks, validate_rust_scenario_benchmark,
 };
 use tempfile::TempDir;
 
@@ -29,6 +29,34 @@ fn scenario_benchmark_control_flow_v1_snapshot() {
     assert!(
         receipt.benchmark.observed_memory_bytes <= receipt.benchmark.memory_budget_bytes,
         "{receipt:?}"
+    );
+}
+
+#[test]
+fn scenario_benchmark_source_index_fallback_control_v1_snapshot() {
+    let scenario_root = fixture_root("search_interface/source_index_fallback_control_v1");
+    let receipt = validate_rust_scenario_benchmark(&scenario_root)
+        .expect("validate source-index fallback-control scenario benchmark");
+
+    assert_eq!(
+        receipt.status,
+        RustScenarioBenchmarkStatus::Pass,
+        "{receipt:?}"
+    );
+    assert!(receipt.violations.is_empty(), "{:?}", receipt.violations);
+    assert!(scenario_root.join(&receipt.scenario.inputs).is_dir());
+    assert!(scenario_root.join(&receipt.scenario.expected).is_dir());
+    assert!(
+        receipt.benchmark.observed_total <= receipt.benchmark.max_total,
+        "{receipt:?}"
+    );
+    assert!(
+        receipt.benchmark.observed_memory_bytes <= receipt.benchmark.memory_budget_bytes,
+        "{receipt:?}"
+    );
+    assert_eq!(
+        receipt.benchmark.fallback_reason.as_deref(),
+        Some("explicit-miss-or-rejected-only")
     );
 }
 
@@ -108,6 +136,28 @@ fn scenario_benchmark_process_command_probe_v1_snapshot() {
         comparison.expected_memory_bytes < comparison.input_memory_bytes,
         "{comparison:?}"
     );
+}
+
+#[test]
+fn scenario_benchmark_phase_is_typed() {
+    let contract = toml::from_str::<RustScenarioBenchmarkContract>(
+        r#"
+harness = "libtest"
+test = "unbounded_async_queue_without_backpressure_is_agent_advice"
+snapshot = "scenario_benchmark_async_backpressure_boundary_v1"
+phase = "cold"
+target_total = "20ms"
+max_total = "70ms"
+observed_total = "9ms"
+regression_budget = "15ms"
+memory_budget_bytes = 1048576
+observed_memory_bytes = 245760
+target_rationale = "fixture"
+"#,
+    )
+    .expect("deserialize typed benchmark phase");
+
+    assert_eq!(contract.phase, Some(RustScenarioBenchmarkPhase::Cold));
 }
 
 #[test]
@@ -417,6 +467,14 @@ fn scenario_benchmark_suite_covers_all_required_current_scenarios() {
     assert!(
         covered_rule_ids.contains("RUST-AGENT-PROJECT-MANIFEST-023"),
         "missing project manifest scenario coverage: {receipt:?}"
+    );
+    assert!(
+        receipt
+            .receipts
+            .iter()
+            .any(|scenario_receipt| scenario_receipt.scenario.id
+                == "source-index-fallback-control-v1"),
+        "missing search-interface fallback-control scenario coverage: {receipt:?}"
     );
     assert!(receipt.policy_coverage.iter().all(|coverage| {
         receipt

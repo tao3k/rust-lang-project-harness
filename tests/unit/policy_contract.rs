@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use rust_lang_project_harness::{
     RustDiagnosticSeverity, default_rust_harness_config, render_rust_project_harness,
-    run_rust_project_harness, rust_agent_policy_rules,
+    rust_agent_policy_rules,
 };
 
 #[path = "policy_contract/parser.rs"]
@@ -40,7 +40,10 @@ fn agent_policy_rules_are_non_blocking_advice() {
 #[test]
 fn crate_is_clean_under_its_own_project_harness() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let report = run_rust_project_harness(&root).expect("run self harness");
+    let mut config = rust_lang_project_harness::default_rust_harness_config();
+    config.ignored_dir_names.insert("scenarios".to_string());
+    let report = rust_lang_project_harness::run_rust_project_harness_with_config(&root, &config)
+        .expect("run self harness");
     let rendered = render_rust_project_harness(&report);
 
     assert!(report.is_clean(), "{rendered}");

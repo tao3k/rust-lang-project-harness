@@ -48,15 +48,16 @@ rs-harness search policy <rule-id-or-alias> [owner tests] [PROJECT_ROOT]\n\
 rs-harness search query <code-shaped-query> [owner tests] [PROJECT_ROOT]\n\
 rs-harness search features [feature] [cfg owners tests] [PROJECT_ROOT]\n\
          rs-harness search dependency <crate-or-import-or-package> [items public-api docs tests] [PROJECT_ROOT]\n\
-rs-harness search <symbol|callsite|import|fzf|cfg|pattern|docs|docs-use|api> <query> [PROJECT_ROOT]\n\
-rs-harness search <owner|dependency|fzf|tests> --query-set TERM [--query-set TERM...] [PROJECT_ROOT]\n\
+rs-harness search <symbol|callsite|import|cfg|pattern|docs|docs-use|api> <query> [PROJECT_ROOT]\n\
+rs-harness search <owner|dependency|tests> --query-set TERM [--query-set TERM...] [PROJECT_ROOT]\n\
          rs-harness search public-external-types [--dependency DEP] [PROJECT_ROOT]\n\
          rg -n '<query>' src tests | rs-harness search ingest [items tests] [PROJECT_ROOT]\n\n\
          Emits compact RFC line protocol for deterministic agent exploration.\n\
+         Search discovers owner candidates; exact item identity belongs to query-item packets.\n\
          Compact text is the default; --json wraps the same packet for tools.\n\
          RFC controls accepted here: --trace, --explain, --view graph|hits|both|seeds,\n\
          --depth N, --dir out|in|both, --edge LIST, --item-slice, --dependency DEP,\n\
-         --seeds N, --query-set TERM, --query SYMBOL, --fzf-arg ARG, --fzf ..., --names-only, --code, --lines."
+         --seeds N, --query-set TERM, --query SYMBOL, --names-only, --code, --lines."
     );
 }
 
@@ -102,7 +103,7 @@ pub(super) fn print_guide(_project_root: &Path) {
 
 |flow bootstrap start="search guide ." then="choose evidence-state route; prime only when owner map unknown" next="use search-guide command=search reasoning <profile> --owner/--query/--dependency ... --view seeds"
 |flow code-shaped-read start="refer:treesitter-query-guide" then="query --treesitter-query <pattern>" then="query --selector <exact-structural-selector> --treesitter-query <pattern> --workspace <workspace-root> --code"
-|flow wide-read-protection trigger="query --from-hook direct-source-read --selector <wide-range> --code" output=read-frontier code=false
+|flow wide-read-protection trigger="raw-source-denied" next="search owner <owner-path> items --workspace <workspace-root> --view seeds" output=owner-item-frontier code=false
 
 |cmd prime=asp rust search prime --workspace <workspace-root> --view seeds condition=owner-map-unknown
 |cmd pipe=asp rust search pipe '<term>' --workspace <workspace-root> --view seeds condition=ambiguous-query
@@ -144,7 +145,6 @@ pub(super) fn search_view_requires_query(view: &str) -> bool {
             | "callsite"
             | "import"
             | "query"
-            | "fzf"
             | "cfg"
             | "pattern"
             | "docs"
@@ -160,7 +160,7 @@ pub(super) fn search_view_accepts_optional_query(view: &str) -> bool {
 }
 
 pub(super) fn search_view_supports_query_set(view: &str) -> bool {
-    matches!(view, "owner" | "dependency" | "fzf" | "tests")
+    matches!(view, "owner" | "dependency" | "tests")
 }
 
 pub(super) fn is_known_search_view(view: &str) -> bool {
@@ -184,7 +184,6 @@ pub(super) fn is_known_search_view(view: &str) -> bool {
             | "callsite"
             | "import"
             | "query"
-            | "fzf"
             | "cfg"
             | "patterns"
             | "pattern"

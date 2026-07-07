@@ -335,6 +335,7 @@ fn run_search_view(options: &SearchOptions) -> Result<ExitCode, String> {
             SearchOutputControls {
                 depth: options.depth,
                 output_view: options.output_view.as_deref(),
+                packet_kind: None,
                 seeds: options.seeds,
             },
             &raw_rendered,
@@ -502,6 +503,8 @@ fn run_query_view(options: &SearchOptions) -> Result<ExitCode, String> {
         SearchOutputControls {
             depth: options.depth,
             output_view: options.output_view.as_deref(),
+            packet_kind: (options.view == "owner" && options.item_query.is_some())
+                .then_some("query-item"),
             seeds: options.seeds,
         },
         &raw_rendered,
@@ -613,7 +616,6 @@ pub(super) struct SearchOptions {
     pub(super) lines: bool,
     pub(super) pipes: Vec<String>,
     pub(super) query_set: Vec<String>,
-    pub(super) fzf_args: Vec<String>,
     pub(super) item_query: Option<String>,
     pub(super) read_selector: Option<String>,
     pub(super) item_names_only: bool,
@@ -671,7 +673,6 @@ impl SearchOptions {
                     "--owners" => options.owners = Some(parse_usize_option(&option, value)?),
                     "--hits" => options.hits = Some(parse_usize_option(&option, value)?),
                     "--query-set" => options.query_set.extend(split_csv_values(value)),
-                    "--fzf-arg" => options.fzf_args.push(value.to_string()),
                     "--query" => options.item_query = Some(value.to_string()),
                     "--workspace" => {
                         if value.starts_with('-') {
@@ -715,14 +716,8 @@ impl SearchOptions {
                 "--item-slice" => options.pipes.push("items".to_string()),
                 "--package" | "--owner" | "--dependency" | "--scope" | "--view" | "--depth"
                 | "--dir" | "--edge" | "--per-owner" | "--seeds" | "--owners" | "--hits"
-                | "--query-set" | "--query" | "--fzf-arg" | "--workspace" => {
+                | "--query-set" | "--query" | "--workspace" => {
                     pending_option = Some(value.to_string())
-                }
-                "--fzf" => {
-                    options
-                        .fzf_args
-                        .extend(args.by_ref().map(|arg| arg.to_string_lossy().to_string()));
-                    break;
                 }
                 value if value.starts_with('-') => {
                     return Err(format!("unknown search option: {value}"));
@@ -762,9 +757,6 @@ impl SearchOptions {
         self.view = values.remove(0);
         if !is_known_search_view(&self.view) {
             return Ok(());
-        }
-        if self.view == "fzf" && self.query_set.is_empty() && self.query.is_none() {
-            self.query = self.item_query.take();
         }
         if search_view_requires_query(&self.view) {
             if !self.query_set.is_empty() {
@@ -841,7 +833,6 @@ impl SearchOptions {
             lines: self.lines,
             pipes: self.pipes.clone(),
             query_set: self.query_set(),
-            fzf_args: self.fzf_args.clone(),
         }
     }
 
@@ -878,7 +869,6 @@ impl SearchOptions {
             output_view: self.output_view.clone(),
             seeds: self.seeds,
             query_set: self.query_set(),
-            fzf_args: self.fzf_args.clone(),
             item_query: self.item_query.clone(),
             item_names_only: self.item_names_only,
             item_code: self.item_code,
@@ -1112,32 +1102,5 @@ fn validate_search_options(options: &SearchOptions) -> Result<(), String> {
             options.command_label()
         ));
     }
-    if !options.fzf_args.is_empty() {
-        if options.view != "fzf" {
-            return Err("search fzf options are only supported by search fzf".to_string());
-        }
-        for arg in &options.fzf_args {
-            validate_fzf_arg(arg)?;
-        }
-    }
     Ok(())
-}
-
-fn validate_fzf_arg(value: &str) -> Result<(), String> {
-    if value.trim().is_empty() {
-        return Err("empty fzf option is not supported for agent search".to_string());
-    }
-    if value.chars().any(char::is_whitespace) {
-        return Err(format!("unsupported fzf option for agent search: {value}"));
-    }
-    if matches!(value, "--exact" | "-e" | "-i" | "+i") {
-        return Ok(());
-    }
-    if value.starts_with("--scheme=") {
-        let scheme = value.trim_start_matches("--scheme=");
-        if matches!(scheme, "default" | "path" | "history") {
-            return Ok(());
-        }
-    }
-    Err(format!("unsupported fzf option for agent search: {value}"))
 }

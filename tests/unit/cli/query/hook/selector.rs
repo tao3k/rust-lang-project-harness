@@ -25,7 +25,7 @@ fn cli_query_hook_selector_strips_owner_prefix_and_line_suffix() {
         root,
     );
     assert!(
-        stdout.starts_with("[search-owner] q=src/lib.rs pkg=. own=1 item=1 itemQuery=load"),
+        stdout.starts_with("[query-item] q=src/lib.rs pkg=. own=1 item=1 itemQuery=load"),
         "{stdout}"
     );
     assert!(
@@ -66,28 +66,18 @@ fn cli_query_hook_glob_code_shaped_term_uses_compact_frontier() {
         "seeds".as_ref(),
         root.as_os_str(),
     ]);
-    assert!(output.status.success(), "{output:?}");
-    let stdout = normalize_temp_root(
-        &String::from_utf8(output.stdout).expect("utf8 stdout"),
+    assert!(!output.status.success(), "{output:?}");
+    let stderr = normalize_temp_root(
+        &String::from_utf8(output.stderr).expect("utf8 stderr"),
         root,
     );
 
     assert!(
-        stdout.starts_with("[search-fzf] q=ClientReceipt "),
-        "{stdout}"
+        stderr.contains("query workspace term discovery is owned by ASP search lexical"),
+        "{stderr}"
     );
-    assert!(!stdout.contains("q=ClientReceipt {"), "{stdout}");
-    assert!(!stdout.contains("querySet=2"), "{stdout}");
-    assert!(!stdout.contains("|seed "), "{stdout}");
-    assert!(!stdout.contains("|synthesis "), "{stdout}");
     assert!(
-        stdout.contains("O=owner:path(src/types.rs)!owner"),
-        "{stdout}"
-    );
-    assert!(stdout.contains("rank=Q,O"), "{stdout}");
-    assert!(stdout.contains("frontier=Q.fzf,O.owner"), "{stdout}");
-    assert!(
-        stdout.contains("avoid=broad-lexical,raw-read,repeat-glob"),
-        "{stdout}"
+        stderr.contains("asp rust search lexical 'ClientReceipt {' owner tests --workspace <workspace-root> --view seeds"),
+        "{stderr}"
     );
 }

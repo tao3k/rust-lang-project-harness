@@ -155,25 +155,6 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
         owner["acceptedPipes"],
         serde_json::json!(["items", "tests"])
     );
-    let fzf = method_descriptor(methods, "search/fzf");
-    assert_eq!(fzf["requiresQuery"], true);
-    assert_eq!(fzf["supportsQuerySet"], true);
-    assert_eq!(
-        fzf["acceptedQuerySetSelectors"],
-        serde_json::json!(["fuzzy-set"])
-    );
-    assert!(
-        fzf["capabilities"].as_array().is_some_and(|capabilities| {
-            capabilities.iter().any(|capability| {
-                capability["namespace"] == "semantic"
-                    && capability["name"] == "finder-fuzzy-candidate-search"
-            }) && capabilities.iter().any(|capability| {
-                capability["namespace"] == "rust"
-                    && capability["name"] == "parser-visible-source-fuzzy-search"
-            })
-        }),
-        "{fzf}"
-    );
     let policy = method_descriptor(methods, "search/policy");
     assert_eq!(
         policy["outputSchemaIds"],
@@ -311,12 +292,6 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
         direct_source_read["outputModes"],
         serde_json::json!(["frontier", "json", "code", "names", "read-packet"])
     );
-    let fzf = method_descriptor(methods, "search/fzf");
-    assert_eq!(fzf["supportsQuerySet"], true);
-    assert_eq!(
-        fzf["acceptedQuerySetSelectors"],
-        serde_json::json!(["fuzzy-set"])
-    );
     let public_external_types = method_descriptor(methods, "search/public-external-types");
     assert_eq!(
         public_external_types["outputSchemaIds"],
@@ -349,15 +324,6 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
             "agent.semantic-protocols.semantic-compare-packet"
         ])
     );
-    assert!(
-        fzf["ingestRequiredFor"].as_array().is_some_and(|surfaces| {
-            surfaces
-                .iter()
-                .any(|surface| surface["name"] == "schema-json")
-        }),
-        "{fzf}"
-    );
-
     for descriptor in methods {
         for capability in descriptor["capabilities"].as_array().into_iter().flatten() {
             assert_eq!(capability["languageId"], "rust", "{capability}");

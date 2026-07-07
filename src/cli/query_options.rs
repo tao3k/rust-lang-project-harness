@@ -115,7 +115,7 @@ impl QueryOptions {
             && (!options.terms.is_empty() || options.query.is_some())
         {
             return Err(
-                "query --names-only requires an owner selector; workspace term discovery is `search fzf '<term>' owner --workspace <workspace-root> --view seeds`"
+                "query --names-only requires an owner selector; use `asp rust search lexical '<term>' owner --workspace <workspace-root> --view seeds` for workspace term discovery"
                     .to_string(),
             );
         }
@@ -229,14 +229,11 @@ impl QueryOptions {
                 if !self.terms.is_empty() || self.query.is_some() {
                     if self.names_only {
                         return Err(
-                            "query --names-only requires an owner selector; workspace term discovery is `search fzf '<term>' owner --workspace <workspace-root> --view seeds`"
+                            "query --names-only requires an owner selector; workspace term discovery is `asp rust search lexical '<term>' owner --workspace <workspace-root> --view seeds`"
                                 .to_string(),
                         );
                     }
-                    self.apply_fzf_query(
-                        &mut options,
-                        self.from_hook.as_deref() == Some("direct-source-read"),
-                    )?;
+                    return Err(self.workspace_term_discovery_error());
                 } else {
                     options.view = "prime".to_string();
                     options
@@ -255,7 +252,7 @@ impl QueryOptions {
                 }
             }
         } else if !self.terms.is_empty() || self.query.is_some() {
-            self.apply_fzf_query(&mut options, false)?;
+            return Err(self.workspace_term_discovery_error());
         } else {
             options.view = "prime".to_string();
             options
@@ -268,53 +265,22 @@ impl QueryOptions {
         Ok(options)
     }
 
-    fn apply_fzf_query(
-        &self,
-        options: &mut QuerySearchOptions,
-        normalize_code_shaped_terms: bool,
-    ) -> Result<(), String> {
-        let terms = if normalize_code_shaped_terms {
-            self.code_shaped_fzf_terms()
-                .unwrap_or_else(|| self.fzf_terms())
+    fn workspace_term_discovery_error(&self) -> String {
+        let term = if !self.terms.is_empty() {
+            self.terms.join(" ")
         } else {
-            self.fzf_terms()
+            self.query.clone().unwrap_or_else(|| "<term>".to_string())
         };
-        if terms.is_empty() {
-            return Err("query fzf mode requires --term or --query".to_string());
-        }
-        options.view = "fzf".to_string();
-        options.query = Some(terms.join(","));
-        options.query_set = terms;
-        options.pipes = self.query_surfaces(&["tests"]);
-        options
-            .output_view
-            .get_or_insert_with(|| "seeds".to_string());
-        Ok(())
+        format!(
+            "query workspace term discovery is owned by ASP search lexical; run `asp rust search lexical '{}' owner tests --workspace <workspace-root> --view seeds`",
+            term.replace('\'', "'\\''")
+        )
     }
 
     fn item_query(&self) -> Option<String> {
         self.query
             .clone()
             .or_else(|| (!self.terms.is_empty()).then(|| self.terms.join("|")))
-    }
-
-    fn fzf_terms(&self) -> Vec<String> {
-        if !self.terms.is_empty() {
-            return self.terms.clone();
-        }
-        self.query
-            .as_deref()
-            .map(split_csv_values)
-            .unwrap_or_default()
-    }
-
-    fn code_shaped_fzf_terms(&self) -> Option<Vec<String>> {
-        let raw_terms = self.fzf_terms();
-        let mut normalized = Vec::with_capacity(raw_terms.len());
-        for term in raw_terms {
-            normalized.push(normalize_rust_code_shaped_term(&term)?);
-        }
-        (!normalized.is_empty()).then_some(normalized)
     }
 
     fn normalized_selector(&self) -> Option<String> {
@@ -365,81 +331,6 @@ fn selector_has_glob(value: &str) -> bool {
     value
         .chars()
         .any(|character| matches!(character, '*' | '?' | '[' | ']' | '{' | '}'))
-}
-
-fn normalize_rust_code_shaped_term(value: &str) -> Option<String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty()
-        || trimmed
-            .chars()
-            .any(|character| matches!(character, '/' | '\\' | '-'))
-    {
-        return None;
-    }
-    let has_syntax_hint = trimmed
-        .chars()
-        .any(|character| matches!(character, '{' | '}' | '(' | ')' | ':' | '.' | '<' | '>'))
-        || trimmed
-            .split_whitespace()
-            .next()
-            .is_some_and(is_rust_query_keyword);
-    if !has_syntax_hint {
-        return None;
-    }
-
-    let mut identifiers = Vec::new();
-    let mut current = String::new();
-    for character in trimmed.chars() {
-        if character == '_' || character.is_ascii_alphanumeric() {
-            current.push(character);
-        } else if !current.is_empty() {
-            identifiers.push(std::mem::take(&mut current));
-        }
-    }
-    if !current.is_empty() {
-        identifiers.push(current);
-    }
-
-    identifiers
-        .into_iter()
-        .filter(|identifier| is_rust_identifier(identifier))
-        .rfind(|identifier| !is_rust_query_keyword(identifier))
-}
-
-fn is_rust_identifier(value: &str) -> bool {
-    let mut chars = value.chars();
-    let Some(first) = chars.next() else {
-        return false;
-    };
-    (first == '_' || first.is_ascii_alphabetic())
-        && chars.all(|character| character == '_' || character.is_ascii_alphanumeric())
-}
-
-fn is_rust_query_keyword(value: &str) -> bool {
-    matches!(
-        value,
-        "async"
-            | "const"
-            | "crate"
-            | "enum"
-            | "extern"
-            | "fn"
-            | "impl"
-            | "let"
-            | "mod"
-            | "move"
-            | "pub"
-            | "self"
-            | "Self"
-            | "static"
-            | "struct"
-            | "super"
-            | "trait"
-            | "type"
-            | "unsafe"
-            | "use"
-            | "where"
-    )
 }
 
 fn has_selector_prefix(value: &str) -> bool {

@@ -1,0 +1,11 @@
+id = "source-index-fallback-control-v1"
+title = "Source-index search routes reject hidden fallback"
+policy_ids = ["RUST-AGENT-PROC-001", "RUST-AGENT-DS-001"]
+agent_goal = "Use source-index, owner identity, or exact selector evidence before any fallback route can run."
+reference_repositories = ["BurntSushi/ripgrep", "rust-lang/cargo", "rust-lang/rust-analyzer"]
+reference_patterns = [
+  "Hot lookup paths use an indexed source before scanning broader context",
+  "Fallback routes carry explicit miss or deferred reasons instead of silently taking over",
+]
+inputs = "inputs"
+expected = "expected"

@@ -28,7 +28,6 @@ fn agent_registry_json(project_root: &Path) -> Value {
         "import",
         "query",
         "tests",
-        "fzf",
         "cfg",
         "patterns",
         "pattern",
@@ -392,7 +391,6 @@ fn search_view_requires_query(view: &str) -> bool {
             | "callsite"
             | "import"
             | "query"
-            | "fzf"
             | "cfg"
             | "pattern"
             | "docs"
@@ -404,14 +402,11 @@ fn search_view_requires_query(view: &str) -> bool {
 }
 
 fn search_view_supports_query_set(view: &str) -> bool {
-    matches!(view, "owner" | "dependency" | "fzf" | "tests")
+    matches!(view, "owner" | "dependency" | "tests")
 }
 
-fn search_query_set_selectors(view: &str) -> Vec<&'static str> {
-    match view {
-        "fzf" => vec!["fuzzy-set"],
-        _ => vec!["exact-set"],
-    }
+fn search_query_set_selectors(_view: &str) -> Vec<&'static str> {
+    vec!["exact-set"]
 }
 
 fn accepted_search_pipes(view: &str) -> Vec<&'static str> {

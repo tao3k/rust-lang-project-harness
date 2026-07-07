@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 
 use crate::rules::labels;
+use crate::rules::project_policy::RUST_PROJ_R024;
 use crate::{RustDiagnosticSeverity, RustHarnessRule};
 
 use super::{
@@ -196,6 +197,14 @@ pub(super) fn rules_by_id() -> BTreeMap<&'static str, RustHarnessRule> {
             RustDiagnosticSeverity::Warning,
             "Cargo package edition is stale",
             "Agent-authored Rust packages should target edition 2024 by default; older editions need an explicit compatibility reason and migration plan.",
+            labels("project-policy"),
+        ),
+        RustHarnessRule::new(
+            RUST_PROJ_R024,
+            PACK_ID,
+            RustDiagnosticSeverity::Warning,
+            "Test support module is too large",
+            "Split oversized test support and fixture modules into folder-first support owners with focused responsibilities.",
             labels("project-policy"),
         ),
     ]

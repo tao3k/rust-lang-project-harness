@@ -29,8 +29,6 @@ mod semantic_query_projection;
 #[cfg(feature = "search")]
 mod semantic_read_json;
 #[cfg(feature = "search")]
-mod semantic_search_finder_json;
-#[cfg(feature = "search")]
 mod semantic_search_json;
 #[cfg(feature = "search")]
 mod semantic_search_json_canonical;

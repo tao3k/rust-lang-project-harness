@@ -5,5 +5,5 @@ expression: rendered
 [RUST-MOD-R002] Warning: Source file carries too many responsibilities
 @ $TEMP/src/pile.rs:1:1
 fix: split this source file by responsibility
-Help: $TEMP/src/pile.rs carries 697 effective lines, 0 public items, and 41 top-level implementation items.
+Help: $TEMP/src/pile.rs carries 766 source lines, 765 effective code lines, 0 public items, 45 top-level implementation items, and large item pressure.
 Contract: Split oversized source files into smaller owner modules with clear public boundaries.

@@ -1,0 +1,26 @@
+harness = "libtest"
+test = "scenario_benchmark_source_index_fallback_control_v1_snapshot"
+snapshot = "scenario_benchmark_source_index_fallback_control_v1"
+target_total = "20ms"
+max_total = "75ms"
+observed_total = "11ms"
+regression_budget = "15ms"
+memory_budget_bytes = 8388608
+observed_memory_bytes = 3145728
+route_source = "parser-scenario"
+max_provider_process_count = 0
+max_stdout_bytes = 8192
+fallback_reason = "explicit-miss-or-rejected-only"
+target_rationale = "Search-interface scenario routing must stay parser-owned and reject hidden fallback when source-index or owner evidence is already available."
+
+[observed_timings]
+contract_deserialize = "5ms"
+receipt_render = "2ms"
+snapshot_assertion = "1ms"
+
+[input_expected_comparison]
+input_total = "24ms"
+expected_total = "11ms"
+input_memory_bytes = 5242880
+expected_memory_bytes = 3145728
+interpretation = "Expected route uses indexed evidence and explicit fallback state, avoiding broad search takeover; observed speedup 2.18x and memory reduction 40.00%"

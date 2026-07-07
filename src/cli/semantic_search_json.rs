@@ -43,7 +43,6 @@ pub(super) struct SemanticSearchJsonOptions {
     pub(super) lines: bool,
     pub(super) pipes: Vec<String>,
     pub(super) query_set: Vec<String>,
-    pub(super) fzf_args: Vec<String>,
 }
 
 pub(super) fn render_search_json(
@@ -264,26 +263,6 @@ fn base_packet(
         "nextActions": collections.next_actions,
         "notes": collections.notes,
     });
-    if options.view == "fzf" {
-        packet["finder"] = super::semantic_search_finder_json::fzf_finder(options);
-        packet["avoidNextActions"] = json!([
-            {
-                "kind": "broad-lexical",
-                "target": "search",
-                "reason": "reasoning-profile"
-            },
-            {
-                "kind": "raw-read",
-                "target": "source",
-                "reason": "reasoning-profile"
-            },
-            {
-                "kind": "repeat-glob",
-                "target": "search",
-                "reason": "reasoning-profile"
-            }
-        ]);
-    }
     if options.view == "reasoning" {
         packet["avoidNextActions"] = if options.dependency.is_some() {
             json!([

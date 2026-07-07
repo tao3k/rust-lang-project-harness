@@ -25,7 +25,6 @@ pub(super) const SEARCH_PIPES: &[&str] = &[
     "dependency",
     "docs",
     "features",
-    "fzf",
     "items",
     "owner",
     "owners",

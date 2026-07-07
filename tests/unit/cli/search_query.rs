@@ -29,31 +29,6 @@ fn cli_search_query_routes_code_shaped_use_through_native_syntax_facts() {
 }
 
 #[test]
-fn cli_search_fzf_points_code_shaped_queries_to_explicit_query_api() {
-    if crate::cli::support::skip_if_protocol_graph_renderer_unavailable() {
-        return;
-    }
-
-    let temp = TempDir::new().expect("temp dir");
-    let root = temp.path();
-    write_search_fixture(root);
-
-    let query = run_search(root, &["fzf", "pub use Thing", "tests", "--view", "seeds"]);
-
-    assert!(
-        query.starts_with("[search-fzf] q=pub use Thing alg=native-syntax-query"),
-        "{query}"
-    );
-    assert!(
-        query.contains("Q=query:term(pub use Thing)!query"),
-        "{query}"
-    );
-    assert!(query.contains("rank=Q frontier=Q.query"), "{query}");
-    assert!(!query.contains("source=native-parser"), "{query}");
-    assert!(!query.contains("|seed "), "{query}");
-}
-
-#[test]
 fn cli_search_query_json_embeds_native_syntax_facts() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();

@@ -12,7 +12,7 @@ use super::manifest::manifest_findings;
 use super::quality::quality_findings;
 use super::source_scope::source_scope_findings;
 use super::source_tests::source_test_mount_findings;
-use super::test_bloat::test_leaf_bloat_findings;
+use super::test_bloat::test_bloat_findings;
 use super::test_layout::test_layout_findings;
 use super::test_targets::{
     retired_test_target_gate_findings, test_target_aggregate_findings,
@@ -44,11 +44,13 @@ pub(crate) const RUST_PROJ_R020: &str = "RUST-AGENT-PROJECT-020";
 pub(crate) const RUST_PROJ_R021: &str = "RUST-AGENT-PROJECT-021";
 pub(crate) const RUST_PROJ_R022: &str = "RUST-AGENT-PROJECT-022";
 pub(crate) const RUST_PROJ_R023: &str = "RUST-AGENT-PROJECT-MANIFEST-023";
+pub(crate) const RUST_PROJ_R024: &str = "RUST-AGENT-PROJECT-024";
 
 pub(crate) const MAX_UNIT_TEST_EFFECTIVE_LINES: usize = 1000;
 pub(crate) const MIN_UNIT_TEST_FUNCTIONS: usize = 8;
 pub(crate) const MAX_INTEGRATION_TEST_EFFECTIVE_LINES: usize = 1000;
 pub(crate) const MIN_INTEGRATION_TEST_FUNCTIONS: usize = 12;
+pub(crate) const MAX_TEST_SUPPORT_EFFECTIVE_LINES: usize = 1000;
 
 /// Return compact metadata for Rust project-policy rules.
 #[must_use]
@@ -83,7 +85,12 @@ pub(crate) fn evaluate(
         &rules,
     ));
     findings.extend(source_test_mount_findings(scope, modules, &rules));
-    findings.extend(test_leaf_bloat_findings(&scope.project_root, &rules));
+    findings.extend(test_bloat_findings(
+        &scope.project_root,
+        modules,
+        &reasoning_tree,
+        &rules,
+    ));
     findings.extend(test_target_aggregate_findings(
         &scope.project_root,
         &cargo_test_targets,

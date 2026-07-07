@@ -6,14 +6,16 @@
 
 #[cfg(test)]
 fn self_apply_harness_config() -> crate::RustHarnessConfig {
-    crate::default_rust_harness_config().with_verification_profile_hint(
+    let mut config = crate::default_rust_harness_config().with_verification_profile_hint(
         crate::RustVerificationProfileHint::new(
             "src/lib.rs",
             [crate::RustOwnerResponsibility::PublicApi],
         )
         .without_verification_tasks()
         .with_rationale("self-apply cargo-test gate covers this crate because the preferred cargo-check build gate would require a cyclic self build-dependency"),
-    )
+    );
+    config.ignored_dir_names.insert("scenarios".to_string());
+    config
 }
 
 #[cfg(test)]

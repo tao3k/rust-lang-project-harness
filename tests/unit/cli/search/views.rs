@@ -1,5 +1,3 @@
-#![allow(unused_imports)]
-
 use std::fs;
 use std::process::Command;
 
@@ -458,144 +456,6 @@ fn cli_search_views_render_rfc_line_protocol() {
         "{import}"
     );
 
-    let fzf = run_search(root, &["fzf", "Thing", "--scope", "src"]);
-    assert!(
-        fzf.starts_with("[search-fzf] q=Thing mode=fuzzy backend=provider pkg=. own=2"),
-        "{fzf}"
-    );
-    assert!(fzf.contains("|owner src/lib.rs hit_kind=fzf"), "{fzf}");
-    assert!(
-        fzf.contains("|owner src/domain/mod.rs hit_kind=fzf"),
-        "{fzf}"
-    );
-
-    let fzf_seeds = run_search(root, &["fzf", "Thing", "--scope", "src", "--view", "seeds"]);
-    assert!(fzf_seeds.starts_with("[search-fzf] q=Thing"), "{fzf_seeds}");
-    assert!(fzf_seeds.contains(" alg=seed-frontier"), "{fzf_seeds}");
-    assert!(
-        fzf_seeds
-            .contains("legend: ID=kind:role(value)!next; edge SRC>{DST:rel}; frontier ID.next"),
-        "{fzf_seeds}"
-    );
-    assert!(
-        fzf_seeds.contains("aliases: graph:{G=search,Q=query"),
-        "{fzf_seeds}"
-    );
-    assert!(
-        fzf_seeds.contains("O=owner:path(src/lib.rs)!owner"),
-        "{fzf_seeds}"
-    );
-    assert!(!fzf_seeds.contains("|seed "), "{fzf_seeds}");
-    assert!(!fzf_seeds.contains("alias: graph:"), "{fzf_seeds}");
-
-    let fzf_set = run_cli([
-        "search".as_ref(),
-        "fzf".as_ref(),
-        "--query-set".as_ref(),
-        "Thing".as_ref(),
-        "--query-set".as_ref(),
-        "make_thing".as_ref(),
-        "--scope".as_ref(),
-        "src".as_ref(),
-        root.as_os_str(),
-    ]);
-    assert!(fzf_set.status.success(), "{fzf_set:?}");
-    let fzf_set_stdout = String::from_utf8(fzf_set.stdout).expect("utf8 stdout");
-    assert!(
-        fzf_set_stdout.starts_with(
-            "[search-fzf] q=Thing,make_thing querySet=2 selector=fuzzy-set mode=fuzzy backend=provider pkg=. own=2"
-        ),
-        "{fzf_set_stdout}"
-    );
-    assert!(
-        fzf_set_stdout.contains("|owner src/lib.rs hit_kind=fzf querySet=2"),
-        "{fzf_set_stdout}"
-    );
-    assert!(
-        fzf_set_stdout.contains("window_set=")
-            && fzf_set_stdout.contains("owner:src/lib.rs")
-            && fzf_set_stdout.contains("owner:src/domain/mod.rs"),
-        "{fzf_set_stdout}"
-    );
-
-    let fzf_set_json = run_cli([
-        "search".as_ref(),
-        "fzf".as_ref(),
-        "--query-set".as_ref(),
-        "Thing".as_ref(),
-        "--query-set".as_ref(),
-        "make_thing".as_ref(),
-        "--json".as_ref(),
-        root.as_os_str(),
-    ]);
-    assert!(fzf_set_json.status.success(), "{fzf_set_json:?}");
-    let value = serde_json::from_slice::<Value>(&fzf_set_json.stdout).expect("fzf set json");
-    assert_eq!(value["query"], "Thing,make_thing");
-    assert_eq!(value["querySet"][0]["value"], "Thing");
-    assert_eq!(value["querySet"][0]["kind"], "text");
-    assert_eq!(value["querySet"][1]["value"], "make_thing");
-    assert_eq!(value["queryComposition"]["mode"], "query-set");
-
-    let fzf_set_frontier = run_cli([
-        "search".as_ref(),
-        "fzf".as_ref(),
-        "--query-set".as_ref(),
-        "load".as_ref(),
-        "--query-set".as_ref(),
-        "Thing".as_ref(),
-        "--view".as_ref(),
-        "seeds".as_ref(),
-        "--json".as_ref(),
-        root.as_os_str(),
-    ]);
-    assert!(fzf_set_frontier.status.success(), "{fzf_set_frontier:?}");
-    let value = serde_json::from_slice::<Value>(&fzf_set_frontier.stdout).expect("frontier json");
-    assert_eq!(
-        value["searchSynthesis"]["algorithm"],
-        "change-frontier-query-set"
-    );
-    assert_eq!(value["searchSynthesis"]["scope"], "query-set");
-    assert!(
-        value["searchSynthesis"]["editFrontier"]
-            .as_array()
-            .expect("edit frontier")
-            .iter()
-            .any(|path| path.as_str() == Some("src/lib.rs")),
-        "{value}"
-    );
-    assert!(
-        value["searchSynthesis"]["testFrontier"]
-            .as_array()
-            .expect("test frontier")
-            .iter()
-            .any(|path| path.as_str() == Some("tests/domain.rs")),
-        "{value}"
-    );
-    assert!(
-        value["searchSynthesis"]["windowSet"]
-            .as_array()
-            .expect("window set")
-            .iter()
-            .any(|window| window["kind"] == "owner" && window["target"] == "src/lib.rs"),
-        "{value}"
-    );
-    assert!(
-        value["searchSynthesis"]["windowSet"]
-            .as_array()
-            .expect("window set")
-            .iter()
-            .any(|window| window["kind"] == "tests" && window["target"] == "tests/domain.rs"),
-        "{value}"
-    );
-    assert!(
-        value["searchSynthesis"]["seeds"]
-            .as_array()
-            .expect("frontier seeds")
-            .iter()
-            .any(|seed| seed["kind"] == "owner" && seed["target"] == "src/lib.rs"),
-        "{value}"
-    );
-
     let owner_frontier = run_search(root, &["owner", "src/lib.rs"]);
     assert!(
         owner_frontier.contains("|hot load kind=fn responsibilities=early-return public=true"),
@@ -630,8 +490,14 @@ fn cli_search_views_render_rfc_line_protocol() {
     );
 
     let patterns = run_search(root, &["patterns"]);
-    assert!(patterns.starts_with("[search-patterns] n=8"), "{patterns}");
-    assert!(patterns.contains("|pat clone-in-loop"), "{patterns}");
+    assert!(patterns.starts_with("[search-patterns] n=4"), "{patterns}");
+    assert!(!patterns.contains("|pat clone-in-loop"), "{patterns}");
+    assert!(!patterns.contains("|pat unsafe-boundary"), "{patterns}");
+    assert!(
+        !patterns.contains("|pat tokio-spawn-unawaited"),
+        "{patterns}"
+    );
+    assert!(!patterns.contains("|pat public-primitive-id"), "{patterns}");
     assert!(
         patterns.contains("|pat public-error-boundary lang=rust scope=src"),
         "{patterns}"
@@ -639,16 +505,6 @@ fn cli_search_views_render_rfc_line_protocol() {
     assert!(
         patterns.contains("|pat public-external-type lang=rust scope=src option=dependency"),
         "{patterns}"
-    );
-
-    let pattern = run_search(root, &["pattern", "clone-in-loop"]);
-    assert!(
-        pattern.starts_with("[search-pattern] pattern=clone-in-loop q=.clone("),
-        "{pattern}"
-    );
-    assert!(
-        pattern.contains("|owner src/lib.rs hit_kind=fzf"),
-        "{pattern}"
     );
 
     let anyhow_pattern = run_search(root, &["pattern", "public-anyhow-result"]);

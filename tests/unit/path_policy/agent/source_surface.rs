@@ -232,6 +232,108 @@ fn duplicated_public_names_are_reported_as_agent_advice() {
 }
 
 #[test]
+fn generic_source_module_paths_with_boundary_doc_are_not_agent_advice() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "generic-source-path-boundary-doc");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod helpers;\n").expect("write lib");
+    fs::write(
+        root.join("src/helpers.rs"),
+        "//! Compatibility path boundary.\n",
+    )
+    .expect("write helpers");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    let findings = findings_for_rule(&report, "RUST-AGENT-SOURCE-PATH-007");
+    assert_eq!(findings.len(), 0, "{:?}", report.findings);
+    assert!(report.is_clean(), "{:?}", report.findings);
+}
+
+#[test]
+fn duplicated_public_names_with_boundary_doc_are_not_agent_advice() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "duplicated-public-names-boundary-doc");
+    fs::create_dir_all(root.join("src/alpha")).expect("create alpha");
+    fs::create_dir_all(root.join("src/beta")).expect("create beta");
+    fs::write(
+        root.join("src/lib.rs"),
+        "//! Test crate.\nmod alpha;\nmod beta;\n",
+    )
+    .expect("write lib");
+    fs::write(
+        root.join("src/alpha/mod.rs"),
+        "//! Alpha owner.\nmod types;\n/// Namespace boundary.\npub use types::Handle;\n",
+    )
+    .expect("write alpha");
+    fs::write(
+        root.join("src/beta/mod.rs"),
+        "//! Beta owner.\nmod types;\n/// Namespace boundary.\npub use types::Handle;\n",
+    )
+    .expect("write beta");
+    fs::write(
+        root.join("src/alpha/types.rs"),
+        "//! Alpha types.\n/// Namespace boundary.\npub struct Handle;\n",
+    )
+    .expect("write alpha types");
+    fs::write(
+        root.join("src/beta/types.rs"),
+        "//! Beta types.\n/// Namespace boundary.\npub struct Handle;\n",
+    )
+    .expect("write beta types");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    let findings = findings_for_rule(&report, "RUST-AGENT-API-NAME-004");
+    assert_eq!(findings.len(), 0, "{:?}", report.findings);
+    assert!(report.is_clean(), "{:?}", report.findings);
+}
+
+#[test]
+fn branch_module_with_intent_doc_is_not_agent_advice() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "branch-with-intent");
+    fs::create_dir_all(root.join("src/domain")).expect("create domain");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod domain;\n").expect("write lib");
+    fs::write(
+        root.join("src/domain/mod.rs"),
+        "//! Domain module owns parsing and rendering orchestration.\nmod parse;\nmod render;\n",
+    )
+    .expect("write domain");
+    fs::write(root.join("src/domain/parse.rs"), "//! Parse leaf.\n").expect("write parse");
+    fs::write(root.join("src/domain/render.rs"), "//! Render leaf.\n").expect("write render");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    let findings = findings_for_rule(&report, "RUST-AGENT-DOCS-BRANCH-008");
+    assert_eq!(findings.len(), 0, "{:?}", report.findings);
+    assert!(report.is_clean(), "{:?}", report.findings);
+}
+
+#[test]
+fn public_doc_policy_with_real_doc_suppresses_finding() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "public-doc-real-doc");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod owner;\n").expect("write lib");
+    fs::write(
+        root.join("src/owner.rs"),
+        "//! Owner module.\n/// Concrete public DTO.\npub struct HasDoc;\n",
+    )
+    .expect("write owner");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    let findings = findings_for_rule(&report, "RUST-AGENT-DOCS-PUBLIC-002");
+    assert_eq!(findings.len(), 0, "{:?}", report.findings);
+    assert!(report.is_clean(), "{:?}", report.findings);
+}
+
+#[test]
 fn public_primitive_identifier_params_are_agent_advice() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();

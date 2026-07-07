@@ -207,7 +207,7 @@ fn write_manifest(root: &Path, name: &str) {
 
 fn private_implementation_pile() -> String {
     let mut source = String::from("//! Private implementation pile.\n");
-    for index in 0..41 {
+    for index in 0..45 {
         source.push_str(&format!(
             "fn helper_{index}() -> usize {{\n  let mut total = {index};\n  total += 1;\n  total += 2;\n  total += 3;\n  total += 4;\n  total += 5;\n  total += 6;\n  total += 7;\n  total += 8;\n  total += 9;\n  total += 10;\n  total += 11;\n  total += 12;\n  total += 13;\n  total\n}}\n"
         ));

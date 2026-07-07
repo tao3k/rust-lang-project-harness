@@ -1,44 +1,15 @@
 use serde_json::{Map, Value};
 
 pub(super) fn canonical_query_set_terms(
-    view: &str,
-    query: Option<&str>,
+    _view: &str,
+    _query: Option<&str>,
     query_set: &[String],
-    header_fields: &Map<String, Value>,
+    _header_fields: &Map<String, Value>,
 ) -> Vec<String> {
     if !query_set.is_empty() {
         return query_set.to_vec();
     }
-    if view != "fzf" {
-        return Vec::new();
-    }
-    if header_fields.get("skipped").and_then(Value::as_str) == Some("code-shaped-query") {
-        return Vec::new();
-    }
-    let Some(expected_count) = header_fields
-        .get("querySet")
-        .and_then(|value| {
-            value
-                .as_u64()
-                .map(|count| count as usize)
-                .or_else(|| value.as_str().and_then(|text| text.parse::<usize>().ok()))
-        })
-        .filter(|count| *count > 1)
-    else {
-        return Vec::new();
-    };
-    let Some(query) = query else {
-        return Vec::new();
-    };
-    let terms = query
-        .split_whitespace()
-        .map(str::to_string)
-        .collect::<Vec<_>>();
-    if terms.len() == expected_count {
-        terms
-    } else {
-        Vec::new()
-    }
+    Vec::new()
 }
 
 pub(super) fn canonical_owner_path(path: &str, owner: Option<&str>, query: Option<&str>) -> String {

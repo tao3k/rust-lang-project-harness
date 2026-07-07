@@ -30,8 +30,9 @@ pub(crate) const RUST_MOD_R010: &str = "RUST-MOD-R010";
 pub(crate) const RUST_MOD_R011: &str = "RUST-MOD-R011";
 
 pub(crate) const MAX_SOURCE_EFFECTIVE_LINES: usize = 650;
+pub(crate) const MAX_SOURCE_LINES: usize = 1200;
 pub(crate) const MIN_SOURCE_PUBLIC_ITEMS: usize = 12;
-pub(crate) const MIN_SOURCE_IMPLEMENTATION_ITEMS: usize = 40;
+pub(crate) const MIN_SOURCE_IMPLEMENTATION_ITEMS: usize = 45;
 
 /// Return compact metadata for Rust modularity rules.
 #[must_use]
@@ -62,6 +63,7 @@ pub(crate) fn evaluate(
         {
             continue;
         }
+        findings.extend(source_file_bloat_findings(module, &rules));
         if !module.report.is_valid {
             continue;
         }
@@ -72,7 +74,6 @@ pub(crate) fn evaluate(
             findings.extend(binary_entrypoint_findings(module_facts, module, &rules));
             findings.extend(interface_mod_findings(module_facts, module, &rules));
             findings.extend(inline_source_module_findings(module_facts, module, &rules));
-            findings.extend(source_file_bloat_findings(module, &rules));
         }
         if is_import_policy_source {
             findings.extend(deep_relative_import_findings(module_facts, module, &rules));

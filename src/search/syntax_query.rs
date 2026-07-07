@@ -33,10 +33,6 @@ impl SyntaxFactHit {
     }
 }
 
-pub(super) fn is_rust_syntax_query(query: &str) -> bool {
-    parse_rust_syntax_query(query).is_some()
-}
-
 pub(super) fn render_search_query(
     project_root: &Path,
     config: &RustHarnessConfig,

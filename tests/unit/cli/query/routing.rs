@@ -6,7 +6,7 @@ use crate::cli::support::{
 };
 
 #[test]
-fn cli_query_terms_route_to_fzf_query_set_seeds() {
+fn cli_query_terms_require_asp_lexical_workspace_search() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_complex_dependency_fixture(root);
@@ -22,38 +22,21 @@ fn cli_query_terms_route_to_fzf_query_set_seeds() {
         "seeds".as_ref(),
         root.as_os_str(),
     ]);
-    assert!(output.status.success(), "{output:?}");
-    let stdout = normalize_temp_root(
-        &String::from_utf8(output.stdout).expect("utf8 stdout"),
+    assert!(!output.status.success(), "{output:?}");
+    let stderr = normalize_temp_root(
+        &String::from_utf8(output.stderr).expect("utf8 stderr"),
         root,
     );
     assert!(
-        stdout.starts_with("[search-fzf] q=RuntimeClient,send_bytes querySet=2 selector=fuzzy-set alg=change-frontier-query-set"),
-        "{stdout}"
+        stderr.contains("query workspace term discovery is owned by ASP search lexical"),
+        "{stderr}"
     );
     assert!(
-        stdout.contains("Q=query:term(RuntimeClient,send_bytes)!fzf"),
-        "{stdout}"
+        stderr.contains(
+            "asp rust search lexical 'RuntimeClient send_bytes' owner tests --workspace <workspace-root> --view seeds"
+        ),
+        "{stderr}"
     );
-    assert!(
-        stdout.contains("owner:path(src/http/client.rs)!owner"),
-        "{stdout}"
-    );
-    assert!(stdout.contains("owner:path(src/lib.rs)!owner"), "{stdout}");
-    assert!(
-        stdout.contains("T=test:path(tests/flow.rs)!tests"),
-        "{stdout}"
-    );
-    assert!(
-        stdout.contains("rank=Q,O,O2,T frontier=Q.fzf,O.owner,O2.owner,T.tests"),
-        "{stdout}"
-    );
-    assert!(
-        stdout.contains("avoid=broad-lexical,raw-read,repeat-glob"),
-        "{stdout}"
-    );
-    assert!(!stdout.contains("|seed "), "{stdout}");
-    assert!(stdout.contains("legend:"), "{stdout}");
 }
 
 #[test]

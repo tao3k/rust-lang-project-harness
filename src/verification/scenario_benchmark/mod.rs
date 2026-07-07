@@ -8,6 +8,7 @@ mod types;
 
 pub use contract::{
     RustScenarioBenchmarkContract, RustScenarioBenchmarkDuration, RustScenarioBenchmarkMemoryBytes,
+    RustScenarioBenchmarkPhase,
 };
 pub use core::{
     assert_rule_fixture_scenario_benchmarks, validate_required_rust_scenario_benchmarks,

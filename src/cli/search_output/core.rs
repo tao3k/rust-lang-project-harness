@@ -7,6 +7,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub(in crate::cli) struct SearchOutputControls<'a> {
     pub(in crate::cli) depth: Option<usize>,
     pub(in crate::cli) output_view: Option<&'a str>,
+    pub(in crate::cli) packet_kind: Option<&'a str>,
     pub(in crate::cli) seeds: Option<usize>,
 }
 
@@ -14,16 +15,27 @@ pub(crate) fn apply_search_output_controls(
     controls: SearchOutputControls<'_>,
     rendered: &str,
 ) -> String {
+    let rendered = apply_packet_kind(rendered, controls.packet_kind);
     if controls.depth == Some(0) {
-        return render_header_only(rendered);
+        return render_header_only(&rendered);
     }
     if controls.output_view == Some("seeds") {
-        return render_search_seed_view(rendered, controls.seeds);
+        return render_search_seed_view(&rendered, controls.seeds);
     }
     if controls.output_view == Some("both") {
-        return render_search_both_view(rendered);
+        return render_search_both_view(&rendered);
     }
-    rendered.to_string()
+    rendered
+}
+
+fn apply_packet_kind(rendered: &str, packet_kind: Option<&str>) -> String {
+    let Some(packet_kind) = packet_kind else {
+        return rendered.to_string();
+    };
+    let Some(rest) = rendered.strip_prefix("[search-owner]") else {
+        return rendered.to_string();
+    };
+    format!("[{packet_kind}]{rest}")
 }
 
 fn render_header_only(rendered: &str) -> String {
@@ -267,13 +279,11 @@ pub(in crate::cli::search_output) fn package_header_parts(
     None
 }
 
-#[allow(dead_code)]
 enum SeedLine {
     Raw(String),
     Group { kind: String, targets: Vec<String> },
 }
 
-#[allow(dead_code)]
 fn compact_seed_lines(seeds: Vec<String>) -> Vec<String> {
     let mut entries = Vec::<SeedLine>::new();
     let mut seed_group_indices = BTreeMap::<String, usize>::new();
@@ -350,7 +360,6 @@ fn groupable_seed_parts(seed: &str) -> Option<(&str, &str)> {
     Some((kind, target))
 }
 
-#[allow(dead_code)]
 fn groupable_seed_kind(kind: &str) -> bool {
     matches!(
         kind,

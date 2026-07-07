@@ -18,9 +18,6 @@ pub(in crate::cli) fn render_search_graph_packet(
     if header.starts_with("[search-owner]") {
         return Ok(render_owner_graph(rendered, header, &fields, limit));
     }
-    if header.starts_with("[search-fzf]") {
-        return Ok(render_fzf_graph(rendered, header, &fields, limit));
-    }
     if header.starts_with("[search-query]") {
         return Ok(render_query_graph(rendered, header, limit));
     }
@@ -142,68 +139,6 @@ fn render_owner_graph(
         "covers",
     );
     out.push_str("entries=owner-tests(O=>covering-tests+test-entrypoints+fixtures)\n");
-    out
-}
-
-fn render_fzf_graph(
-    rendered: &str,
-    _header: &str,
-    fields: &BTreeMap<String, String>,
-    limit: usize,
-) -> String {
-    let query = header_query(_header)
-        .or_else(|| fields.get("q").map(String::as_str))
-        .unwrap_or("-");
-    if fields
-        .get("skipped")
-        .is_some_and(|value| value == "code-shaped-query")
-    {
-        return render_query_term_graph("search-fzf", query, "query");
-    }
-    let query_set = fields.get("querySet").map(String::as_str).unwrap_or("1");
-    let algorithm = synthesis_field(rendered, "algorithm").unwrap_or("change-frontier-query-set");
-    let mut out = if let Some(scope) = fields.get("scope") {
-        if query_set != "1" {
-            format!("[search-fzf] q={query} scope={scope} querySet={query_set} alg=seed-frontier\n")
-        } else {
-            format!("[search-fzf] q={query} scope={scope} alg=seed-frontier\n")
-        }
-    } else {
-        format!("[search-fzf] q={query} querySet={query_set} selector=fuzzy-set alg={algorithm}\n")
-    };
-    out.push_str("legend: ID=kind:role(value)!next; edge SRC>{DST:rel}; frontier ID.next\n");
-    out.push_str("aliases: graph:{G=search,Q=query,O=owner,T=test}\n");
-    let mut nodes = vec![GraphNode::new(
-        "Q",
-        "query",
-        "term",
-        query.to_string(),
-        "fzf",
-    )];
-    let remaining = limit.saturating_sub(1);
-    nodes.extend(role_nodes(
-        "O",
-        "owner",
-        "path",
-        owner_values(rendered),
-        "owner",
-        remaining,
-    ));
-    let remaining = limit.saturating_sub(nodes.len());
-    nodes.extend(role_nodes(
-        "T",
-        "test",
-        "path",
-        test_values(rendered),
-        "tests",
-        remaining,
-    ));
-    if nodes.len() == 1 {
-        return render_query_term_graph("search-fzf", query, "query");
-    }
-    append_edges_rank_frontier(&mut out, &nodes, "selects", Some(("Q", "matches")));
-    out.push_str("entries=owner-query(O,Q=>items+tests+dependency-usage),owner-tests(O=>covering-tests+test-entrypoints+fixtures)\n");
-    out.push_str("avoid=broad-lexical,raw-read,repeat-glob\n");
     out
 }
 
@@ -337,12 +272,6 @@ fn render_reasoning_graph(
         return out;
     }
     render_generic_graph(rendered, header, limit)
-}
-
-fn render_query_term_graph(kind: &str, query: &str, next: &str) -> String {
-    format!(
-        "[{kind}] q={query} alg=native-syntax-query\nlegend: ID=kind:role(value)!next; edge SRC>{{DST:rel}}; frontier ID.next\naliases: graph:{{G=search,Q=query}}\nQ=query:term({query})!{next}\nG>{{Q:matches}}\nrank=Q frontier=Q.{next}\n"
-    )
 }
 
 fn render_policy_graph(

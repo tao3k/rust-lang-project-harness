@@ -115,6 +115,7 @@ fn rule_catalogs_expose_stable_rule_ids() {
             "RUST-AGENT-PROJECT-020",
             "RUST-AGENT-PROJECT-021",
             "RUST-AGENT-PROJECT-022",
+            "RUST-AGENT-PROJECT-024",
             "RUST-AGENT-PROJECT-MANIFEST-023",
         ]
     );

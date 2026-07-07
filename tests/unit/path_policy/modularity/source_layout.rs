@@ -53,6 +53,92 @@ fn source_bloat_policy_reports_private_implementation_pile() {
 }
 
 #[test]
+fn source_bloat_policy_reports_test_support_pile() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "test-support-pile");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::create_dir(root.join("tests")).expect("create tests");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
+    fs::write(root.join("tests/support.rs"), private_implementation_pile()).expect("write support");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    let findings = findings_for_rule(&report, "RUST-MOD-R002");
+    assert_eq!(findings.len(), 1, "{:?}", report.findings);
+    assert!(
+        findings[0]
+            .location
+            .path
+            .as_ref()
+            .is_some_and(|path| path.ends_with("tests/support.rs"))
+    );
+}
+
+#[test]
+fn source_bloat_policy_reports_absolute_line_pressure_without_item_pressure() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "absolute-line-pressure");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod generated;\n").expect("write lib");
+    fs::write(
+        root.join("src/generated.rs"),
+        absolute_line_pressure_table(),
+    )
+    .expect("write generated");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    let findings = findings_for_rule(&report, "RUST-MOD-R002");
+    assert_eq!(findings.len(), 1, "{:?}", report.findings);
+    assert!(
+        findings[0]
+            .summary
+            .contains("absolute source line pressure")
+    );
+}
+
+#[test]
+fn source_bloat_policy_reports_invalid_source_absolute_line_pressure() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "invalid-absolute-line-pressure");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod broken;\n").expect("write lib");
+    fs::write(
+        root.join("src/broken.rs"),
+        invalid_absolute_line_pressure_table(),
+    )
+    .expect("write broken");
+
+    let report = run_rust_project_harness(root).expect("run project harness");
+
+    let findings = findings_for_rule(&report, "RUST-MOD-R002");
+    assert_eq!(findings.len(), 1, "{:?}", report.findings);
+    assert!(
+        findings[0]
+            .summary
+            .contains("absolute source line pressure")
+    );
+}
+
+fn absolute_line_pressure_table() -> String {
+    let mut source = String::new();
+    for value in 0..1300 {
+        source.push_str(&format!("// generated fixture row {value}\n"));
+    }
+    source.push_str("pub const VALUES: &[usize] = &[];\n");
+    source
+}
+
+fn invalid_absolute_line_pressure_table() -> String {
+    let mut source = absolute_line_pressure_table();
+    source.push_str("pub fn broken( {\n");
+    source
+}
+
+#[test]
 fn module_source_layout_policy_rejects_file_and_mod_rs_pair() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();

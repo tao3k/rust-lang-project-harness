@@ -302,8 +302,8 @@ pub use verification::{
 pub use verification::{
     RustScenarioBenchmarkContract, RustScenarioBenchmarkDuration, RustScenarioBenchmarkError,
     RustScenarioBenchmarkManifestKind, RustScenarioBenchmarkMemoryBytes,
-    RustScenarioBenchmarkReceipt, RustScenarioBenchmarkRequirement, RustScenarioBenchmarkStatus,
-    RustScenarioBenchmarkSuiteReceipt, RustScenarioBenchmarkViolation,
+    RustScenarioBenchmarkPhase, RustScenarioBenchmarkReceipt, RustScenarioBenchmarkRequirement,
+    RustScenarioBenchmarkStatus, RustScenarioBenchmarkSuiteReceipt, RustScenarioBenchmarkViolation,
     RustScenarioBenchmarkViolationKind, RustScenarioMetadata,
     assert_rule_fixture_scenario_benchmarks, discover_required_rust_scenario_benchmarks,
     validate_required_rust_scenario_benchmarks, validate_rust_scenario_benchmark,

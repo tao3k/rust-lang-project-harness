@@ -17,6 +17,64 @@ mod test_support_reexport;
 mod algorithm_shape;
 
 #[test]
+fn agent_policy_mod_exports_have_explicit_test_coverage() {
+    let policy_mod = include_str!("../../src/rules/agent_policy/mod.rs");
+    let exported_modules = policy_mod
+        .lines()
+        .filter_map(agent_policy_module_name)
+        .collect::<Vec<_>>();
+    let covered_modules = [
+        "algorithm_shape",
+        "api_shape",
+        "data_shape",
+        "dependency_graph",
+        "doc_boundary",
+        "native_abi",
+        "pack",
+        "process_command",
+        "scenario_requirements",
+        "source_surface",
+        "tokio_runtime",
+    ];
+
+    assert!(
+        !exported_modules.is_empty(),
+        "agent policy mod.rs must expose policy modules"
+    );
+    for module in &exported_modules {
+        assert!(
+            covered_modules.contains(module),
+            "agent policy module `{module}` must be assigned to an explicit unit-test lane"
+        );
+    }
+    for module in covered_modules {
+        assert!(
+            exported_modules.contains(&module),
+            "coverage map contains stale agent policy module `{module}`"
+        );
+    }
+}
+
+#[test]
+fn path_policy_agent_has_process_command_lane() {
+    let agent_tests = include_str!("path_policy/agent.rs");
+    assert!(
+        agent_tests.contains("#[path = \"agent/process_command.rs\"]")
+            && agent_tests.contains("mod process_command;"),
+        "path_policy/agent.rs must register a process_command lane"
+    );
+}
+
+fn agent_policy_module_name(line: &str) -> Option<&str> {
+    let trimmed = line.trim();
+    let module = trimmed
+        .strip_prefix("mod ")
+        .or_else(|| trimmed.strip_prefix("pub(crate) mod "))?
+        .strip_suffix(';')?;
+    Some(module)
+}
+
+#[test]
 fn agent_r001_public_module_intent_snapshot() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();

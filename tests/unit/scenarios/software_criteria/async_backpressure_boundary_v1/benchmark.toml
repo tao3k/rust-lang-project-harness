@@ -1,6 +1,11 @@
 harness = "libtest"
 test = "unbounded_async_queue_without_backpressure_is_agent_advice"
 snapshot = "scenario_benchmark_async_backpressure_boundary_v1"
+phase = "cold"
+route_source = "language-harness-cli"
+max_provider_process_count = 1
+max_stdout_bytes = 4096
+fallback_reason = "none"
 target_total = "20ms"
 max_total = "70ms"
 observed_total = "9ms"

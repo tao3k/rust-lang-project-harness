@@ -43,7 +43,7 @@ fn append_search_recipe_plan(rendered: &mut String, options: SearchPlanOptions<'
         ("deps", Some(query)) => append_dependency_api_plan(rendered, query),
         ("features", Some(query)) => append_feature_plan(rendered, query),
         ("owner", Some(query)) => append_owner_plan(rendered, query),
-        ("fzf" | "symbol" | "callsite" | "import", Some(query)) => {
+        ("symbol" | "callsite" | "import", Some(query)) => {
             append_unknown_scope_plan(rendered, options.view, query);
         }
         _ => append_default_plan(rendered),

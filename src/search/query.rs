@@ -203,17 +203,11 @@ pub(super) fn render_search_import(
     Ok(rendered)
 }
 
-pub(super) use super::fzf_query::render_search_fzf;
-
 pub(super) fn render_search_patterns() -> String {
     [
-        "[search-patterns] n=8",
-        "|pat clone-in-loop lang=rust scope=src",
+        "[search-patterns] n=4",
         "|pat public-anyhow-result lang=rust scope=src",
         "|pat public-error-boundary lang=rust scope=src",
-        "|pat unsafe-boundary lang=rust scope=src",
-        "|pat tokio-spawn-unawaited lang=rust scope=src",
-        "|pat public-primitive-id lang=rust scope=src",
         "|pat public-external-type lang=rust scope=src option=dependency",
         "|pat public-api-shape lang=rust scope=src option=owner",
     ]
@@ -245,22 +239,8 @@ pub(super) fn render_search_pattern(
     if query == "public-api-shape" {
         return render_public_api_shape_pattern(project_root, config, options);
     }
-    let pattern_query = match query {
-        "clone-in-loop" => ".clone(",
-        "unsafe-boundary" => "unsafe",
-        "tokio-spawn-unawaited" => "tokio::spawn",
-        "public-primitive-id" => "String",
-        _ => {
-            return Ok(format!(
-                "[search-pattern] q={query} hits=0\n|note unknown_pattern=true\n"
-            ));
-        }
-    };
-    let rendered = render_search_fzf(project_root, config, pattern_query, options)?;
-    Ok(rendered.replacen(
-        "[search-fzf]",
-        &format!("[search-pattern] pattern={query}"),
-        1,
+    Ok(format!(
+        "[search-pattern] q={query} hits=0\n|note unknown_pattern=true\n"
     ))
 }
 

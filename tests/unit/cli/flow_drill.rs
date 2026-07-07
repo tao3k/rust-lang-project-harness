@@ -256,18 +256,6 @@ fn cli_search_ranks_equal_hits_by_project_path_mtime() {
     set_mtime(root.join("src/domain/mod.rs"), 1_700_000_000);
     set_mtime(root.join("src/lib.rs"), 1_800_000_000);
 
-    let text = run_search(root, &["fzf", "Serialize"]);
-    let owner_lines = text
-        .lines()
-        .filter(|line| line.starts_with("|owner "))
-        .collect::<Vec<_>>();
-    assert!(
-        owner_lines
-            .first()
-            .is_some_and(|line| line.starts_with("|owner src/domain/mod.rs ")),
-        "{text}"
-    );
-
     let ingest = run_search_with_stdin(
         root,
         &["ingest"],

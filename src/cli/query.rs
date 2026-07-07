@@ -55,6 +55,9 @@ pub(super) fn parse_query(
 }
 
 fn is_exact_direct_source_selector(selector: &str) -> bool {
+    if selector.starts_with("rust://") && selector.contains("#item/") {
+        return true;
+    }
     let selector = selector.strip_prefix("owner:").unwrap_or(selector);
     let path = selector.split(':').next().unwrap_or(selector);
     !path.is_empty()
@@ -71,15 +74,19 @@ pub(super) fn print_query_guide() {
 |contract pure-code when="--code + exact-selector|unique-match" header=false legend=false metadata=false
 |contract no-inline-code-in-search default=true reason=search-is-discovery
 |contract compact-projection editable=false use=understanding-only exactBeforePatch=true
+|contract query-item-packet when="item-frontier|item-names" header="[query-item]" reason="query resolves item identity"
+|contract search-owner-packet reservedFor="search owner discovery" header="[search-owner]"
+|contract selector-hints fields=displayLineRange,sourceLocatorHint executable=false use=diagnostic-only
 
-|mode names command="query <owner-path> --query <symbol> --names-only" output=item-names
-|mode frontier command="query <owner-path> --query <symbol>" output=item-frontier code=false
+|mode names command="query <owner-path> --query <symbol> --names-only" output=query-item
+|mode frontier command="query <owner-path> --query <symbol>" output=query-item code=false
 |mode code command="query <owner-path> --query <symbol> --workspace <WORKSPACE> --code" output=pure-code requires=unique-match
 |mode exact-range command="query --from-hook direct-source-read --selector <path:start-end> --code" output=pure-code maxWindow=40
 |mode workspace-range command="query --from-hook direct-source-read --selector <workspace-path:start-end> --workspace <WORKSPACE> --code" output=pure-code
 |mode read-plan trigger="wide-selector|low-signal-window|broad-selector" output=read-frontier code=false
 
 |action item.code mapsTo="query <owner-path> --query <item-name> --workspace <WORKSPACE> --code"
+|action item.exact-read mapsTo="query --selector <structural-selector> --workspace <WORKSPACE> --code"
 |action window.code mapsTo="query --from-hook direct-source-read --selector <path:start-end> --code"
 |action workspace-window.code mapsTo="query --from-hook direct-source-read --selector <workspace-path:start-end> --workspace <WORKSPACE> --code"
 |action item.outline mapsTo="query <owner-path> --query <item-name> --view outline --workspace <WORKSPACE>"
@@ -143,10 +150,9 @@ rs-harness query --treesitter-query '<s-expression>' [<workspace-root>] [--selec
 rs-harness query --from-hook direct-source-read --selector <path[:line-range]> [--workspace WORKSPACE] [--source worktree|index|head] --code\n\
 rs-harness query --from-hook KIND --selector SELECTOR [--query SYMBOL | --term TERM] [--names-only | --code] [--workspace WORKSPACE]\n\
 rs-harness search dependency <crate-or-package> [items docs-use tests] [--view seeds] [--workspace WORKSPACE]\n\
-rs-harness search guide [--workspace WORKSPACE]\n\
-rs-harness search fzf TERM owner [--view seeds] [--workspace WORKSPACE]\n\n\
+rs-harness search guide [--workspace WORKSPACE]\n\n\
 Maps hook-denied raw reads and broad searches into parser-owned search output.\n\
-Concrete Rust owner selectors route to search owner items/tests; workspace term discovery is the explicit search fzf surface.\n\
+Concrete Rust owner selectors route to search owner items/tests; workspace term discovery is owned by ASP `search lexical`.\n\
 Dependency search is manifest-first: inspect Cargo.toml/Cargo.lock facts, import owners, public API/docs-use, and tests before web or docs.rs search.\n\
 Tree-sitter-compatible syntax catalog and inline queries emit semantic-tree-sitter-query.v1 packets through the normal query command.\n\
 Flow-lite native relation queries emit compact locator/provenance frontiers or semantic-flow-lite.v1 JSON without running CodeQL.\n\

@@ -3,17 +3,20 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use crate::parser::{file_location, parse_rust_file};
+use crate::parser::{ParsedRustModule, RustReasoningTreeFacts, file_location};
 use crate::{RustHarnessFinding, RustHarnessRule};
 
-use super::support::{collect_rust_files, display_project_path};
+use super::support::display_project_path;
 use super::{
-    MAX_INTEGRATION_TEST_EFFECTIVE_LINES, MAX_UNIT_TEST_EFFECTIVE_LINES,
-    MIN_INTEGRATION_TEST_FUNCTIONS, MIN_UNIT_TEST_FUNCTIONS, RUST_PROJ_R005,
+    MAX_INTEGRATION_TEST_EFFECTIVE_LINES, MAX_TEST_SUPPORT_EFFECTIVE_LINES,
+    MAX_UNIT_TEST_EFFECTIVE_LINES, MIN_INTEGRATION_TEST_FUNCTIONS, MIN_UNIT_TEST_FUNCTIONS,
+    RUST_PROJ_R005, RUST_PROJ_R024,
 };
 
-pub(super) fn test_leaf_bloat_findings(
+pub(super) fn test_bloat_findings(
     project_root: &Path,
+    modules: &[ParsedRustModule],
+    reasoning_tree: &RustReasoningTreeFacts,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
 ) -> Vec<RustHarnessFinding> {
     let mut findings = Vec::new();
@@ -22,6 +25,8 @@ pub(super) fn test_leaf_bloat_findings(
         "unit",
         MAX_UNIT_TEST_EFFECTIVE_LINES,
         MIN_UNIT_TEST_FUNCTIONS,
+        modules,
+        reasoning_tree,
         rules,
         &mut findings,
     );
@@ -30,6 +35,24 @@ pub(super) fn test_leaf_bloat_findings(
         "integration",
         MAX_INTEGRATION_TEST_EFFECTIVE_LINES,
         MIN_INTEGRATION_TEST_FUNCTIONS,
+        modules,
+        reasoning_tree,
+        rules,
+        &mut findings,
+    );
+    collect_support_bloat_findings(
+        project_root,
+        "unit",
+        modules,
+        reasoning_tree,
+        rules,
+        &mut findings,
+    );
+    collect_support_bloat_findings(
+        project_root,
+        "integration",
+        modules,
+        reasoning_tree,
         rules,
         &mut findings,
     );
@@ -41,19 +64,26 @@ fn collect_leaf_bloat_findings(
     suite_name: &str,
     max_effective_lines: usize,
     min_test_functions: usize,
+    modules: &[ParsedRustModule],
+    reasoning_tree: &RustReasoningTreeFacts,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
     findings: &mut Vec<RustHarnessFinding>,
 ) {
-    let suite_dir = project_root.join("tests").join(suite_name);
-    let mut files = Vec::new();
-    collect_rust_files(&suite_dir, &mut files);
-    for path in files {
-        let parsed = parse_rust_file(&path);
-        let effective_lines = parsed.source_metrics.effective_code_lines;
+    for module in modules {
+        let Some(module_facts) = reasoning_tree.module(&module.report.path) else {
+            continue;
+        };
+        if !module.report.is_valid
+            || !module_facts.source_path.is_test_source
+            || !is_under_suite(project_root, &module.report.path, suite_name)
+        {
+            continue;
+        }
+        let effective_lines = module.source_metrics.effective_code_lines;
         if effective_lines < max_effective_lines {
             continue;
         }
-        let test_functions = parsed.syntax_facts.test_function_count;
+        let test_functions = module.syntax_facts.test_function_count;
         if test_functions < min_test_functions {
             continue;
         }
@@ -62,11 +92,77 @@ fn collect_leaf_bloat_findings(
             rule,
             format!(
                 "{} carries {effective_lines} effective lines across {test_functions} test functions.",
-                display_project_path(project_root, &path)
+                display_project_path(project_root, &module.report.path)
             ),
-            file_location(path),
+            file_location(&module.report.path),
             None,
             "split this test leaf into a folder-first suite",
         ));
     }
+}
+
+fn collect_support_bloat_findings(
+    project_root: &Path,
+    suite_name: &str,
+    modules: &[ParsedRustModule],
+    reasoning_tree: &RustReasoningTreeFacts,
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+    findings: &mut Vec<RustHarnessFinding>,
+) {
+    for module in modules {
+        let Some(module_facts) = reasoning_tree.module(&module.report.path) else {
+            continue;
+        };
+        if !module.report.is_valid
+            || !module_facts.source_path.is_test_source
+            || !is_under_suite(project_root, &module.report.path, suite_name)
+            || !is_test_support_path(&module.report.path)
+        {
+            continue;
+        }
+        let effective_lines = module.source_metrics.effective_code_lines;
+        if effective_lines < MAX_TEST_SUPPORT_EFFECTIVE_LINES {
+            continue;
+        }
+        let rule = &rules[RUST_PROJ_R024];
+        findings.push(RustHarnessFinding::from_rule(
+            rule,
+            format!(
+                "{} carries {effective_lines} effective lines in a test support module.",
+                display_project_path(project_root, &module.report.path)
+            ),
+            file_location(&module.report.path),
+            None,
+            "split this test support module into focused support owners",
+        ));
+    }
+}
+
+fn is_under_suite(project_root: &Path, path: &Path, suite_name: &str) -> bool {
+    let Ok(relative) = path.strip_prefix(project_root) else {
+        return false;
+    };
+    let components = relative
+        .iter()
+        .map(|component| component.to_string_lossy())
+        .collect::<Vec<_>>();
+    matches!(
+        components.as_slice(),
+        [tests, suite, ..] if tests.as_ref() == "tests" && suite.as_ref() == suite_name
+    )
+}
+
+fn is_test_support_path(path: &Path) -> bool {
+    path.components().any(|component| {
+        let name = component.as_os_str().to_string_lossy();
+        matches!(
+            name.as_ref(),
+            "support" | "supports" | "fixture" | "fixtures" | "helper" | "helpers"
+        )
+    }) || path.file_stem().is_some_and(|stem| {
+        matches!(
+            stem.to_string_lossy().as_ref(),
+            "support" | "supports" | "fixture" | "fixtures" | "helper" | "helpers"
+        )
+    })
 }

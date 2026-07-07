@@ -2,7 +2,6 @@ mod cargo_namespace;
 mod cfg;
 mod deps;
 mod evidence_namespaces;
-mod fzf;
 mod graph_profiles;
 mod guide;
 mod json_trace;

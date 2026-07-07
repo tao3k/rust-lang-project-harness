@@ -31,6 +31,12 @@ mod flag_surface;
 #[path = "agent/source_surface.rs"]
 mod source_surface;
 
+#[path = "agent/process_command.rs"]
+mod process_command;
+
+#[path = "agent/tokio_runtime.rs"]
+mod tokio_runtime;
+
 #[path = "agent/source_surface_boundaries.rs"]
 mod source_surface_boundaries;
 
