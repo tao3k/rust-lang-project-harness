@@ -647,12 +647,12 @@ impl SearchOptions {
     }
 
     fn parse(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<Self, String> {
-        let mut args = args.into_iter();
+        let args = args.into_iter();
         let mut options = Self::default();
         let mut positional_only = false;
         let mut pending_option: Option<String> = None;
         let mut positionals = Vec::<std::ffi::OsString>::new();
-        while let Some(arg) = args.next() {
+        for arg in args {
             if let Some(option) = pending_option.take() {
                 let Some(value) = arg.to_str() else {
                     return Err(format!("expected UTF-8 value after {option}"));

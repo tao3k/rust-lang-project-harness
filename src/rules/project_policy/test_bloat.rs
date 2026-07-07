@@ -13,6 +13,12 @@ use super::{
     RUST_PROJ_R005, RUST_PROJ_R024,
 };
 
+struct LeafBloatLimits {
+    suite_name: &'static str,
+    max_effective_lines: usize,
+    min_test_functions: usize,
+}
+
 pub(super) fn test_bloat_findings(
     project_root: &Path,
     modules: &[ParsedRustModule],
@@ -22,9 +28,11 @@ pub(super) fn test_bloat_findings(
     let mut findings = Vec::new();
     collect_leaf_bloat_findings(
         project_root,
-        "unit",
-        MAX_UNIT_TEST_EFFECTIVE_LINES,
-        MIN_UNIT_TEST_FUNCTIONS,
+        LeafBloatLimits {
+            suite_name: "unit",
+            max_effective_lines: MAX_UNIT_TEST_EFFECTIVE_LINES,
+            min_test_functions: MIN_UNIT_TEST_FUNCTIONS,
+        },
         modules,
         reasoning_tree,
         rules,
@@ -32,9 +40,11 @@ pub(super) fn test_bloat_findings(
     );
     collect_leaf_bloat_findings(
         project_root,
-        "integration",
-        MAX_INTEGRATION_TEST_EFFECTIVE_LINES,
-        MIN_INTEGRATION_TEST_FUNCTIONS,
+        LeafBloatLimits {
+            suite_name: "integration",
+            max_effective_lines: MAX_INTEGRATION_TEST_EFFECTIVE_LINES,
+            min_test_functions: MIN_INTEGRATION_TEST_FUNCTIONS,
+        },
         modules,
         reasoning_tree,
         rules,
@@ -61,9 +71,7 @@ pub(super) fn test_bloat_findings(
 
 fn collect_leaf_bloat_findings(
     project_root: &Path,
-    suite_name: &str,
-    max_effective_lines: usize,
-    min_test_functions: usize,
+    limits: LeafBloatLimits,
     modules: &[ParsedRustModule],
     reasoning_tree: &RustReasoningTreeFacts,
     rules: &BTreeMap<&'static str, RustHarnessRule>,
@@ -75,16 +83,16 @@ fn collect_leaf_bloat_findings(
         };
         if !module.report.is_valid
             || !module_facts.source_path.is_test_source
-            || !is_under_suite(project_root, &module.report.path, suite_name)
+            || !is_under_suite(project_root, &module.report.path, limits.suite_name)
         {
             continue;
         }
         let effective_lines = module.source_metrics.effective_code_lines;
-        if effective_lines < max_effective_lines {
+        if effective_lines < limits.max_effective_lines {
             continue;
         }
         let test_functions = module.syntax_facts.test_function_count;
-        if test_functions < min_test_functions {
+        if test_functions < limits.min_test_functions {
             continue;
         }
         let rule = &rules[RUST_PROJ_R005];
