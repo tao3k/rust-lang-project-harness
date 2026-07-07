@@ -2,7 +2,10 @@ use std::ffi::OsString;
 
 use serde_json::{Value, json};
 
-use super::assert_receipt_verification_contains;
+use super::{
+    assert_receipt_verification_contains, copy_target_file_to_temp, env_flag, env_path, env_string,
+    exact_read_from_target, run_cli, run_cli_with_stdin,
+};
 
 #[test]
 fn cli_ast_patch_scenarios_match_expected_trees_and_receipts() {
