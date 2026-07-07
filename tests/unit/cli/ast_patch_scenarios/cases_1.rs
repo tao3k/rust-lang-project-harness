@@ -1,3 +1,9 @@
+use std::ffi::OsString;
+
+use serde_json::{Value, json};
+
+use super::assert_receipt_verification_contains;
+
 #[test]
 fn cli_ast_patch_scenarios_match_expected_trees_and_receipts() {
     if crate::cli::support::skip_if_protocol_graph_renderer_unavailable() {
