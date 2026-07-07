@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 use super::{
     assert_receipt_verification_contains, ast_patch_scenarios_dir, copy_dir_recursive,
     copy_target_file_to_temp, env_flag, env_path, env_string, exact_read_from_target, read_json,
-    run_cli, run_cli_with_stdin, snapshot_dir,
+    run_ast_patch_scenario, run_cli, run_cli_with_stdin, snapshot_dir,
 };
 
 #[test]

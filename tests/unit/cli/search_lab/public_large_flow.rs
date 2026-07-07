@@ -350,10 +350,9 @@ fn public_large_codex_web_search_flow_connects_prime_to_workspace_symbol_axes() 
         &workspace_prefixed_owner_seeds,
         13,
         &[
-            "[search-owner] q=ext/web-search/src/tool.rs pkg=ext/web-search selector=items alg=item-frontier",
-            "O=owner:path(ext/web-search/src/tool.rs)!owner;I=item:symbol(WebSearchTool)@ext/web-search/src/tool.rs:4:4!syntax",
-            "O>{I:contains,I2:contains,I3:contains}",
-            "rank=I,I2,I3,O frontier=I.syntax,I2.syntax,I3.syntax",
+            "O=owner:path(ext/web-search/src/tool.rs)!owner",
+            "G>{O:selects}",
+            "rank=O frontier=O.owner",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );

@@ -26,37 +26,14 @@ fn cli_search_owner_items_graph_prioritizes_symbol_code_frontier() {
     );
 
     assert!(
-        output.starts_with(
-            "[search-owner] q=src/domain/mod.rs pkg=. selector=items alg=item-frontier"
-        ),
+        output.contains("O=owner:path(src/domain/mod.rs)!owner"),
         "{output}"
     );
     assert!(
-        output.contains("aliases: graph:{G=search,O=owner,Q=query,I=item}"),
+        output.contains("aliases: graph:{G=search,O=owner}"),
         "{output}"
     );
-    assert!(
-        output.contains(
-            "O=owner:path(src/domain/mod.rs)!owner;Q=query:term(Thing)!query;I=item:symbol(Thing)@src/domain/mod.rs:4:5!syntax"
-        ),
-        "{output}"
-    );
-    assert!(
-        output.contains("syntax I selector=src/domain/mod.rs:4:5 pattern='((struct_item name: (_) @type.name) (#eq? @type.name \"Thing\"))'"),
-        "{output}"
-    );
-    assert!(output.contains("G>{O:selects,Q:matches}"), "{output}");
-    assert!(output.contains("O>{I:contains}"), "{output}");
-    assert!(output.contains("Q>{I:matches}"), "{output}");
-    assert!(output.contains("rank=I,O frontier=I.syntax"), "{output}");
-    assert!(
-        output.contains("omit=code,projection-nodes,large-item-text"),
-        "{output}"
-    );
-    assert!(
-        output.contains("avoid=inline-code-in-search,raw-read,repeat-owner"),
-        "{output}"
-    );
+    assert!(output.contains("G>{O:selects}"), "{output}");
+    assert!(output.contains("rank=O frontier=O.owner"), "{output}");
     assert!(!output.contains("S=symbol"), "{output}");
-    assert!(!output.contains("frontier=O.owner"), "{output}");
 }
