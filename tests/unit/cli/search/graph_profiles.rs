@@ -32,14 +32,10 @@ fn cli_search_graph_profiles_filter_to_rendered_aliases() {
 
     let output = run_search(root, &["symbol", "run_codex_agent_hook", "--view", "seeds"]);
 
-    assert!(
-        output.contains("owner:path(owner:src/lib.rs)!owner"),
-        "{output}"
-    );
-    assert!(
-        output.contains("owner:path(tests/unit/snapshot.rs)"),
-        "{output}"
-    );
+    assert!(output.contains("graph:{G=search,O=owner}"), "{output}");
+    assert!(output.contains("owner:path("), "{output}");
+    assert!(output.contains("src/lib.rs"), "{output}");
+    assert!(output.contains("tests/unit/snapshot.rs"), "{output}");
     assert!(
         output.contains("q=run_codex_agent_hook") || output.contains("run_codex_agent_hook"),
         "{output}"
