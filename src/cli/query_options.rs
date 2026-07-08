@@ -115,7 +115,7 @@ impl QueryOptions {
             && (!options.terms.is_empty() || options.query.is_some())
         {
             return Err(
-                "query --names-only requires an owner selector; use `asp rust search lexical '<term>' owner --workspace <workspace-root> --view seeds` for workspace term discovery"
+                "query --names-only requires an owner selector; workspace term discovery is hook-managed and must not emit a lexical redirect"
                     .to_string(),
             );
         }
@@ -229,7 +229,7 @@ impl QueryOptions {
                 if !self.terms.is_empty() || self.query.is_some() {
                     if self.names_only {
                         return Err(
-                            "query --names-only requires an owner selector; workspace term discovery is `asp rust search lexical '<term>' owner --workspace <workspace-root> --view seeds`"
+                            "query --names-only requires an owner selector; workspace term discovery is hook-managed and must not emit a lexical redirect"
                                 .to_string(),
                         );
                     }
@@ -272,7 +272,7 @@ impl QueryOptions {
             self.query.clone().unwrap_or_else(|| "<term>".to_string())
         };
         format!(
-            "query workspace term discovery is owned by ASP search lexical; run `asp rust search lexical '{}' owner tests --workspace <workspace-root> --view seeds`",
+            "query workspace term discovery for `{}` is hook-managed; use the ASP agent-session interactive loop instead of a CLI lexical redirect",
             term.replace('\'', "'\\''")
         )
     }

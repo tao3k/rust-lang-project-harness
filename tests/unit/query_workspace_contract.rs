@@ -142,9 +142,11 @@ fn query_names_only_rejects_workspace_term_discovery() {
         "stderr={stderr}"
     );
     assert!(
-        stderr.contains(
-            "asp rust search lexical '<term>' owner --workspace <workspace-root> --view seeds"
-        ),
+        stderr.contains("workspace term discovery is hook-managed"),
+        "stderr={stderr}"
+    );
+    assert!(
+        !stderr.contains("asp rust search lexical"),
         "stderr={stderr}"
     );
 }
