@@ -42,7 +42,7 @@ fn cli_query_hook_selector_strips_owner_prefix_and_line_suffix() {
 }
 
 #[test]
-fn cli_query_hook_glob_code_shaped_term_uses_compact_frontier() {
+fn cli_query_hook_glob_code_shaped_term_is_agent_session_guarded() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_search_fixture(root);
@@ -73,11 +73,10 @@ fn cli_query_hook_glob_code_shaped_term_uses_compact_frontier() {
     );
 
     assert!(
-        stderr.contains("query workspace term discovery is owned by ASP search lexical"),
+        stderr.contains(
+            "query workspace term discovery for `ClientReceipt {` is hook-managed; use the ASP agent-session interactive loop"
+        ),
         "{stderr}"
     );
-    assert!(
-        stderr.contains("asp rust search lexical 'ClientReceipt {' owner tests --workspace <workspace-root> --view seeds"),
-        "{stderr}"
-    );
+    assert!(!stderr.contains("asp rust search lexical"), "{stderr}");
 }

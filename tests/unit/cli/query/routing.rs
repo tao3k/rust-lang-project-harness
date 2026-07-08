@@ -28,13 +28,12 @@ fn cli_query_terms_require_asp_lexical_workspace_search() {
         root,
     );
     assert!(
-        stderr.contains("query workspace term discovery for `RuntimeClient send_bytes` is hook-managed"),
+        stderr.contains(
+            "query workspace term discovery for `RuntimeClient send_bytes` is hook-managed"
+        ),
         "{stderr}"
     );
-    assert!(
-        !stderr.contains("asp rust search lexical"),
-        "{stderr}"
-    );
+    assert!(!stderr.contains("asp rust search lexical"), "{stderr}");
 }
 
 #[test]
