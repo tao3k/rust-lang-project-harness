@@ -422,7 +422,7 @@ fn fast_manifest_feature_seed_names(package_root: &Path, limit: usize) -> Vec<St
 fn append_decision_primer_lines(rendered: &mut String, _language_id: &str) {
     let _ = writeln!(
         rendered,
-        "|decision purpose=decision-primer answer=false code=false route=evidence-state capabilities=pipe,lexical,fd-query,rg-query,owner-items,selector-code,treesitter-query history=asp-artifacts:directReadRisk,repeatedPrime,repeatedPipe,bestPath risk=broad-direct-read,manual-window-scan,repeat-prime rule=\"prime maps workspace/owners only; choose the narrowest route justified by current evidence\" routeOptions=\"owner-items when owner known; selector-code when exact selector known; deps when dependency known; pipe/lexical only for ambiguous query refinement\""
+        "|decision purpose=decision-primer answer=false code=false route=evidence-state capabilities=pipe,lexical,fd-query,rg-query,owner-items,selector-code history=asp-artifacts:directReadRisk,repeatedPrime,repeatedPipe,bestPath risk=broad-direct-read,manual-window-scan,repeat-prime rule=\"prime maps workspace/owners only; choose the narrowest route justified by current evidence\" routeOptions=\"owner-items when owner known; selector-code when exact selector known; deps when dependency known; pipe/lexical only for ambiguous query refinement\""
     );
 }
 

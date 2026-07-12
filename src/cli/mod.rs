@@ -38,9 +38,5 @@ mod semantic_search_json_fields;
 mod semantic_search_synthesis_json;
 #[cfg(feature = "search")]
 mod semantic_syntax_refs;
-mod tree_sitter_query;
-mod tree_sitter_query_locator;
-mod tree_sitter_query_packet;
-mod tree_sitter_query_projection;
 
 pub use runner::run_cli_from_env;

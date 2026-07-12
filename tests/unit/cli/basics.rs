@@ -137,10 +137,6 @@ fn cli_agent_provider_surface_delegates_hook_runtime_to_root_tool() {
         "{stdout}"
     );
     assert!(
-        stdout.contains(r#"|refer treesitter-query-guide="query guide treesitter .""#),
-        "{stdout}"
-    );
-    assert!(
         !stdout.contains("|entry finding-frontier selectors=F:finding,O:owner?"),
         "{stdout}"
     );

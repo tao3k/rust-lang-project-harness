@@ -69,52 +69,16 @@ fn agent_registry_json(project_root: &Path) -> Value {
         .collect::<Vec<_>>();
     method_descriptors.extend([
         json!({
-            "cacheReplay": true,
-            "command": "query",
-            "grammarId": "tree-sitter-rust",
-            "grammarProfileVersion": "2026-06-04.v1",
-            "grammarProfileSchema": "semantic-tree-sitter-grammar-profile.v1",
-            "grammarProfilePath": "tree-sitter/tree-sitter-rust/grammar-profile.json",
-            "input": "catalog-id",
-            "method": "query",
-            "adapterModes": ["native-projection"],
-            "executionBackends": ["native-parser"],
-            "outputModes": ["frontier", "json"],
-            "outputSchemaIds": ["agent.semantic-protocols.semantic-tree-sitter-query"],
-            "packetSchemas": ["semantic-tree-sitter-query.v1"],
-            "queryCatalogs": [
-                { "id": "declarations", "path": "tree-sitter/tree-sitter-rust/queries/declarations.scm", "sourceDelivery": "provider-binary-embedded", "captures": ["function.definition", "function.name", "function.modifier", "function.return_type", "function.type_parameters", "type.definition", "type.name", "type.type_parameters", "type.aliased_type", "trait.definition", "trait.name", "trait.type_parameters", "trait.bounds", "impl.definition", "impl.target", "impl.trait", "impl.type_parameters", "module.definition", "module.name", "constant.definition", "constant.name", "constant.type", "item.attribute", "item.visibility"], "nodeTypes": ["attribute_item", "const_item", "enum_item", "function_item", "impl_item", "mod_item", "static_item", "struct_item", "trait_item", "type_item", "union_item"], "fields": ["body", "bounds", "declarator", "name", "return_type", "trait", "type", "type_parameters", "value"] },
-                { "id": "imports", "path": "tree-sitter/tree-sitter-rust/queries/imports.scm", "sourceDelivery": "provider-binary-embedded", "captures": ["import.declaration", "import.path", "import.alias", "import.visibility"], "nodeTypes": ["extern_crate_declaration", "use_declaration"], "fields": ["alias", "crate", "name"] },
-                { "id": "calls", "path": "tree-sitter/tree-sitter-rust/queries/calls.scm", "sourceDelivery": "provider-binary-embedded", "captures": ["call.expression", "call.target", "call.method"], "nodeTypes": ["call_expression", "field_expression", "identifier", "scoped_identifier"], "fields": ["function"] },
-                { "id": "macros", "path": "tree-sitter/tree-sitter-rust/queries/macros.scm", "sourceDelivery": "provider-binary-embedded", "captures": ["macro.invocation", "macro.name", "macro.arguments"], "nodeTypes": ["macro_invocation", "token_tree"], "fields": ["macro"] },
-                { "id": "cfg", "path": "tree-sitter/tree-sitter-rust/queries/cfg.scm", "sourceDelivery": "provider-binary-embedded", "captures": ["attribute.item", "attribute.name", "attribute.body", "attribute.arguments", "attribute.value"], "nodeTypes": ["attribute", "attribute_item", "identifier", "meta_item", "string_literal"], "fields": [] }
-            ],
-            "queryInputForms": ["catalog-id", "s-expression"],
-            "renderProfiles": ["compact-graph-frontier", "corpus-locator"],
-            "requiredOptions": ["--catalog|--treesitter-query"],
-            "sourceAuthorities": ["native-parser-adapter", "native-parser"],
-            "supportedPredicates": ["#eq?", "#any-eq?", "#any-of?", "#match?", "#any-match?", "#not-eq?", "#not-match?"],
-            "unsupportedPredicates": [],
-            "unsupportedPatternBehavior": "diagnostic",
-            "codeOutput": { "mode": "pure-code", "multiMatch": "deny", "requires": ["exact-selector", "unique-predicate"] },
-            "supportsCompact": true,
-            "supportsJson": true
-        }),
-        json!({
             "acceptedQuerySetSelectors": ["exact-set"],
             "cacheReplay": true,
             "command": "query",
-            "grammarId": "tree-sitter-rust",
-            "grammarProfileVersion": "2026-06-04.v1",
-            "grammarProfileSchema": "semantic-tree-sitter-grammar-profile.v1",
-            "grammarProfilePath": "tree-sitter/tree-sitter-rust/grammar-profile.json",
             "input": "owner-path",
             "method": "query/owner-items",
             "adapterModes": ["native-projection"],
             "executionBackends": ["native-parser"],
             "outputModes": ["frontier", "json", "code", "names"],
             "outputSchemaIds": ["agent.semantic-protocols.semantic-query-packet"],
-            "packetSchemas": ["semantic-query-packet.v1", "semantic-tree-sitter-query.v1"],
+            "packetSchemas": ["semantic-query-packet.v1"],
             "queryInputForms": ["selector", "code-shaped"],
             "querySetScopes": ["owner"],
             "renderProfiles": ["compact-graph-frontier"],
@@ -129,10 +93,6 @@ fn agent_registry_json(project_root: &Path) -> Value {
         json!({
             "cacheReplay": true,
             "command": "query",
-            "grammarId": "tree-sitter-rust",
-            "grammarProfileVersion": "2026-06-04.v1",
-            "grammarProfileSchema": "semantic-tree-sitter-grammar-profile.v1",
-            "grammarProfilePath": "tree-sitter/tree-sitter-rust/grammar-profile.json",
             "input": "owner-path",
             "method": "query/direct-source-read",
             "adapterModes": ["native-projection"],
@@ -144,8 +104,7 @@ fn agent_registry_json(project_root: &Path) -> Value {
             ],
             "packetSchemas": [
                 "semantic-query-packet.v1",
-                "semantic-read-packet.v1",
-                "semantic-tree-sitter-query.v1"
+                "semantic-read-packet.v1"
             ],
             "queryInputForms": ["selector"],
             "renderProfiles": ["corpus-locator"],
@@ -328,16 +287,6 @@ fn search_method_descriptor(view: &str) -> Value {
     if view == "owner" {
         fields.insert("cacheReplay".to_string(), json!(true));
         fields.insert("executionBackends".to_string(), json!(["native-parser"]));
-        fields.insert("grammarId".to_string(), json!("tree-sitter-rust"));
-        fields.insert(
-            "grammarProfilePath".to_string(),
-            json!("tree-sitter/tree-sitter-rust/grammar-profile.json"),
-        );
-        fields.insert(
-            "grammarProfileSchema".to_string(),
-            json!("semantic-tree-sitter-grammar-profile.v1"),
-        );
-        fields.insert("grammarProfileVersion".to_string(), json!("2026-06-04.v1"));
         fields.insert(
             "packetSchemas".to_string(),
             json!(["semantic-search-packet.v1", "semantic-tree-sitter-query.v1"]),

@@ -23,7 +23,6 @@ harness = false
 required-features = ["search"]
 
 [dependencies]
-agent-semantic-tree-sitter-runtime = { version = "0.1.0", path = "../../crates/agent-semantic-tree-sitter-runtime" }
 cargo-lock = "11.0"
 cargo_toml = "1.0.0"
 proc-macro2 = { version = "1", features = ["span-locations"] }
@@ -35,8 +34,6 @@ serde_json = "1"
 sha2 = "0.11"
 syn = { version = "2", features = ["extra-traits", "full", "parsing", "visit"] }
 toml = "1.1"
-tree-sitter = "0.26"
-tree-sitter-rust = "0.24.2"
 
 [profile.release]
 opt-level = 3

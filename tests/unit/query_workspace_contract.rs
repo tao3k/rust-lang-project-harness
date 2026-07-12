@@ -62,56 +62,6 @@ fn query_code_rejects_trailing_root_and_catalog_accepts_positional_workspace() {
         String::from_utf8_lossy(&stale.stderr)
     );
 
-    let tree_sitter_current = Command::new(bin)
-        .args([
-            "query",
-            "--catalog",
-            "declarations",
-            "--selector",
-            "src/lib.rs:1:1",
-            "--workspace",
-        ])
-        .arg(root.path())
-        .arg("--code")
-        .current_dir(root.path())
-        .output()
-        .expect("run current tree-sitter query command");
-
-    assert!(
-        tree_sitter_current.status.success(),
-        "current tree-sitter command failed: stdout={} stderr={}",
-        String::from_utf8_lossy(&tree_sitter_current.stdout),
-        String::from_utf8_lossy(&tree_sitter_current.stderr)
-    );
-    assert_eq!(
-        String::from_utf8_lossy(&tree_sitter_current.stdout),
-        "pub fn target() {}\n"
-    );
-
-    let tree_sitter_positional = Command::new(bin)
-        .args([
-            "query",
-            "--catalog",
-            "declarations",
-            "--selector",
-            "src/lib.rs:1:1",
-            "--code",
-        ])
-        .arg(root.path())
-        .current_dir(root.path())
-        .output()
-        .expect("run positional tree-sitter query command");
-
-    assert!(
-        tree_sitter_positional.status.success(),
-        "positional tree-sitter command failed: stdout={} stderr={}",
-        String::from_utf8_lossy(&tree_sitter_positional.stdout),
-        String::from_utf8_lossy(&tree_sitter_positional.stderr)
-    );
-    assert_eq!(
-        String::from_utf8_lossy(&tree_sitter_positional.stdout),
-        "pub fn target() {}\n"
-    );
 }
 
 #[test]

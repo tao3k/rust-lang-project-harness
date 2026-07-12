@@ -164,7 +164,6 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
     );
     let owner = method_descriptor(methods, "search/owner");
     assert_eq!(owner["supportsQuerySet"], true);
-    assert_eq!(owner["grammarId"], "tree-sitter-rust");
     assert_eq!(
         owner["executionBackends"],
         serde_json::json!(["native-parser"])
@@ -204,52 +203,6 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
             }),
         "{policy}"
     );
-    let syntax_query = method_descriptor(methods, "query");
-    assert_eq!(syntax_query["command"], "query");
-    assert_eq!(syntax_query["input"], "catalog-id");
-    assert_eq!(syntax_query["grammarId"], "tree-sitter-rust");
-    assert_eq!(
-        syntax_query["executionBackends"],
-        serde_json::json!(["native-parser"])
-    );
-    assert!(
-        !syntax_query["executionBackends"]
-            .as_array()
-            .expect("executionBackends")
-            .iter()
-            .any(|backend| backend == "codeql"),
-        "Rust provider should not advertise CodeQL before a backend exists: {syntax_query}"
-    );
-    assert_eq!(
-        syntax_query["grammarProfileSchema"],
-        "semantic-tree-sitter-grammar-profile.v1"
-    );
-    assert_eq!(
-        syntax_query["grammarProfilePath"],
-        "tree-sitter/tree-sitter-rust/grammar-profile.json"
-    );
-    assert!(
-        syntax_query["queryCatalogs"]
-            .as_array()
-            .expect("query catalogs")
-            .iter()
-            .all(|catalog| catalog["sourceDelivery"] == "provider-binary-embedded"),
-        "{syntax_query}"
-    );
-    assert_eq!(
-        syntax_query["supportedPredicates"],
-        serde_json::json!([
-            "#eq?",
-            "#any-eq?",
-            "#any-of?",
-            "#match?",
-            "#any-match?",
-            "#not-eq?",
-            "#not-match?"
-        ])
-    );
-    assert_eq!(syntax_query["unsupportedPredicates"], serde_json::json!([]));
-    assert_eq!(syntax_query["codeOutput"]["multiMatch"], "deny");
     let query_owner_items = method_descriptor(methods, "query/owner-items");
     assert_eq!(query_owner_items["command"], "query");
     assert_eq!(query_owner_items["input"], "owner-path");
@@ -261,14 +214,13 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
         query_owner_items["outputSchemaIds"],
         serde_json::json!(["agent.semantic-protocols.semantic-query-packet"])
     );
-    assert_eq!(query_owner_items["grammarId"], "tree-sitter-rust");
     assert_eq!(
         query_owner_items["executionBackends"],
         serde_json::json!(["native-parser"])
     );
     assert_eq!(
         query_owner_items["packetSchemas"],
-        serde_json::json!(["semantic-query-packet.v1", "semantic-tree-sitter-query.v1"])
+        serde_json::json!(["semantic-query-packet.v1"])
     );
     assert_eq!(
         query_owner_items["outputModes"],
@@ -297,7 +249,6 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
             "agent.semantic-protocols.semantic-read-packet"
         ])
     );
-    assert_eq!(direct_source_read["grammarId"], "tree-sitter-rust");
     assert_eq!(
         direct_source_read["executionBackends"],
         serde_json::json!(["native-parser"])
@@ -306,8 +257,7 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
         direct_source_read["packetSchemas"],
         serde_json::json!([
             "semantic-query-packet.v1",
-            "semantic-read-packet.v1",
-            "semantic-tree-sitter-query.v1"
+            "semantic-read-packet.v1"
         ])
     );
     assert_eq!(

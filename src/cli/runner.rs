@@ -9,9 +9,8 @@ use std::process::ExitCode;
 use super::agent_registry::print_agent_registry;
 use super::flow_lite_query::run_flow_lite_query_catalog;
 use super::query::{
-    QueryCommand, QueryGuideKind, parse_query, print_query_guide, print_query_help,
-    print_tree_sitter_query_guide, query_guide_kind, render_query_local_item_code,
-    render_query_local_window,
+    QueryCommand, parse_query, print_query_guide, print_query_help, query_guide_kind,
+    render_query_local_item_code, render_query_local_window,
 };
 use super::query_options::QuerySearchOptions;
 use super::query_source::QuerySourceVersion;
@@ -35,7 +34,6 @@ use super::search_trace::{SearchTraceOptions, render_search_trace};
 use super::semantic_query_json::{SemanticQueryJsonOptions, render_query_json};
 #[cfg(feature = "search")]
 use super::semantic_search_json::{SemanticSearchJsonOptions, render_search_json};
-use super::tree_sitter_query::run_tree_sitter_query_catalog;
 #[cfg(feature = "search")]
 use crate::{
     RustHarnessConfig, RustSearchOptions, RustSearchViewRequest,
@@ -217,20 +215,13 @@ fn run_search(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<Exit
 
 fn run_query(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitCode, String> {
     let args = args.into_iter().collect::<Vec<_>>();
-    if let Some(kind) = query_guide_kind(&args) {
-        match kind {
-            QueryGuideKind::Query => print_query_guide(),
-            QueryGuideKind::TreeSitter => print_tree_sitter_query_guide(),
-        }
+    if query_guide_kind(&args) {
+        print_query_guide();
         return Ok(ExitCode::SUCCESS);
     }
     if let Some(exit_code) = run_flow_lite_query_catalog(&args)? {
         return Ok(exit_code);
     }
-    if let Some(exit_code) = run_tree_sitter_query_catalog(&args)? {
-        return Ok(exit_code);
-    }
-
     match parse_query(args)? {
         QueryCommand::Help => {
             print_query_help();

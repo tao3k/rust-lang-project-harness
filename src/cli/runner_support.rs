@@ -102,7 +102,7 @@ pub(super) fn print_guide(_project_root: &Path) {
 |catalog reasoningProfiles=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg entries=owner-query,query-deps,owner-tests,finding-frontier,feature-cfg routes=path,read-frontier
 
 |flow bootstrap start="search guide ." then="choose evidence-state route; prime only when owner map unknown" next="use search-guide command=search reasoning <profile> --owner/--query/--dependency ... --view seeds"
-|flow code-shaped-read start="refer:treesitter-query-guide" then="query --treesitter-query <pattern>" then="query --selector <exact-structural-selector> --treesitter-query <pattern> --workspace <workspace-root> --code"
+|flow code-shaped-read start="query guide ." then="query --selector <exact-structural-selector> --workspace <workspace-root> --code"
 |flow wide-read-protection trigger="raw-source-denied" next="search owner <owner-path> items --workspace <workspace-root> --view seeds" output=owner-item-frontier code=false
 
 |cmd prime=asp rust search prime --workspace <workspace-root> --view seeds condition=owner-map-unknown
@@ -113,12 +113,10 @@ pub(super) fn print_guide(_project_root: &Path) {
 
 |refer search-guide="search guide ." use=low-frequency-tool-map
 |refer query-guide="query guide ." use=code-stdout|read-plan-contract
-|refer treesitter-query-guide="query guide treesitter ." use=tree-sitter-s-expression
 
 |rule search-no-code default=true reason=avoid-inline-code-token-bloat
 |rule query-code-stdout pure=true when="--code + exact-selector|unique-match"
 |rule displayLineRange/sourceLocatorHint are display hints; execute structural selectors or owner/symbol routes, not line ranges
-|rule tree-sitter-base enabled=true native-extension=true
 |avoid raw-read,manual-window-scan,inline-code-in-search,broad-lexical,search-json-in-prompt,repeat-wide-read
 "#
     );
