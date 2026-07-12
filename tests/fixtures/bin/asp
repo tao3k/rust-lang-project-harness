@@ -102,7 +102,7 @@ function collectSeeds(packet) {
   const otherSeeds = [];
 
   const query = packet.query ?? firstQuerySetValue(packet);
-  if ((packet.header?.kind === "search-fzf" || packet.header?.kind === "search-query") && query !== undefined) {
+  if ((packet.header?.kind === "search-lexical" || packet.header?.kind === "search-query") && query !== undefined) {
     querySeeds.push({ kind: "query", target: query });
   }
   if ((packet.header?.kind === "search-deps" || packet.header?.kind === "search-dependency") && query !== undefined) {
@@ -167,7 +167,7 @@ function collectSeeds(packet) {
       dependencySeeds.push(seed);
     } else if (seed.kind === "finding") {
       findingSeeds.push(seed);
-    } else if (seed.kind === "fzf" || seed.kind === "query") {
+    } else if (seed.kind === "lexical" || seed.kind === "query") {
       querySeeds.push(seed);
     } else {
       synthesisOthers.push(seed);
@@ -277,7 +277,7 @@ function addSeed(seed, groups) {
     } else {
       groups.ownerSeeds.push({ kind: "owner", target });
     }
-  } else if (seed.kind === "query" || seed.kind === "fzf") {
+  } else if (seed.kind === "query" || seed.kind === "lexical") {
     groups.querySeeds.push(seed);
   } else {
     groups.otherSeeds.push(seed);
@@ -350,9 +350,9 @@ function assignAliases(seeds) {
 
 function describeSeed(seed) {
   switch (seed.kind) {
-    case "fzf":
+    case "lexical":
     case "query":
-      return { prefix: "Q", kind: "query", role: "term", next: "fzf", edge: "matches" };
+      return { prefix: "Q", kind: "query", role: "term", next: "lexical", edge: "matches" };
     case "owner":
     case "ingest":
       return { prefix: "O", kind: "owner", role: "path", next: "owner", edge: "selects" };
@@ -497,13 +497,13 @@ function defaultAvoid(kind, fields = {}) {
   if (kind === "search-reasoning" && fields.q === "query-deps") {
     return "web-search,docs.rs-search,raw-read";
   }
-  return kind === "search-fzf" || kind === "search-query"
+  return kind === "search-lexical" || kind === "search-query"
     ? "broad-lexical,raw-read,repeat-glob"
     : undefined;
 }
 
 function orderedHeaderFields(kind, headerFields, query, algorithm) {
-  if (kind === "search-fzf" || kind === "search-query") {
+  if (kind === "search-lexical" || kind === "search-query") {
     const leading = {
       ...(query === undefined ? {} : { q: query }),
       ...(headerFields.view === undefined ? {} : { view: headerFields.view }),

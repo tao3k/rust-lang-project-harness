@@ -303,6 +303,7 @@ fn search_method_descriptor(view: &str) -> Value {
         "requiresQuery": search_view_requires_query(view),
         "acceptsStdin": view == "ingest",
         "supportsPackageScope": true,
+        "benchmarkInvocation": search_benchmark_invocation(view),
         "supportsJson": true,
         "supportsCompact": true
     });
@@ -361,6 +362,59 @@ fn search_method_descriptor(view: &str) -> Value {
         fields.insert("ingestRequiredFor".to_string(), json!(ingest_required_for));
     }
     descriptor
+}
+
+fn search_benchmark_invocation(view: &str) -> Value {
+    match view {
+        "owner" => json!({
+            "args": [
+                "search", "owner", "{owner}", "items", "--query", "{query}",
+                "--workspace", "{workspace}", "--view", "seeds"
+            ],
+            "expectsJson": false,
+            "maxElapsedMs": 15_000,
+        }),
+        "lexical" => json!({
+            "args": [
+                "search", "lexical", "--query", "{query}", "--query", "{dependency}",
+                "--workspace", "{workspace}", "--view", "seeds"
+            ],
+            "expectsJson": false,
+            "maxElapsedMs": 15_000,
+        }),
+        "dependency" | "deps" => json!({
+            "args": ["search", view, "{dependency}", "--workspace", "{workspace}", "--view", "seeds"],
+            "expectsJson": false,
+            "maxElapsedMs": 15_000,
+        }),
+        "tests" => json!({
+            "args": ["search", "tests", "{owner}", "--workspace", "{workspace}", "--view", "seeds"],
+            "expectsJson": false,
+            "maxElapsedMs": 15_000,
+        }),
+        "ingest" => json!({
+            "args": ["search", "ingest", "--workspace", "{workspace}", "--view", "seeds"],
+            "stdinTemplate": "{owner}:1:{query}\\n",
+            "expectsJson": false,
+            "maxElapsedMs": 15_000,
+        }),
+        "semantic-facts" => json!({
+            "args": ["search", "semantic-facts", "{query}", "--workspace", "{workspace}", "--json"],
+            "expectsJson": true,
+            "maxElapsedMs": 15_000,
+        }),
+        "api" | "callsite" | "cfg" | "compare" | "docs" | "docs-use" | "import" | "pattern"
+        | "policy" | "query" | "symbol" => json!({
+            "args": ["search", view, "{query}", "--workspace", "{workspace}", "--view", "seeds"],
+            "expectsJson": false,
+            "maxElapsedMs": 15_000,
+        }),
+        _ => json!({
+            "args": ["search", view, "--workspace", "{workspace}", "--view", "seeds"],
+            "expectsJson": false,
+            "maxElapsedMs": 15_000,
+        }),
+    }
 }
 
 fn search_output_schema_ids(view: &str) -> Vec<&'static str> {
@@ -460,9 +514,9 @@ fn search_capabilities(view: &str) -> Vec<Value> {
             rust_capability("rust-native-syntax-query"),
         ],
         "tests" => vec![rust_capability("test-owner-search")],
-        "fzf" => vec![
-            semantic_capability("finder-fuzzy-candidate-search"),
-            rust_capability("parser-visible-source-fuzzy-search"),
+        "lexical" => vec![
+            semantic_capability("lexical-candidate-search"),
+            rust_capability("parser-visible-source-lexical-search"),
         ],
         "patterns" | "pattern" => vec![rust_capability("pattern-recipe-search")],
         "docs" => vec![rust_capability("native-docs-api-search")],
@@ -493,7 +547,7 @@ fn search_capabilities(view: &str) -> Vec<Value> {
 fn search_ingest_required_for(view: &str) -> Vec<Value> {
     match view {
         "owner" => vec![rust_ingest_surface("non-parser-path")],
-        "fzf" => vec![
+        "lexical" => vec![
             rust_ingest_surface("non-parser-text"),
             rust_ingest_surface("docs-text"),
             rust_ingest_surface("schema-json"),

@@ -97,6 +97,32 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
             .all(|descriptor| descriptor["method"] != "search/text"),
         "{methods:?}"
     );
+    for descriptor in methods.iter().filter(|descriptor| {
+        descriptor["method"]
+            .as_str()
+            .is_some_and(|method| method.starts_with("search/"))
+    }) {
+        let method = descriptor["method"].as_str().expect("search method");
+        let view = descriptor["view"].as_str().expect("search view");
+        let benchmark = &descriptor["benchmarkInvocation"];
+        let args = benchmark["args"].as_array().expect("benchmark args");
+        assert_eq!(args.first().and_then(Value::as_str), Some("search"));
+        assert_eq!(args.get(1).and_then(Value::as_str), Some(view));
+        assert!(
+            args.iter().any(|arg| arg == "{workspace}"),
+            "{method}: {benchmark}"
+        );
+        assert!(
+            benchmark["expectsJson"].is_boolean(),
+            "{method}: {benchmark}"
+        );
+        assert!(
+            benchmark["maxElapsedMs"]
+                .as_u64()
+                .is_some_and(|value| value > 0),
+            "{method}: {benchmark}"
+        );
+    }
     let rust_capability_schema =
         read_json(&package_root().join("schemas/rust-semantic-capabilities.v1.schema.json"));
     let capability_names = schema_enum(

@@ -1,9 +1,9 @@
 pub(super) struct SyntaxQueryRow {
     pub(super) capture: String,
-    pub(super) capture_node: &'static str,
+    pub(super) capture_node: String,
     pub(super) capture_field: String,
     pub(super) capture_text: String,
-    pub(super) node: &'static str,
+    pub(super) node: String,
     pub(super) name: String,
     pub(super) path: String,
     pub(super) start_line: usize,
@@ -51,7 +51,7 @@ pub(super) fn syntax_query_matches_json(rows: &[SyntaxQueryRow]) -> Vec<serde_js
                         "itemRead": syntax_query_item_read_locator(row),
                         "sourceAuthority": "native-parser",
                         "nativeNodeType": row.node,
-                        "semanticKind": syntax_query_semantic_kind(row.node)
+                        "semanticKind": syntax_query_semantic_kind(&row.node)
                     }
                 }],
                 "nativeFactRefs": [native_fact_ref],

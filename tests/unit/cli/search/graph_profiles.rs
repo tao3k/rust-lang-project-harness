@@ -40,5 +40,5 @@ fn cli_search_graph_profiles_filter_to_rendered_aliases() {
         output.contains("q=run_codex_agent_hook") || output.contains("run_codex_agent_hook"),
         "{output}"
     );
-    assert!(!output.contains("search-fzf"), "{output}");
+    assert!(!output.contains("search-lexical"), "{output}");
 }

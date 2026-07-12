@@ -469,7 +469,7 @@ fn query_set_kind(options: &SemanticSearchJsonOptions) -> &'static str {
         "cfg" => "cfg",
         "api" | "docs" | "docs-use" | "public-external-types" => "api",
         "symbol" | "callsite" | "import" => "symbol",
-        "fzf" => "text",
+        "lexical" => "text",
         _ => "custom",
     }
 }
@@ -989,7 +989,7 @@ fn render_mode(options: &SemanticSearchJsonOptions) -> &str {
     match options.view.as_str() {
         "symbol"
         | "callsite"
-        | "fzf"
+        | "lexical"
         | "pattern"
         | "docs"
         | "docs-use"

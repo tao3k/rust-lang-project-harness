@@ -9,8 +9,8 @@ use super::tree_sitter_query_packet::{
     SyntaxQueryRow, syntax_query_matches_json, syntax_query_native_fact_refs,
 };
 use super::tree_sitter_query_projection::{
-    SUPPORTED_TREE_SITTER_QUERY_NODES, SyntaxQueryPredicate, SyntaxQueryPredicateOp,
-    SyntaxQueryPredicateValue, project_tree_sitter_query,
+    SyntaxQueryPredicate, SyntaxQueryPredicateOp, SyntaxQueryPredicateValue,
+    project_native_tree_sitter_query,
 };
 
 struct RustTreeSitterCatalog {
@@ -230,22 +230,16 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
         "semantic-tree-sitter-query.v1:rust:{RUST_TREE_SITTER_GRAMMAR_ID}:{query_identity}:{catalog_fingerprint}:{grammar_profile_fingerprint}",
     );
     let projection_root = project_root.clone();
-    let projection_node_types = query_plan.node_types.clone();
-    let projection_fields = query_plan.fields.clone();
-    let projection_captures = query_plan.captures.clone();
-    let projection_terms = terms.clone();
+    let projection_query_source = catalog_source.clone();
     let projection_predicates = query_plan.predicates.clone();
     let projection_selector = selector.clone();
     let projection = std::thread::Builder::new()
         .name("rs-harness-tree-sitter-query".to_string())
         .stack_size(TREE_SITTER_QUERY_WORKER_STACK_BYTES)
         .spawn(move || {
-            project_tree_sitter_query(
+            project_native_tree_sitter_query(
                 &projection_root,
-                &projection_node_types,
-                &projection_fields,
-                &projection_captures,
-                &projection_terms,
+                &projection_query_source,
                 &projection_predicates,
                 projection_selector.as_ref(),
             )
@@ -277,7 +271,7 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
             "catalogCanonical": catalog_canonical,
             "catalogEmbedded": catalog_embedded,
             "compilerBoundary": "asp-tree-sitter-runtime",
-            "providerRuntimeCompiled": false,
+            "providerRuntimeCompiled": true,
             "codeOutput": code_output,
             "terms": terms
         });
@@ -312,9 +306,20 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
             "projectRoot": project_root.display().to_string(),
             "grammarId": RUST_TREE_SITTER_GRAMMAR_ID,
             "grammarProfileVersion": RUST_TREE_SITTER_GRAMMAR_PROFILE_VERSION,
-            "sourceAuthority": "native-parser-adapter",
-            "adapterMode": "native-projection",
+            "sourceAuthority": "native-parser",
+            "adapterMode": "tree-sitter-querycursor",
             "compatibilityLevel": "native-only",
+            "execution": {
+                "engine": "tree-sitter-querycursor",
+                "predicateEvaluator": "asp-tree-sitter-predicate-v1",
+                "matchStatus": projection.match_status(),
+                "unsupportedPredicates": &projection.unsupported_predicates,
+                "selectedFileCount": projection.selected_file_count,
+                "parsedFileCount": projection.parsed_file_count,
+                "queryCompileCount": 1,
+                "cursorMatchCount": projection.cursor_match_count,
+                "elapsedMs": projection.elapsed_ms,
+            },
             "query": query,
             "matches": matches,
             "nativeFactRefs": native_fact_refs,
@@ -359,7 +364,7 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
                 query_plan.captures.join(",")
             };
             println!(
-                "|syntax-query inputForm={} input={} grammar={} grammarProfile={} dialect=tree-sitter-query mode=native-parser-projection matchStatus={} match={} rows={} truncated={} captureCount={} captures={}{} catalogCanonical={} catalogEmbedded={} sourceAuthority=native-parser compilerBoundary=asp-tree-sitter-runtime providerRuntimeCompiled=false",
+                "|syntax-query inputForm={} input={} grammar={} grammarProfile={} dialect=tree-sitter-query mode=tree-sitter-querycursor matchStatus={} match={} rows={} truncated={} captureCount={} captures={}{} selectedFiles={} parsedFiles={} queryCompileCount=1 cursorMatches={} elapsedMs={} catalogCanonical={} catalogEmbedded={} sourceAuthority=native-parser compilerBoundary=asp-tree-sitter-runtime providerRuntimeCompiled=true",
                 input_form,
                 query_identity,
                 RUST_TREE_SITTER_GRAMMAR_ID,
@@ -371,16 +376,13 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
                 query_plan.captures.len(),
                 captures_display,
                 term_field,
+                projection.selected_file_count,
+                projection.parsed_file_count,
+                projection.cursor_match_count,
+                projection.elapsed_ms,
                 catalog_canonical,
                 catalog_embedded
             );
-            if !projection.unsupported_nodes.is_empty() {
-                println!(
-                    "|syntax-query-unsupported nodes={} supported={}",
-                    projection.unsupported_nodes.join(","),
-                    SUPPORTED_TREE_SITTER_QUERY_NODES.join(",")
-                );
-            }
             if !projection.unsupported_predicates.is_empty() {
                 println!(
                     "|syntax-query-unsupported predicates={} supported=predicate:eq,predicate:any-of,predicate:match,predicate:not-eq,predicate:not-match",
@@ -395,6 +397,7 @@ pub(super) fn run_tree_sitter_query_catalog(args: &[OsString]) -> Result<Option<
                 &projection.rows,
                 projection.total_matches,
                 projection.truncated,
+                projection.elapsed_ms,
             );
         }
     }
@@ -417,6 +420,7 @@ fn print_tree_sitter_query_graph(
     rows: &[SyntaxQueryRow],
     total_matches: usize,
     truncated: bool,
+    elapsed_ms: u128,
 ) {
     let display_len = rows.len().min(MAX_SYNTAX_QUERY_GRAPH_ROWS);
     let display_rows = &rows[..display_len];
@@ -427,10 +431,11 @@ fn print_tree_sitter_query_graph(
         .first()
         .map_or("item.name", String::as_str);
     println!(
-        "[query-treesitter] root={} lang=rust pattern={} capture={} alg=syntax-capture-frontier",
+        "[query-treesitter] root={} lang=rust pattern={} capture={} mode=tree-sitter-querycursor alg=syntax-capture-frontier elapsedMs={}",
         project_root.display(),
         pattern,
-        capture
+        capture,
+        elapsed_ms
     );
     println!(
         "legend: aliases ID:kind; node ID=kind:role(value)!next; ts=node/field; frontier ID.next"
@@ -441,17 +446,18 @@ fn print_tree_sitter_query_graph(
     for (index, row) in display_rows.iter().enumerate() {
         let capture_id = graph_id("C", index);
         let item_id = graph_id("I", index);
+        let graph_value = compact_graph_value(&row.capture_node, &row.capture_text);
         println!(
             "{capture_id}=capture:{}({})@{}!code ts={}",
             row.capture,
-            compact_graph_value(&row.capture_text),
+            graph_value,
             syntax_query_capture_locator(row),
             syntax_query_capture_ts(query_plan, row)
         );
         println!(
             "{item_id}=item:{}({})@{}!code ts={}",
             syntax_query_item_kind(row),
-            compact_graph_value(&row.name),
+            graph_value,
             syntax_query_range_locator(row),
             row.node
         );
@@ -519,7 +525,7 @@ fn syntax_query_capture_ts(_query_plan: &RustSyntaxQueryPlan, row: &SyntaxQueryR
 }
 
 fn syntax_query_item_kind(row: &SyntaxQueryRow) -> &'static str {
-    match row.node {
+    match row.node.as_str() {
         "const_item" => "const",
         "call_expression" => "call",
         "enum_item" => "enum",
@@ -535,8 +541,13 @@ fn syntax_query_item_kind(row: &SyntaxQueryRow) -> &'static str {
     }
 }
 
-fn compact_graph_value(value: &str) -> String {
-    value.split_whitespace().collect::<Vec<_>>().join("_")
+fn compact_graph_value(node_type: &str, value: &str) -> String {
+    match node_type {
+        "identifier" | "field_identifier" | "type_identifier" | "scoped_identifier" => {
+            value.to_string()
+        }
+        node_type => format!("<{node_type}>"),
+    }
 }
 
 fn graph_id(prefix: &str, index: usize) -> String {

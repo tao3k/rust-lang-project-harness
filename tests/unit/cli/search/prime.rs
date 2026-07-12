@@ -52,7 +52,7 @@ fn cli_search_prime_renders_line_protocol() {
     );
     assert!(
         stdout.contains(
-            "capabilities=pipe,fzf,fd-query,rg-query,owner-items,selector-code,treesitter-query"
+            "capabilities=pipe,lexical,fd-query,rg-query,owner-items,selector-code,treesitter-query"
         ),
         "{stdout}"
     );

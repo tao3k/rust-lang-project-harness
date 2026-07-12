@@ -156,6 +156,20 @@ pub(super) fn render_search_callsite(
     options: &RustSearchOptions,
 ) -> Result<String, String> {
     let contexts = search_contexts(project_root, config, options)?;
+    Ok(render_search_callsite_from_contexts(
+        project_root,
+        query,
+        options,
+        &contexts,
+    ))
+}
+
+fn render_search_callsite_from_contexts(
+    project_root: &Path,
+    query: &str,
+    options: &RustSearchOptions,
+    contexts: &[super::context::PackageSearchContext],
+) -> String {
     let mut rendered = String::new();
     for context in contexts {
         let calls = symbol_calls(&context, query, options);
@@ -170,7 +184,7 @@ pub(super) fn render_search_callsite(
         }
         append_block(&mut rendered, &block);
     }
-    Ok(rendered)
+    rendered
 }
 
 pub(super) fn render_search_import(
@@ -386,6 +400,20 @@ pub(super) fn render_search_docs(
     options: &RustSearchOptions,
 ) -> Result<String, String> {
     let contexts = search_contexts(project_root, config, options)?;
+    Ok(render_search_docs_from_contexts(
+        project_root,
+        query,
+        options,
+        &contexts,
+    ))
+}
+
+fn render_search_docs_from_contexts(
+    project_root: &Path,
+    query: &str,
+    options: &RustSearchOptions,
+    contexts: &[super::context::PackageSearchContext],
+) -> String {
     let docs_query = ApiDocsQuery::parse(query);
     let mut rendered = String::new();
     for context in contexts {
@@ -420,7 +448,7 @@ pub(super) fn render_search_docs(
         }
         append_block(&mut rendered, &block);
     }
-    Ok(rendered)
+    rendered
 }
 
 pub(super) fn render_search_api(
@@ -474,8 +502,10 @@ pub(super) fn render_search_docs_use(
     options: &RustSearchOptions,
 ) -> Result<String, String> {
     let item_name = query.rsplit("::").next().unwrap_or(query);
-    let docs = render_search_docs(project_root, config, query, options)?;
-    let calls = render_search_callsite(project_root, config, item_name, options)?;
+    let contexts =
+        super::context::search_contexts_for_path_query(project_root, config, options, item_name)?;
+    let docs = render_search_docs_from_contexts(project_root, query, options, &contexts);
+    let calls = render_search_callsite_from_contexts(project_root, item_name, options, &contexts);
     Ok(format!("{}{}", docs, calls))
 }
 
