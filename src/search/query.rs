@@ -417,12 +417,12 @@ fn render_search_docs_from_contexts(
     let docs_query = ApiDocsQuery::parse(query);
     let mut rendered = String::new();
     for context in contexts {
-        let source = docs_query.source(&context);
+        let source = docs_query.source(context);
         let defs = if source == "native-parser" {
             api_hits(
                 &context.package_root,
                 &context.parsed_modules,
-                &symbol_definitions(&context, &docs_query.item_name, options),
+                &symbol_definitions(context, &docs_query.item_name, options),
                 &docs_query.item_name,
             )
         } else {
@@ -431,7 +431,7 @@ fn render_search_docs_from_contexts(
         let mut block = docs_query.header_line(
             "search-docs",
             project_root,
-            &context,
+            context,
             "docs",
             defs.len(),
             source,
