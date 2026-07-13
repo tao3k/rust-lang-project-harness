@@ -61,7 +61,6 @@ fn query_code_rejects_trailing_root_and_catalog_accepts_positional_workspace() {
         "stderr={}",
         String::from_utf8_lossy(&stale.stderr)
     );
-
 }
 
 #[test]

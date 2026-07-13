@@ -51,9 +51,7 @@ fn cli_search_prime_renders_line_protocol() {
         "{stdout}"
     );
     assert!(
-        stdout.contains(
-            "capabilities=pipe,lexical,fd-query,rg-query,owner-items,selector-code"
-        ),
+        stdout.contains("capabilities=pipe,lexical,fd-query,rg-query,owner-items,selector-code"),
         "{stdout}"
     );
     assert!(stdout.contains("route=evidence-state"), "{stdout}");

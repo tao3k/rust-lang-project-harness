@@ -256,10 +256,7 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
     );
     assert_eq!(
         direct_source_read["packetSchemas"],
-        serde_json::json!([
-            "semantic-query-packet.v1",
-            "semantic-read-packet.v1"
-        ])
+        serde_json::json!(["semantic-query-packet.v1", "semantic-read-packet.v1"])
     );
     assert_eq!(
         direct_source_read["queryInputForms"],
