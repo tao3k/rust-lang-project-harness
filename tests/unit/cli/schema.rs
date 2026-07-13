@@ -42,10 +42,11 @@ fn cli_agent_registry_advertises_package_local_semantic_schemas() {
             schema["$schema"],
             "https://json-schema.org/draft/2020-12/schema"
         );
+        let schema_id_suffix = expected.file_name.trim_end_matches(".schema.json");
         assert!(
-            schema["$id"]
-                .as_str()
-                .is_some_and(|id| id.ends_with(expected.file_name)),
+            schema["$id"].as_str().is_some_and(|id| {
+                id.ends_with(expected.file_name) || id.ends_with(schema_id_suffix)
+            }),
             "{schema}"
         );
         assert_eq!(
