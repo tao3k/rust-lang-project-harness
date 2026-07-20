@@ -1,6 +1,6 @@
 use std::fs;
 
-use rust_lang_project_harness::run_rust_project_harness;
+use rust_lang_project_harness::run_rust_project_harness_for_scope;
 use tempfile::TempDir;
 
 use crate::path_policy::support::{findings_for_rule, write_manifest};
@@ -22,7 +22,11 @@ fn public_semantic_primitive_type_alias_is_agent_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     let findings = findings_for_rule(&report, "RUST-AGENT-API-TYPE-ALIAS-027");
     assert_eq!(findings.len(), 2, "{:?}", report.findings);
@@ -50,7 +54,11 @@ fn documented_public_semantic_primitive_type_alias_clears_agent_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(findings_for_rule(&report, "RUST-AGENT-API-TYPE-ALIAS-027").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -75,7 +83,11 @@ fn public_newtype_and_domain_alias_clear_primitive_type_alias_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(findings_for_rule(&report, "RUST-AGENT-API-TYPE-ALIAS-027").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);

@@ -1,6 +1,6 @@
 use std::fs;
 
-use rust_lang_project_harness::run_rust_project_harness;
+use rust_lang_project_harness::run_rust_project_harness_for_scope;
 use tempfile::TempDir;
 
 use crate::path_policy::support::{findings_for_rule, write_manifest};
@@ -32,7 +32,11 @@ fn public_nested_algorithm_shape_is_agent_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     let findings = findings_for_rule(&report, "RUST-AGENT-CFG-PUBLIC-015");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
@@ -56,7 +60,11 @@ fn public_broad_linear_algorithm_surface_is_agent_advice() {
     fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod api;\n").expect("write lib");
     fs::write(root.join("src/api.rs"), broad_linear_source()).expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     let findings = findings_for_rule(&report, "RUST-AGENT-CFG-PUBLIC-016");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
@@ -101,7 +109,11 @@ fn public_match_dispatch_is_not_nested_algorithm_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(findings_for_rule(&report, "RUST-AGENT-CFG-PUBLIC-015").is_empty());
     assert!(findings_for_rule(&report, "RUST-AGENT-CFG-PUBLIC-016").is_empty());
@@ -117,7 +129,11 @@ fn public_literal_dispatch_chain_is_agent_advice() {
     fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod api;\n").expect("write lib");
     fs::write(root.join("src/api.rs"), literal_dispatch_source()).expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     let findings = findings_for_rule(&report, "RUST-AGENT-CFG-PUBLIC-015");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
@@ -145,7 +161,11 @@ fn public_manual_iterator_boilerplate_is_agent_advice() {
     fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod api;\n").expect("write lib");
     fs::write(root.join("src/api.rs"), manual_iterator_source()).expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     let findings = findings_for_rule(&report, "RUST-AGENT-ITER-PUBLIC-017");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
@@ -173,7 +193,11 @@ fn loop_local_linear_membership_scan_is_agent_advice() {
     fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod api;\n").expect("write lib");
     fs::write(root.join("src/api.rs"), linear_membership_scan_source()).expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     let findings = findings_for_rule(&report, "RUST-AGENT-DATA-MEMBERSHIP-029");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
@@ -201,7 +225,11 @@ fn indexed_membership_lookup_clears_linear_scan_advice() {
     fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod api;\n").expect("write lib");
     fs::write(root.join("src/api.rs"), indexed_membership_lookup_source()).expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(findings_for_rule(&report, "RUST-AGENT-DATA-MEMBERSHIP-029").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -225,7 +253,11 @@ fn async_blocking_call_is_agent_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     let findings = findings_for_rule(&report, "RUST-AGENT-ASYNC-BLOCKING-030");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
@@ -261,7 +293,11 @@ fn spawn_blocking_boundary_clears_async_blocking_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(findings_for_rule(&report, "RUST-AGENT-ASYNC-BLOCKING-030").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -288,7 +324,11 @@ fn sync_lock_guard_across_await_is_agent_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     let findings = findings_for_rule(&report, "RUST-AGENT-ASYNC-SYNC-LOCK-031");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
@@ -323,7 +363,11 @@ fn std_rwlock_read_guard_across_await_is_agent_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     let findings = findings_for_rule(&report, "RUST-AGENT-ASYNC-SYNC-LOCK-031");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
@@ -358,7 +402,11 @@ fn tokio_rwlock_read_guard_clears_sync_lock_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(findings_for_rule(&report, "RUST-AGENT-ASYNC-SYNC-LOCK-031").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -388,7 +436,11 @@ fn dropped_sync_lock_guard_clears_across_await_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(findings_for_rule(&report, "RUST-AGENT-ASYNC-SYNC-LOCK-031").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -421,7 +473,11 @@ fn unbounded_async_queue_without_backpressure_is_agent_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     let findings = findings_for_rule(&report, "RUST-AGENT-ASYNC-BACKPRESSURE-032");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
@@ -467,7 +523,11 @@ fn bounded_async_queue_clears_backpressure_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(findings_for_rule(&report, "RUST-AGENT-ASYNC-BACKPRESSURE-032").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -504,7 +564,11 @@ fn try_send_boundary_clears_unbounded_queue_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(findings_for_rule(&report, "RUST-AGENT-ASYNC-BACKPRESSURE-032").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -532,7 +596,11 @@ fn tokio_select_read_exact_is_cancellation_safety_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     let findings = findings_for_rule(&report, "RUST-AGENT-ASYNC-CANCEL-SAFETY-033");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
@@ -573,7 +641,11 @@ fn tokio_select_read_clears_cancellation_safety_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(findings_for_rule(&report, "RUST-AGENT-ASYNC-CANCEL-SAFETY-033").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -599,7 +671,11 @@ fn read_exact_outside_select_clears_cancellation_safety_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(findings_for_rule(&report, "RUST-AGENT-ASYNC-CANCEL-SAFETY-033").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -626,7 +702,11 @@ fn tokio_timeout_read_exact_is_cancellation_safety_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     let findings = findings_for_rule(&report, "RUST-AGENT-ASYNC-CANCEL-SAFETY-034");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
@@ -666,7 +746,11 @@ fn tokio_timeout_read_clears_cancellation_safety_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(findings_for_rule(&report, "RUST-AGENT-ASYNC-CANCEL-SAFETY-034").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -694,7 +778,11 @@ fn read_exact_outside_timeout_clears_cancellation_safety_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(findings_for_rule(&report, "RUST-AGENT-ASYNC-CANCEL-SAFETY-034").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -727,7 +815,11 @@ fn deeply_nested_algorithm_does_not_duplicate_native_iterator_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert_eq!(
         findings_for_rule(&report, "RUST-AGENT-CFG-PUBLIC-015").len(),

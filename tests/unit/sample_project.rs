@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use rust_lang_project_harness::{render_rust_project_harness, run_rust_project_harness};
+use rust_lang_project_harness::{render_rust_project_harness, run_rust_project_harness_for_scope};
 use tempfile::TempDir;
 
 #[test]
@@ -26,7 +26,11 @@ fn project_runner_reports_blocking_policy_and_agent_advice() {
     )
     .expect("write root test");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     let rendered = normalize_temp_root(&render_rust_project_harness(&report), root);
 
     assert!(!report.is_clean());

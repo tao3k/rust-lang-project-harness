@@ -40,6 +40,8 @@ rs-harness search owner <path-or-owner> [items tests] [--scope SCOPE] [PROJECT_R
          rs-harness search targets [--package PACKAGE] [PROJECT_ROOT]\n\
 rs-harness search deps [dep[/subpath][@version][::api]] [public-api] [PROJECT_ROOT]\n\
 rs-harness search dependency-topology --json [--workspace PROJECT_ROOT]\n\
+rs-harness search workspace-scope --json [--workspace PROJECT_ROOT]\n\
+rs-harness projection <relative-owner> --json --workspace PROJECT_ROOT\n\
 rs-harness search env [toolchain|cfg] [PROJECT_ROOT]\n\
 rs-harness search compare env stable nightly [PROJECT_ROOT]\n\
 rs-harness search code comments [--owner OWNER] [PROJECT_ROOT]\n\
@@ -193,6 +195,7 @@ pub(super) fn is_known_search_view(view: &str) -> bool {
             | "semantic-facts"
             | "dependency-topology"
             | "dependency-topology-metadata"
+            | "workspace-scope"
             | "ingest"
     )
 }
@@ -226,6 +229,10 @@ pub(super) fn discover_rust_project_root() -> Result<PathBuf, String> {
 
 pub(super) fn rust_project_root_for_path(path: &Path) -> Result<PathBuf, String> {
     crate::parser::cargo_project_root_for_path(path)
+}
+
+pub(super) fn rust_package_root_for_path(path: &Path) -> Result<PathBuf, String> {
+    crate::parser::cargo_package_root_for_path(path)
 }
 
 pub(super) fn parse_usize_option(option: &str, value: &str) -> Result<usize, String> {

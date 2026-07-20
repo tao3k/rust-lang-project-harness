@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use rust_lang_project_harness::{render_rust_project_harness, run_rust_project_harness};
+use rust_lang_project_harness::{render_rust_project_harness, run_rust_project_harness_for_scope};
 use tempfile::TempDir;
 
 use crate::path_policy::support::{has_rule, write_manifest};
@@ -15,7 +15,11 @@ fn complete_build_gate_clears_source_cargo_test_gate_requirement() {
     fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
     write_configured_build_gate(root);
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         !has_rule(&report, "RUST-AGENT-PROJECT-009"),
@@ -38,7 +42,11 @@ fn downstream_policy_build_gate_clears_build_gate_requirement() {
     fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
     write_downstream_policy_build_gate(root);
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         !has_rule(&report, "RUST-AGENT-PROJECT-012"),
@@ -56,7 +64,11 @@ fn workspace_wrapper_build_gate_clears_direct_harness_dependency_requirement() {
     fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
     write_workspace_wrapper_build_gate(root);
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         !has_rule(&report, "RUST-AGENT-PROJECT-012"),
@@ -74,7 +86,11 @@ fn ordinary_workspace_alias_does_not_clear_build_gate_requirement() {
     fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
     write_ordinary_workspace_alias_build_gate(root);
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         has_rule(&report, "RUST-AGENT-PROJECT-012"),
@@ -104,7 +120,11 @@ fn complete_build_gate_clears_root_test_target_gate_requirement() {
     )
     .expect("write suite");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         !has_rule(&report, "RUST-AGENT-PROJECT-006"),
@@ -135,7 +155,11 @@ fn harness_enabled_build_script_requires_build_gate_snapshot() {
     .expect("write lib");
     fs::write(root.join("build.rs"), "fn main() {}\n").expect("write build script");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     let rendered = normalize_temp_root(&render_rust_project_harness(&report), root);
 
     assert!(
@@ -158,7 +182,11 @@ fn harness_dependency_requires_cargo_check_build_gate_without_build_script() {
     fs::create_dir(root.join("src")).expect("create src");
     fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         has_rule(&report, "RUST-AGENT-PROJECT-012"),
@@ -180,7 +208,11 @@ fn harness_build_dependency_requires_root_build_script() {
     fs::create_dir(root.join("src")).expect("create src");
     fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         has_rule(&report, "RUST-AGENT-PROJECT-012"),
@@ -202,7 +234,11 @@ fn build_gate_default_config_requires_explicit_verification_config() {
     )
     .expect("write build script");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         has_rule(&report, "RUST-AGENT-PROJECT-011"),
@@ -225,7 +261,11 @@ fn build_gate_call_requires_build_dependency() {
     fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
     write_configured_build_gate(root);
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         has_rule(&report, "RUST-AGENT-PROJECT-012"),
@@ -243,7 +283,11 @@ fn non_harness_build_script_does_not_require_build_gate() {
     fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
     fs::write(root.join("build.rs"), "fn main() {}\n").expect("write build script");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         !has_rule(&report, "RUST-AGENT-PROJECT-012"),

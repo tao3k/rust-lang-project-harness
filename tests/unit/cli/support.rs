@@ -342,8 +342,21 @@ pub(crate) fn write_clean_source(root: &Path) {
 }
 
 pub(crate) fn normalize_temp_root(rendered: &str, root: &Path) -> String {
-    let root_text = root.display().to_string();
-    rendered
-        .replace(&root_text, "$TEMP")
-        .replace(&root_text.replace('\\', "/"), "$TEMP")
+    let mut spellings = vec![root.display().to_string()];
+    if let Ok(canonical_root) = std::fs::canonicalize(root) {
+        spellings.push(canonical_root.display().to_string());
+    }
+    let slash_normalized = spellings
+        .iter()
+        .map(|spelling| spelling.replace('\\', "/"))
+        .collect::<Vec<_>>();
+    spellings.extend(slash_normalized);
+    spellings.sort();
+    spellings.dedup();
+    spellings.sort_by_key(|right| std::cmp::Reverse(right.len()));
+    spellings
+        .into_iter()
+        .fold(rendered.to_string(), |output, spelling| {
+            output.replace(&spelling, "$TEMP")
+        })
 }

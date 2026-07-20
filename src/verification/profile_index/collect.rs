@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use crate::parser::{
-    CargoDependencyFacts, CargoDependencyKind, ParsedRustModule, RustReasoningModuleFacts,
-    RustReasoningOwnerBranchFacts, RustReasoningOwnerBranchRole, RustUseImportRootKind,
+    CargoDependencyFacts, CargoDependencyKind, RustReasoningImportFacts, RustReasoningModuleFacts,
+    RustReasoningOwnerBranchFacts, RustReasoningOwnerBranchRole,
 };
 
 use super::model::{RustVerificationProfileCandidate, RustVerificationProfileCandidateState};
@@ -175,7 +175,6 @@ pub(super) struct PackageCandidateInput<'a> {
     pub(super) package_root: &'a Path,
     pub(super) modules: &'a [RustReasoningModuleFacts],
     pub(super) branches: &'a [RustReasoningOwnerBranchFacts],
-    pub(super) parsed_modules: &'a [ParsedRustModule],
     pub(super) cargo_dependencies: &'a [CargoDependencyFacts],
     pub(super) policy: &'a RustVerificationPolicy,
 }
@@ -184,11 +183,6 @@ pub(super) fn collect_package_candidates(
     input: PackageCandidateInput<'_>,
     candidates: &mut Vec<RustVerificationProfileCandidate>,
 ) {
-    let parsed_by_path = input
-        .parsed_modules
-        .iter()
-        .map(|module| (module.report.path.clone(), module))
-        .collect::<BTreeMap<_, _>>();
     let modules_by_path = input
         .modules
         .iter()
@@ -239,12 +233,7 @@ pub(super) fn collect_package_candidates(
         let Some(branch_modules) = branch_modules_by_path.get(&branch.path) else {
             continue;
         };
-        let signals = aggregate_profile_signals(
-            branch_modules,
-            Some(branch),
-            &parsed_by_path,
-            &dependency_lookup,
-        );
+        let signals = aggregate_profile_signals(branch_modules, Some(branch), &dependency_lookup);
         push_profile_candidate(&mut push_context, branch_module, Some(branch), signals);
     }
     for module in input
@@ -257,8 +246,7 @@ pub(super) fn collect_package_candidates(
         if branch.is_some_and(branch_is_profile_owner) {
             continue;
         }
-        let signals =
-            aggregate_profile_signals(&[module], branch, &parsed_by_path, &dependency_lookup);
+        let signals = aggregate_profile_signals(&[module], branch, &dependency_lookup);
         push_profile_candidate(&mut push_context, module, branch, signals);
     }
 }
@@ -297,7 +285,6 @@ fn push_profile_candidate(
 fn aggregate_profile_signals(
     modules: &[&RustReasoningModuleFacts],
     branch: Option<&RustReasoningOwnerBranchFacts>,
-    parsed_by_path: &BTreeMap<PathBuf, &ParsedRustModule>,
     dependency_lookup: &DependencySignalLookup<'_>,
 ) -> ProfileSignals {
     let mut signals = ProfileSignals {
@@ -306,10 +293,7 @@ fn aggregate_profile_signals(
         ..ProfileSignals::default()
     };
     for module in modules {
-        let Some(parsed_module) = parsed_by_path.get(&module.path) else {
-            continue;
-        };
-        merge_profile_signals(&mut signals, module, parsed_module, dependency_lookup);
+        merge_profile_signals(&mut signals, module, dependency_lookup);
     }
     signals
 }
@@ -317,7 +301,6 @@ fn aggregate_profile_signals(
 fn merge_profile_signals(
     signals: &mut ProfileSignals,
     module: &RustReasoningModuleFacts,
-    parsed_module: &ParsedRustModule,
     dependency_lookup: &DependencySignalLookup<'_>,
 ) {
     signals.owner_deps += module
@@ -326,38 +309,19 @@ fn merge_profile_signals(
         .iter()
         .filter(|dependency| !dependency.is_test_context)
         .count();
-    for item in &parsed_module.syntax_facts.top_level_items {
-        if item.is_public && item.kind != "mod" {
-            signals.public_items += 1;
-        }
-        if item.is_public_use {
-            signals.public_exports += 1;
-        }
-        if item.is_public && item.kind == "fn" {
-            signals.public_functions += 1;
-        }
-    }
-    collect_import_signals(parsed_module, signals, dependency_lookup);
+    signals.public_items += module.public_api_summary.public_items;
+    signals.public_exports += module.public_api_summary.public_exports;
+    signals.public_functions += module.public_api_summary.public_functions;
+    collect_import_signals(&module.import_summary, signals, dependency_lookup);
 }
 
 fn collect_import_signals(
-    parsed_module: &ParsedRustModule,
+    import_summary: &RustReasoningImportFacts,
     signals: &mut ProfileSignals,
     dependency_lookup: &DependencySignalLookup<'_>,
 ) {
-    for use_statement in &parsed_module.syntax_facts.use_statements {
-        if use_statement.context.is_inside_cfg_test_module {
-            continue;
-        }
-        for import in &use_statement.imports {
-            if !matches!(
-                import.root_kind,
-                RustUseImportRootKind::External | RustUseImportRootKind::Absolute
-            ) {
-                continue;
-            }
-            add_import_signal(&import.segments, signals, dependency_lookup);
-        }
+    for segments in &import_summary.production_external_imports {
+        add_import_signal(segments, signals, dependency_lookup);
     }
 }
 

@@ -17,11 +17,12 @@ fn query_code_rejects_trailing_root_and_catalog_accepts_positional_workspace() {
             "--from-hook",
             "direct-source-read",
             "--selector",
-            "src/lib.rs:1:1",
+            "rust://src/lib.rs#item/function/target",
             "--workspace",
         ])
         .arg(root.path())
         .arg("--code")
+        .arg("--json")
         .current_dir(root.path())
         .output()
         .expect("run current query command");
@@ -32,10 +33,31 @@ fn query_code_rejects_trailing_root_and_catalog_accepts_positional_workspace() {
         String::from_utf8_lossy(&current.stdout),
         String::from_utf8_lossy(&current.stderr)
     );
+    let packet = serde_json::from_slice::<serde_json::Value>(&current.stdout)
+        .expect("exact source query should emit typed JSON");
+    assert_eq!(packet["schemaId"], "asp.exact-source-query-result.v1");
+    assert_eq!(packet["code"], "pub fn target() {}");
     assert_eq!(
-        String::from_utf8_lossy(&current.stdout),
-        "pub fn target() {}\n"
+        packet["resolutionEvidence"]["snapshotRoot"],
+        packet["sourceSnapshot"]["rootDigest"]
     );
+    assert!(
+        packet["sourceSnapshot"]["rootDigest"]
+            .as_str()
+            .is_some_and(|digest| !digest.is_empty())
+    );
+    assert!(
+        packet["resolutionEvidence"]["parserArtifactDigest"]
+            .as_str()
+            .is_some_and(|digest| !digest.is_empty())
+    );
+    let state = packet["resolutionEvidence"]["state"].as_str();
+    let authority = packet["resolutionEvidence"]["authority"].as_str();
+    assert!(matches!(
+        (state, authority),
+        (Some("live-hit"), Some("live-parser"))
+            | (Some("artifact-cache-hit"), Some("content-cache"))
+    ));
 
     let stale = Command::new(bin)
         .args([
@@ -43,7 +65,7 @@ fn query_code_rejects_trailing_root_and_catalog_accepts_positional_workspace() {
             "--from-hook",
             "direct-source-read",
             "--selector",
-            "src/lib.rs:1:1",
+            "rust://src/lib.rs#item/function/target",
             "--code",
         ])
         .arg(root.path())

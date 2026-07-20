@@ -2,7 +2,8 @@ use std::fs;
 
 use rust_lang_project_harness::{
     RustOwnerResponsibility, RustVerificationProfileHint, default_rust_harness_config,
-    render_rust_project_harness, run_rust_project_harness, run_rust_project_harness_with_config,
+    render_rust_project_harness, run_rust_project_harness_for_scope,
+    run_rust_project_harness_with_config_for_scope,
 };
 use tempfile::TempDir;
 
@@ -20,7 +21,11 @@ fn cargo_test_gate_requires_explicit_verification_config() {
     )
     .expect("write lib");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     let findings = findings_for_rule(&report, "RUST-AGENT-PROJECT-016");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
@@ -57,8 +62,12 @@ fn configured_cargo_test_gate_clears_verification_config_warning() {
     )
     .expect("write lib");
 
-    let report = run_rust_project_harness_with_config(root, &configured_no_external_tasks_config())
-        .expect("run project harness");
+    let report = run_rust_project_harness_with_config_for_scope(
+        root,
+        &configured_no_external_tasks_config(),
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         findings_for_rule(&report, "RUST-AGENT-PROJECT-016").is_empty(),
@@ -79,7 +88,11 @@ fn positional_config_gate_still_requires_named_verification_config() {
     )
     .expect("write lib");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     let findings = findings_for_rule(&report, "RUST-AGENT-PROJECT-016");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
@@ -97,7 +110,11 @@ fn advice_allow_gate_still_requires_explicit_verification_config() {
     )
     .expect("write lib");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     let findings = findings_for_rule(&report, "RUST-AGENT-PROJECT-016");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
@@ -117,8 +134,12 @@ fn advice_allow_with_config_still_requires_allow_explanation() {
     )
     .expect("write lib");
 
-    let report = run_rust_project_harness_with_config(root, &configured_no_external_tasks_config())
-        .expect("run project harness");
+    let report = run_rust_project_harness_with_config_for_scope(
+        root,
+        &configured_no_external_tasks_config(),
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         findings_for_rule(&report, "RUST-AGENT-PROJECT-016").is_empty(),
@@ -155,11 +176,12 @@ fn advice_allow_with_explanation_clears_allow_warning() {
     )
     .expect("write lib");
 
-    let report = run_rust_project_harness_with_config(
+    let report = run_rust_project_harness_with_config_for_scope(
         root,
         &configured_no_external_tasks_config().with_cargo_test_advice_allow_explanation(
             "migration fixture allows advisory output during transition",
         ),
+        rust_lang_project_harness::RustHarnessRunScope::Package,
     )
     .expect("run project harness");
 

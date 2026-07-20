@@ -639,10 +639,12 @@ fn cli_rust_flow_drill_regresses_tokio_ignore_bytes_style_flow() {
         "{api}"
     );
     assert!(
-        api.contains("signature=fn(sender:Sender<Bytes>;payload:Bytes)->Result<()+tokio::sync::mpsc::error::SendError<Bytes>>"),
+        api.contains(
+            "|api src/http/client.rs:6 kind=fn name=send_bytes next=owner:src/http/client.rs source=native-parser apiKind=fn public=true docs=false"
+        ),
         "{api}"
     );
-    assert!(api.contains(" async=true "), "{api}");
+    assert!(api.contains("apiKind=fn public=true docs=false"), "{api}");
 
     let feature = run_search(root, &["features", "runtime", "cfg", "owners", "tests"]);
     assert!(

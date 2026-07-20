@@ -1,6 +1,6 @@
 use std::env;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Output};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProbeConfig {
@@ -25,19 +25,32 @@ pub struct ProbeReceipt {
 }
 
 pub fn ai_scaffold_probe(config: &ProbeConfig) -> ProbeReceipt {
-    let output = Command::new(&config.program)
+    let output = execute_probe_command(build_probe_command(config));
+    parse_probe_receipt(config, output)
+}
+
+fn build_probe_command(config: &ProbeConfig) -> Command {
+    let mut command = Command::new(&config.program);
+    command
         .current_dir(&config.root)
-        .env(
-            "PATH",
-            format!(
-                "{}:{}",
-                config.helper_bin.parent().unwrap().display(),
-                env::var("PATH").unwrap()
-            ),
-        )
-        .arg("--print-helper")
-        .output()
-        .expect("probe command should run");
+        .env("PATH", probe_helper_path(config))
+        .arg("--print-helper");
+    command
+}
+
+fn probe_helper_path(config: &ProbeConfig) -> String {
+    format!(
+        "{}:{}",
+        config.helper_bin.parent().unwrap().display(),
+        env::var("PATH").unwrap()
+    )
+}
+
+fn execute_probe_command(mut command: Command) -> Output {
+    command.output().expect("probe command should run")
+}
+
+fn parse_probe_receipt(config: &ProbeConfig, output: Output) -> ProbeReceipt {
     let text = format!(
         "{}\n{}",
         String::from_utf8(output.stdout).unwrap(),

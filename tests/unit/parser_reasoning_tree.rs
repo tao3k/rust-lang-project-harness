@@ -257,7 +257,7 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
     fs::create_dir_all(src.join("alt")).expect("create alternate source tree");
     fs::write(
         src.join("lib.rs"),
-        "//! Crate facade.\nuse crate::domain::Thing;\nuse std::fmt;\nmod domain;\n#[path = \"alt/custom.rs\"]\nmod custom;\ninclude!(\"shard.rs\");\n",
+    "//! Crate facade.\npub use crate::domain::Thing;\nuse std::fmt;\npub fn visible_api() {}\n#[cfg(test)]\nmod tests {\n    use proptest::prelude::*;\n}\nmod domain;\n#[path = \"alt/custom.rs\"]\nmod custom;\ninclude!(\"shard.rs\");\n",
     )
     .expect("write lib");
     fs::write(
@@ -295,11 +295,19 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
     let lib = reasoning_tree
         .module(&src.join("lib.rs"))
         .expect("lib facts");
+    assert_eq!(lib.public_api_summary.public_items, 1);
+    assert_eq!(lib.public_api_summary.public_exports, 1);
+    assert_eq!(lib.public_api_summary.public_functions, 1);
+    assert_eq!(lib.import_summary.test_context_imports, 1);
+    assert_eq!(
+        lib.import_summary.production_external_imports,
+        vec![vec!["std".to_string(), "fmt".to_string()]],
+    );
     assert!(lib.is_source_module);
     assert!(lib.is_module_tree_root);
     assert!(lib.source_path.is_crate_facade);
     assert_eq!(lib.import_summary.crate_imports, 1);
-    assert_eq!(lib.import_summary.external_imports, 1);
+    assert_eq!(lib.import_summary.external_imports, 2);
     assert_eq!(
         lib.import_summary.local_owner_imports,
         vec![vec!["src".to_string(), "domain".to_string()]]
@@ -425,7 +433,7 @@ fn reasoning_tree_interprets_modules_owners_and_child_edges() {
         reasoning_tree.owner_branches[0]
             .import_summary
             .external_imports,
-        1
+        2
     );
     assert_eq!(
         reasoning_tree.owner_branches[0]

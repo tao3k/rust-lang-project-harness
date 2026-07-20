@@ -192,7 +192,7 @@ fn dependency_topology_metadata(project_root: &Path) -> DependencyTopologyMetada
     }
 }
 
-fn cargo_package_roots(project_root: &Path, root_has_package: bool) -> Vec<PathBuf> {
+pub(super) fn cargo_package_roots(project_root: &Path, root_has_package: bool) -> Vec<PathBuf> {
     let mut roots = BTreeSet::new();
     if root_has_package {
         roots.insert(project_root.to_path_buf());

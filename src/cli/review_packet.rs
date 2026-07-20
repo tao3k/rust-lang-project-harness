@@ -11,9 +11,10 @@ use crate::{
     RUST_DETERMINISM_READINESS_PROTOCOL_ID, RUST_DETERMINISM_READINESS_SCHEMA_ID,
     RUST_FORMAL_PROOF_PILOT_PROTOCOL_ID, RUST_FORMAL_PROOF_PILOT_SCHEMA_ID,
     RUST_VERIFICATION_EXECUTION_RECEIPT_PROTOCOL_ID, RUST_VERIFICATION_EXECUTION_RECEIPT_SCHEMA_ID,
-    RustBehaviorSnapshot, RustDeterminismReadiness, RustFormalProofPilot, RustReviewPacketInput,
-    RustReviewPacketWaiver, RustVerificationExecutionReceipt, build_rust_review_packet,
-    render_rust_review_packet, render_rust_review_packet_json, run_rust_project_harness,
+    RustBehaviorSnapshot, RustDeterminismReadiness, RustFormalProofPilot, RustHarnessRunScope,
+    RustReviewPacketInput, RustReviewPacketWaiver, RustVerificationExecutionReceipt,
+    build_rust_review_packet, render_rust_review_packet, render_rust_review_packet_json,
+    run_rust_project_harness_for_scope,
 };
 
 pub(super) fn run_review(args: impl IntoIterator<Item = OsString>) -> Result<ExitCode, String> {
@@ -27,7 +28,8 @@ pub(super) fn run_review(args: impl IntoIterator<Item = OsString>) -> Result<Exi
     }
 
     let project_root = options.project_root.unwrap_or_else(|| PathBuf::from("."));
-    let report = run_rust_project_harness(&project_root)?;
+    let report =
+        run_rust_project_harness_for_scope(&project_root, RustHarnessRunScope::ProjectWorkspace)?;
     let receipts = read_packet_json_inputs::<RustVerificationExecutionReceipt>(
         &options.receipt_json_paths,
         "receipt",

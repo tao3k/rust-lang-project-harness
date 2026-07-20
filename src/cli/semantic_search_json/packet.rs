@@ -1,51 +1,44 @@
 //! Shared semantic-search JSON envelope for CLI search output.
 
-use std::collections::BTreeSet;
 use std::path::Path;
 
 use serde_json::{Map, Value, json};
 
-use super::semantic_search_json_canonical::{
-    canonical_owner_path, canonical_query_set_terms, canonicalize_read_field,
+use crate::cli::{
+    attach_syntax_refs_to_search_items, bool_field, canonical_owner_path,
+    canonical_query_set_terms, canonicalize_read_field, display_path, graph_seed_fragment,
+    header_package, input_detection_from_header, insert_if_some, insert_if_usize, location,
+    location_from_node, merge_seed_fragment_search_synthesis, next_field, parse_edge_kind,
+    parse_fields, parse_next_actions, push_synthesis, query_set_search_synthesis, string_field,
 };
-use super::semantic_search_json_fields::{
-    bool_field, display_path, header_package, input_detection_from_header, insert_if_some,
-    insert_if_usize, location, location_from_node, next_field, parse_edge_kind, parse_fields,
-    parse_next_actions, string_field,
-};
-use super::semantic_search_synthesis_json::{
-    graph_seed_fragment, merge_seed_fragment_search_synthesis, push_synthesis,
-    query_set_search_synthesis,
-};
-use super::semantic_syntax_refs::attach_syntax_refs_to_search_items;
 
 const SCHEMA_ID: &str = "agent.semantic-protocols.semantic-search-packet";
 const SCHEMA_VERSION: &str = "1";
 
-pub(super) struct SemanticSearchJsonOptions {
-    pub(super) view: String,
-    pub(super) query: Option<String>,
-    pub(super) command_label: String,
-    pub(super) trace: bool,
-    pub(super) explain: bool,
-    pub(super) output_view: Option<String>,
-    pub(super) depth: Option<usize>,
-    pub(super) dir: Option<String>,
-    pub(super) edges: Vec<String>,
-    pub(super) per_owner: Option<usize>,
-    pub(super) seeds: Option<usize>,
-    pub(super) owners: Option<usize>,
-    pub(super) hits: Option<usize>,
-    pub(super) package: Option<String>,
-    pub(super) owner: Option<String>,
-    pub(super) dependency: Option<String>,
-    pub(super) scope: Option<String>,
-    pub(super) lines: bool,
-    pub(super) pipes: Vec<String>,
-    pub(super) query_set: Vec<String>,
+pub(in crate::cli) struct SemanticSearchJsonOptions {
+    pub(in crate::cli) view: String,
+    pub(in crate::cli) query: Option<String>,
+    pub(in crate::cli) command_label: String,
+    pub(in crate::cli) trace: bool,
+    pub(in crate::cli) explain: bool,
+    pub(in crate::cli) output_view: Option<String>,
+    pub(in crate::cli) depth: Option<usize>,
+    pub(in crate::cli) dir: Option<String>,
+    pub(in crate::cli) edges: Vec<String>,
+    pub(in crate::cli) per_owner: Option<usize>,
+    pub(in crate::cli) seeds: Option<usize>,
+    pub(in crate::cli) owners: Option<usize>,
+    pub(in crate::cli) hits: Option<usize>,
+    pub(in crate::cli) package: Option<String>,
+    pub(in crate::cli) owner: Option<String>,
+    pub(in crate::cli) dependency: Option<String>,
+    pub(in crate::cli) scope: Option<String>,
+    pub(in crate::cli) lines: bool,
+    pub(in crate::cli) pipes: Vec<String>,
+    pub(in crate::cli) query_set: Vec<String>,
 }
 
-pub(super) fn render_search_json(
+pub(in crate::cli) fn render_search_json(
     project_root: &Path,
     options: &SemanticSearchJsonOptions,
     rendered: &str,
@@ -354,49 +347,9 @@ fn base_packet(
     packet
 }
 
-fn append_native_syntax_relation_edges(native_syntax_facts: &[Value], edges: &mut Vec<Value>) {
-    let mut seen = edges
-        .iter()
-        .filter_map(|edge| {
-            Some((
-                edge["from"].as_str()?.to_string(),
-                edge["kind"].as_str()?.to_string(),
-                edge["to"].as_str()?.to_string(),
-            ))
-        })
-        .collect::<BTreeSet<_>>();
-    for fact in native_syntax_facts {
-        let Some(source_id) = fact["id"].as_str() else {
-            continue;
-        };
-        let Some(relations) = fact["relations"].as_array() else {
-            continue;
-        };
-        for relation in relations {
-            let (Some(kind), Some(target)) =
-                (relation["kind"].as_str(), relation["target"].as_str())
-            else {
-                continue;
-            };
-            if !seen.insert((source_id.to_string(), kind.to_string(), target.to_string())) {
-                continue;
-            }
-            let mut edge = json!({
-                "from": source_id,
-                "kind": kind,
-                "to": target,
-                "fields": {
-                    "source": "nativeSyntaxFacts.relations",
-                    "sourceAuthority": fact["source"].as_str().unwrap_or("native-parser"),
-                }
-            });
-            if let Some(location) = fact.get("location") {
-                edge["location"] = location.clone();
-            }
-            edges.push(edge);
-        }
-    }
-}
+#[path = "native_syntax.rs"]
+mod native_syntax;
+use native_syntax::append_native_syntax_relation_edges;
 
 fn reasoning_profiles_enabled(options: &SemanticSearchJsonOptions) -> bool {
     matches!(render_mode(options), "graph" | "seeds" | "both" | "facts")

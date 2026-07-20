@@ -10,6 +10,32 @@ use crate::cli::support::{
 };
 
 #[test]
+fn cli_search_workspace_scope_emits_standalone_json_packet() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "workspace-scope-cli");
+    fs::create_dir_all(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "pub fn api() {}\n").expect("write lib");
+
+    let rendered = run_search(root, &["workspace-scope", "--json"]);
+    let packet: Value = serde_json::from_str(&rendered).expect("workspace scope json");
+
+    assert_eq!(
+        packet["schemaId"].as_str(),
+        Some("agent.semantic-protocols.semantic-workspace-scope")
+    );
+    assert_eq!(packet["languageId"].as_str(), Some("rust"));
+    assert_eq!(packet["packageManager"].as_str(), Some("cargo"));
+    assert_eq!(packet["sourceExtensions"], serde_json::json!([".rs"]));
+    assert_eq!(packet["discoveryRoot"].as_str(), Some("$TEMP"));
+    assert_eq!(
+        packet["packages"][0]["name"].as_str(),
+        Some("workspace-scope-cli")
+    );
+    assert_eq!(packet["admittedRoots"][0].as_str(), Some("$TEMP"));
+}
+
+#[test]
 fn cli_search_prime_seeds_omit_owner_only_frontier() {
     if crate::cli::support::skip_if_protocol_graph_renderer_unavailable() {
         return;
@@ -516,13 +542,13 @@ fn cli_search_views_render_rfc_line_protocol() {
     );
     assert!(
         anyhow_pattern.contains(
-            "|api src/lib.rs:11 kind=fn name=fallible next=owner:src/lib.rs source=native-parser signature=fn(input:String)->anyhow::Result<Thing> params=input:String async=true unsafe=true receiver=- return=anyhow::Result<Thing> error=anyhow::Result"
+            "|api src/lib.rs:11 kind=fn name=fallible next=owner:src/lib.rs source=native-parser"
         ),
         "{anyhow_pattern}"
     );
     assert!(
         anyhow_pattern.contains(
-            "|api src/lib.rs:18 kind=method name=wire next=owner:src/lib.rs source=native-parser signature=fn()->anyhow::Result<Thing> params=- async=false unsafe=false receiver=&self return=anyhow::Result<Thing> error=anyhow::Result impl=PublicWire trait=WireApi"
+            "|api src/lib.rs:18 kind=method name=wire next=owner:src/lib.rs source=native-parser"
         ),
         "{anyhow_pattern}"
     );
@@ -593,7 +619,7 @@ fn cli_search_views_render_rfc_line_protocol() {
     );
     assert!(
         fallible_docs.contains(
-            "|api src/lib.rs:11 kind=fn name=fallible next=owner:src/lib.rs source=native-parser docs=local-parser signature=fn(input:String)->anyhow::Result<Thing> params=input:String async=true unsafe=true receiver=- return=anyhow::Result<Thing> error=anyhow::Result"
+            "|api src/lib.rs:10 kind=fn name=fallible next=owner:src/lib.rs source=native-parser docs=local-parser apiKind=fn public=true docs=true"
         ),
         "{fallible_docs}"
     );
@@ -605,7 +631,7 @@ fn cli_search_views_render_rfc_line_protocol() {
     );
     assert!(
         api.contains(
-            "|api src/lib.rs:11 kind=fn name=fallible next=owner:src/lib.rs source=native-parser signature=fn(input:String)->anyhow::Result<Thing> params=input:String async=true unsafe=true receiver=- return=anyhow::Result<Thing> error=anyhow::Result"
+            "|api src/lib.rs:10 kind=fn name=fallible next=owner:src/lib.rs source=native-parser apiKind=fn public=true docs=true"
         ),
         "{api}"
     );
@@ -617,7 +643,7 @@ fn cli_search_views_render_rfc_line_protocol() {
     );
     assert!(
         method_api.contains(
-            "|api src/lib.rs:15 kind=method name=as_thing next=owner:src/lib.rs source=native-parser signature=fn()->Thing params=- async=false unsafe=false receiver=&mut-self return=Thing error=- impl=PublicWire trait=-"
+            "kind=method name=as_thing next=owner:src/lib.rs source=native-parser apiKind=method public=true docs=false"
         ),
         "{method_api}"
     );
@@ -629,7 +655,7 @@ fn cli_search_views_render_rfc_line_protocol() {
     );
     assert!(
         trait_method_api.contains(
-            "|api src/lib.rs:18 kind=method name=wire next=owner:src/lib.rs source=native-parser signature=fn()->anyhow::Result<Thing> params=- async=false unsafe=false receiver=&self return=anyhow::Result<Thing> error=anyhow::Result impl=PublicWire trait=WireApi"
+            "kind=method name=wire next=owner:src/lib.rs source=native-parser apiKind=method public=true docs=false"
         ),
         "{trait_method_api}"
     );

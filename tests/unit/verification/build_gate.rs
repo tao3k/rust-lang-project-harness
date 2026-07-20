@@ -26,7 +26,7 @@ const MEMBER_POLICY_ADVICE_ALLOW: &str = "scope=workspace member override test; 
 const CRITERION_POLICY_ADVICE_ALLOW: &str = "scope=criterion downstream policy test; owner=verification::build_gate test; finding_category=advisory public API doc findings; why_safe_now=the test verifies criterion policy wiring while advisory findings remain visible; cleanup_trigger=remove when the API fixture documents its public item";
 
 #[test]
-fn build_gate_verification_requires_performance_and_stability_reports() {
+fn build_gate_verification_requires_reports_for_configured_task_kinds() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_api_project(root);
@@ -36,32 +36,17 @@ fn build_gate_verification_requires_performance_and_stability_reports() {
             "src/api.rs",
             "API request path owns latency-sensitive dispatch",
         );
-    let missing_stability = std::panic::catch_unwind(|| {
-        assert_rust_project_harness_verification_with_config(
-            root,
-            &performance_only_config,
-            "api crate",
-        );
-    })
-    .expect_err("performance-only config should not satisfy full verification gate");
-    let message = panic_message(missing_stability);
-    assert!(
-        message.contains("Stability verification tasks"),
-        "{message}"
+    assert_rust_project_harness_verification_with_config(
+        root,
+        &performance_only_config,
+        "api crate",
     );
-    assert!(
-        message.contains("[rust-harness-agent-guidance]"),
-        "{message}"
+
+    let stability_only_config = default_rust_harness_config().with_availability_stability_owner(
+        "src/api.rs",
+        "API request path must degrade and recover predictably",
     );
-    assert!(
-        message.contains("cargo test runs the member build.rs"),
-        "{message}"
-    );
-    assert!(
-        message.contains("RustProjectHarnessWorkspacePolicy"),
-        "{message}"
-    );
-    assert!(message.contains("member_crate_with_config"), "{message}");
+    assert_rust_project_harness_verification_with_config(root, &stability_only_config, "api crate");
 
     let complete_config = default_rust_harness_config()
         .with_latency_sensitive_performance_owner(
@@ -418,6 +403,33 @@ fn downstream_policy_accepts_criterion_bench_manifest_contract() {
     let report = assert_rust_project_harness_downstream_policy(root, &policy);
 
     assert!(report.is_clean(), "{report:?}");
+}
+
+#[test]
+fn downstream_member_policy_does_not_apply_performance_contract_to_siblings() {
+    let temp = TempDir::new().expect("temp dir");
+    let workspace = temp.path();
+    let benchmarked_member = workspace.join("benchmarked-member");
+    let plain_member = workspace.join("plain-member");
+    fs::create_dir_all(&benchmarked_member).expect("create benchmarked member");
+    fs::create_dir_all(&plain_member).expect("create plain member");
+    fs::write(
+        workspace.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"benchmarked-member\", \"plain-member\"]\nresolver = \"3\"\n",
+    )
+    .expect("write workspace manifest");
+    write_api_project(&benchmarked_member);
+    write_criterion_bench_contract(&benchmarked_member);
+    write_api_project(&plain_member);
+
+    let policy = criterion_downstream_policy("benchmarked member");
+    let report = assert_rust_project_harness_downstream_policy(&benchmarked_member, &policy);
+
+    assert!(report.is_clean(), "{report:?}");
+    assert!(
+        report.workspace_member_scopes.is_empty(),
+        "member policy must not project its verification contract onto siblings: {report:?}"
+    );
 }
 
 #[test]

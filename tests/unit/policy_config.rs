@@ -2,8 +2,8 @@ use std::fs;
 use std::path::Path;
 
 use rust_lang_project_harness::{
-    RustHarnessConfig, render_rust_project_harness, run_rust_project_harness,
-    run_rust_project_harness_with_config,
+    RustHarnessConfig, render_rust_project_harness, run_rust_project_harness_for_scope,
+    run_rust_project_harness_with_config_for_scope,
 };
 use tempfile::TempDir;
 
@@ -22,14 +22,22 @@ fn layout_policy_requires_explanations_for_root_file_exceptions() {
         root,
         "[tests]\nallowed_root_files = [\n  { name = \"custom_gate.rs\", explanation = \"\" },\n]\n",
     );
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     assert!(has_rule(&report, "RUST-AGENT-PROJECT-001"));
 
     write_policy(
         root,
         "[tests]\nallowed_root_files = [\n  { name = \"custom_gate.rs\", explanation = \"explicit harness aggregate\" },\n]\n",
     );
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     assert!(!has_rule(&report, "RUST-AGENT-PROJECT-001"));
 }
 
@@ -46,14 +54,22 @@ fn layout_policy_requires_explanations_for_directory_exceptions() {
         root,
         "[tests]\nallowed_directories = [\n  { name = \"contract\", explanation = \"\" },\n]\n",
     );
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     assert!(has_rule(&report, "RUST-AGENT-PROJECT-002"));
 
     write_policy(
         root,
         "[tests]\nallowed_directories = [\n  { name = \"contract\", explanation = \"contract fixtures mounted by a root gate\" },\n]\n",
     );
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     assert!(!has_rule(&report, "RUST-AGENT-PROJECT-002"));
 }
 
@@ -76,7 +92,12 @@ fn harness_scope_policy_requires_explanations_for_custom_source_paths() {
         ],
         ..RustHarnessConfig::default()
     };
-    let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
+    let report = run_rust_project_harness_with_config_for_scope(
+        root,
+        &config,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     assert_eq!(rule_count(&report, "RUST-AGENT-PROJECT-013"), 2);
     let mut focused_report = report.clone();
     focused_report
@@ -94,7 +115,12 @@ fn harness_scope_policy_requires_explanations_for_custom_source_paths() {
             "src/integration_support/search_strategy_flow.rs",
             "temporary focused migration owner while the integration support branch is split",
         );
-    let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
+    let report = run_rust_project_harness_with_config_for_scope(
+        root,
+        &config,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     assert!(!has_rule(&report, "RUST-AGENT-PROJECT-013"));
 }
 
@@ -114,14 +140,24 @@ fn harness_scope_policy_requires_explanations_for_custom_test_paths() {
         test_dir_names: vec!["tests/contracts".to_owned()],
         ..RustHarnessConfig::default()
     };
-    let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
+    let report = run_rust_project_harness_with_config_for_scope(
+        root,
+        &config,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     assert!(has_rule(&report, "RUST-AGENT-PROJECT-013"));
 
     let config = RustHarnessConfig::default().with_test_path(
         "tests/contracts",
         "contract fixtures are mounted through explicit root test targets",
     );
-    let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
+    let report = run_rust_project_harness_with_config_for_scope(
+        root,
+        &config,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     assert!(!has_rule(&report, "RUST-AGENT-PROJECT-013"));
 }
 
@@ -141,7 +177,12 @@ fn harness_scope_policy_requires_explanations_for_default_source_reduction() {
         "src/lib.rs",
         "cargo-check build gate keeps the crate facade inside harness policy",
     );
-    let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
+    let report = run_rust_project_harness_with_config_for_scope(
+        root,
+        &config,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     let mut focused_report = report.clone();
     focused_report
         .findings
@@ -162,7 +203,12 @@ fn harness_scope_policy_requires_explanations_for_default_source_reduction() {
         "src",
         "temporary migration keeps only the crate facade until live.rs is split",
     );
-    let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
+    let report = run_rust_project_harness_with_config_for_scope(
+        root,
+        &config,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     assert!(!has_rule(&report, "RUST-AGENT-PROJECT-014"));
 }
 
@@ -177,7 +223,12 @@ fn harness_scope_policy_requires_explanations_for_test_scope_reduction() {
         include_tests: false,
         ..RustHarnessConfig::default()
     };
-    let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
+    let report = run_rust_project_harness_with_config_for_scope(
+        root,
+        &config,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     let mut focused_report = report.clone();
     focused_report
         .findings
@@ -188,21 +239,36 @@ fn harness_scope_policy_requires_explanations_for_test_scope_reduction() {
 
     let config = RustHarnessConfig::default()
         .with_tests_excluded("fixture intentionally checks project policy without parsing tests");
-    let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
+    let report = run_rust_project_harness_with_config_for_scope(
+        root,
+        &config,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     assert!(!has_rule(&report, "RUST-AGENT-PROJECT-014"));
 
     let config = RustHarnessConfig {
         test_dir_names: Vec::new(),
         ..RustHarnessConfig::default()
     };
-    let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
+    let report = run_rust_project_harness_with_config_for_scope(
+        root,
+        &config,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     assert!(has_rule(&report, "RUST-AGENT-PROJECT-014"));
 
     let config = RustHarnessConfig::default().with_test_path_excluded(
         "tests",
         "root tests are mounted through a separate CI shard",
     );
-    let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
+    let report = run_rust_project_harness_with_config_for_scope(
+        root,
+        &config,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     assert!(!has_rule(&report, "RUST-AGENT-PROJECT-014"));
 }
 
@@ -221,7 +287,12 @@ fn harness_scope_policy_requires_explanations_for_manifest_test_targets() {
         include_tests: false,
         ..RustHarnessConfig::default()
     };
-    let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
+    let report = run_rust_project_harness_with_config_for_scope(
+        root,
+        &config,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     assert!(has_rule(&report, "RUST-AGENT-PROJECT-014"));
     assert!(
         report.findings.iter().any(|finding| {
@@ -234,7 +305,12 @@ fn harness_scope_policy_requires_explanations_for_manifest_test_targets() {
 
     let config = RustHarnessConfig::default()
         .with_tests_excluded("manifest test target is executed by a separate contract shard");
-    let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
+    let report = run_rust_project_harness_with_config_for_scope(
+        root,
+        &config,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     assert!(!has_rule(&report, "RUST-AGENT-PROJECT-014"));
 }
 

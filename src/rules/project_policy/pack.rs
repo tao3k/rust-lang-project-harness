@@ -58,6 +58,20 @@ pub fn rust_project_policy_rules() -> Vec<RustHarnessRule> {
     rules_by_id().into_values().collect()
 }
 
+pub(crate) fn evaluate_workspace(
+    workspace_root: &std::path::Path,
+    package_scopes: &[RustProjectHarnessScope],
+    config: &RustHarnessConfig,
+) -> Vec<RustHarnessFinding> {
+    let rules = rules_by_id();
+    super::verification_integration::workspace_performance_verification_findings(
+        workspace_root,
+        package_scopes,
+        config,
+        &rules,
+    )
+}
+
 pub(crate) fn evaluate(
     scope: Option<&RustProjectHarnessScope>,
     modules: &[ParsedRustModule],

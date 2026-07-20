@@ -34,9 +34,54 @@
     ]
   },
   "searchCapabilities": {
+    "sourceSnapshot": {
+      "descriptorId": "rust.source-snapshot",
+      "descriptorVersion": "1",
+      "languageId": "rust",
+      "packetSchemaId": "asp.source-snapshot.v1",
+      "exactSourcePacketSchemaId": "asp.exact-source-query-result.v1",
+      "sourceOverlaySchemaId": "asp.source-overlay.v1",
+      "derivedArtifactEvidenceSchemaId": "asp.derived-source-artifact-evidence.v1",
+      "algorithm": "blake3-merkle-v1",
+      "authority": "live-parser",
+      "exactSelectorResolution": "pinned-live-module-graph",
+      "overlayMode": "merkle-delta"
+    },
+    "ownerItems": false,
     "semanticFacts": true,
     "dependencyTopology": true,
-    "dependencyTopologyMetadata": true
+    "dependencyTopologyMetadata": true,
+    "workspaceScope": true
+  },
+  "semanticFactsDescriptor": {
+    "descriptorId": "rust.semantic-facts",
+    "descriptorVersion": "1",
+    "packetSchemaIds": [
+      "agent.semantic-protocols.semantic-fact-graph"
+    ],
+    "factKinds": [
+      "owner",
+      "field",
+      "type",
+      "collection"
+    ],
+    "intentAxes": [
+      {
+        "axis": "data-shape",
+        "terms": [
+          "field",
+          "fields",
+          "scalar"
+        ]
+      },
+      {
+        "axis": "collection",
+        "terms": [
+          "collection",
+          "Vec"
+        ]
+      }
+    ]
   },
   "policy": {
     "directSourceRead": "block",
@@ -44,109 +89,101 @@
     "rawSourceSearch": "block",
     "agentSearchJson": "block"
   },
-  "routes": {
-    "prime": {
-      "argv": [
-        "rs-harness",
-        "search",
-        "prime",
-        "--workspace",
-        "{projectRoot}",
-        "--view",
-        "seeds"
-      ]
-    },
-    "owner": {
-      "argv": [
-        "rs-harness",
-        "search",
-        "owner",
-        "{path}",
-        "--workspace",
-        "{projectRoot}",
-        "--view",
-        "seeds"
-      ]
-    },
-    "lexical": {
-      "argv": [
-        "rs-harness",
-        "search",
-        "lexical",
-        "{query}",
-        "owner",
-        "tests",
-        "--workspace",
-        "{projectRoot}",
-        "--view",
-        "seeds"
-      ]
-    },
-    "query": {
-      "argv": [
-        "rs-harness",
-        "query",
-        "--from-hook",
-        "direct-source-read",
-        "--selector",
-        "{selector}",
-        "{termArgs}",
-        "--surface",
-        "owners,tests",
-        "--workspace",
-        "{projectRoot}",
-        "--view",
-        "seeds"
-      ]
-    },
-    "ingest": {
-      "argv": [
-        "rs-harness",
-        "search",
-        "ingest",
-        "items",
-        "tests",
-        "--workspace",
-        "{projectRoot}",
-        "--view",
-        "seeds"
-      ],
-      "stdinMode": "pipe-candidates"
-    },
-    "dependencyTopology": {
-      "argv": [
-        "rs-harness",
-        "search",
-        "dependency-topology",
-        "--json",
-        "--workspace",
-        "{projectRoot}"
-      ]
-    },
-    "dependencyTopologyMetadata": {
-      "argv": [
-        "rs-harness",
-        "search",
-        "dependency-topology-metadata",
-        "--json",
-        "--workspace",
-        "{projectRoot}"
-      ]
-    },
-    "checkChanged": {
-      "argv": [
-        "rs-harness",
-        "check",
-        "--changed",
-        "{projectRoot}"
-      ]
-    },
-    "guide": {
-      "argv": [
-        "rs-harness",
-        "guide",
-        "{projectRoot}"
-      ]
-    }
+  "queryPackDescriptor": {
+    "descriptorId": "rust.query-pack",
+    "descriptorVersion": "1",
+    "languageId": "rust",
+    "semanticFactsDescriptorId": "rust.semantic-facts",
+    "termRoleOverrides": [],
+    "recipes": [
+      {
+        "recipeId": "rust-concurrency-runtime",
+        "trigger": {
+          "terms": [
+            "concurrency",
+            "runtime",
+            "scheduling"
+          ],
+          "match": "any"
+        },
+        "clauses": [
+          {
+            "terms": [
+              "concurrency",
+              "runtime",
+              "scheduling"
+            ],
+            "roles": [
+              "concept"
+            ],
+            "intentAxes": [
+              "concurrency"
+            ]
+          }
+        ]
+      },
+      {
+        "recipeId": "rust-resource-lifecycle",
+        "trigger": {
+          "terms": [
+            "scope",
+            "lifecycle",
+            "drop"
+          ],
+          "match": "any"
+        },
+        "clauses": [
+          {
+            "terms": [
+              "scope",
+              "lifecycle",
+              "drop"
+            ],
+            "roles": [
+              "concept"
+            ],
+            "intentAxes": [
+              "resource-lifecycle"
+            ]
+          }
+        ]
+      },
+      {
+        "recipeId": "rust-stream-backpressure",
+        "trigger": {
+          "terms": [
+            "queue",
+            "stream",
+            "backpressure"
+          ],
+          "match": "any"
+        },
+        "clauses": [
+          {
+            "terms": [
+              "queue",
+              "stream",
+              "backpressure"
+            ],
+            "roles": [
+              "concept"
+            ],
+            "intentAxes": [
+              "collection",
+              "stream"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "routeBindings": {
+    "prime": "search/prime",
+    "owner": "search/owner",
+    "lexical": "search/lexical",
+    "query": "query/direct-source-read",
+    "ingest": "search/ingest",
+    "checkChanged": "check/changed",
+    "guide": "guide"
   }
 }

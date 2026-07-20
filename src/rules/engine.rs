@@ -18,6 +18,17 @@ pub(crate) fn evaluate_default_rule_packs_with_config(
     apply_policy_config(findings, config)
 }
 
+pub(crate) fn evaluate_workspace_rule_packs_with_config(
+    workspace_root: &std::path::Path,
+    package_scopes: &[RustProjectHarnessScope],
+    config: &RustHarnessConfig,
+) -> Vec<RustHarnessFinding> {
+    apply_policy_config(
+        super::project_policy::evaluate_workspace(workspace_root, package_scopes, config),
+        config,
+    )
+}
+
 fn apply_policy_config(
     findings: Vec<RustHarnessFinding>,
     config: &RustHarnessConfig,

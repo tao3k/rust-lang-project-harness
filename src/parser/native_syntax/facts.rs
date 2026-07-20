@@ -17,10 +17,21 @@ use super::signature::{
 use super::tokio_runtime_boundary::RustTokioRuntimeOperationSyntax;
 use crate::parser::RustUseStatementSyntax;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RustPublicApiCallableSyntax {
+    pub line: usize,
+    pub kind: &'static str,
+    pub name: String,
+    pub has_doc: bool,
+    pub is_public: bool,
+    pub is_test_context: bool,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct RustNativeSyntaxFacts {
     pub has_module_doc: bool,
     pub top_level_items: Vec<RustTopLevelItemSyntax>,
+    pub public_api_callables: Vec<RustPublicApiCallableSyntax>,
     pub cfg_test_modules: Vec<RustModuleDeclarationSyntax>,
     pub test_function_count: usize,
     pub use_statements: Vec<RustUseStatementSyntax>,

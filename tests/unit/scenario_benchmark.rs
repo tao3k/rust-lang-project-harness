@@ -598,76 +598,6 @@ parse = "120ms"
 }
 
 #[test]
-fn scenario_benchmark_contract_accepts_libtest_insta_snapshot_entry() {
-    let temp = TempDir::new().expect("temp dir");
-    write_scenario(temp.path());
-    write_benchmark(
-        temp.path(),
-        r#"
-harness = "libtest"
-test = "workspace_file_rejection_error_snapshot_and_perf"
-snapshot = "workspace_file_rejection_error_snapshot_and_perf"
-target_total = "750us"
-max_total = "1.2ms"
-observed_total = "900\u00b5s"
-regression_budget = "250us"
-memory_budget_bytes = 8388608
-observed_memory_bytes = 4194304
-target_rationale = "Workspace argument validation is an in-process Rust API path."
-
-[observed_timings]
-workspace_metadata = "750\u00b5s"
-"#,
-    );
-
-    let receipt = validate_rust_scenario_benchmark(temp.path()).expect("validate scenario");
-
-    assert_eq!(receipt.status, RustScenarioBenchmarkStatus::Pass);
-    assert_eq!(receipt.benchmark.harness, "libtest");
-    assert_eq!(
-        receipt.benchmark.bench_entry(),
-        "harness=libtest test=workspace_file_rejection_error_snapshot_and_perf snapshot=workspace_file_rejection_error_snapshot_and_perf"
-    );
-    assert!(receipt.violations.is_empty(), "{:?}", receipt.violations);
-}
-
-#[test]
-fn scenario_benchmark_contract_requires_agent_visible_metadata() {
-    let temp = TempDir::new().expect("temp dir");
-    write_scenario_with_policy_ids(temp.path(), "[]");
-    write_benchmark(
-        temp.path(),
-        r#"
-harness = ""
-test = ""
-target_total = "120ms"
-max_total = "100ms"
-observed_total = "90ms"
-regression_budget = "0ms"
-memory_budget_bytes = 0
-observed_memory_bytes = 0
-target_rationale = ""
-"#,
-    );
-
-    let receipt = validate_rust_scenario_benchmark(temp.path()).expect("validate scenario");
-
-    assert_eq!(receipt.status, RustScenarioBenchmarkStatus::Invalid);
-    assert!(receipt.violations.iter().any(|violation| {
-        violation.kind == RustScenarioBenchmarkViolationKind::Contract
-            && violation.field == "scenario.policy_ids"
-    }));
-    assert!(receipt.violations.iter().any(|violation| {
-        violation.kind == RustScenarioBenchmarkViolationKind::Contract
-            && violation.field == "benchmark.observed_timings"
-    }));
-    assert!(receipt.violations.iter().any(|violation| {
-        violation.kind == RustScenarioBenchmarkViolationKind::Contract
-            && violation.field == "benchmark.target_total"
-    }));
-}
-
-#[test]
 fn scenario_benchmark_comparison_allows_expected_to_be_slower_than_input() {
     let temp = TempDir::new().expect("temp dir");
     write_scenario(temp.path());
@@ -747,73 +677,6 @@ fixture = "30ms"
         violation.kind == RustScenarioBenchmarkViolationKind::Contract
             && violation.field
                 == "benchmark.input_expected_comparison.expected_not_faster_annotation"
-    }));
-}
-
-#[test]
-fn scenario_benchmark_contract_rejects_self_referential_gate_command() {
-    let temp = TempDir::new().expect("temp dir");
-    write_scenario(temp.path());
-    write_benchmark(
-        temp.path(),
-        r#"
-harness = "libtest"
-test = "orgize_rule_fixtures_have_scenario_benchmarks"
-target_total = "25ms"
-max_total = "100ms"
-observed_total = "25ms"
-regression_budget = "20ms"
-memory_budget_bytes = 8388608
-observed_memory_bytes = 4194304
-target_rationale = "Small rule fixture should stay bounded."
-
-[observed_timings]
-fixture = "25ms"
-"#,
-    );
-
-    let receipt = validate_rust_scenario_benchmark(temp.path()).expect("validate scenario");
-
-    assert_eq!(receipt.status, RustScenarioBenchmarkStatus::Invalid);
-    assert!(receipt.violations.iter().any(|violation| {
-        violation.kind == RustScenarioBenchmarkViolationKind::Contract
-            && violation.field == "benchmark.entry"
-            && violation
-                .message
-                .contains("focused Rust test or bench case")
-    }));
-}
-
-#[test]
-fn scenario_benchmark_contract_rejects_second_scale_hard_gate() {
-    let temp = TempDir::new().expect("temp dir");
-    write_scenario(temp.path());
-    write_benchmark(
-        temp.path(),
-        r#"
-harness = "criterion"
-bench = "asp_search_deps"
-case = "tokio"
-target_total = "250ms"
-max_total = "5s"
-observed_total = "240ms"
-regression_budget = "100ms"
-memory_budget_bytes = 8388608
-observed_memory_bytes = 4194304
-target_rationale = "Dependency seed should stay inside the millisecond gate."
-
-[observed_timings]
-asp_search_deps = "240ms"
-"#,
-    );
-
-    let receipt = validate_rust_scenario_benchmark(temp.path()).expect("validate scenario");
-
-    assert_eq!(receipt.status, RustScenarioBenchmarkStatus::Invalid);
-    assert!(receipt.violations.iter().any(|violation| {
-        violation.kind == RustScenarioBenchmarkViolationKind::Contract
-            && violation.field == "benchmark.max_total"
-            && violation.message.contains("hard gate")
     }));
 }
 
@@ -979,5 +842,8 @@ fn panic_message(panic: Box<dyn std::any::Any + Send>) -> String {
     }
     "<non-string panic>".to_string()
 }
+#[path = "scenario_benchmark/contract.rs"]
+mod contract;
+
 #[path = "scenario_benchmark/public_dynamic_json_api_boundary.rs"]
 mod public_dynamic_json_api_boundary;

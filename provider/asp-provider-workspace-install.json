@@ -1,0 +1,30 @@
+{
+  "schemaId": "agent.semantic-protocols.provider-workspace-install",
+  "schemaVersion": "1",
+  "schemaAuthority": "https://tao3k.github.io/agent-semantic-protocols/schemas/",
+  "providerId": "rs-harness",
+  "binary": "rs-harness",
+  "workspaceArtifact": {
+    "root": "languages/rust-lang-project-harness/target/release/rs-harness",
+    "entrypoint": "."
+  },
+  "workspaceBuild": {
+    "program": "cargo",
+    "args": [
+      "build",
+      "--locked",
+      "--release",
+      "--manifest-path",
+      "Cargo.toml",
+      "--features",
+      "cli",
+      "--bin",
+      "rs-harness"
+    ],
+    "workingDirectory": "languages/rust-lang-project-harness",
+    "derivedPaths": [
+      "languages/rust-lang-project-harness/target"
+    ],
+    "env": {}
+  }
+}

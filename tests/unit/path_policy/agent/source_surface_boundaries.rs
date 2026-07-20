@@ -1,6 +1,6 @@
 use std::fs;
 
-use rust_lang_project_harness::run_rust_project_harness;
+use rust_lang_project_harness::run_rust_project_harness_for_scope;
 use tempfile::TempDir;
 
 use crate::path_policy::support::{findings_for_rule, write_manifest};
@@ -18,7 +18,11 @@ fn documented_generic_source_module_paths_clear_agent_advice() {
     )
     .expect("write helpers");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(findings_for_rule(&report, "RUST-AGENT-SOURCE-PATH-007").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -57,7 +61,11 @@ fn documented_public_name_conflicts_clear_agent_advice() {
     )
     .expect("write beta types");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(findings_for_rule(&report, "RUST-AGENT-API-NAME-004").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -78,7 +86,11 @@ fn documented_public_primitive_identifier_params_clear_agent_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(findings_for_rule(&report, "RUST-AGENT-API-TYPE-012").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);

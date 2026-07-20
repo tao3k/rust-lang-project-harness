@@ -9,9 +9,50 @@ use crate::discovery::{
     discover_cargo_package_roots, discover_rust_files, rust_project_harness_scope,
 };
 use crate::invariant_catalog::invariant_candidates_from_findings;
-use crate::model::{RustHarnessConfig, RustHarnessReport};
+use crate::model::{RustHarnessConfig, RustHarnessReport, RustProjectHarnessScope};
 use crate::parser::{ParsedRustModule, parse_rust_file};
-use crate::rules::evaluate_default_rule_packs_with_config;
+use crate::rules::{
+    evaluate_default_rule_packs_with_config, evaluate_workspace_rule_packs_with_config,
+};
+
+/// Select whether one harness run evaluates only the anchored package or expands project topology.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RustHarnessRunScope {
+    Package,
+    ProjectWorkspace,
+}
+
+#[cfg(test)]
+thread_local! {
+    static ANALYZE_RUST_PROJECT_CALL_COUNT: std::cell::Cell<usize> = const {
+        std::cell::Cell::new(0)
+    };
+}
+
+#[cfg(test)]
+pub(crate) fn reset_analyze_rust_project_call_count() {
+    ANALYZE_RUST_PROJECT_CALL_COUNT.with(|count| count.set(0));
+}
+
+#[cfg(test)]
+pub(crate) fn analyze_rust_project_call_count() -> usize {
+    ANALYZE_RUST_PROJECT_CALL_COUNT.with(std::cell::Cell::get)
+}
+
+/// One parser-owned package analysis shared by rule-pack and verification consumers.
+pub(crate) struct RustHarnessPackageAnalysis {
+    pub(crate) scope: RustProjectHarnessScope,
+    pub(crate) parsed_modules: Vec<ParsedRustModule>,
+}
+
+/// A single filesystem discovery and parse pass for one requested harness scope.
+pub struct RustHarnessAnalysis {
+    pub(crate) project_root: PathBuf,
+    pub(crate) project_scope: RustProjectHarnessScope,
+    pub(crate) package_analyses: Vec<RustHarnessPackageAnalysis>,
+    pub(crate) member_scoped: bool,
+    pub(crate) parse_pass_count: usize,
+}
 
 /// Return the default Rust harness configuration.
 #[must_use]
@@ -25,32 +66,55 @@ pub fn rust_harness_config_for_project(project_root: &Path) -> RustHarnessConfig
     apply_asp_project_config(project_root, RustHarnessConfig::default())
 }
 
-/// Run the harness over conventional Rust project paths.
+/// Run the harness with an explicit package-versus-workspace scope.
 ///
 /// # Errors
 ///
 /// Returns an error when the project root does not exist.
-pub fn run_rust_project_harness(project_root: &Path) -> Result<RustHarnessReport, String> {
-    run_rust_project_harness_with_config(
+pub fn run_rust_project_harness_for_scope(
+    project_root: &Path,
+    scope: RustHarnessRunScope,
+) -> Result<RustHarnessReport, String> {
+    run_rust_project_harness_with_config_for_scope(
         project_root,
         &rust_harness_config_for_project(project_root),
+        scope,
     )
 }
 
-/// Run the harness over conventional Rust project paths with explicit config.
+/// Run the harness with explicit config and package-versus-workspace scope.
 ///
 /// # Errors
 ///
 /// Returns an error when the project root does not exist.
-pub fn run_rust_project_harness_with_config(
+pub fn run_rust_project_harness_with_config_for_scope(
     project_root: &Path,
     config: &RustHarnessConfig,
+    scope: RustHarnessRunScope,
 ) -> Result<RustHarnessReport, String> {
+    Ok(analyze_rust_project_once(project_root, config, scope)?.to_report(config))
+}
+
+/// Analyze the project once with explicit config and package-versus-workspace scope.
+///
+/// # Errors
+///
+/// Returns an error when the project root does not exist.
+pub fn analyze_rust_project_once(
+    project_root: &Path,
+    config: &RustHarnessConfig,
+    scope: RustHarnessRunScope,
+) -> Result<RustHarnessAnalysis, String> {
+    #[cfg(test)]
+    ANALYZE_RUST_PROJECT_CALL_COUNT.with(|count| count.set(count.get().saturating_add(1)));
     if !project_root.exists() {
         return Err(format!(
             "project root does not exist: {}",
             project_root.display()
         ));
+    }
+    if scope == RustHarnessRunScope::Package {
+        return Ok(analyze_single_project(project_root, config));
     }
     let package_roots = discover_cargo_package_roots(
         project_root,
@@ -58,14 +122,13 @@ pub fn run_rust_project_harness_with_config(
         &config.include_hidden_dir_names,
     );
     if should_run_member_scopes(project_root, &package_roots) {
-        return Ok(run_member_scoped_project_harness(
+        return Ok(analyze_member_scoped_project(
             project_root,
             &package_roots,
             config,
         ));
     }
-
-    Ok(run_single_project_harness(project_root, config))
+    Ok(analyze_single_project(project_root, config))
 }
 
 /// Run the harness over explicit files or directories.
@@ -101,7 +164,9 @@ pub fn run_rust_lang_harness_with_config(
 /// Panics when the run fails or when configured-blocking findings exist.
 #[track_caller]
 pub fn assert_rust_project_harness_clean(project_root: &Path) -> RustHarnessReport {
-    let report = run_rust_project_harness(project_root).unwrap_or_else(|error| panic!("{error}"));
+    let report =
+        run_rust_project_harness_for_scope(project_root, RustHarnessRunScope::ProjectWorkspace)
+            .unwrap_or_else(|error| panic!("{error}"));
     report.assert_clean();
     report
 }
@@ -119,7 +184,9 @@ pub fn assert_rust_project_harness_clean(project_root: &Path) -> RustHarnessRepo
 /// advisory findings exist.
 #[track_caller]
 pub fn assert_rust_project_harness_cargo_test_clean(project_root: &Path) -> RustHarnessReport {
-    let report = run_rust_project_harness(project_root).unwrap_or_else(|error| panic!("{error}"));
+    let report =
+        run_rust_project_harness_for_scope(project_root, RustHarnessRunScope::ProjectWorkspace)
+            .unwrap_or_else(|error| panic!("{error}"));
     report.assert_clean();
     report.assert_no_advisory_findings();
     report
@@ -135,8 +202,12 @@ pub fn assert_rust_project_harness_clean_with_config(
     project_root: &Path,
     config: &RustHarnessConfig,
 ) -> RustHarnessReport {
-    let report = run_rust_project_harness_with_config(project_root, config)
-        .unwrap_or_else(|error| panic!("{error}"));
+    let report = run_rust_project_harness_with_config_for_scope(
+        project_root,
+        config,
+        RustHarnessRunScope::ProjectWorkspace,
+    )
+    .unwrap_or_else(|error| panic!("{error}"));
     report.assert_clean();
     report
 }
@@ -152,8 +223,12 @@ pub fn assert_rust_project_harness_cargo_test_clean_with_config(
     project_root: &Path,
     config: &RustHarnessConfig,
 ) -> RustHarnessReport {
-    let report = run_rust_project_harness_with_config(project_root, config)
-        .unwrap_or_else(|error| panic!("{error}"));
+    let report = run_rust_project_harness_with_config_for_scope(
+        project_root,
+        config,
+        RustHarnessRunScope::ProjectWorkspace,
+    )
+    .unwrap_or_else(|error| panic!("{error}"));
     report.assert_clean();
     report.assert_no_advisory_findings();
     report
@@ -189,10 +264,7 @@ fn run_paths(paths: &[PathBuf], config: &RustHarnessConfig) -> RustHarnessReport
     }
 }
 
-fn run_single_project_harness(
-    project_root: &Path,
-    config: &RustHarnessConfig,
-) -> RustHarnessReport {
+fn analyze_single_project(project_root: &Path, config: &RustHarnessConfig) -> RustHarnessAnalysis {
     let scope = rust_project_harness_scope(
         project_root,
         config.include_tests,
@@ -201,70 +273,123 @@ fn run_single_project_harness(
     );
     let monitored_paths = scope.monitored_paths();
     let parsed_modules = parse_paths(&monitored_paths, config);
-    let findings = evaluate_default_rule_packs_with_config(Some(&scope), &parsed_modules, config);
-    let invariant_candidates = invariant_candidates_from_findings(&findings);
-    RustHarnessReport {
-        modules: parsed_modules
-            .into_iter()
-            .map(|module| module.report)
-            .collect(),
-        findings,
-        invariant_candidates,
-        root_paths: monitored_paths,
-        blocking_severities: config.blocking_severities.clone(),
-        project_scope: Some(scope),
-        workspace_member_scopes: Vec::new(),
+    RustHarnessAnalysis {
+        project_root: project_root.to_path_buf(),
+        project_scope: scope.clone(),
+        package_analyses: vec![RustHarnessPackageAnalysis {
+            scope,
+            parsed_modules,
+        }],
+        member_scoped: false,
+        parse_pass_count: 1,
     }
 }
 
-fn run_member_scoped_project_harness(
+fn analyze_member_scoped_project(
     project_root: &Path,
     package_roots: &[PathBuf],
     config: &RustHarnessConfig,
-) -> RustHarnessReport {
-    let mut modules = Vec::new();
-    let mut findings = Vec::new();
-    let member_scopes = package_roots
+) -> RustHarnessAnalysis {
+    let package_analyses = package_roots
         .iter()
         .map(|package_root| {
-            rust_project_harness_scope(
+            let scope = rust_project_harness_scope(
                 package_root,
                 config.include_tests,
                 &config.source_dir_names,
                 &config.test_dir_names,
-            )
+            );
+            let parsed_modules = parse_paths(&scope.monitored_paths(), config);
+            RustHarnessPackageAnalysis {
+                scope,
+                parsed_modules,
+            }
         })
         .collect::<Vec<_>>();
-    for scope in &member_scopes {
-        let monitored_paths = scope.monitored_paths();
-        let parsed_modules = parse_paths(&monitored_paths, config);
-        findings.extend(evaluate_default_rule_packs_with_config(
-            Some(scope),
-            &parsed_modules,
-            config,
-        ));
-        modules.extend(
-            parsed_modules
-                .into_iter()
-                .map(|module| module.report)
-                .collect::<Vec<_>>(),
-        );
-    }
-    modules.sort_by(|left, right| left.path.cmp(&right.path));
-    let invariant_candidates = invariant_candidates_from_findings(&findings);
-    RustHarnessReport {
-        modules,
-        findings,
-        invariant_candidates,
-        root_paths: vec![project_root.to_path_buf()],
-        blocking_severities: config.blocking_severities.clone(),
-        project_scope: Some(rust_project_harness_scope(
+    let parse_pass_count = package_analyses.len();
+    RustHarnessAnalysis {
+        project_root: project_root.to_path_buf(),
+        project_scope: rust_project_harness_scope(
             project_root,
             config.include_tests,
             &config.source_dir_names,
             &config.test_dir_names,
-        )),
-        workspace_member_scopes: member_scopes,
+        ),
+        package_analyses,
+        member_scoped: true,
+        parse_pass_count,
+    }
+}
+
+impl RustHarnessAnalysis {
+    pub(crate) fn monitored_paths(&self) -> BTreeSet<PathBuf> {
+        self.package_analyses
+            .iter()
+            .flat_map(|analysis| analysis.scope.monitored_paths())
+            .collect()
+    }
+
+    /// Number of parser passes used to construct this analysis.
+    #[must_use]
+    pub const fn parse_pass_count(&self) -> usize {
+        self.parse_pass_count
+    }
+
+    /// Project rule-pack findings from the already parsed analysis.
+    #[must_use]
+    pub fn to_report(&self, config: &RustHarnessConfig) -> RustHarnessReport {
+        debug_assert_eq!(self.parse_pass_count, self.package_analyses.len());
+        let mut modules = Vec::new();
+        let mut findings = Vec::new();
+        for analysis in &self.package_analyses {
+            findings.extend(evaluate_default_rule_packs_with_config(
+                Some(&analysis.scope),
+                &analysis.parsed_modules,
+                config,
+            ));
+            modules.extend(
+                analysis
+                    .parsed_modules
+                    .iter()
+                    .map(|module| module.report.clone()),
+            );
+        }
+        let package_scopes = self
+            .package_analyses
+            .iter()
+            .map(|analysis| analysis.scope.clone())
+            .collect::<Vec<_>>();
+        findings.extend(evaluate_workspace_rule_packs_with_config(
+            &self.project_root,
+            &package_scopes,
+            config,
+        ));
+        if self.member_scoped {
+            modules.sort_by(|left, right| left.path.cmp(&right.path));
+        }
+        let invariant_candidates = invariant_candidates_from_findings(&findings);
+        let root_paths = if self.member_scoped {
+            vec![self.project_root.clone()]
+        } else {
+            self.package_analyses[0].scope.monitored_paths()
+        };
+        let workspace_member_scopes = if self.member_scoped {
+            self.package_analyses
+                .iter()
+                .map(|analysis| analysis.scope.clone())
+                .collect()
+        } else {
+            Vec::new()
+        };
+        RustHarnessReport {
+            modules,
+            findings,
+            invariant_candidates,
+            root_paths,
+            blocking_severities: config.blocking_severities.clone(),
+            project_scope: Some(self.project_scope.clone()),
+            workspace_member_scopes,
+        }
     }
 }
 

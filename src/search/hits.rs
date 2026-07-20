@@ -46,7 +46,7 @@ pub(super) fn symbol_definitions(
         .iter()
         .filter(|module| module_allowed(context, module, options))
         .flat_map(|module| {
-            module
+            let mut module_hits = module
                 .syntax_facts
                 .top_level_items
                 .iter()
@@ -64,9 +64,34 @@ pub(super) fn symbol_definitions(
                         .or_else(|| item.function_name.clone())
                         .unwrap_or_else(|| query.to_string()),
                 })
+                .collect::<Vec<_>>();
+            module_hits.extend(
+                module
+                    .syntax_facts
+                    .public_api_callables
+                    .iter()
+                    .filter(move |callable| {
+                        callable.kind == "method"
+                            && !callable.is_test_context
+                            && callable.name == query
+                    })
+                    .map(move |callable| SearchHit {
+                        path: module.report.path.clone(),
+                        line: callable.line,
+                        kind: callable.kind.to_string(),
+                        name: callable.name.clone(),
+                    }),
+            );
+            module_hits
         })
         .collect::<Vec<_>>();
     sort_search_hits_by_recency(&context.package_root, &mut hits);
+    hits.dedup_by(|left, right| {
+        left.path == right.path
+            && left.line == right.line
+            && left.kind == right.kind
+            && left.name == right.name
+    });
     hits
 }
 
