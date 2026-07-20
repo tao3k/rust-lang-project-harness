@@ -1,6 +1,6 @@
 use std::fs;
 
-use rust_lang_project_harness::run_rust_project_harness;
+use rust_lang_project_harness::run_rust_project_harness_for_scope;
 use tempfile::TempDir;
 
 use crate::path_policy::support::{findings_for_rule, write_manifest};
@@ -25,7 +25,11 @@ fn documented_public_struct_primitive_semantic_fields_clear_agent_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(findings_for_rule(&report, "RUST-AGENT-DATA-FIELD-020").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -49,7 +53,11 @@ fn documented_public_enum_variant_primitive_payload_fields_clear_agent_advice() 
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(findings_for_rule(&report, "RUST-AGENT-DATA-ENUM-PAYLOAD-021").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -73,7 +81,11 @@ fn documented_public_enum_tuple_variant_primitive_payload_clears_agent_advice() 
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(findings_for_rule(&report, "RUST-AGENT-DATA-ENUM-TUPLE-024").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);
@@ -99,7 +111,11 @@ fn documented_public_generic_data_type_bounds_clear_agent_advice() {
     )
     .expect("write api");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(findings_for_rule(&report, "RUST-AGENT-DATA-BOUNDS-022").is_empty());
     assert!(report.is_clean(), "{:?}", report.findings);

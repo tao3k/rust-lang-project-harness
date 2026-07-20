@@ -11,7 +11,7 @@ use crate::parser::{
 
 use super::analysis::{
     RustVerificationCargoDependencyAnalysis, RustVerificationPackageAnalysis,
-    analyze_rust_verification_project,
+    RustVerificationProjectAnalysis, analyze_rust_verification_project,
 };
 use super::api_path::{collect_api_path_baseline_tasks, collect_unmatched_api_path_baselines};
 use super::module_lookup::RustVerificationModuleLookup;
@@ -119,6 +119,32 @@ pub fn plan_rust_project_verification_with_policy(
         config,
         RustVerificationCargoDependencyAnalysis::Skip,
     )?;
+    Ok(plan_rust_verification_from_analysis(
+        project_root,
+        policy,
+        analysis,
+    ))
+}
+
+/// Plan verification tasks from an existing parser-owned harness analysis.
+#[must_use]
+pub fn plan_rust_verification_from_harness_analysis(
+    analysis: crate::runner::RustHarnessAnalysis,
+    policy: &RustVerificationPolicy,
+) -> RustVerificationPlan {
+    let project_root = analysis.project_root.clone();
+    let verification_analysis = super::analysis::analyze_rust_verification_from_harness_analysis(
+        analysis,
+        RustVerificationCargoDependencyAnalysis::Skip,
+    );
+    plan_rust_verification_from_analysis(&project_root, policy, verification_analysis)
+}
+
+fn plan_rust_verification_from_analysis(
+    project_root: &Path,
+    policy: &RustVerificationPolicy,
+    analysis: RustVerificationProjectAnalysis,
+) -> RustVerificationPlan {
     let mut tasks = BTreeMap::new();
     let mut matched_profile_hints = BTreeSet::new();
     let mut matched_api_path_baselines = BTreeSet::new();
@@ -158,7 +184,7 @@ pub fn plan_rust_project_verification_with_policy(
             .then_with(|| left.kind.cmp(&right.kind))
             .then_with(|| left.fingerprint.cmp(&right.fingerprint))
     });
-    Ok(plan)
+    plan
 }
 
 fn collect_package_verification_tasks(

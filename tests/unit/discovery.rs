@@ -8,6 +8,8 @@ use crate::discovery::{
     discover_cargo_package_roots, discover_rust_files, glob_pattern_matches,
     rust_project_harness_scope,
 };
+#[cfg(feature = "cli")]
+use crate::parser::{cargo_package_root_for_path, cargo_project_root_for_path};
 use crate::runner::rust_harness_config_for_project;
 
 #[test]
@@ -51,6 +53,35 @@ fn project_scope_is_anchored_to_cargo_manifest_targets() {
     assert!(test_paths.contains("contracts"));
     assert!(package_paths.contains("demo/example.rs"));
     assert!(package_paths.contains("perf/throughput.rs"));
+}
+
+#[cfg(feature = "cli")]
+#[test]
+fn explicit_package_root_does_not_promote_to_parent_cargo_workspace() {
+    let temp = TempDir::new().expect("temp dir");
+    let workspace = temp.path();
+    fs::write(
+        workspace.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"member\"]\nresolver = \"2\"\n",
+    )
+    .expect("write workspace manifest");
+    let package = workspace.join("member");
+    fs::create_dir_all(package.join("src")).expect("create package");
+    fs::write(
+        package.join("Cargo.toml"),
+        "[package]\nname = \"member\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write package manifest");
+    write_file(&package, "src/lib.rs");
+
+    assert_eq!(
+        cargo_package_root_for_path(&package).expect("explicit package root"),
+        package.canonicalize().expect("canonical package")
+    );
+    assert_eq!(
+        cargo_project_root_for_path(&package).expect("workspace project root"),
+        workspace.canonicalize().expect("canonical workspace")
+    );
 }
 
 #[test]
@@ -121,6 +152,50 @@ fn asp_toml_can_include_a_hidden_directory() {
 
     assert!(files.contains("src/lib.rs"));
     assert!(files.contains(".agent-fixtures/generated.rs"));
+}
+
+#[cfg(unix)]
+#[test]
+fn symlinked_rust_file_is_not_discovered() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path().join("project");
+    let target = temp.path().join("external.rs");
+    write_file(&root, "src/lib.rs");
+    fs::write(&target, "pub fn external() {}\n").expect("write symlink target");
+    std::os::unix::fs::symlink(&target, root.join("src/external.rs"))
+        .expect("create Rust file symlink");
+
+    let files = discover_rust_files(
+        std::slice::from_ref(&root),
+        &BTreeSet::new(),
+        &BTreeSet::new(),
+    );
+    let files = path_set(&root, &files);
+
+    assert!(files.contains("src/lib.rs"));
+    assert!(!files.contains("src/external.rs"));
+}
+
+#[cfg(unix)]
+#[test]
+fn symlinked_directory_is_not_discovered() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path().join("project");
+    let target = temp.path().join("external");
+    write_file(&root, "src/lib.rs");
+    write_file(&target, "generated.rs");
+    std::os::unix::fs::symlink(&target, root.join("linked"))
+        .expect("create Rust directory symlink");
+
+    let files = discover_rust_files(
+        std::slice::from_ref(&root),
+        &BTreeSet::new(),
+        &BTreeSet::new(),
+    );
+    let files = path_set(&root, &files);
+
+    assert!(files.contains("src/lib.rs"));
+    assert!(!files.contains("linked/generated.rs"));
 }
 
 fn write_file(root: &Path, relative_path: &str) {

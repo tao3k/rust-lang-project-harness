@@ -1,6 +1,6 @@
 use std::fs;
 
-use rust_lang_project_harness::run_rust_project_harness;
+use rust_lang_project_harness::run_rust_project_harness_for_scope;
 use tempfile::TempDir;
 
 use super::support::{findings_for_rule, write_manifest};
@@ -19,7 +19,11 @@ fn sibling_file_dir_owner_policy_rejects_split_owner_entrypoint() {
     .expect("write search file");
     fs::write(root.join("src/search/cache.rs"), "//! Cache owner.\n").expect("write cache file");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     let findings = findings_for_rule(&report, "RUST-MOD-R011");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);

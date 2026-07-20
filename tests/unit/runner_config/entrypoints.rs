@@ -1,7 +1,8 @@
 use std::fs;
 
 use rust_lang_project_harness::{
-    RustHarnessConfig, run_rust_project_harness, run_rust_project_harness_with_config,
+    RustHarnessConfig, run_rust_project_harness_for_scope,
+    run_rust_project_harness_with_config_for_scope,
 };
 use tempfile::TempDir;
 
@@ -27,7 +28,11 @@ fn default_project_runner_covers_cargo_package_rust_targets() {
     fs::create_dir_all(root.join("tests/unit")).expect("create unit tests");
     fs::write(root.join("tests/unit/helper.rs"), "fn helper() {}\n").expect("write helper");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(report.is_clean(), "{:?}", report.findings);
     assert_eq!(report.file_count(), 6);
@@ -59,7 +64,12 @@ fn custom_source_roots_are_policy_source_roots() {
         ..RustHarnessConfig::default()
     }
     .with_source_path("crates/core", "custom source root fixture");
-    let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
+    let report = run_rust_project_harness_with_config_for_scope(
+        root,
+        &config,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(has_rule(&report, "RUST-AGENT-PROJECT-003"));
     assert!(has_rule(&report, "RUST-AGENT-DOCS-MODULE-001"));
@@ -85,7 +95,11 @@ fn include_tests_false_skips_test_root_parsing_not_test_layout_policy() {
     )
     .expect("write custom gate");
 
-    let default_report = run_rust_project_harness(root).expect("run default project harness");
+    let default_report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run default project harness");
     assert!(has_rule(&default_report, "RUST-SYN-R001"));
 
     let config = RustHarnessConfig {
@@ -93,7 +107,12 @@ fn include_tests_false_skips_test_root_parsing_not_test_layout_policy() {
         ..RustHarnessConfig::default()
     }
     .with_tests_excluded("fixture intentionally skips test-root parsing");
-    let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
+    let report = run_rust_project_harness_with_config_for_scope(
+        root,
+        &config,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(!has_rule(&report, "RUST-SYN-R001"));
     assert!(has_rule(&report, "RUST-AGENT-PROJECT-001"));
@@ -120,7 +139,11 @@ fn root_test_target_policy_rejects_top_level_test_implementation() {
     )
     .expect("write root test target");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(has_rule(&report, "RUST-AGENT-PROJECT-007"));
 }
@@ -140,7 +163,11 @@ fn root_test_target_policy_accepts_thin_aggregate() {
     .expect("write root test target");
     fs::write(root.join("tests/unit/helper.rs"), "fn helper() {}\n").expect("write helper");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         !has_rule(&report, "RUST-AGENT-PROJECT-007"),
@@ -164,7 +191,11 @@ fn root_test_target_policy_rejects_implicit_module_mounts() {
     .expect("write root test target");
     fs::write(root.join("tests/unit/helper.rs"), "fn helper() {}\n").expect("write helper");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(has_rule(&report, "RUST-AGENT-PROJECT-008"));
 }
@@ -189,7 +220,11 @@ fn root_test_target_policy_accepts_documented_suite_mounts() {
     .expect("write root test target");
     fs::write(root.join("tests/contract/helper.rs"), "fn helper() {}\n").expect("write helper");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         !has_rule(&report, "RUST-AGENT-PROJECT-008"),
@@ -211,7 +246,11 @@ fn crate_facade_policy_rejects_implementation_in_lib_rs() {
     .expect("write lib");
     fs::write(root.join("src/owned.rs"), "//! Owned module.\n").expect("write owned module");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(has_rule(&report, "RUST-MOD-R004"));
 }
@@ -233,7 +272,11 @@ fn crate_facade_policy_accepts_proc_macro_exports() {
     )
     .expect("write owned module");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(!has_rule(&report, "RUST-MOD-R004"), "{:?}", report.findings);
 }
@@ -251,7 +294,11 @@ fn binary_entrypoint_policy_rejects_top_level_implementation() {
     )
     .expect("write bin");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(has_rule(&report, "RUST-MOD-R005"));
 }
@@ -273,7 +320,11 @@ fn binary_entrypoint_policy_accepts_thin_entrypoint() {
     )
     .expect("write bin");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(!has_rule(&report, "RUST-MOD-R005"), "{:?}", report.findings);
 }
@@ -291,7 +342,11 @@ fn build_script_policy_rejects_top_level_implementation() {
     )
     .expect("write build script");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(has_rule(&report, "RUST-MOD-R006"));
 }

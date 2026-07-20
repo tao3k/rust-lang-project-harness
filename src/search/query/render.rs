@@ -1,29 +1,20 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::fmt::Write;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::RustHarnessConfig;
-use crate::discovery::{discover_rust_files, rust_project_harness_scope};
-use crate::parser::{CargoDependencyFacts, ParsedRustModule, parse_rust_file};
-
-use super::RustSearchOptions;
-use super::context::{PackageSearchContext, search_contexts};
-use super::dependency as dependency_search;
-use super::format::{
-    append_block, compact_locations, display_project_path, package_label, package_roots_for_request,
+use crate::search::{
+    CargoDependencyFacts, PackageSearchContext, ParsedRustModule, RustSearchOptions,
+    SEARCH_HIT_LIMIT, SearchHit, append_block, compact_locations, compare_paths_by_recency,
+    discover_rust_files, display_project_path, import_hits, matching_dependencies, module_allowed,
+    package_label, package_roots_for_request, parse_rust_file, path_allowed_by_scope,
+    render_search_dependency, render_search_owner, rust_project_harness_scope, search_contexts,
+    search_contexts_for_path_query, sort_search_hits_by_recency, symbol_calls, symbol_definitions,
+    version_requirement_matches_request,
 };
-use super::hits::{
-    SearchHit, import_hits, matching_dependencies, sort_search_hits_by_recency, symbol_calls,
-    symbol_definitions,
-};
-use super::limits::SEARCH_HIT_LIMIT;
-use super::owner_view;
-use super::recency::compare_paths_by_recency;
-use super::scope::{module_allowed, path_allowed_by_scope};
-use super::version::version_requirement_matches_request;
 
-pub(super) fn render_search_symbol(
+pub(in crate::search) fn render_search_symbol(
     project_root: &Path,
     config: &RustHarnessConfig,
     query: &str,
@@ -149,7 +140,7 @@ fn render_search_symbol_seed_hits(
     Ok(rendered)
 }
 
-pub(super) fn render_search_callsite(
+pub(in crate::search) fn render_search_callsite(
     project_root: &Path,
     config: &RustHarnessConfig,
     query: &str,
@@ -168,11 +159,11 @@ fn render_search_callsite_from_contexts(
     project_root: &Path,
     query: &str,
     options: &RustSearchOptions,
-    contexts: &[super::context::PackageSearchContext],
+    contexts: &[PackageSearchContext],
 ) -> String {
     let mut rendered = String::new();
     for context in contexts {
-        let calls = symbol_calls(&context, query, options);
+        let calls = symbol_calls(context, query, options);
         let mut block = format!(
             "[search-callsite] q={} pkg={} calls={}\n",
             query,
@@ -187,7 +178,7 @@ fn render_search_callsite_from_contexts(
     rendered
 }
 
-pub(super) fn render_search_import(
+pub(in crate::search) fn render_search_import(
     project_root: &Path,
     config: &RustHarnessConfig,
     query: &str,
@@ -217,7 +208,7 @@ pub(super) fn render_search_import(
     Ok(rendered)
 }
 
-pub(super) fn render_search_patterns() -> String {
+pub(in crate::search) fn render_search_patterns() -> String {
     [
         "[search-patterns] n=4",
         "|pat public-anyhow-result lang=rust scope=src",
@@ -229,7 +220,7 @@ pub(super) fn render_search_patterns() -> String {
         + "\n"
 }
 
-pub(super) fn render_search_pattern(
+pub(in crate::search) fn render_search_pattern(
     project_root: &Path,
     config: &RustHarnessConfig,
     query: &str,
@@ -357,12 +348,7 @@ fn render_public_external_type_pattern(
     {
         dependency_options.pipes.push("public-api".to_string());
     }
-    let rendered = dependency_search::render_search_dependency(
-        project_root,
-        config,
-        dependency,
-        &dependency_options,
-    )?;
+    let rendered = render_search_dependency(project_root, config, dependency, &dependency_options)?;
     Ok(rendered.replacen(
         "[search-dependency]",
         "[search-pattern] pattern=public-external-type",
@@ -385,7 +371,7 @@ fn render_public_api_shape_pattern(
     if !owner_options.pipes.iter().any(|pipe| pipe == "items") {
         owner_options.pipes.push("items".to_string());
     }
-    let rendered = owner_view::render_search_owner(project_root, config, owner, &owner_options)?;
+    let rendered = render_search_owner(project_root, config, owner, &owner_options)?;
     Ok(rendered.replacen(
         "[search-owner]",
         "[search-pattern] pattern=public-api-shape",
@@ -393,7 +379,7 @@ fn render_public_api_shape_pattern(
     ))
 }
 
-pub(super) fn render_search_docs(
+pub(in crate::search) fn render_search_docs(
     project_root: &Path,
     config: &RustHarnessConfig,
     query: &str,
@@ -412,7 +398,7 @@ fn render_search_docs_from_contexts(
     project_root: &Path,
     query: &str,
     options: &RustSearchOptions,
-    contexts: &[super::context::PackageSearchContext],
+    contexts: &[PackageSearchContext],
 ) -> String {
     let docs_query = ApiDocsQuery::parse(query);
     let mut rendered = String::new();
@@ -451,7 +437,7 @@ fn render_search_docs_from_contexts(
     rendered
 }
 
-pub(super) fn render_search_api(
+pub(in crate::search) fn render_search_api(
     project_root: &Path,
     config: &RustHarnessConfig,
     query: &str,
@@ -495,15 +481,14 @@ pub(super) fn render_search_api(
     Ok(rendered)
 }
 
-pub(super) fn render_search_docs_use(
+pub(in crate::search) fn render_search_docs_use(
     project_root: &Path,
     config: &RustHarnessConfig,
     query: &str,
     options: &RustSearchOptions,
 ) -> Result<String, String> {
     let item_name = query.rsplit("::").next().unwrap_or(query);
-    let contexts =
-        super::context::search_contexts_for_path_query(project_root, config, options, item_name)?;
+    let contexts = search_contexts_for_path_query(project_root, config, options, item_name)?;
     let docs = render_search_docs_from_contexts(project_root, query, options, &contexts);
     let calls = render_search_callsite_from_contexts(project_root, item_name, options, &contexts);
     Ok(format!("{}{}", docs, calls))
@@ -622,7 +607,7 @@ fn current_workspace_versions(context: &PackageSearchContext, crate_name: &str) 
     }
 }
 
-pub(super) fn render_search_public_external_types(
+pub(in crate::search) fn render_search_public_external_types(
     project_root: &Path,
     config: &RustHarnessConfig,
     options: &RustSearchOptions,
@@ -672,172 +657,9 @@ fn render_api_line(
     )
 }
 
-fn api_fact_fields_for_hit(parsed_modules: &[ParsedRustModule], hit: &SearchHit) -> String {
-    let Some(module) = parsed_modules
-        .iter()
-        .find(|module| module.report.path == hit.path)
-    else {
-        return " signature=- async=false unsafe=false receiver=- return=- error=-".to_string();
-    };
-    let return_fact = module
-        .syntax_facts
-        .public_function_returns
-        .iter()
-        .filter(|return_fact| !return_fact.is_test_context && return_fact.function_name == hit.name)
-        .min_by_key(|return_fact| usize::from(return_fact.line != hit.line));
-    let params = module
-        .syntax_facts
-        .public_function_params
-        .iter()
-        .filter(|param| !param.is_test_context && param.function_name == hit.name)
-        .filter(|param| {
-            return_fact.is_none_or(|return_fact| param.function_line == return_fact.line)
-        })
-        .map(|param| {
-            format!(
-                "{}:{}",
-                compact_api_value(&param.param_name),
-                compact_api_value(&param.type_text)
-            )
-        })
-        .collect::<Vec<_>>();
-    let params = if params.is_empty() {
-        "-".to_string()
-    } else {
-        params.join(";")
-    };
-    let return_type = return_fact
-        .map(|return_fact| compact_api_value(&return_fact.type_text))
-        .unwrap_or_else(|| "-".to_string());
-    let signature = if matches!(hit.kind.as_str(), "fn" | "method") {
-        let signature_params = if params == "-" { "" } else { &params };
-        format!("fn({signature_params})->{return_type}")
-    } else {
-        "-".to_string()
-    };
-    let is_async = return_fact.is_some_and(|return_fact| return_fact.is_async);
-    let is_unsafe = return_fact.is_some_and(|return_fact| return_fact.is_unsafe);
-    let receiver = return_fact
-        .and_then(|return_fact| return_fact.receiver.as_deref())
-        .map(compact_api_value)
-        .unwrap_or_else(|| "-".to_string());
-    let error = return_fact
-        .and_then(|return_fact| return_fact.application_error_boundary.as_deref())
-        .map(compact_api_value)
-        .unwrap_or_else(|| "-".to_string());
-    let impl_type = return_fact
-        .and_then(|return_fact| return_fact.impl_type.as_deref())
-        .map(compact_api_value)
-        .unwrap_or_else(|| "-".to_string());
-    let trait_path = return_fact
-        .and_then(|return_fact| return_fact.trait_path.as_deref())
-        .map(compact_api_value)
-        .unwrap_or_else(|| "-".to_string());
-    format!(
-        " signature={} params={} async={} unsafe={} receiver={} return={} error={} impl={} trait={}",
-        signature, params, is_async, is_unsafe, receiver, return_type, error, impl_type, trait_path
-    )
-}
-
-fn compact_api_value(value: &str) -> String {
-    let compact = value
-        .chars()
-        .filter(|character| !character.is_whitespace())
-        .collect::<String>()
-        .replace(',', "+");
-    if compact.is_empty() {
-        "-".to_string()
-    } else {
-        compact
-    }
-}
-
-fn api_hits(
-    package_root: &Path,
-    parsed_modules: &[ParsedRustModule],
-    symbol_hits: &[SearchHit],
-    query: &str,
-) -> Vec<SearchHit> {
-    let modules_by_path = parsed_modules
-        .iter()
-        .map(|module| (module.report.path.clone(), module))
-        .collect::<BTreeMap<_, _>>();
-    let mut hits = symbol_hits
-        .iter()
-        .map(|hit| {
-            modules_by_path
-                .get(&hit.path)
-                .copied()
-                .and_then(|module| {
-                    module
-                        .syntax_facts
-                        .public_function_returns
-                        .iter()
-                        .filter(|return_fact| {
-                            !return_fact.is_test_context && return_fact.function_name == hit.name
-                        })
-                        .min_by_key(|return_fact| usize::from(return_fact.line != hit.line))
-                        .map(|return_fact| {
-                            api_hit_for_return_fact(
-                                module,
-                                return_fact.line,
-                                return_fact.receiver.is_some(),
-                                &return_fact.function_name,
-                            )
-                        })
-                })
-                .unwrap_or_else(|| hit.clone())
-        })
-        .collect::<Vec<_>>();
-    let mut hit_keys = hits
-        .iter()
-        .map(|hit| (hit.path.clone(), hit.name.clone()))
-        .collect::<BTreeSet<_>>();
-    for module in parsed_modules {
-        for return_fact in
-            module
-                .syntax_facts
-                .public_function_returns
-                .iter()
-                .filter(|return_fact| {
-                    !return_fact.is_test_context && return_fact.function_name == query
-                })
-        {
-            if !hit_keys.insert((
-                module.report.path.clone(),
-                return_fact.function_name.clone(),
-            )) {
-                continue;
-            }
-            hits.push(api_hit_for_return_fact(
-                module,
-                return_fact.line,
-                return_fact.receiver.is_some(),
-                &return_fact.function_name,
-            ));
-        }
-    }
-    sort_search_hits_by_recency(package_root, &mut hits);
-    hits
-}
-
-fn api_hit_for_return_fact(
-    module: &ParsedRustModule,
-    line: usize,
-    has_receiver: bool,
-    function_name: &str,
-) -> SearchHit {
-    SearchHit {
-        path: module.report.path.clone(),
-        line,
-        kind: if has_receiver {
-            "method".to_string()
-        } else {
-            "fn".to_string()
-        },
-        name: function_name.to_string(),
-    }
-}
+#[path = "api_hits.rs"]
+mod api_hits;
+use api_hits::{api_fact_fields_for_hit, api_hits, compact_api_value};
 
 #[derive(Debug)]
 struct PublicApiTypeSurface {

@@ -5,6 +5,7 @@ mod catalog;
 mod config;
 mod manifest;
 mod pack;
+pub(crate) use pack::evaluate_workspace;
 mod quality;
 mod source_scope;
 mod source_tests;

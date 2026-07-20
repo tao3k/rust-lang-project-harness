@@ -1,0 +1,10 @@
+{
+  "schemaId": "asp.source-overlay.v1",
+  "sourceKind": "editor-buffer",
+  "changes": [
+    {
+      "path": "src/cli/runner/dispatch.rs",
+      "operation": "delete"
+    }
+  ]
+}

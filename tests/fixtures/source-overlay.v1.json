@@ -1,0 +1,11 @@
+{
+  "schemaId": "asp.source-overlay.v1",
+  "sourceKind": "editor-buffer",
+  "changes": [
+    {
+      "path": "src/overlay_only.rs",
+      "operation": "upsert",
+      "content": "pub struct OverlayOnly;\n"
+    }
+  ]
+}

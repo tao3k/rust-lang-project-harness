@@ -145,6 +145,7 @@ pub use performance::{
     build_rust_verification_performance_index, render_rust_verification_performance_index,
     render_rust_verification_performance_index_json,
 };
+pub use planner::plan_rust_verification_from_harness_analysis;
 pub use planner::{
     plan_rust_project_verification, plan_rust_project_verification_with_config,
     plan_rust_project_verification_with_policy,

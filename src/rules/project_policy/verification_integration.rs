@@ -9,9 +9,7 @@ use crate::parser::{
     ParsedRustModule, RustReasoningTreeFacts, file_location, parse_cargo_dependency_facts,
     path_line_location, source_line,
 };
-use crate::verification::{
-    RustVerificationPlan, RustVerificationTaskKind, plan_rust_project_verification_with_config,
-};
+use crate::verification::RustVerificationTaskKind;
 use crate::{RustHarnessConfig, RustHarnessFinding, RustHarnessRule};
 
 use super::build_gate::{module_default_build_gate_call_lines, root_build_script_module};
@@ -57,25 +55,7 @@ pub(super) fn verification_integration_findings(
         modules,
         rules,
     ));
-    let performance_adapters = active_rust_native_performance_adapters(project_root, config);
-    if performance_adapters.is_empty() {
-        return findings;
-    }
-    if has_rust_native_performance_bench(project_root, cargo_manifest, &performance_adapters) {
-        return findings;
-    }
 
-    let rule = &rules[RUST_PROJ_R010];
-    findings.push(RustHarnessFinding::from_rule(
-        rule,
-        format!(
-            "{} configures a Rust-native performance verification skill, but Cargo.toml does not expose a runnable Criterion, Divan, or iai-callgrind harness=false [[bench]] target.",
-            display_project_path(project_root, &project_root.join("Cargo.toml"))
-        ),
-        file_location(project_root.join("Cargo.toml")),
-        None,
-        "add a Criterion, Divan, or iai-callgrind [[bench]] target, declare the matching benchmark framework dependency, and keep the verification contract command pointed at it",
-    ));
     findings
 }
 
@@ -232,24 +212,21 @@ fn source_modules<'a>(
     })
 }
 
-fn active_rust_native_performance_adapters(
-    project_root: &Path,
-    config: &RustHarnessConfig,
-) -> BTreeSet<String> {
-    plan_rust_project_verification_with_config(project_root, config)
-        .map(|plan| rust_native_performance_adapters(&plan))
-        .unwrap_or_default()
-}
-
-fn rust_native_performance_adapters(plan: &RustVerificationPlan) -> BTreeSet<String> {
-    plan.active_tasks()
+fn active_rust_native_performance_adapters(config: &RustHarnessConfig) -> BTreeSet<String> {
+    if config
+        .verification_policy
+        .disabled_task_kinds
+        .contains(&RustVerificationTaskKind::Performance)
+    {
+        return BTreeSet::new();
+    }
+    config
+        .verification_policy
+        .skill_bindings
+        .get(&RustVerificationTaskKind::Performance)
+        .filter(|binding| binding.is_configured())
+        .and_then(|binding| binding.adapter.as_deref())
         .into_iter()
-        .filter(|task| task.kind == RustVerificationTaskKind::Performance)
-        .filter_map(|task| {
-            task.skill_binding
-                .as_ref()
-                .and_then(|binding| binding.adapter.as_deref())
-        })
         .filter(|adapter| is_rust_native_performance_adapter(adapter))
         .map(ToOwned::to_owned)
         .collect()
@@ -260,6 +237,40 @@ fn is_rust_native_performance_adapter(adapter: &str) -> bool {
         adapter,
         "criterion" | "divan" | "iai-callgrind" | "iai_callgrind"
     )
+}
+
+pub(super) fn workspace_performance_verification_findings(
+    workspace_root: &Path,
+    package_scopes: &[crate::model::RustProjectHarnessScope],
+    config: &RustHarnessConfig,
+    rules: &BTreeMap<&'static str, RustHarnessRule>,
+) -> Vec<RustHarnessFinding> {
+    let performance_adapters = active_rust_native_performance_adapters(config);
+    if performance_adapters.is_empty() {
+        return Vec::new();
+    }
+    let has_performance_bench = package_scopes.iter().any(|scope| {
+        let cargo_manifest = crate::parser::parse_cargo_manifest(&scope.project_root);
+        has_rust_native_performance_bench(
+            &scope.project_root,
+            &cargo_manifest,
+            &performance_adapters,
+        )
+    });
+    if has_performance_bench {
+        return Vec::new();
+    }
+    let rule = &rules[RUST_PROJ_R010];
+    vec![RustHarnessFinding::from_rule(
+        rule,
+        format!(
+            "{} configures a Rust-native performance verification skill, but Cargo.toml does not expose a runnable Criterion, Divan, or iai-callgrind harness=false [[bench]] target.",
+            display_project_path(workspace_root, &workspace_root.join("Cargo.toml"))
+        ),
+        file_location(workspace_root.join("Cargo.toml")),
+        None,
+        "add a Criterion, Divan, or iai-callgrind [[bench]] target, declare the matching benchmark framework dependency, and keep the verification contract command pointed at it",
+    )]
 }
 
 fn has_rust_native_performance_bench(

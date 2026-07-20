@@ -6,7 +6,7 @@ use rust_lang_project_harness::{
     assert_rust_project_harness_cargo_test_clean_with_config, default_rust_harness_config,
     render_rust_project_harness, render_rust_project_harness_advice,
     render_rust_project_harness_agent_snapshot, render_rust_project_harness_json,
-    run_rust_lang_harness, run_rust_project_harness,
+    run_rust_lang_harness, run_rust_project_harness_for_scope,
 };
 use tempfile::TempDir;
 
@@ -131,7 +131,11 @@ fn default_renderer_keeps_info_advice_visible_without_blocking() {
     let root = temp.path();
     write_advice_only_project(root, "advice-only");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     let rendered = normalize_temp_root(&render_rust_project_harness(&report), root);
 
     assert!(report.is_clean(), "{rendered}");
@@ -241,7 +245,11 @@ fn json_renderer_preserves_structured_report_fields() {
     .expect("write lib");
     fs::write(root.join("src/owned.rs"), "pub fn public_api() {}\n").expect("write owned module");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     let json = render_rust_project_harness_json(&report).expect("render json");
     let value: serde_json::Value = serde_json::from_str(&json).expect("parse json");
 

@@ -1,6 +1,6 @@
 use std::fs;
 
-use rust_lang_project_harness::run_rust_project_harness;
+use rust_lang_project_harness::run_rust_project_harness_for_scope;
 use tempfile::TempDir;
 
 use super::support::{findings_for_rule, has_rule, write_manifest};
@@ -29,7 +29,11 @@ fn source_test_policy_does_not_treat_latest_feature_as_cfg_test() {
     .expect("write lib");
     fs::write(root.join("src/optional.rs"), "//! Optional owner.\n").expect("write optional");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         !has_rule(&report, "RUST-AGENT-PROJECT-003"),
@@ -57,7 +61,11 @@ fn root_test_target_accepts_embedded_cargo_test_gate_macro() {
     )
     .expect("write root test target");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         !has_rule(&report, "RUST-AGENT-PROJECT-006"),
@@ -90,7 +98,11 @@ fn root_test_target_accepts_library_cargo_test_gate_macro() {
     )
     .expect("write suite");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         !has_rule(&report, "RUST-AGENT-PROJECT-006"),
@@ -109,11 +121,15 @@ fn root_test_target_comment_mentions_do_not_count_as_structure() {
     fs::create_dir(root.join("tests")).expect("create tests");
     fs::write(
         root.join("tests/unit_test.rs"),
-        "//! Mentioning rust_project_harness_gate!() here is not a gate.\nconst NOTE: &str = \"run_rust_project_harness(.)\";\n",
+        "//! Mentioning rust_project_harness_gate!() here is not a gate.\nconst NOTE: &str = \"run_rust_project_harness_for_scope(., rust_lang_project_harness::RustHarnessRunScope::Package)\";\n",
     )
     .expect("write root test target");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         !has_rule(&report, "RUST-AGENT-PROJECT-006"),
@@ -140,7 +156,11 @@ fn harness_dev_dependency_requires_cargo_check_build_gate() {
     fs::create_dir(root.join("src")).expect("create src");
     fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         has_rule(&report, "RUST-AGENT-PROJECT-012"),
@@ -170,7 +190,11 @@ fn library_target_ignores_comment_mentions_of_embedded_cargo_test_gate() {
     )
     .expect("write lib");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         has_rule(&report, "RUST-AGENT-PROJECT-012"),
@@ -196,7 +220,11 @@ fn manifest_comment_does_not_enable_library_harness_policy() {
     fs::create_dir(root.join("src")).expect("create src");
     fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         !has_rule(&report, "RUST-AGENT-PROJECT-009"),
@@ -222,7 +250,11 @@ fn manifest_package_field_uses_the_canonical_harness_identity() {
     fs::create_dir(root.join("src")).expect("create src");
     fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         has_rule(&report, "RUST-AGENT-PROJECT-012"),
@@ -248,7 +280,11 @@ fn target_dependency_table_uses_canonical_harness_identity() {
     fs::create_dir(root.join("src")).expect("create src");
     fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         has_rule(&report, "RUST-AGENT-PROJECT-012"),
@@ -272,7 +308,11 @@ fn large_unit_test_leaf_is_reported_from_parser_source_metrics() {
     fs::create_dir_all(root.join("tests/unit")).expect("create tests/unit");
     fs::write(root.join("tests/unit/large.rs"), large_unit_test_leaf()).expect("write large leaf");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     let findings = findings_for_rule(&report, "RUST-AGENT-PROJECT-005");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
@@ -294,7 +334,11 @@ fn large_test_support_module_is_reported_from_parser_source_metrics() {
     )
     .expect("write large test support module");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     let findings = findings_for_rule(&report, "RUST-AGENT-PROJECT-024");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
@@ -347,7 +391,11 @@ fn all_standard_rust_files_enter_agent_policy_analysis() {
             .expect("write process command probe");
     }
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     let findings = findings_for_rule(&report, "RUST-AGENT-PROC-001");
 
     for relative_path in [

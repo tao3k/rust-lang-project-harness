@@ -75,6 +75,7 @@ mod flow_drill {
         }
     }
 }
+mod projection;
 mod proof;
 #[cfg(feature = "search")]
 mod query;
@@ -84,6 +85,8 @@ mod review;
 mod schema;
 #[cfg(feature = "search")]
 mod search;
+#[cfg(feature = "search")]
+mod search_api_callables;
 #[cfg(feature = "search")]
 mod search_json_type_surfaces;
 #[cfg(feature = "search")]

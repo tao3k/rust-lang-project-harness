@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use rust_lang_project_harness::{
-    RustHarnessFinding, render_rust_project_harness, run_rust_project_harness,
+    RustHarnessFinding, render_rust_project_harness, run_rust_project_harness_for_scope,
 };
 use serde::Serialize;
 use tempfile::TempDir;
@@ -74,7 +74,11 @@ fn rule_snapshot(rule_id: &str, scenario: &str) -> String {
     let root = temp.path();
     copy_inputs(Path::new(scenario).join("inputs"), root);
 
-    let mut report = run_rust_project_harness(root).expect("run project harness");
+    let mut report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
     report.findings.retain(|finding| finding.rule_id == rule_id);
     let findings = report
         .findings

@@ -398,6 +398,6 @@ fn attribute_has_cfg_test(attr: &syn::Attribute) -> bool {
     attr.path().is_ident("cfg") && attr.to_token_stream().to_string().contains("test")
 }
 
-fn is_public_visibility(vis: &syn::Visibility) -> bool {
+pub(super) fn is_public_visibility(vis: &syn::Visibility) -> bool {
     matches!(vis, syn::Visibility::Public(_))
 }

@@ -137,6 +137,10 @@ pub use verification::{
 mod discovery_tests;
 
 #[cfg(test)]
+#[path = "../tests/unit/runner.rs"]
+mod runner_tests;
+
+#[cfg(test)]
 #[path = "../tests/unit/parser_source_path.rs"]
 mod parser_source_path_tests;
 
@@ -174,15 +178,8 @@ pub use build_gate::{
     RustProjectHarnessDependencyBaseline, RustProjectHarnessDependencyBaselinePackage,
     RustProjectHarnessDependencyBaselinePackageReceipt, RustProjectHarnessDownstreamPolicy,
     RustProjectHarnessDownstreamPolicyReceipt, RustProjectHarnessReportObligationReceipt,
-    RustProjectHarnessWorkspacePolicy, assert_rust_project_harness_build_clean,
-    assert_rust_project_harness_build_clean_from_env,
-    assert_rust_project_harness_build_clean_from_env_with_config,
-    assert_rust_project_harness_build_clean_with_config,
-    assert_rust_project_harness_cargo_check_clean,
-    assert_rust_project_harness_cargo_check_clean_from_env,
-    assert_rust_project_harness_cargo_check_clean_from_env_with_config,
-    assert_rust_project_harness_cargo_check_clean_with_config,
-    assert_rust_project_harness_dependency_baseline, assert_rust_project_harness_downstream_policy,
+    RustProjectHarnessWorkspacePolicy, assert_rust_project_harness_dependency_baseline,
+    assert_rust_project_harness_downstream_policy,
     assert_rust_project_harness_downstream_policy_from_env,
     assert_rust_project_harness_verification_from_env_with_config,
     assert_rust_project_harness_verification_with_config,
@@ -212,11 +209,12 @@ pub use rules::{
     rust_rule_pack_descriptors, rust_syntax_rules,
 };
 pub use runner::{
-    assert_rust_lang_harness_clean, assert_rust_project_harness_cargo_test_clean,
+    RustHarnessRunScope, assert_rust_lang_harness_clean,
+    assert_rust_project_harness_cargo_test_clean,
     assert_rust_project_harness_cargo_test_clean_with_config, assert_rust_project_harness_clean,
     assert_rust_project_harness_clean_with_config, default_rust_harness_config,
-    run_rust_lang_harness, run_rust_lang_harness_with_config, run_rust_project_harness,
-    run_rust_project_harness_with_config, rust_harness_config_for_project,
+    run_rust_lang_harness, run_rust_lang_harness_with_config, run_rust_project_harness_for_scope,
+    run_rust_project_harness_with_config_for_scope, rust_harness_config_for_project,
 };
 #[cfg(feature = "search")]
 pub use search::{
@@ -231,6 +229,7 @@ pub use search::{
     render_rust_project_harness_dependency_topology_json,
     render_rust_project_harness_dependency_topology_metadata_json,
     render_rust_project_harness_search_semantic_facts_json,
+    render_rust_project_harness_workspace_scope_json,
 };
 pub use verification::{
     RUST_VERIFICATION_REPORT_MANIFEST_SCHEMA_ID, RUST_VERIFICATION_REPORT_MANIFEST_SCHEMA_VERSION,
@@ -279,11 +278,12 @@ pub use verification::{
     build_rust_verification_stability_picture_with_policy, build_rust_verification_task_index,
     check_rust_verification_report_manifest_schema, compare_rust_verification_stability_runs,
     plan_rust_project_verification, plan_rust_project_verification_with_config,
-    plan_rust_project_verification_with_policy, render_rust_verification_analysis_profile,
-    render_rust_verification_analysis_profile_json, render_rust_verification_performance_index,
-    render_rust_verification_performance_index_json, render_rust_verification_plan,
-    render_rust_verification_plan_json, render_rust_verification_profile_index,
-    render_rust_verification_profile_index_json, render_rust_verification_report_artifact_json,
+    plan_rust_project_verification_with_policy, plan_rust_verification_from_harness_analysis,
+    render_rust_verification_analysis_profile, render_rust_verification_analysis_profile_json,
+    render_rust_verification_performance_index, render_rust_verification_performance_index_json,
+    render_rust_verification_plan, render_rust_verification_plan_json,
+    render_rust_verification_profile_index, render_rust_verification_profile_index_json,
+    render_rust_verification_report_artifact_json,
     render_rust_verification_report_artifact_json_with_config,
     render_rust_verification_report_bundle, render_rust_verification_report_bundle_json,
     render_rust_verification_report_entry_advice,

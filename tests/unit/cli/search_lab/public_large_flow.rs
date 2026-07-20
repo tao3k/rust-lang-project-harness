@@ -107,7 +107,7 @@ fn public_large_tokio_bytes_flow_connects_prime_to_dependency_api_and_docs_axes(
             "[search-public-external-types] pkg=. dep=1 hit=",
             "|external-type src/io/mod.rs:4 dep=bytes surface=field:payload item=RuntimeFrame type=Bytes",
             "|external-type src/io/mod.rs:4 dep=bytes surface=field:scratch item=RuntimeFrame type=BytesMut",
-            "|external-type src/io/mod.rs:10 dep=bytes surface=return item=split_buf type=implBuf",
+            "|external-type src/io/mod.rs:10 dep=bytes surface=return item=split_buf type=impl Buf",
         ],
         FORBIDDEN_FLOW_PATTERNS,
     );

@@ -30,7 +30,7 @@ pub(crate) const RUST_MOD_R010: &str = "RUST-MOD-R010";
 pub(crate) const RUST_MOD_R011: &str = "RUST-MOD-R011";
 
 pub(crate) const MAX_SOURCE_EFFECTIVE_LINES: usize = 650;
-pub(crate) const MAX_SOURCE_LINES: usize = 1200;
+pub(crate) const MAX_SOURCE_LINES: usize = 1000;
 pub(crate) const MIN_SOURCE_PUBLIC_ITEMS: usize = 12;
 pub(crate) const MIN_SOURCE_IMPLEMENTATION_ITEMS: usize = 45;
 

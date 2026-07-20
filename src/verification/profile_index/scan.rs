@@ -62,7 +62,6 @@ pub fn build_rust_verification_profile_index_with_policy(
                 package_root: &reasoning_tree.package_root,
                 modules: &reasoning_tree.modules,
                 branches: &reasoning_tree.owner_branches,
-                parsed_modules: &package_analysis.parsed_modules,
                 cargo_dependencies: &package_analysis.cargo_dependencies,
                 policy,
             },

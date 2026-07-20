@@ -123,6 +123,12 @@ pub(crate) fn parse_cargo_workspace_member_roots(project_root: &Path) -> Vec<Pat
 
 #[cfg(feature = "cli")]
 pub(crate) fn cargo_project_root_for_path(path: &Path) -> Result<PathBuf, String> {
+    cargo_package_root_for_path(path)
+        .map(|manifest_dir| cargo_project_root_for_manifest_dir(&manifest_dir))
+}
+
+#[cfg(feature = "cli")]
+pub(crate) fn cargo_package_root_for_path(path: &Path) -> Result<PathBuf, String> {
     let canonical = fs::canonicalize(path).map_err(|error| {
         format!(
             "failed to resolve Rust project path {}: {error}",
@@ -139,7 +145,7 @@ pub(crate) fn cargo_project_root_for_path(path: &Path) -> Result<PathBuf, String
     };
     loop {
         if current.join("Cargo.toml").is_file() {
-            return Ok(cargo_project_root_for_manifest_dir(&current));
+            return Ok(current);
         }
         if !current.pop() {
             break;

@@ -4,18 +4,6 @@ use crate::cli::support::{normalize_temp_root, run_cli, write_manifest, write_se
 
 #[test]
 fn cli_help_advertises_code_flag() {
-    let top = run_cli(["--help"]);
-    assert!(top.status.success(), "{top:?}");
-    let stdout = String::from_utf8(top.stdout).expect("utf8 stdout");
-    assert!(
-        stdout.contains("rs-harness search <view> [ARGS] [PIPE...] [--json] [--code]"),
-        "{stdout}"
-    );
-    assert!(
-        stdout.contains("rs-harness query [SELECTOR] [--query SYMBOL | --term TERM] [--code]"),
-        "{stdout}"
-    );
-
     let search = run_cli(["search", "--help"]);
     assert!(search.status.success(), "{search:?}");
     let stdout = String::from_utf8(search.stdout).expect("utf8 stdout");
@@ -33,7 +21,9 @@ fn cli_help_advertises_code_flag() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("Use --code after selecting an owner/symbol or hook path/range"),
+        stdout.contains(
+            "Use --code only with an exact structural selector or a unique owner/symbol match"
+        ),
         "{stdout}"
     );
 }
@@ -189,31 +179,6 @@ fn cli_query_owner_code_preserves_original_source_slice() {
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
     assert_eq!(stdout, source);
     assert!(!stdout.contains("keep_spacing(input: String) -> String"));
-}
-
-#[test]
-fn cli_query_selector_range_code_uses_local_window() {
-    let temp = TempDir::new().expect("temp dir");
-    let root = temp.path();
-    write_manifest(root, "cli-query-selector-range-code");
-    std::fs::create_dir_all(root.join("src")).expect("src dir");
-    let source = "pub fn selected() {\n    println!(\"selected\");\n}\n\npub fn skipped() {}\n";
-    std::fs::write(root.join("src/lib.rs"), source).expect("write source");
-
-    let output = run_cli([
-        "query".as_ref(),
-        "--selector".as_ref(),
-        "src/lib.rs:1:2".as_ref(),
-        "--code".as_ref(),
-        "--workspace".as_ref(),
-        root.as_os_str(),
-    ]);
-    assert!(output.status.success(), "{output:?}");
-
-    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert_eq!(stdout, "pub fn selected() {\n    println!(\"selected\");\n");
-    assert!(!stdout.contains("[search-owner]"), "{stdout}");
-    assert!(!stdout.contains("skipped"), "{stdout}");
 }
 
 #[test]

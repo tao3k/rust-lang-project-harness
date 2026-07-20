@@ -3,11 +3,20 @@
 use std::ffi::OsString;
 
 use super::query_options::{QueryOptions, QuerySearchOptions};
-pub(super) use super::query_window::{render_query_local_item_code, render_query_local_window};
 
 pub(super) enum QueryCommand {
     Help,
+    ExactSource(ExactSourceQuery),
     Search(Box<QuerySearchOptions>),
+}
+
+pub(super) struct ExactSourceQuery {
+    pub(crate) selector: String,
+    pub(crate) workspace_root: std::path::PathBuf,
+    pub(crate) source_overlay: Option<std::path::PathBuf>,
+    pub(crate) json: bool,
+    pub(crate) code: bool,
+    pub(crate) names_only: bool,
 }
 
 pub(super) fn query_guide_kind(args: &[OsString]) -> bool {
@@ -17,25 +26,63 @@ pub(super) fn query_guide_kind(args: &[OsString]) -> bool {
 pub(super) fn parse_query(
     args: impl IntoIterator<Item = OsString>,
 ) -> Result<QueryCommand, String> {
+    let (args, source_overlay) = extract_source_overlay(args)?;
     let options = QueryOptions::parse(args)?;
     if options.help {
         return Ok(QueryCommand::Help);
     }
-    let wants_direct_source_items = options.from_hook.as_deref() == Some("direct-source-read")
-        && options.query.is_none()
+    let wants_direct_source_items = options.query.is_none()
         && options.terms.is_empty()
         && options
             .selector
             .as_deref()
             .is_some_and(is_exact_direct_source_selector);
-    let mut search_options = options.search_options()?;
-    if wants_direct_source_items && !search_options.pipes.iter().any(|pipe| pipe == "items") {
-        search_options.pipes.push("items".to_string());
+    if wants_direct_source_items {
+        let mut search_options = options.search_options()?;
+        let selector = search_options
+            .read_selector
+            .take()
+            .or_else(|| search_options.query.take())
+            .ok_or_else(|| "exact source query requires a selector".to_string())?;
+        return Ok(QueryCommand::ExactSource(ExactSourceQuery {
+            selector,
+            workspace_root: search_options
+                .workspace_root
+                .take()
+                .unwrap_or_else(|| std::path::PathBuf::from(".")),
+            source_overlay,
+            json: search_options.json,
+            code: search_options.item_code,
+            names_only: search_options.item_names_only,
+        }));
     }
-    if wants_direct_source_items && search_options.output_view.as_deref() != Some("read-packet") {
-        search_options.output_view = None;
+    if source_overlay.is_some() {
+        return Err("--source-overlay requires an exact source selector".to_string());
     }
+    let search_options = options.search_options()?;
     Ok(QueryCommand::Search(Box::new(search_options)))
+}
+
+fn extract_source_overlay(
+    args: impl IntoIterator<Item = OsString>,
+) -> Result<(Vec<OsString>, Option<std::path::PathBuf>), String> {
+    let mut filtered = Vec::new();
+    let mut source_overlay = None;
+    let mut args = args.into_iter();
+    while let Some(argument) = args.next() {
+        if argument == "--source-overlay" {
+            if source_overlay.is_some() {
+                return Err("--source-overlay may be supplied only once".to_string());
+            }
+            let path = args
+                .next()
+                .ok_or_else(|| "--source-overlay requires a JSON file path".to_string())?;
+            source_overlay = Some(std::path::PathBuf::from(path));
+        } else {
+            filtered.push(argument);
+        }
+    }
+    Ok((filtered, source_overlay))
 }
 
 fn is_exact_direct_source_selector(selector: &str) -> bool {
@@ -89,9 +136,9 @@ pub(super) fn print_query_guide() {
 
 pub(super) fn print_query_help() {
     println!(
-        "rs-harness query <owner-path[:start:end]> [items tests] [--query SYMBOL] [--names-only | --code] [--workspace WORKSPACE]\n\
+        "rs-harness query <owner-path> [items tests] [--query SYMBOL] [--names-only | --code] [--workspace WORKSPACE] [--source-overlay JSON-FILE]\n\
 rs-harness query --catalog flow-lite --where 'source.call=NAME sink.constructs=TYPE scope.fn=FUNCTION' [<workspace-root>] [--json] [--workspace WORKSPACE]\n\
-rs-harness query --from-hook direct-source-read --selector <path[:line-range]> [--workspace WORKSPACE] [--source worktree|index|head] --code\n\
+rs-harness query --from-hook direct-source-read --selector 'rust://OWNER#item/KIND/NAME' [--workspace WORKSPACE] [--source-overlay JSON-FILE] --code\n\
 rs-harness query --from-hook KIND --selector SELECTOR [--query SYMBOL | --term TERM] [--names-only | --code] [--workspace WORKSPACE]\n\
 rs-harness search dependency <crate-or-package> [items docs-use tests] [--view seeds] [--workspace WORKSPACE]\n\
 rs-harness search guide [--workspace WORKSPACE]\n\n\
@@ -102,8 +149,8 @@ Flow-lite native relation queries emit compact locator/provenance frontiers or s
 Glob or broad selectors without terms route to search prime --view seeds.\n\
 Owner item queries emit |query status=hit|miss match=exact|fallback-contains|none.\n\
 Use --workspace WORKSPACE when the selector is workspace-relative; owner and direct-source query forms never accept a trailing workspace root.\n\
+Use --source-overlay JSON-FILE with an exact selector to derive an editor-buffer Merkle root from asp.source-overlay.v1.\n\
 Flow-lite query forms accept one positional workspace root for ABI corpus compatibility.\n\
-Use --source only to choose worktree, index, or head content.\n\
-Use --code after selecting an owner/symbol or hook path/range to emit compact parser-owned code."
+Use --code only with an exact structural selector or a unique owner/symbol match to emit compact parser-owned code."
     );
 }

@@ -37,6 +37,7 @@ fn agent_registry_json(project_root: &Path) -> Value {
         "public-external-types",
         "policy",
         "semantic-facts",
+        "workspace-scope",
         "ingest",
         "compare",
     ];
@@ -232,6 +233,7 @@ fn agent_registry_json(project_root: &Path) -> Value {
                 { "path": "schemas/semantic-graph.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-graph", "schemaVersion": "1" },
                 { "path": "schemas/semantic-fact-graph.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-fact-graph", "schemaVersion": "1" },
                 { "path": "schemas/semantic-fact-ontology.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-fact-ontology", "schemaVersion": "1" },
+                { "path": "schemas/semantic-workspace-scope.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-workspace-scope", "schemaVersion": "1" },
                 { "path": "schemas/semantic-type-surface.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-type-surface", "schemaVersion": "1" },
                 { "path": "schemas/semantic-invariant-candidate.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-invariant-candidate", "schemaVersion": "1" },
                 { "path": "schemas/semantic-verification-receipt.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-verification-receipt", "schemaVersion": "1" },
@@ -306,6 +308,19 @@ fn search_method_descriptor(view: &str) -> Value {
         fields.insert("outputModes".to_string(), json!(["json"]));
         fields.insert("input".to_string(), json!("search semantic-facts <query>"));
     }
+    if view == "workspace-scope" {
+        fields.insert("supportsCompact".to_string(), json!(false));
+        fields.insert(
+            "outputSchemaIds".to_string(),
+            json!(["agent.semantic-protocols.semantic-workspace-scope"]),
+        );
+        fields.insert(
+            "packetSchemas".to_string(),
+            json!(["semantic-workspace-scope.v1"]),
+        );
+        fields.insert("outputModes".to_string(), json!(["json"]));
+        fields.insert("input".to_string(), json!("search workspace-scope"));
+    }
     let ingest_required_for = search_ingest_required_for(view);
     if !ingest_required_for.is_empty() {
         fields.insert("ingestRequiredFor".to_string(), json!(ingest_required_for));
@@ -351,6 +366,11 @@ fn search_benchmark_invocation(view: &str) -> Value {
             "args": ["search", "semantic-facts", "{query}", "--workspace", "{workspace}", "--json"],
             "expectsJson": true,
             "maxElapsedMs": 15_000,
+        }),
+        "workspace-scope" => json!({
+            "args": ["search", "workspace-scope", "--workspace", "{workspace}", "--json"],
+            "expectsJson": true,
+            "maxElapsedMs": 100,
         }),
         "api" | "callsite" | "cfg" | "compare" | "docs" | "docs-use" | "import" | "pattern"
         | "policy" | "query" | "symbol" => json!({
@@ -483,6 +503,10 @@ fn search_capabilities(view: &str) -> Vec<Value> {
         "semantic-facts" => vec![
             semantic_capability("graph-turbo-provider-facts"),
             rust_capability("rust-syn-field-type-collection-facts"),
+        ],
+        "workspace-scope" => vec![
+            semantic_capability("package-manager-workspace-scope"),
+            rust_capability("cargo-workspace-membership"),
         ],
         "ingest" => vec![
             semantic_capability("external-candidate-ingest"),

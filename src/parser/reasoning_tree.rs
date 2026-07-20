@@ -31,6 +31,7 @@ pub(crate) struct RustReasoningModuleFacts {
     pub(crate) path: PathBuf,
     pub(crate) source_path: RustSourcePathFacts,
     pub(crate) import_summary: RustReasoningImportFacts,
+    pub(crate) public_api_summary: RustReasoningPublicApiFacts,
     pub(crate) is_source_module: bool,
     pub(crate) is_module_tree_root: bool,
     pub(crate) declared_child_edges: Vec<RustModuleChildEdge>,
@@ -59,8 +60,16 @@ pub(crate) struct RustReasoningImportFacts {
     pub(crate) deep_relative_import_facts: Vec<RustReasoningDeepRelativeImportFacts>,
     pub(crate) prelude_imports: usize,
     pub(crate) test_context_imports: usize,
+    pub(crate) production_external_imports: Vec<Vec<String>>,
     pub(crate) local_owner_imports: Vec<Vec<String>>,
     pub(crate) local_owner_dependencies: Vec<RustReasoningOwnerDependencyFacts>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct RustReasoningPublicApiFacts {
+    pub(crate) public_items: usize,
+    pub(crate) public_exports: usize,
+    pub(crate) public_functions: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -153,6 +162,7 @@ pub(crate) fn rust_reasoning_tree_facts(
                     &module.report.path,
                 ),
                 import_summary: RustReasoningImportFacts::default(),
+                public_api_summary: public_api_summary(module),
                 is_source_module,
                 is_module_tree_root: is_source_module
                     && is_module_tree_root(&scope.source_paths, &module.report.path),
@@ -260,10 +270,25 @@ fn import_summary(
     known_module_namespace_paths: &BTreeMap<Vec<String>, PathBuf>,
 ) -> RustReasoningImportFacts {
     let mut summary = RustReasoningImportFacts::default();
+    let mut production_external_imports = BTreeSet::<Vec<String>>::new();
     let mut local_owner_imports = BTreeSet::<Vec<String>>::new();
     let mut local_owner_dependencies =
         BTreeMap::<RustReasoningOwnerDependencyKey, RustReasoningOwnerDependencyFacts>::new();
     for use_statement in &module.syntax_facts.use_statements {
+        if !use_statement.context.is_inside_cfg_test_module {
+            production_external_imports.extend(
+                use_statement
+                    .imports
+                    .iter()
+                    .filter(|import| {
+                        matches!(
+                            import.root_kind,
+                            RustUseImportRootKind::External | RustUseImportRootKind::Absolute
+                        )
+                    })
+                    .map(|import| import.segments.clone()),
+            );
+        }
         let mut accumulators = RustReasoningImportAccumulators {
             summary: &mut summary,
             local_owner_imports: &mut local_owner_imports,
@@ -276,8 +301,25 @@ fn import_summary(
             known_module_namespace_paths,
         );
     }
+    summary.production_external_imports = production_external_imports.into_iter().collect();
     summary.local_owner_imports = local_owner_imports.into_iter().collect();
     summary.local_owner_dependencies = local_owner_dependencies.into_values().collect();
+    summary
+}
+
+fn public_api_summary(module: &ParsedRustModule) -> RustReasoningPublicApiFacts {
+    let mut summary = RustReasoningPublicApiFacts::default();
+    for item in &module.syntax_facts.top_level_items {
+        if item.is_public && item.kind != "mod" {
+            summary.public_items += 1;
+        }
+        if item.is_public_use {
+            summary.public_exports += 1;
+        }
+        if item.is_public && item.kind == "fn" {
+            summary.public_functions += 1;
+        }
+    }
     summary
 }
 

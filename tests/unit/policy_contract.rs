@@ -42,8 +42,12 @@ fn crate_is_clean_under_its_own_project_harness() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let mut config = rust_lang_project_harness::default_rust_harness_config();
     config.ignored_dir_names.insert("scenarios".to_string());
-    let report = rust_lang_project_harness::run_rust_project_harness_with_config(&root, &config)
-        .expect("run self harness");
+    let report = rust_lang_project_harness::run_rust_project_harness_with_config_for_scope(
+        &root,
+        &config,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run self harness");
     let rendered = render_rust_project_harness(&report);
 
     assert!(report.is_clean(), "{rendered}");

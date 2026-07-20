@@ -7,13 +7,10 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 
 use crate::RustProjectHarnessScope;
-use crate::discovery::{
-    discover_cargo_package_roots, discover_rust_files, rust_project_harness_scope,
-};
 use crate::model::RustHarnessConfig;
 use crate::parser::{
     CargoDependencyFacts, ParsedRustModule, RustReasoningTreeFacts, parse_cargo_dependency_facts,
-    parse_rust_file, rust_reasoning_tree_facts,
+    rust_reasoning_tree_facts,
 };
 
 pub(super) struct RustVerificationProjectAnalysis {
@@ -22,7 +19,6 @@ pub(super) struct RustVerificationProjectAnalysis {
 }
 
 pub(super) struct RustVerificationPackageAnalysis {
-    pub(super) parsed_modules: Vec<ParsedRustModule>,
     pub(super) reasoning_tree: RustReasoningTreeFacts,
     pub(super) cargo_dependencies: Vec<CargoDependencyFacts>,
     profile: RustVerificationPackageAnalysisProfile,
@@ -216,17 +212,38 @@ pub(super) fn analyze_rust_verification_project(
     config: &RustHarnessConfig,
     cargo_dependency_analysis: RustVerificationCargoDependencyAnalysis,
 ) -> Result<RustVerificationProjectAnalysis, String> {
+    let harness_analysis = crate::runner::analyze_rust_project_once(
+        project_root,
+        config,
+        crate::runner::RustHarnessRunScope::ProjectWorkspace,
+    )?;
+    Ok(analyze_rust_verification_from_harness_analysis(
+        harness_analysis,
+        cargo_dependency_analysis,
+    ))
+}
+
+pub(super) fn analyze_rust_verification_from_harness_analysis(
+    harness_analysis: crate::runner::RustHarnessAnalysis,
+    cargo_dependency_analysis: RustVerificationCargoDependencyAnalysis,
+) -> RustVerificationProjectAnalysis {
     let started_at = Instant::now();
-    if !project_root.exists() {
-        return Err(format!(
-            "project root does not exist: {}",
-            project_root.display()
-        ));
-    }
-    let package_analyses = verification_package_roots(project_root, config)
-        .into_iter()
-        .map(|package_root| {
-            analyze_rust_verification_package(&package_root, config, cargo_dependency_analysis)
+    let package_analyses = harness_analysis
+        .package_analyses
+        .iter()
+        .map(|package| {
+            let cargo_dependencies = match cargo_dependency_analysis {
+                RustVerificationCargoDependencyAnalysis::Skip => Vec::new(),
+                RustVerificationCargoDependencyAnalysis::Parse => {
+                    parse_cargo_dependency_facts(&package.scope.project_root)
+                }
+            };
+            rust_verification_package_analysis_from_parsed(
+                &package.scope,
+                &package.parsed_modules,
+                cargo_dependencies,
+                Instant::now(),
+            )
         })
         .collect::<Vec<_>>();
     let package_profiles = package_analyses
@@ -234,83 +251,35 @@ pub(super) fn analyze_rust_verification_project(
         .map(|analysis| analysis.profile.clone())
         .collect();
     let profile = RustVerificationAnalysisProfile::from_package_profiles(
-        project_root,
+        &harness_analysis.project_root,
         package_profiles,
         elapsed_micros(started_at.elapsed()),
     );
-    Ok(RustVerificationProjectAnalysis {
+    RustVerificationProjectAnalysis {
         package_analyses,
         profile,
-    })
+    }
 }
 
-fn analyze_rust_verification_package(
-    package_root: &Path,
-    config: &RustHarnessConfig,
-    cargo_dependency_analysis: RustVerificationCargoDependencyAnalysis,
+fn rust_verification_package_analysis_from_parsed(
+    scope: &RustProjectHarnessScope,
+    parsed_modules: &[ParsedRustModule],
+    cargo_dependencies: Vec<CargoDependencyFacts>,
+    started_at: Instant,
 ) -> RustVerificationPackageAnalysis {
-    let started_at = Instant::now();
-    let cargo_dependencies = match cargo_dependency_analysis {
-        RustVerificationCargoDependencyAnalysis::Skip => Vec::new(),
-        RustVerificationCargoDependencyAnalysis::Parse => {
-            parse_cargo_dependency_facts(package_root)
-        }
-    };
-    let scope = rust_project_harness_scope(
-        package_root,
-        config.include_tests,
-        &config.source_dir_names,
-        &config.test_dir_names,
-    );
-    let parsed_modules = parse_scope(&scope, config);
-    let reasoning_tree = rust_reasoning_tree_facts(&scope, &parsed_modules);
+    let reasoning_tree = rust_reasoning_tree_facts(scope, parsed_modules);
     let profile = RustVerificationPackageAnalysisProfile::from_analysis(
         &reasoning_tree.package_root,
-        &parsed_modules,
+        parsed_modules,
         &reasoning_tree,
         &cargo_dependencies,
         elapsed_micros(started_at.elapsed()),
     );
     RustVerificationPackageAnalysis {
-        parsed_modules,
         reasoning_tree,
         cargo_dependencies,
         profile,
     }
-}
-
-fn verification_package_roots(project_root: &Path, config: &RustHarnessConfig) -> Vec<PathBuf> {
-    let package_roots = discover_cargo_package_roots(
-        project_root,
-        &config.ignored_dir_names,
-        &config.include_hidden_dir_names,
-    );
-    if should_run_member_scopes(project_root, &package_roots) {
-        package_roots
-    } else {
-        vec![project_root.to_path_buf()]
-    }
-}
-
-fn parse_scope(
-    scope: &RustProjectHarnessScope,
-    config: &RustHarnessConfig,
-) -> Vec<ParsedRustModule> {
-    discover_rust_files(
-        &scope.monitored_paths(),
-        &config.ignored_dir_names,
-        &config.include_hidden_dir_names,
-    )
-    .into_iter()
-    .map(|path| parse_rust_file(&path))
-    .collect()
-}
-
-fn should_run_member_scopes(project_root: &Path, package_roots: &[PathBuf]) -> bool {
-    package_roots.len() > 1
-        || package_roots
-            .first()
-            .is_some_and(|root| root != project_root)
 }
 
 fn elapsed_micros(duration: Duration) -> u64 {

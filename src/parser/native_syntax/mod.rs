@@ -15,6 +15,7 @@ mod path_facts;
 pub(crate) mod process_boundary;
 #[cfg(any(feature = "search", feature = "cli"))]
 pub(crate) mod projection_code;
+mod public_api_callable;
 mod select_cancellation_safety;
 pub(crate) mod signature;
 mod sync_lock_boundary;

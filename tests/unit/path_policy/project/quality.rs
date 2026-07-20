@@ -2,7 +2,8 @@ use std::fs;
 use std::path::Path;
 
 use rust_lang_project_harness::{
-    default_rust_harness_config, run_rust_project_harness, run_rust_project_harness_with_config,
+    default_rust_harness_config, run_rust_project_harness_for_scope,
+    run_rust_project_harness_with_config_for_scope,
 };
 use tempfile::TempDir;
 
@@ -16,7 +17,12 @@ fn weak_advice_allow_explanation_is_flagged() {
     let config = default_rust_harness_config()
         .with_cargo_check_advice_allow_explanation("temporary migration");
 
-    let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
+    let report = run_rust_project_harness_with_config_for_scope(
+        root,
+        &config,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     let findings = findings_for_rule(&report, "RUST-AGENT-PROJECT-017");
     assert_eq!(findings.len(), 1, "{:?}", report.findings);
@@ -40,7 +46,12 @@ fn structured_advice_allow_explanation_is_allowed() {
          cleanup_trigger=remove once strict downstream gate is enabled",
     );
 
-    let report = run_rust_project_harness_with_config(root, &config).expect("run project harness");
+    let report = run_rust_project_harness_with_config_for_scope(
+        root,
+        &config,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         !has_rule(&report, "RUST-AGENT-PROJECT-017"),
@@ -62,7 +73,11 @@ fn fake_cargo_package_identity_fallback_is_flagged() {
     )
     .expect("write lib");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         has_rule(&report, "RUST-AGENT-PROJECT-018"),
@@ -84,7 +99,11 @@ fn redundant_workspace_member_build_gate_alias_is_flagged() {
     )
     .expect("write lib");
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         has_rule(&report, "RUST-AGENT-PROJECT-019"),
@@ -105,7 +124,11 @@ fn silent_evidence_default_is_flagged_in_search_graph_code() {
          fn extract_lineage(_: &str) -> Option<Vec<String>> { None }\n",
     );
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         has_rule(&report, "RUST-AGENT-PROJECT-020"),
@@ -126,7 +149,11 @@ fn source_location_sentinel_is_flagged_in_candidate_code() {
          pub(crate) struct Location { line: usize }\n",
     );
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         has_rule(&report, "RUST-AGENT-PROJECT-021"),
@@ -157,7 +184,11 @@ fn candidate_loop_without_rejection_telemetry_is_flagged() {
          }\n",
     );
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         has_rule(&report, "RUST-AGENT-PROJECT-022"),
@@ -190,7 +221,11 @@ fn candidate_loop_with_rejection_telemetry_is_allowed() {
          }\n",
     );
 
-    let report = run_rust_project_harness(root).expect("run project harness");
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
 
     assert!(
         !has_rule(&report, "RUST-AGENT-PROJECT-022"),

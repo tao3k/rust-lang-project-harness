@@ -81,6 +81,9 @@ fn discover_path(
     if ignore_current && should_ignore(path, ignored_dir_names, include_hidden_dir_names) {
         return;
     }
+    if is_symlink_path(path) {
+        return;
+    }
     if path.is_file() {
         if is_rust_file(path) {
             files.insert(path.to_path_buf());
@@ -102,6 +105,13 @@ fn discover_path(
             true,
         );
     }
+}
+
+pub(crate) fn is_symlink_path(path: &Path) -> bool {
+    matches!(
+        fs::symlink_metadata(path),
+        Ok(metadata) if metadata.file_type().is_symlink()
+    )
 }
 
 fn discover_cargo_manifests(
@@ -175,13 +185,7 @@ fn discover_package_roots_from_manifest(
     let manifest = parse_cargo_manifest(project_root);
     if manifest.workspace_members.is_empty() {
         let mut roots = BTreeSet::from([project_root.to_path_buf()]);
-        insert_path_dependency_roots(
-            project_root,
-            ignored_dir_names,
-            include_hidden_dir_names,
-            &[],
-            &mut roots,
-        );
+        insert_path_dependency_roots(&[], &mut roots);
         return roots.into_iter().collect();
     }
 
@@ -211,23 +215,11 @@ fn discover_package_roots_from_manifest(
             );
         }
     }
-    insert_path_dependency_roots(
-        project_root,
-        ignored_dir_names,
-        include_hidden_dir_names,
-        &excludes,
-        &mut roots,
-    );
+    insert_path_dependency_roots(&excludes, &mut roots);
     roots.into_iter().collect()
 }
 
-fn insert_path_dependency_roots(
-    project_root: &Path,
-    ignored_dir_names: &BTreeSet<String>,
-    include_hidden_dir_names: &BTreeSet<String>,
-    excludes: &[PathBuf],
-    roots: &mut BTreeSet<PathBuf>,
-) {
+fn insert_path_dependency_roots(excludes: &[PathBuf], roots: &mut BTreeSet<PathBuf>) {
     let mut pending = roots.iter().cloned().collect::<Vec<_>>();
     let mut visited = BTreeSet::new();
     while let Some(package_root) = pending.pop() {
@@ -236,18 +228,25 @@ fn insert_path_dependency_roots(
         }
         let manifest = parse_cargo_manifest(&package_root);
         for dependency_root in manifest.path_dependency_roots {
-            if insert_package_root(
-                project_root,
-                ignored_dir_names,
-                include_hidden_dir_names,
-                excludes,
-                roots,
-                dependency_root.clone(),
-            ) {
+            if insert_explicit_path_dependency_root(excludes, roots, dependency_root.clone()) {
                 pending.push(normalize_lexical_path(&dependency_root));
             }
         }
     }
+}
+
+fn insert_explicit_path_dependency_root(
+    excludes: &[PathBuf],
+    roots: &mut BTreeSet<PathBuf>,
+    dependency_root: PathBuf,
+) -> bool {
+    let dependency_root = normalize_lexical_path(&dependency_root);
+    if is_excluded_member(&dependency_root, excludes)
+        || !dependency_root.join("Cargo.toml").is_file()
+    {
+        return false;
+    }
+    roots.insert(dependency_root)
 }
 
 fn insert_package_root(

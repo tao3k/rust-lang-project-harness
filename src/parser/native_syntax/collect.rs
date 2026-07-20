@@ -41,6 +41,11 @@ pub(crate) fn rust_native_syntax_facts(
         .iter()
         .map(|item| top_level_item_syntax(item, source_file))
         .collect();
+    collector.facts.public_api_callables = syntax
+        .items
+        .iter()
+        .flat_map(super::public_api_callable::public_api_callable_syntax)
+        .collect();
     collector.facts.public_struct_fields = syntax
         .items
         .iter()
