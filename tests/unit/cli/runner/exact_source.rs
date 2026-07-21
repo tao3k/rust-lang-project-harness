@@ -1,12 +1,25 @@
-use super::{ExactSelector, module_owner_candidates};
+use super::ExactSelector;
 
 #[test]
 fn exact_selector_rejects_workspace_escape() {
     let error = ExactSelector::parse("rust://../outside.rs#item/struct/Secret")
-        .err()
-        .expect("selector must be rejected");
+        .expect_err("selector must be rejected");
 
     assert!(error.contains("escapes workspace"));
+}
+
+fn module_owner_candidates(owner_path: &str, module: &syn::ItemMod) -> Vec<String> {
+    let module_name = module.ident.to_string();
+    let owner_dir = std::path::Path::new(owner_path)
+        .parent()
+        .expect("owner path has parent");
+    [
+        owner_dir.join(format!("{module_name}.rs")),
+        owner_dir.join(&module_name).join("mod.rs"),
+    ]
+    .into_iter()
+    .map(|path| path.to_string_lossy().replace('\\', "/"))
+    .collect()
 }
 
 #[test]
@@ -36,13 +49,50 @@ fn pinned_workspace_with_sources(
         "rs-harness-exact-source-{case}-{}-{nonce}",
         std::process::id()
     ));
-    for (path, source) in sources {
+    let cas_root = root.join("cas");
+    std::fs::create_dir_all(&cas_root).expect("create test source CAS");
+    let mut owners = Vec::new();
+    for (ordinal, (path, source)) in sources.iter().enumerate() {
         let path = root.join(path);
         std::fs::create_dir_all(path.parent().expect("source path has parent"))
             .expect("create source parent");
         std::fs::write(path, source).expect("write source fixture");
+        let blob_digest = format!("{:064x}", ordinal + 1);
+        let cas_path = format!("{}/{}", &blob_digest[..2], &blob_digest[2..]);
+        let blob_path = cas_root.join(&cas_path);
+        std::fs::create_dir_all(blob_path.parent().expect("test CAS blob parent"))
+            .expect("create test CAS shard");
+        std::fs::write(blob_path, source).expect("write test CAS blob");
+        owners.push(serde_json::json!({
+            "path": sources[ordinal].0,
+            "snapshotLeafDigest": format!("{:064x}", ordinal + 1000),
+            "blobDigest": blob_digest,
+            "casPath": cas_path,
+        }));
     }
-    let pinned = super::PinnedWorkspace::capture(&root).expect("capture pinned workspace");
+    let envelope_path = root.join("source-snapshot-envelope.v1.json");
+    std::fs::write(
+        &envelope_path,
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "schemaId": "asp.exact-source-snapshot-envelope.v1",
+            "schemaVersion": "1",
+            "providerId": "rs-harness-test",
+            "sourceSnapshot": {
+                "schemaId": "asp.source-snapshot.v1",
+                "schemaVersion": "1",
+                "algorithm": "blake3-merkle-v1",
+                "rootDigest": format!("{:064x}", sources.len() + 100),
+                "sourceKind": "filesystem",
+                "leafCount": sources.len(),
+                "providerDigest": format!("{:064x}", 42),
+            },
+            "casRoot": cas_root,
+            "owners": owners,
+        }))
+        .expect("encode test source snapshot envelope"),
+    )
+    .expect("write test source snapshot envelope");
+    let pinned = super::PinnedWorkspace::load(&envelope_path).expect("load pinned workspace");
     (root, pinned)
 }
 

@@ -2,6 +2,7 @@
 
 mod dispatch;
 mod options;
+mod tree_sitter_query;
 
 use dispatch::{AgentOptions, CliOptions, ResolvedCheckTarget};
 

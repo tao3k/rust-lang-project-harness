@@ -77,6 +77,77 @@ fn package_local_semantic_schemas_match_protocol_repository_when_present() {
 }
 
 #[test]
+fn cli_agent_registry_embeds_manifest_query_pack_descriptor() {
+    let temp = TempDir::new().expect("temp dir");
+    let registry = run_cli([
+        "agent".as_ref(),
+        "doctor".as_ref(),
+        "--json".as_ref(),
+        temp.path().as_os_str(),
+    ]);
+    assert!(registry.status.success(), "{registry:?}");
+    let value = serde_json::from_slice::<Value>(&registry.stdout).expect("agent registry json");
+    let descriptor = &value["languages"][0]["queryPackDescriptor"];
+    assert_eq!(descriptor["descriptorId"], "rust.query-pack");
+    assert_eq!(descriptor["descriptorVersion"], "1");
+    assert_eq!(descriptor["languageId"], "rust");
+    let recipe_ids = descriptor["recipes"]
+        .as_array()
+        .expect("query-pack recipes")
+        .iter()
+        .filter_map(|recipe| recipe["recipeId"].as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        recipe_ids,
+        vec![
+            "rust-concurrency-runtime",
+            "rust-resource-lifecycle",
+            "rust-stream-backpressure",
+        ]
+    );
+}
+
+#[test]
+fn cli_agent_registry_advertises_tree_sitter_query_descriptor_and_catalogs() {
+    let temp = TempDir::new().expect("temp dir");
+    let registry = run_cli([
+        "agent".as_ref(),
+        "doctor".as_ref(),
+        "--json".as_ref(),
+        temp.path().as_os_str(),
+    ]);
+    assert!(registry.status.success(), "{registry:?}");
+    let value = serde_json::from_slice::<Value>(&registry.stdout).expect("agent registry json");
+    let descriptors = value["languages"][0]["methodDescriptors"]
+        .as_array()
+        .expect("method descriptors");
+    let query = descriptors
+        .iter()
+        .find(|descriptor| descriptor["method"] == "query")
+        .expect("tree-sitter query descriptor");
+    assert_eq!(
+        query["outputSchemaIds"],
+        serde_json::json!(["agent.semantic-protocols.semantic-tree-sitter-query"])
+    );
+    let catalogs = query["queryCatalogs"].as_array().expect("query catalogs");
+    assert_eq!(catalogs.len(), 5);
+    assert!(catalogs.iter().all(|catalog| {
+        catalog["sourceDelivery"] == "provider-binary-embedded"
+            && catalog["sourceByteLength"]
+                .as_u64()
+                .is_some_and(|len| len > 0)
+    }));
+    let catalog_ids = catalogs
+        .iter()
+        .filter_map(|catalog| catalog["id"].as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        catalog_ids,
+        vec!["declarations", "imports", "calls", "macros", "cfg"]
+    );
+}
+
+#[test]
 fn cli_agent_registry_uses_rust_capability_vocabulary() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();

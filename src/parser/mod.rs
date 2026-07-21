@@ -3,8 +3,6 @@
 mod cargo_dependency_facts;
 mod cargo_manifest;
 mod cargo_test_targets;
-#[cfg(feature = "cli")]
-pub(crate) mod exact_method;
 mod location;
 mod module_tree;
 pub(crate) mod native_syntax;

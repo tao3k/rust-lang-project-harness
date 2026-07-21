@@ -1,6 +1,7 @@
 #![deny(dead_code)]
-
 //! Project-level Rust language harness for policy gates and agent advice.
+#![recursion_limit = "256"]
+
 //!
 //! The crate provides library APIs for scanning Rust projects, returning
 //! deterministic findings, rendering compact diagnostics, and mounting a

@@ -197,6 +197,9 @@ fn run_query(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitC
             Ok(ExitCode::SUCCESS)
         }
         QueryCommand::ExactSource(options) => run_exact_source_query(options),
+        QueryCommand::TreeSitter(options) => {
+            super::tree_sitter_query::run_tree_sitter_query(*options)
+        }
         QueryCommand::Search(options) => {
             let search_options = SearchOptions::from_query(*options);
             run_query_view(&search_options)

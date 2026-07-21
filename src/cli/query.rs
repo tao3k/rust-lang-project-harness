@@ -7,16 +7,29 @@ use super::query_options::{QueryOptions, QuerySearchOptions};
 pub(super) enum QueryCommand {
     Help,
     ExactSource(ExactSourceQuery),
+    TreeSitter(Box<TreeSitterQuery>),
     Search(Box<QuerySearchOptions>),
 }
 
 pub(super) struct ExactSourceQuery {
     pub(crate) selector: String,
-    pub(crate) workspace_root: std::path::PathBuf,
-    pub(crate) source_overlay: Option<std::path::PathBuf>,
+    pub(crate) source_snapshot_envelope: Option<std::path::PathBuf>,
     pub(crate) json: bool,
     pub(crate) code: bool,
     pub(crate) names_only: bool,
+}
+
+pub(super) struct TreeSitterQuery {
+    pub(crate) source: Option<String>,
+    pub(crate) catalog_id: Option<String>,
+    pub(crate) selector: Option<String>,
+    pub(crate) captures: Vec<String>,
+    pub(crate) node_types: Vec<String>,
+    pub(crate) fields: Vec<String>,
+    pub(crate) predicates_json: Option<String>,
+    pub(crate) workspace_root: std::path::PathBuf,
+    pub(crate) json: bool,
+    pub(crate) code: bool,
 }
 
 pub(super) fn query_guide_kind(args: &[OsString]) -> bool {
@@ -26,7 +39,11 @@ pub(super) fn query_guide_kind(args: &[OsString]) -> bool {
 pub(super) fn parse_query(
     args: impl IntoIterator<Item = OsString>,
 ) -> Result<QueryCommand, String> {
-    let (args, source_overlay) = extract_source_overlay(args)?;
+    let args = args.into_iter().collect::<Vec<_>>();
+    if let Some(options) = parse_tree_sitter_query(&args)? {
+        return Ok(QueryCommand::TreeSitter(Box::new(options)));
+    }
+    let (args, source_snapshot_envelope) = extract_source_snapshot_envelope(args)?;
     let options = QueryOptions::parse(args)?;
     if options.help {
         return Ok(QueryCommand::Help);
@@ -46,43 +63,131 @@ pub(super) fn parse_query(
             .ok_or_else(|| "exact source query requires a selector".to_string())?;
         return Ok(QueryCommand::ExactSource(ExactSourceQuery {
             selector,
-            workspace_root: search_options
-                .workspace_root
-                .take()
-                .unwrap_or_else(|| std::path::PathBuf::from(".")),
-            source_overlay,
+            source_snapshot_envelope,
             json: search_options.json,
             code: search_options.item_code,
             names_only: search_options.item_names_only,
         }));
     }
-    if source_overlay.is_some() {
-        return Err("--source-overlay requires an exact source selector".to_string());
+    if source_snapshot_envelope.is_some() {
+        return Err("--source-snapshot-envelope requires an exact source selector".to_string());
     }
     let search_options = options.search_options()?;
     Ok(QueryCommand::Search(Box::new(search_options)))
 }
 
-fn extract_source_overlay(
+fn parse_tree_sitter_query(args: &[OsString]) -> Result<Option<TreeSitterQuery>, String> {
+    let is_tree_sitter_query = args
+        .iter()
+        .any(|argument| matches!(argument.to_str(), Some("--treesitter-query" | "--catalog")));
+    if !is_tree_sitter_query {
+        return Ok(None);
+    }
+    let mut options = TreeSitterQuery {
+        source: None,
+        catalog_id: None,
+        selector: None,
+        captures: Vec::new(),
+        node_types: Vec::new(),
+        fields: Vec::new(),
+        predicates_json: None,
+        workspace_root: std::path::PathBuf::from("."),
+        json: false,
+        code: false,
+    };
+    let mut index = 0;
+    while index < args.len() {
+        let argument = args[index]
+            .to_str()
+            .ok_or_else(|| "tree-sitter query arguments must be UTF-8".to_string())?;
+        match argument {
+            "--treesitter-query" => {
+                options.source = Some(tree_sitter_option_value(args, &mut index, argument)?);
+            }
+            "--catalog" => {
+                options.catalog_id = Some(tree_sitter_option_value(args, &mut index, argument)?);
+            }
+            "--selector" => {
+                options.selector = Some(tree_sitter_option_value(args, &mut index, argument)?);
+            }
+            "--workspace" => {
+                options.workspace_root =
+                    std::path::PathBuf::from(tree_sitter_option_value(args, &mut index, argument)?);
+            }
+            "--asp-syntax-query-captures" => {
+                options.captures = tree_sitter_csv_option(args, &mut index, argument)?;
+            }
+            "--asp-syntax-query-node-types" => {
+                options.node_types = tree_sitter_csv_option(args, &mut index, argument)?;
+            }
+            "--asp-syntax-query-fields" => {
+                options.fields = tree_sitter_csv_option(args, &mut index, argument)?;
+            }
+            "--asp-syntax-query-predicates-json" => {
+                options.predicates_json =
+                    Some(tree_sitter_option_value(args, &mut index, argument)?);
+            }
+            "--json" => options.json = true,
+            "--code" => options.code = true,
+            _ => return Err(format!("unknown tree-sitter query option: {argument}")),
+        }
+        index += 1;
+    }
+    if options.source.is_some() == options.catalog_id.is_some() {
+        return Err(
+            "tree-sitter query requires exactly one of --treesitter-query or --catalog".to_string(),
+        );
+    }
+    if options.code && options.selector.is_none() {
+        return Err("tree-sitter query --code requires an exact --selector".to_string());
+    }
+    Ok(Some(options))
+}
+
+fn tree_sitter_option_value(
+    args: &[OsString],
+    index: &mut usize,
+    option: &str,
+) -> Result<String, String> {
+    *index += 1;
+    args.get(*index)
+        .and_then(|value| value.to_str())
+        .map(ToString::to_string)
+        .ok_or_else(|| format!("{option} requires a UTF-8 value"))
+}
+
+fn tree_sitter_csv_option(
+    args: &[OsString],
+    index: &mut usize,
+    option: &str,
+) -> Result<Vec<String>, String> {
+    Ok(tree_sitter_option_value(args, index, option)?
+        .split(',')
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .collect())
+}
+
+fn extract_source_snapshot_envelope(
     args: impl IntoIterator<Item = OsString>,
 ) -> Result<(Vec<OsString>, Option<std::path::PathBuf>), String> {
     let mut filtered = Vec::new();
-    let mut source_overlay = None;
+    let mut source_snapshot_envelope = None;
     let mut args = args.into_iter();
     while let Some(argument) = args.next() {
-        if argument == "--source-overlay" {
-            if source_overlay.is_some() {
-                return Err("--source-overlay may be supplied only once".to_string());
+        if argument == "--source-snapshot-envelope" {
+            if source_snapshot_envelope.is_some() {
+                return Err("--source-snapshot-envelope may be supplied only once".to_string());
             }
-            let path = args
-                .next()
-                .ok_or_else(|| "--source-overlay requires a JSON file path".to_string())?;
-            source_overlay = Some(std::path::PathBuf::from(path));
+            let path = args.next().ok_or_else(|| {
+                "--source-snapshot-envelope requires a JSON file path".to_string()
+            })?;
+            source_snapshot_envelope = Some(std::path::PathBuf::from(path));
         } else {
             filtered.push(argument);
         }
     }
-    Ok((filtered, source_overlay))
+    Ok((filtered, source_snapshot_envelope))
 }
 
 fn is_exact_direct_source_selector(selector: &str) -> bool {
@@ -136,9 +241,9 @@ pub(super) fn print_query_guide() {
 
 pub(super) fn print_query_help() {
     println!(
-        "rs-harness query <owner-path> [items tests] [--query SYMBOL] [--names-only | --code] [--workspace WORKSPACE] [--source-overlay JSON-FILE]\n\
+        "rs-harness query <owner-path> [items tests] [--query SYMBOL] [--names-only | --code] [--workspace WORKSPACE] [--source-snapshot-envelope JSON-FILE]\n\
 rs-harness query --catalog flow-lite --where 'source.call=NAME sink.constructs=TYPE scope.fn=FUNCTION' [<workspace-root>] [--json] [--workspace WORKSPACE]\n\
-rs-harness query --from-hook direct-source-read --selector 'rust://OWNER#item/KIND/NAME' [--workspace WORKSPACE] [--source-overlay JSON-FILE] --code\n\
+rs-harness query --from-hook direct-source-read --selector 'rust://OWNER#item/KIND/NAME' [--workspace WORKSPACE] [--source-snapshot-envelope JSON-FILE] --code\n\
 rs-harness query --from-hook KIND --selector SELECTOR [--query SYMBOL | --term TERM] [--names-only | --code] [--workspace WORKSPACE]\n\
 rs-harness search dependency <crate-or-package> [items docs-use tests] [--view seeds] [--workspace WORKSPACE]\n\
 rs-harness search guide [--workspace WORKSPACE]\n\n\
@@ -149,7 +254,7 @@ Flow-lite native relation queries emit compact locator/provenance frontiers or s
 Glob or broad selectors without terms route to search prime --view seeds.\n\
 Owner item queries emit |query status=hit|miss match=exact|fallback-contains|none.\n\
 Use --workspace WORKSPACE when the selector is workspace-relative; owner and direct-source query forms never accept a trailing workspace root.\n\
-Use --source-overlay JSON-FILE with an exact selector to derive an editor-buffer Merkle root from asp.source-overlay.v1.\n\
+Use --source-snapshot-envelope JSON-FILE with an exact selector to derive an editor-buffer Merkle root from asp.exact-source-snapshot-envelope.v1.\n\
 Flow-lite query forms accept one positional workspace root for ABI corpus compatibility.\n\
 Use --code only with an exact structural selector or a unique owner/symbol match to emit compact parser-owned code."
     );
