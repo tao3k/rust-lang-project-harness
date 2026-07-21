@@ -202,6 +202,12 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "supportsJson": false
         }),
     ]);
+    for descriptor in &mut method_descriptors {
+        let invocation = method_invocation(descriptor);
+        if let Value::Object(fields) = descriptor {
+            fields.insert("invocation".to_string(), invocation);
+        }
+    }
 
     json!({
         "registryId": "agent.semantic-protocols.semantic-language-registry",
@@ -252,6 +258,67 @@ fn agent_registry_json(project_root: &Path) -> Value {
                 { "path": "schemas/rust-semantic-capabilities.v1.schema.json", "schemaId": "agent.semantic-protocols.languages.rust.rs-harness.capabilities", "schemaVersion": "1" }
             ]
         }]
+    })
+}
+
+fn method_invocation(descriptor: &Value) -> Value {
+    let method = descriptor
+        .get("method")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let command = descriptor
+        .get("command")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let mut argv = vec!["rs-harness".to_string()];
+    if let Some(args) = descriptor
+        .get("benchmarkInvocation")
+        .and_then(|benchmark| benchmark.get("args"))
+        .and_then(Value::as_array)
+    {
+        argv.extend(args.iter().filter_map(Value::as_str).map(str::to_string));
+    } else {
+        match method {
+            "query/owner-items" => argv.extend([
+                "query".to_string(),
+                "--from-hook".to_string(),
+                "item-skeleton".to_string(),
+                "--selector".to_string(),
+                "{selector}".to_string(),
+                "--term".to_string(),
+                "{query}".to_string(),
+                "--workspace".to_string(),
+                "{workspace}".to_string(),
+            ]),
+            "query/direct-source-read" => argv.extend([
+                "query".to_string(),
+                "--from-hook".to_string(),
+                "direct-source-read".to_string(),
+                "--selector".to_string(),
+                "{selector}".to_string(),
+                "--workspace".to_string(),
+                "{workspace}".to_string(),
+            ]),
+            _ => {
+                argv.push(command.to_string());
+                if let Some((_, action)) = method.split_once('/') {
+                    argv.push(action.to_string());
+                }
+            }
+        }
+    }
+    let stdin_mode = if descriptor
+        .get("acceptsStdin")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        "pipe-candidates"
+    } else {
+        "none"
+    };
+    json!({
+        "argv": argv,
+        "stdinMode": stdin_mode,
     })
 }
 

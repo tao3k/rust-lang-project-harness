@@ -92,6 +92,24 @@ fn cli_agent_registry_uses_rust_capability_vocabulary() {
     let methods = value["languages"][0]["methodDescriptors"]
         .as_array()
         .expect("method descriptors");
+    for descriptor in methods {
+        let method = descriptor["method"].as_str().expect("method name");
+        let invocation = &descriptor["invocation"];
+        let argv = invocation["argv"].as_array().expect("invocation argv");
+        assert_eq!(
+            argv.first().and_then(Value::as_str),
+            Some("rs-harness"),
+            "{method}: {invocation}"
+        );
+        assert!(argv.len() >= 2, "{method}: {invocation}");
+        assert!(
+            matches!(
+                invocation["stdinMode"].as_str(),
+                Some("none" | "pipe-candidates")
+            ),
+            "{method}: {invocation}"
+        );
+    }
     assert!(
         methods
             .iter()
