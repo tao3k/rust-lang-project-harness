@@ -77,6 +77,17 @@ fn package_local_semantic_schemas_match_protocol_repository_when_present() {
 }
 
 #[test]
+fn provider_manifest_declares_exact_source_snapshot_envelope_schema() {
+    let manifest = read_json(&package_root().join("provider/asp-provider-manifest.json"));
+    let descriptor = &manifest["searchCapabilities"]["sourceSnapshot"];
+    assert_eq!(descriptor["descriptorId"], "rust.source-snapshot");
+    assert_eq!(
+        descriptor["sourceOverlaySchemaId"],
+        "asp.exact-source-snapshot-envelope.v1"
+    );
+}
+
+#[test]
 fn cli_agent_registry_embeds_manifest_query_pack_descriptor() {
     let temp = TempDir::new().expect("temp dir");
     let registry = run_cli([
