@@ -44,6 +44,85 @@ pub(super) fn render_query_local_item_code(
     }
 }
 
+pub(super) fn render_query_local_exact_item_code(
+    project_root: &Path,
+    selector: &str,
+    item_kind: &str,
+    item_query: &str,
+    source_version: QuerySourceVersion,
+) -> Result<Option<String>, String> {
+    if source_version != QuerySourceVersion::Worktree || item_query.contains('|') {
+        return Ok(None);
+    }
+    let path = strip_query_local_window_selector_prefix(selector.trim());
+    if path.is_empty() || parse_query_local_window_selector(path).is_some() {
+        return Ok(None);
+    }
+    let source_path = query_source_path(project_root, path);
+    if !source_path.is_file() {
+        return Ok(None);
+    }
+    if item_kind != "method" {
+        let parsed = parse_rust_file(&source_path);
+        let Some(item) = parsed.syntax_facts.top_level_items.iter().find(|item| {
+            query_local_item_matches(item, item_query)
+                && exact_item_kind_matches(item.kind, item_kind)
+        }) else {
+            return Ok(None);
+        };
+        let source = read_query_source_text(project_root, path, &source_path, source_version)?;
+        let rendered = source_line_window(&source, item.line, item.end_line);
+        return if rendered.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(rendered))
+        };
+    }
+
+    let source = read_query_source_text(project_root, path, &source_path, source_version)?;
+    let (impl_qualifier, method_name) = item_query
+        .rsplit_once("::")
+        .map_or((None, item_query), |(owner, method)| (Some(owner), method));
+    let matches = crate::parser::exact_method::parse_rust_exact_methods(&source, method_name)
+        .map_err(|error| format!("failed to parse exact source owner {path}: {error}"))?
+        .into_iter()
+        .filter(|method| impl_qualifier.is_none_or(|qualifier| method.impl_owner == qualifier))
+        .map(|method| (method.impl_owner, method.start_line, method.end_line))
+        .collect::<Vec<_>>();
+    if matches.len() > 1 {
+        let owners = matches
+            .iter()
+            .map(|(owner, _, _)| owner.as_str())
+            .collect::<Vec<_>>()
+            .join(",");
+        return Err(format!(
+            "exact source method `{item_query}` is ambiguous in `{path}`; implOwners={owners}; use #item/method/<ImplType>::{method_name}"
+        ));
+    }
+    let Some((_, start_line, end_line)) = matches.into_iter().next() else {
+        return Ok(None);
+    };
+    let rendered = source_line_window(&source, start_line, end_line);
+    if rendered.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(rendered))
+    }
+}
+
+fn exact_item_kind_matches(actual: &str, requested: &str) -> bool {
+    actual == requested
+        || matches!(
+            (actual, requested),
+            ("fn", "function")
+                | ("function", "fn")
+                | ("mod", "module")
+                | ("module", "mod")
+                | ("use", "reexport")
+                | ("import", "reexport")
+        )
+}
+
 pub(super) fn render_query_local_item_frontier(
     project_root: &Path,
     selector: &str,

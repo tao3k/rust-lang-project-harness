@@ -1,5 +1,6 @@
 mod compact;
 mod compact_descriptor;
+mod exact_method;
 mod flow_lite;
 mod guide;
 mod hook;

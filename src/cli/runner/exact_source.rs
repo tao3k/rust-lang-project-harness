@@ -1,7 +1,7 @@
 use std::process::ExitCode;
 
+use crate::cli::QuerySourceVersion;
 use crate::cli::query::ExactSourceQuery;
-use crate::cli::{QuerySourceVersion, render_query_local_item_code};
 
 pub(super) fn run_exact_source_query(options: ExactSourceQuery) -> Result<ExitCode, String> {
     if let Some(source_overlay) = options.source_overlay {
@@ -11,9 +11,10 @@ pub(super) fn run_exact_source_query(options: ExactSourceQuery) -> Result<ExitCo
         ));
     }
     let (owner_path, item_kind, item_name) = parse_exact_source_selector(&options.selector)?;
-    let code = render_query_local_item_code(
+    let code = crate::cli::query_window::render_query_local_exact_item_code(
         &options.workspace_root,
         owner_path,
+        item_kind,
         item_name,
         QuerySourceVersion::Worktree,
     )?
