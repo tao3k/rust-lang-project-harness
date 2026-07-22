@@ -48,6 +48,38 @@ fn source_test_policy_does_not_treat_latest_feature_as_cfg_test() {
 }
 
 #[test]
+fn source_test_policy_accepts_nested_external_path_mounted_unit_test() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    write_manifest(root, "external-path-mounted-source-test");
+    fs::create_dir_all(root.join("tests/unit/db/engine")).expect("create tests/unit/db/engine");
+    fs::create_dir_all(root.join("src/engine")).expect("create src/engine");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\nmod engine;\n").expect("write lib");
+    fs::write(
+        root.join("src/engine/mod.rs"),
+        "#[cfg(test)]\n#[path = \"../../tests/unit/db/engine/private.rs\"]\nmod private_tests;\n",
+    )
+    .expect("write nested source owner");
+    fs::write(
+        root.join("tests/unit/db/engine/private.rs"),
+        "#[test]\nfn private_contract() {}\n",
+    )
+    .expect("write external unit test");
+
+    let report = run_rust_project_harness_for_scope(
+        root,
+        rust_lang_project_harness::RustHarnessRunScope::Package,
+    )
+    .expect("run project harness");
+
+    assert!(
+        !has_rule(&report, "RUST-AGENT-PROJECT-003"),
+        "{:?}",
+        report.findings
+    );
+}
+
+#[test]
 fn root_test_target_accepts_embedded_cargo_test_gate_macro() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();

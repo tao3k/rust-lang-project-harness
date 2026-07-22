@@ -14,6 +14,70 @@ pub(super) fn print_agent_registry(project_root: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn rust_query_pack_descriptor() -> Value {
+    let manifest: Value =
+        serde_json::from_str(include_str!("../../provider/asp-provider-manifest.json"))
+            .expect("embedded Rust provider manifest must be valid JSON");
+    manifest["queryPackDescriptor"].clone()
+}
+
+fn rust_tree_sitter_query_catalogs() -> Vec<Value> {
+    const EMBEDDED_QUERY_SOURCES: [(&str, &str); 5] = [
+        (
+            "declarations",
+            include_str!("../../tree-sitter/tree-sitter-rust/queries/declarations.scm"),
+        ),
+        (
+            "imports",
+            include_str!("../../tree-sitter/tree-sitter-rust/queries/imports.scm"),
+        ),
+        (
+            "calls",
+            include_str!("../../tree-sitter/tree-sitter-rust/queries/calls.scm"),
+        ),
+        (
+            "macros",
+            include_str!("../../tree-sitter/tree-sitter-rust/queries/macros.scm"),
+        ),
+        (
+            "cfg",
+            include_str!("../../tree-sitter/tree-sitter-rust/queries/cfg.scm"),
+        ),
+    ];
+    let profile: Value = serde_json::from_str(include_str!(
+        "../../tree-sitter/tree-sitter-rust/grammar-profile.json"
+    ))
+    .expect("embedded Rust grammar profile must be valid JSON");
+    profile["catalogs"]
+        .as_array()
+        .expect("embedded Rust grammar profile must declare catalogs")
+        .iter()
+        .map(|catalog| {
+            let mut descriptor = catalog.clone();
+            let catalog_id = descriptor["id"]
+                .as_str()
+                .expect("embedded Rust query catalog must declare an id");
+            let source = EMBEDDED_QUERY_SOURCES
+                .iter()
+                .find_map(|(id, source)| (*id == catalog_id).then_some(*source))
+                .expect("every Rust query catalog must have an embedded source");
+            assert!(
+                !source.trim().is_empty(),
+                "embedded Rust query source is empty"
+            );
+            let fields = descriptor
+                .as_object_mut()
+                .expect("embedded Rust query catalog must be an object");
+            fields.insert(
+                "sourceDelivery".to_string(),
+                Value::String("provider-binary-embedded".to_string()),
+            );
+            fields.insert("sourceByteLength".to_string(), json!(source.len()));
+            descriptor
+        })
+        .collect()
+}
+
 fn agent_registry_json(project_root: &Path) -> Value {
     let search_methods = [
         "workspace",
@@ -69,6 +133,32 @@ fn agent_registry_json(project_root: &Path) -> Value {
         .map(|view| search_method_descriptor(view))
         .collect::<Vec<_>>();
     method_descriptors.extend([
+        json!({
+            "method": "query",
+            "command": "query",
+            "input": "catalog-id",
+            "requiredOptions": ["--catalog|--treesitter-query"],
+            "outputSchemaIds": ["agent.semantic-protocols.semantic-tree-sitter-query"],
+            "packetSchemas": ["semantic-tree-sitter-query.v1"],
+            "supportsJson": true,
+            "supportsCompact": true,
+            "outputModes": ["frontier", "json", "code"],
+            "queryInputForms": ["selector", "code-shaped", "catalog-id", "s-expression"],
+            "grammarId": "tree-sitter-rust",
+            "grammarProfileVersion": "2026-06-04.v1",
+            "grammarProfileSchema": "semantic-tree-sitter-grammar-profile.v1",
+            "grammarProfilePath": "tree-sitter/tree-sitter-rust/grammar-profile.json",
+            "adapterModes": ["native-projection"],
+            "sourceAuthorities": ["native-parser-adapter", "native-parser"],
+            "executionBackends": ["native-parser"],
+            "renderProfiles": ["compact-graph-frontier"],
+            "queryCatalogs": rust_tree_sitter_query_catalogs(),
+            "supportedPredicates": ["#eq?", "#any-eq?", "#any-of?", "#match?", "#any-match?", "#not-eq?", "#not-match?"],
+            "unsupportedPredicates": [],
+            "cacheReplay": false,
+            "codeOutput": { "mode": "pure-code", "multiMatch": "deny", "requires": ["exact-selector", "unique-predicate"] },
+            "unsupportedPatternBehavior": "diagnostic"
+        }),
         json!({
             "acceptedQuerySetSelectors": ["exact-set"],
             "cacheReplay": true,
@@ -202,6 +292,12 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "supportsJson": false
         }),
     ]);
+    for descriptor in &mut method_descriptors {
+        let invocation = method_invocation(descriptor);
+        if let Value::Object(fields) = descriptor {
+            fields.insert("invocation".to_string(), invocation);
+        }
+    }
 
     json!({
         "registryId": "agent.semantic-protocols.semantic-language-registry",
@@ -217,6 +313,7 @@ fn agent_registry_json(project_root: &Path) -> Value {
             "displayName": "Rust Harness",
             "methods": methods,
             "methodDescriptors": method_descriptors,
+            "queryPackDescriptor": rust_query_pack_descriptor(),
             "schemas": [
                 { "path": "schemas/semantic-language-registry.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-language-registry", "schemaVersion": "1" },
                 { "path": "schemas/semantic-search-packet.v1.schema.json", "schemaId": "agent.semantic-protocols.semantic-search-packet", "schemaVersion": "1" },
@@ -252,6 +349,67 @@ fn agent_registry_json(project_root: &Path) -> Value {
                 { "path": "schemas/rust-semantic-capabilities.v1.schema.json", "schemaId": "agent.semantic-protocols.languages.rust.rs-harness.capabilities", "schemaVersion": "1" }
             ]
         }]
+    })
+}
+
+fn method_invocation(descriptor: &Value) -> Value {
+    let method = descriptor
+        .get("method")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let command = descriptor
+        .get("command")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let mut argv = vec!["rs-harness".to_string()];
+    if let Some(args) = descriptor
+        .get("benchmarkInvocation")
+        .and_then(|benchmark| benchmark.get("args"))
+        .and_then(Value::as_array)
+    {
+        argv.extend(args.iter().filter_map(Value::as_str).map(str::to_string));
+    } else {
+        match method {
+            "query/owner-items" => argv.extend([
+                "query".to_string(),
+                "--from-hook".to_string(),
+                "item-skeleton".to_string(),
+                "--selector".to_string(),
+                "{selector}".to_string(),
+                "--term".to_string(),
+                "{query}".to_string(),
+                "--workspace".to_string(),
+                "{workspace}".to_string(),
+            ]),
+            "query/direct-source-read" => argv.extend([
+                "query".to_string(),
+                "--from-hook".to_string(),
+                "direct-source-read".to_string(),
+                "--selector".to_string(),
+                "{selector}".to_string(),
+                "--workspace".to_string(),
+                "{workspace}".to_string(),
+            ]),
+            _ => {
+                argv.push(command.to_string());
+                if let Some((_, action)) = method.split_once('/') {
+                    argv.push(action.to_string());
+                }
+            }
+        }
+    }
+    let stdin_mode = if descriptor
+        .get("acceptsStdin")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        "pipe-candidates"
+    } else {
+        "none"
+    };
+    json!({
+        "argv": argv,
+        "stdinMode": stdin_mode,
     })
 }
 
@@ -291,7 +449,7 @@ fn search_method_descriptor(view: &str) -> Value {
         fields.insert("executionBackends".to_string(), json!(["native-parser"]));
         fields.insert(
             "packetSchemas".to_string(),
-            json!(["semantic-search-packet.v1", "semantic-tree-sitter-query.v1"]),
+            json!(["semantic-search-packet.v1"]),
         );
     }
     if view == "semantic-facts" {

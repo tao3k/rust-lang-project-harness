@@ -25,12 +25,6 @@ mod search_plan;
 #[cfg(feature = "search")]
 mod search_trace;
 #[cfg(feature = "search")]
-mod semantic_query_json;
-#[cfg(feature = "search")]
-mod semantic_query_projection;
-#[cfg(feature = "search")]
-mod semantic_read_json;
-#[cfg(feature = "search")]
 mod semantic_search_json;
 #[cfg(feature = "search")]
 mod semantic_search_json_canonical;
@@ -55,11 +49,8 @@ pub(in crate::cli) use language_projection::run_language_projection;
 pub(in crate::cli) use query::{
     QueryCommand, parse_query, print_query_guide, print_query_help, query_guide_kind,
 };
-pub(in crate::cli) use query_options::QuerySearchOptions;
 pub(in crate::cli) use query_source::QuerySourceVersion;
-pub(in crate::cli) use query_window::{
-    render_query_local_item_code, render_query_local_item_frontier, render_query_local_window,
-};
+pub(in crate::cli) use query_window::render_query_local_item_frontier;
 pub(in crate::cli) use review_packet::run_review;
 pub(in crate::cli) use runner_support::{
     discover_rust_project_root, is_command, is_known_search_view, is_search_pipe,
@@ -76,10 +67,6 @@ pub(in crate::cli) use search_output::{
 pub(in crate::cli) use search_plan::{SearchPlanOptions, render_search_plan};
 #[cfg(feature = "search")]
 pub(in crate::cli) use search_trace::{SearchTraceOptions, render_search_trace};
-#[cfg(feature = "search")]
-pub(in crate::cli) use semantic_query_json::{SemanticQueryJsonOptions, render_query_json};
-#[cfg(feature = "search")]
-pub(in crate::cli) use semantic_read_json::{SemanticReadJsonOptions, render_read_json};
 #[cfg(feature = "search")]
 pub(in crate::cli) use semantic_search_json::{SemanticSearchJsonOptions, render_search_json};
 #[cfg(feature = "search")]
