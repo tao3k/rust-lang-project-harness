@@ -22,6 +22,10 @@
       "rs-harness"
     ],
     "workingDirectory": "languages/rust-lang-project-harness",
+    "sourceSnapshotAnchors": [
+      "languages/rust-lang-project-harness/Cargo.toml",
+      "languages/rust-lang-project-harness/Cargo.lock"
+    ],
     "derivedPaths": [
       "languages/rust-lang-project-harness/target"
     ],

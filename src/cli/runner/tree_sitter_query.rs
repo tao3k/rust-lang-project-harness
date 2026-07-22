@@ -57,6 +57,56 @@ pub(super) fn run_tree_sitter_query(options: TreeSitterQuery) -> Result<ExitCode
         if rendered.is_empty() {
             return Err("tree-sitter query selected an empty source window".to_string());
         }
+        if options.json {
+            let provider_id = options
+                .provider_id
+                .as_deref()
+                .ok_or_else(|| "missing typed provider identity".to_string())?;
+            let parser_identity_digest = canonical_digest_argument(
+                options.parser_identity_digest.as_deref(),
+                "parser identity",
+            )?;
+            let query_pack_digest = canonical_digest_argument(
+                options.query_pack_digest.as_deref(),
+                "query-pack identity",
+            )?;
+            let normalized_parser_facts = serde_json::to_vec(&json!({
+                "kind": item.kind,
+                "name": item.name,
+                "ownerPath": owner_path,
+                "selector": selector,
+                "startLine": item.line,
+                "endLine": item.end_line,
+            }))
+            .map_err(|error| format!("failed to encode normalized parser facts: {error}"))?;
+            let parser_identity_digest =
+                agent_semantic_content_identity::exact_selector_merkle::parse_content_digest_v1(
+                    parser_identity_digest,
+                )?;
+            let query_pack_digest =
+                agent_semantic_content_identity::exact_selector_merkle::parse_content_digest_v1(
+                    query_pack_digest,
+                )?;
+            let packet = agent_semantic_content_identity::exact_selector_projection_packet::build_exact_selector_projection_packet_v1(
+                "rust",
+                provider_id,
+                &parser_identity_digest,
+                &query_pack_digest,
+                owner_path,
+                selector,
+                agent_semantic_content_identity::exact_selector_merkle::ExactProjectionModeV1::Code,
+                parsed.source.as_bytes(),
+                &normalized_parser_facts,
+                rendered.as_bytes(),
+            );
+            println!(
+                "{}",
+                serde_json::to_string(&packet).map_err(|error| {
+                    format!("failed to render exact-selector projection packet: {error}")
+                })?
+            );
+            return Ok(ExitCode::SUCCESS);
+        }
         print!("{rendered}");
         return Ok(ExitCode::SUCCESS);
     }
@@ -101,6 +151,18 @@ pub(super) fn run_tree_sitter_query(options: TreeSitterQuery) -> Result<ExitCode
         );
     }
     Ok(ExitCode::SUCCESS)
+}
+
+fn canonical_digest_argument<'a>(digest: Option<&'a str>, label: &str) -> Result<&'a str, String> {
+    let digest = digest.ok_or_else(|| format!("missing {label} digest"))?;
+    if digest.len() != 64
+        || !digest
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+    {
+        return Err(format!("invalid {label} digest"));
+    }
+    Ok(digest)
 }
 
 struct NativeFunctionQueryPlan {
@@ -235,30 +297,5 @@ fn source_line_window(source: &str, start_line: usize, end_line: usize) -> Strin
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{exact_owner_path, inline_eq_predicate, predicate_function_name};
-
-    #[test]
-    fn predicate_plan_extracts_exact_function_name() {
-        let predicate = r#"[{"capture":"function.name","op":"eq","values":[{"kind":"string","value":"parse_query"}]}]"#;
-        assert_eq!(
-            predicate_function_name(predicate).expect("parse predicate"),
-            Some("parse_query".to_string())
-        );
-        assert_eq!(
-            inline_eq_predicate(r#"(#eq? @function.name "parse_query")"#),
-            Some("parse_query".to_string())
-        );
-    }
-
-    #[test]
-    fn selector_must_remain_workspace_relative() {
-        assert_eq!(
-            exact_owner_path("rust://src/cli/query.rs#item/function/parse_query")
-                .expect("canonical selector"),
-            "src/cli/query.rs"
-        );
-        assert!(exact_owner_path("../outside.rs").is_err());
-        assert!(exact_owner_path("/absolute.rs").is_err());
-    }
-}
+#[path = "../../../tests/unit/cli/runner/tree_sitter_query.rs"]
+mod tests;

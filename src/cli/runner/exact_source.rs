@@ -22,7 +22,6 @@ pub(super) fn run_exact_source_query(options: ExactSourceQuery) -> Result<ExitCo
             RelocationOutcome::Resolved(resolved) => (resolved, "live-relocated"),
             RelocationOutcome::Ambiguous(candidates) => {
                 return exact_source_failure(
-                    &options,
                     &selector,
                     &pinned,
                     "ambiguous",
@@ -33,7 +32,6 @@ pub(super) fn run_exact_source_query(options: ExactSourceQuery) -> Result<ExitCo
             }
             RelocationOutcome::KindMismatch(actual_kinds) => {
                 return exact_source_failure(
-                    &options,
                     &selector,
                     &pinned,
                     "kind-mismatch",
@@ -54,7 +52,6 @@ pub(super) fn run_exact_source_query(options: ExactSourceQuery) -> Result<ExitCo
                     "owner-not-in-snapshot"
                 };
                 return exact_source_failure(
-                    &options,
                     &selector,
                     &pinned,
                     state,
@@ -68,36 +65,58 @@ pub(super) fn run_exact_source_query(options: ExactSourceQuery) -> Result<ExitCo
     let code = resolved.code.trim_end_matches('\n').to_string();
 
     if options.json {
-        let packet = serde_json::json!({
-            "schemaId": "asp.exact-source-query-result.v1",
-            "schemaVersion": "1",
-            "selector": options.selector,
-            "resolvedSelector": resolved.selector,
-            "resolvedOwnerPath": resolved.owner_path,
+        let provider_id = options
+            .provider_id
+            .as_deref()
+            .ok_or_else(|| "exact source projection requires --asp-provider-id".to_string())?;
+        if provider_id != pinned.provider_id {
+            return Err(format!(
+                "exact source projection provider mismatch: expected={} actual={provider_id}",
+                pinned.provider_id
+            ));
+        }
+        let parser_identity_digest =
+            agent_semantic_content_identity::exact_selector_merkle::parse_content_digest_v1(
+                options.parser_identity_digest.as_deref().ok_or_else(|| {
+                    "exact source projection requires --asp-parser-identity-digest".to_string()
+                })?,
+            )?;
+        let query_pack_digest =
+            agent_semantic_content_identity::exact_selector_merkle::parse_content_digest_v1(
+                options.query_pack_digest.as_deref().ok_or_else(|| {
+                    "exact source projection requires --asp-query-pack-digest".to_string()
+                })?,
+            )?;
+        let source = pinned.sources.get(&resolved.owner_path).ok_or_else(|| {
+            format!(
+                "exact source projection resolved an owner outside the pinned snapshot: {}",
+                resolved.owner_path
+            )
+        })?;
+        let normalized_parser_facts = serde_json::to_vec(&serde_json::json!({
             "itemKind": resolved.item_kind,
             "itemName": resolved.item_name,
-            "code": code,
-            "sourceSnapshot": {
-                "schemaId": "asp.source-snapshot.v1",
-                "algorithm": "blake3-merkle-v1",
-                "rootDigest": pinned.root_digest,
-                "sourceKind": "filesystem",
-                "leafCount": pinned.leaf_count,
-                "providerDigest": pinned.provider_digest,
-            },
-            "resolutionEvidence": {
-                "schemaId": "asp.source-resolution.v1",
-                "state": state,
-                "authority": "live-parser",
-                "ownerBlobDigest": resolved.owner_blob_digest,
-                "parserArtifactDigest": resolved.parser_artifact_digest,
-                "snapshotRoot": pinned.root_digest,
-            },
-        });
+            "ownerPath": resolved.owner_path,
+            "resolvedSelector": resolved.selector,
+            "resolutionState": state,
+        }))
+        .map_err(|error| format!("serialize exact source parser facts: {error}"))?;
+        let packet = agent_semantic_content_identity::exact_selector_projection_packet::build_exact_selector_projection_packet_v1(
+            "rust",
+            provider_id,
+            &parser_identity_digest,
+            &query_pack_digest,
+            &resolved.owner_path,
+            &options.selector,
+            agent_semantic_content_identity::exact_selector_merkle::ExactProjectionModeV1::Code,
+            source.source.as_bytes(),
+            &normalized_parser_facts,
+            code.as_bytes(),
+        );
         println!(
             "{}",
-            serde_json::to_string_pretty(&packet)
-                .map_err(|error| format!("serialize exact source query packet: {error}"))?
+            serde_json::to_string(&packet)
+                .map_err(|error| format!("serialize exact source projection packet: {error}"))?
         );
     } else if options.names_only {
         println!("{}", resolved.item_name);
@@ -186,9 +205,8 @@ struct PinnedSource {
 
 #[derive(Clone, Debug)]
 struct PinnedWorkspace {
+    provider_id: String,
     root_digest: String,
-    leaf_count: usize,
-    provider_digest: String,
     sources: std::collections::BTreeMap<String, PinnedSource>,
 }
 
@@ -292,9 +310,8 @@ impl PinnedWorkspace {
             ));
         }
         Ok(Self {
+            provider_id: envelope.provider_id,
             root_digest: envelope.source_snapshot.root_digest,
-            leaf_count: envelope.source_snapshot.leaf_count,
-            provider_digest: envelope.source_snapshot.provider_digest,
             sources,
         })
     }
@@ -638,7 +655,6 @@ fn exact_item_name_matches(item: &ParseArtifactItem, requested: &str) -> bool {
 }
 
 fn exact_source_failure(
-    options: &ExactSourceQuery,
     selector: &ExactSelector,
     pinned: &PinnedWorkspace,
     state: &str,
@@ -646,37 +662,6 @@ fn exact_source_failure(
     candidates: Vec<String>,
     actual_kinds: Vec<String>,
 ) -> Result<ExitCode, String> {
-    if options.json {
-        let packet = serde_json::json!({
-            "schemaId": "asp.exact-source-query-result.v1",
-            "schemaVersion": "1",
-            "selector": options.selector,
-            "sourceSnapshot": {
-                "schemaId": "asp.source-snapshot.v1",
-                "algorithm": "blake3-merkle-v1",
-                "rootDigest": pinned.root_digest,
-                "sourceKind": "filesystem",
-                "leafCount": pinned.leaf_count,
-                "providerDigest": pinned.provider_digest,
-            },
-            "resolutionEvidence": {
-                "schemaId": "asp.source-resolution.v1",
-                "state": state,
-                "authority": "live-parser",
-                "snapshotRoot": pinned.root_digest,
-                "ownerPath": selector.owner_path,
-                "reasonKind": reason_kind,
-                "candidates": candidates,
-                "actualKinds": actual_kinds,
-            },
-        });
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&packet)
-                .map_err(|error| format!("serialize exact source failure packet: {error}"))?
-        );
-        return Ok(ExitCode::from(2));
-    }
     Err(format!(
         "exact source query state={state} reasonKind={reason_kind} rootDigest={} ownerPath={} itemKind={} itemName={} candidates={} actualKinds={}",
         pinned.root_digest,

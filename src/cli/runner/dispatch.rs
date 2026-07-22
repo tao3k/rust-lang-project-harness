@@ -10,11 +10,10 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use crate::cli::{
-    QueryCommand, QuerySearchOptions, QuerySourceVersion, discover_rust_project_root, is_command,
-    is_known_search_view, is_search_pipe, parse_query, parse_usize_option, print_agent_doctor,
-    print_agent_help, print_agent_registry, print_check_help, print_guide, print_help,
-    print_query_guide, print_query_help, print_search_help, query_guide_kind,
-    render_query_local_item_code, render_query_local_item_frontier, render_query_local_window,
+    QueryCommand, QuerySourceVersion, discover_rust_project_root, is_command, is_known_search_view,
+    is_search_pipe, parse_query, parse_usize_option, print_agent_doctor, print_agent_help,
+    print_agent_registry, print_check_help, print_guide, print_help, print_query_guide,
+    print_query_help, print_search_help, query_guide_kind, render_query_local_item_frontier,
     run_flow_lite_query_catalog, rust_package_root_for_path, rust_project_root_for_path,
     search_view_accepts_optional_query, search_view_requires_query, search_view_supports_query_set,
     split_csv_values,
@@ -26,24 +25,21 @@ use crate::cli::{SearchPlanOptions, render_search_plan};
 #[cfg(feature = "search")]
 use crate::cli::{SearchTraceOptions, render_search_trace};
 #[cfg(feature = "search")]
-use crate::cli::{SemanticQueryJsonOptions, render_query_json};
-#[cfg(feature = "search")]
 use crate::cli::{SemanticSearchJsonOptions, render_search_json};
+use crate::{
+    RustHarnessRunScope, render_rust_project_harness, render_rust_project_harness_failure_frontier,
+    render_rust_project_harness_json, run_rust_project_harness_for_scope,
+    rust_harness_config_for_project,
+};
 #[cfg(feature = "search")]
 use crate::{
-    RustHarnessConfig, RustSearchOptions, RustSearchViewRequest,
-    render_rust_project_harness_dependency_topology_json,
+    RustSearchOptions, RustSearchViewRequest, render_rust_project_harness_dependency_topology_json,
     render_rust_project_harness_dependency_topology_metadata_json,
     render_rust_project_harness_search_compare_json_with_config,
     render_rust_project_harness_search_ingest_with_config,
     render_rust_project_harness_search_semantic_facts_json,
     render_rust_project_harness_search_view_with_config,
     render_rust_project_harness_workspace_scope_json,
-};
-use crate::{
-    RustHarnessRunScope, render_rust_project_harness, render_rust_project_harness_failure_frontier,
-    render_rust_project_harness_json, run_rust_project_harness_for_scope,
-    rust_harness_config_for_project,
 };
 use exact_source::run_exact_source_query;
 
@@ -199,10 +195,6 @@ fn run_query(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<ExitC
         QueryCommand::ExactSource(options) => run_exact_source_query(options),
         QueryCommand::TreeSitter(options) => {
             super::tree_sitter_query::run_tree_sitter_query(*options)
-        }
-        QueryCommand::Search(options) => {
-            let search_options = SearchOptions::from_query(*options);
-            run_query_view(&search_options)
         }
     }
 }
@@ -369,159 +361,6 @@ fn run_search_view(_options: &SearchOptions) -> Result<ExitCode, String> {
     Err("search command requires the `search` feature".to_string())
 }
 
-#[cfg(feature = "search")]
-fn run_query_view(options: &SearchOptions) -> Result<ExitCode, String> {
-    if options.item_code
-        && let (Some(selector), Some(item_query)) =
-            (options.query.as_deref(), options.item_query.as_deref())
-    {
-        let project_root = options.project_root()?;
-        if let Some(rendered) = render_query_local_item_code(
-            &project_root,
-            selector,
-            item_query,
-            options.source_version,
-        )? {
-            print!("{rendered}");
-            return Ok(ExitCode::SUCCESS);
-        }
-    }
-    if options.item_names_only
-        && let (Some(selector), Some(item_query)) =
-            (options.query.as_deref(), options.item_query.as_deref())
-    {
-        let project_root = options.project_root()?;
-        if let Some(rendered) = render_query_local_item_frontier(
-            &project_root,
-            selector,
-            item_query,
-            options.source_version,
-            true,
-        )? {
-            if options.json {
-                let json_options = options.semantic_query_json_options()?;
-                println!(
-                    "{}",
-                    render_query_json(&project_root, &json_options, &rendered)?
-                );
-            } else {
-                print!("{rendered}");
-            }
-            return Ok(ExitCode::SUCCESS);
-        }
-    }
-
-    let local_window_selector = options
-        .read_selector
-        .as_deref()
-        .filter(|_| options.item_code || options.item_query.is_none())
-        .or({
-            if options.item_code {
-                options.query.as_deref()
-            } else {
-                None
-            }
-        });
-    if let Some(selector) = local_window_selector {
-        let project_root = options.project_root()?;
-        if let Some(rendered) = render_query_local_window(
-            &project_root,
-            selector,
-            options.item_code,
-            options.source_version,
-        )? {
-            if options.json && options.output_view.as_deref() == Some("read-packet") {
-                let read_options = crate::cli::SemanticReadJsonOptions {
-                    selector: options
-                        .read_selector
-                        .clone()
-                        .or_else(|| options.owner.clone())
-                        .unwrap_or_else(|| selector.to_string()),
-                    query: options.item_query.clone(),
-                    source_version: options.source_version,
-                };
-                println!(
-                    "{}",
-                    crate::cli::render_read_json(&project_root, &read_options, &rendered)?
-                );
-            } else {
-                print!("{rendered}");
-            }
-            return Ok(ExitCode::SUCCESS);
-        }
-    }
-
-    let project_root = options.project_root()?;
-    let mut render_options = options.render_options();
-    if options.json
-        && options.output_view.as_deref() != Some("read-packet")
-        && options.view == "owner"
-        && options.item_query.is_some()
-    {
-        render_options.item_projection_metadata = true;
-    }
-    let config = RustHarnessConfig::default();
-    let request = RustSearchViewRequest {
-        project_root: &project_root,
-        config: &config,
-        view: &options.view,
-        query: options.query.as_deref(),
-        options: &render_options,
-    };
-    let raw_rendered = render_rust_project_harness_search_view_with_config(&request)?;
-    let rendered = apply_search_output_controls(
-        SearchOutputControls {
-            depth: options.depth,
-            output_view: options.output_view.as_deref(),
-            packet_kind: (options.view == "owner" && options.item_query.is_some())
-                .then_some("query-item"),
-            seeds: options.seeds,
-        },
-        &raw_rendered,
-    );
-    let rendered = if options.output_view.as_deref() == Some("seeds") {
-        render_search_graph_packet(&raw_rendered, options.seeds)?
-    } else {
-        rendered
-    };
-    if options.json && options.output_view.as_deref() == Some("read-packet") {
-        let read_options = crate::cli::SemanticReadJsonOptions {
-            selector: options
-                .read_selector
-                .clone()
-                .or_else(|| options.owner.clone())
-                .or_else(|| options.query.clone())
-                .unwrap_or_else(|| ".".to_string()),
-            query: options.item_query.clone(),
-            source_version: options.source_version,
-        };
-        println!(
-            "{}",
-            crate::cli::render_read_json(&project_root, &read_options, &rendered,)?
-        );
-    } else if options.json && options.view == "owner" && options.item_query.is_some() {
-        let json_options = options.semantic_query_json_options()?;
-        println!(
-            "{}",
-            render_query_json(&project_root, &json_options, &rendered)?
-        );
-    } else if options.json {
-        let json_options = options.semantic_json_options();
-        println!(
-            "{}",
-            render_search_json(&project_root, &json_options, &rendered)?
-        );
-    } else {
-        print!("{rendered}");
-    }
-    Ok(ExitCode::SUCCESS)
-}
-
-#[cfg(not(feature = "search"))]
-fn run_query_view(_options: &SearchOptions) -> Result<ExitCode, String> {
-    Err("query command requires the `search` feature".to_string())
-}
-
 #[derive(Debug, Default)]
 pub(super) struct CliOptions {
     pub(super) json: bool,
@@ -576,7 +415,6 @@ pub(super) struct SearchOptions {
     pub(super) pipes: Vec<String>,
     pub(super) query_set: Vec<String>,
     pub(super) item_query: Option<String>,
-    pub(super) read_selector: Option<String>,
     pub(super) item_names_only: bool,
     pub(super) item_code: bool,
     pub(super) item_projection_metadata: bool,
@@ -585,26 +423,6 @@ pub(super) struct SearchOptions {
 }
 
 impl SearchOptions {
-    fn from_query(options: QuerySearchOptions) -> Self {
-        Self {
-            view: options.view,
-            query: options.query,
-            json: options.json,
-            output_view: options.output_view,
-            package: options.package,
-            seeds: options.seeds,
-            pipes: options.pipes,
-            query_set: options.query_set,
-            item_query: options.item_query,
-            read_selector: options.read_selector,
-            item_names_only: options.item_names_only,
-            item_code: options.item_code,
-            source_version: options.source_version,
-            workspace_root: options.workspace_root,
-            ..Self::default()
-        }
-    }
-
     fn parse(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<Self, String> {
         let args = args.into_iter();
         let mut options = Self::default();
@@ -803,17 +621,6 @@ impl SearchOptions {
             pipes: self.pipes.clone(),
             output_view: self.output_view.clone(),
         }
-    }
-
-    #[cfg(feature = "search")]
-    fn semantic_query_json_options(&self) -> Result<SemanticQueryJsonOptions, String> {
-        let Some(query) = self.item_query.clone() else {
-            return Err("query JSON requires an owner item query".to_string());
-        };
-        Ok(SemanticQueryJsonOptions {
-            query,
-            item_names_only: self.item_names_only,
-        })
     }
 
     #[cfg(feature = "search")]

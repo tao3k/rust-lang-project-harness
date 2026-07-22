@@ -109,21 +109,14 @@ fn query_names_only_rejects_workspace_term_discovery() {
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("query --names-only requires an owner selector"),
+        stderr.contains("query requires an exact --selector"),
         "stderr={stderr}"
     );
-    assert!(
-        stderr.contains("workspace term discovery is hook-managed"),
-        "stderr={stderr}"
-    );
-    assert!(
-        !stderr.contains("asp rust search lexical"),
-        "stderr={stderr}"
-    );
+    assert!(stderr.contains("asp rust search owner"), "stderr={stderr}");
 }
 
 #[test]
-fn query_exact_owner_names_only_does_not_scan_workspace_context() {
+fn search_exact_owner_names_only_does_not_scan_workspace_context() {
     let Some(bin) = option_env!("CARGO_BIN_EXE_rs-harness") else {
         return;
     };
@@ -149,10 +142,11 @@ fn query_exact_owner_names_only_does_not_scan_workspace_context() {
     }
 
     let query_args = [
-        "query",
-        "--selector",
+        "search",
+        "owner",
         "src/lib.rs",
-        "--term",
+        "items",
+        "--query",
         "target_symbol",
         "--names-only",
         "--workspace",
@@ -162,10 +156,10 @@ fn query_exact_owner_names_only_does_not_scan_workspace_context() {
         .arg(root.path())
         .current_dir(root.path())
         .output()
-        .expect("warm exact owner names-only query");
+        .expect("warm exact owner names-only search");
     assert!(
         warmup.status.success(),
-        "warm exact owner names-only failed: stdout={} stderr={}",
+        "warm exact owner names-only search failed: stdout={} stderr={}",
         String::from_utf8_lossy(&warmup.stdout),
         String::from_utf8_lossy(&warmup.stderr)
     );
@@ -176,18 +170,18 @@ fn query_exact_owner_names_only_does_not_scan_workspace_context() {
         .arg(root.path())
         .current_dir(root.path())
         .output()
-        .expect("run exact owner names-only query");
+        .expect("run exact owner names-only search");
     let elapsed = started_at.elapsed();
 
     assert!(
         output.status.success(),
-        "exact owner names-only failed: stdout={} stderr={}",
+        "exact owner names-only search failed: stdout={} stderr={}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(
         elapsed < Duration::from_secs(1),
-        "exact owner names-only scanned too much workspace context: elapsed={elapsed:?}; stdout={} stderr={}",
+        "exact owner names-only search scanned too much workspace context: elapsed={elapsed:?}; stdout={} stderr={}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );

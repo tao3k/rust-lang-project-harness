@@ -2,13 +2,12 @@
 
 use std::ffi::OsString;
 
-use super::query_options::{QueryOptions, QuerySearchOptions};
+use super::query_options::QueryOptions;
 
 pub(super) enum QueryCommand {
     Help,
     ExactSource(ExactSourceQuery),
     TreeSitter(Box<TreeSitterQuery>),
-    Search(Box<QuerySearchOptions>),
 }
 
 pub(super) struct ExactSourceQuery {
@@ -17,6 +16,26 @@ pub(super) struct ExactSourceQuery {
     pub(crate) json: bool,
     pub(crate) code: bool,
     pub(crate) names_only: bool,
+    pub(crate) provider_id: Option<String>,
+    pub(crate) parser_identity_digest: Option<String>,
+    pub(crate) query_pack_digest: Option<String>,
+}
+
+#[derive(Default)]
+struct ExactQueryAuthority {
+    source_snapshot_envelope: Option<std::path::PathBuf>,
+    provider_id: Option<String>,
+    parser_identity_digest: Option<String>,
+    query_pack_digest: Option<String>,
+}
+
+impl ExactQueryAuthority {
+    fn is_empty(&self) -> bool {
+        self.source_snapshot_envelope.is_none()
+            && self.provider_id.is_none()
+            && self.parser_identity_digest.is_none()
+            && self.query_pack_digest.is_none()
+    }
 }
 
 pub(super) struct TreeSitterQuery {
@@ -30,6 +49,9 @@ pub(super) struct TreeSitterQuery {
     pub(crate) workspace_root: std::path::PathBuf,
     pub(crate) json: bool,
     pub(crate) code: bool,
+    pub(crate) provider_id: Option<String>,
+    pub(crate) parser_identity_digest: Option<String>,
+    pub(crate) query_pack_digest: Option<String>,
 }
 
 pub(super) fn query_guide_kind(args: &[OsString]) -> bool {
@@ -43,37 +65,41 @@ pub(super) fn parse_query(
     if let Some(options) = parse_tree_sitter_query(&args)? {
         return Ok(QueryCommand::TreeSitter(Box::new(options)));
     }
-    let (args, source_snapshot_envelope) = extract_source_snapshot_envelope(args)?;
+    let (args, authority) = extract_exact_query_authority(args)?;
     let options = QueryOptions::parse(args)?;
     if options.help {
         return Ok(QueryCommand::Help);
     }
-    let wants_direct_source_items = options.query.is_none()
-        && options.terms.is_empty()
-        && options
-            .selector
-            .as_deref()
-            .is_some_and(is_exact_direct_source_selector);
+    let wants_direct_source_items = options
+        .selector
+        .as_deref()
+        .is_some_and(is_exact_direct_source_selector);
     if wants_direct_source_items {
-        let mut search_options = options.search_options()?;
-        let selector = search_options
-            .read_selector
-            .take()
-            .or_else(|| search_options.query.take())
+        let selector = options
+            .selector
+            .clone()
             .ok_or_else(|| "exact source query requires a selector".to_string())?;
         return Ok(QueryCommand::ExactSource(ExactSourceQuery {
             selector,
-            source_snapshot_envelope,
-            json: search_options.json,
-            code: search_options.item_code,
-            names_only: search_options.item_names_only,
+            source_snapshot_envelope: authority.source_snapshot_envelope,
+            json: options.json,
+            code: options.code,
+            names_only: options.names_only,
+            provider_id: authority.provider_id,
+            parser_identity_digest: authority.parser_identity_digest,
+            query_pack_digest: authority.query_pack_digest,
         }));
     }
-    if source_snapshot_envelope.is_some() {
-        return Err("--source-snapshot-envelope requires an exact source selector".to_string());
+    if !authority.is_empty() {
+        return Err(
+            "source snapshot and typed projection identity options require an exact source selector"
+                .to_string(),
+        );
     }
-    let search_options = options.search_options()?;
-    Ok(QueryCommand::Search(Box::new(search_options)))
+    Err(
+        "rust query requires an exact --selector; use `asp rust search owner <owner-path> items --query <symbol> --names-only --workspace .` for owner or symbol discovery"
+            .to_string(),
+    )
 }
 
 fn parse_tree_sitter_query(args: &[OsString]) -> Result<Option<TreeSitterQuery>, String> {
@@ -94,6 +120,9 @@ fn parse_tree_sitter_query(args: &[OsString]) -> Result<Option<TreeSitterQuery>,
         workspace_root: std::path::PathBuf::from("."),
         json: false,
         code: false,
+        provider_id: None,
+        parser_identity_digest: None,
+        query_pack_digest: None,
     };
     let mut index = 0;
     while index < args.len() {
@@ -129,6 +158,17 @@ fn parse_tree_sitter_query(args: &[OsString]) -> Result<Option<TreeSitterQuery>,
             }
             "--json" => options.json = true,
             "--code" => options.code = true,
+            "--asp-provider-id" => {
+                options.provider_id = Some(tree_sitter_option_value(args, &mut index, argument)?);
+            }
+            "--asp-parser-identity-digest" => {
+                options.parser_identity_digest =
+                    Some(tree_sitter_option_value(args, &mut index, argument)?);
+            }
+            "--asp-query-pack-digest" => {
+                options.query_pack_digest =
+                    Some(tree_sitter_option_value(args, &mut index, argument)?);
+            }
             _ => return Err(format!("unknown tree-sitter query option: {argument}")),
         }
         index += 1;
@@ -140,6 +180,17 @@ fn parse_tree_sitter_query(args: &[OsString]) -> Result<Option<TreeSitterQuery>,
     }
     if options.code && options.selector.is_none() {
         return Err("tree-sitter query --code requires an exact --selector".to_string());
+    }
+    if options.code
+        && options.json
+        && (options.provider_id.is_none()
+            || options.parser_identity_digest.is_none()
+            || options.query_pack_digest.is_none())
+    {
+        return Err(
+            "tree-sitter query --code --json requires typed provider and identity digests"
+                .to_string(),
+        );
     }
     Ok(Some(options))
 }
@@ -168,26 +219,57 @@ fn tree_sitter_csv_option(
         .collect())
 }
 
-fn extract_source_snapshot_envelope(
+fn extract_exact_query_authority(
     args: impl IntoIterator<Item = OsString>,
-) -> Result<(Vec<OsString>, Option<std::path::PathBuf>), String> {
+) -> Result<(Vec<OsString>, ExactQueryAuthority), String> {
     let mut filtered = Vec::new();
-    let mut source_snapshot_envelope = None;
+    let mut authority = ExactQueryAuthority::default();
     let mut args = args.into_iter();
     while let Some(argument) = args.next() {
         if argument == "--source-snapshot-envelope" {
-            if source_snapshot_envelope.is_some() {
+            if authority.source_snapshot_envelope.is_some() {
                 return Err("--source-snapshot-envelope may be supplied only once".to_string());
             }
             let path = args.next().ok_or_else(|| {
                 "--source-snapshot-envelope requires a JSON file path".to_string()
             })?;
-            source_snapshot_envelope = Some(std::path::PathBuf::from(path));
+            authority.source_snapshot_envelope = Some(std::path::PathBuf::from(path));
+        } else if argument == "--asp-provider-id" {
+            if authority.provider_id.is_some() {
+                return Err("--asp-provider-id may be supplied only once".to_string());
+            }
+            authority.provider_id = Some(exact_query_option_value(&mut args, "--asp-provider-id")?);
+        } else if argument == "--asp-parser-identity-digest" {
+            if authority.parser_identity_digest.is_some() {
+                return Err("--asp-parser-identity-digest may be supplied only once".to_string());
+            }
+            authority.parser_identity_digest = Some(exact_query_option_value(
+                &mut args,
+                "--asp-parser-identity-digest",
+            )?);
+        } else if argument == "--asp-query-pack-digest" {
+            if authority.query_pack_digest.is_some() {
+                return Err("--asp-query-pack-digest may be supplied only once".to_string());
+            }
+            authority.query_pack_digest = Some(exact_query_option_value(
+                &mut args,
+                "--asp-query-pack-digest",
+            )?);
         } else {
             filtered.push(argument);
         }
     }
-    Ok((filtered, source_snapshot_envelope))
+    Ok((filtered, authority))
+}
+
+fn exact_query_option_value(
+    args: &mut impl Iterator<Item = OsString>,
+    option: &str,
+) -> Result<String, String> {
+    args.next()
+        .ok_or_else(|| format!("{option} requires a UTF-8 value"))?
+        .into_string()
+        .map_err(|_| format!("{option} requires a UTF-8 value"))
 }
 
 fn is_exact_direct_source_selector(selector: &str) -> bool {
@@ -241,21 +323,25 @@ pub(super) fn print_query_guide() {
 
 pub(super) fn print_query_help() {
     println!(
-        "rs-harness query <owner-path> [items tests] [--query SYMBOL] [--names-only | --code] [--workspace WORKSPACE] [--source-snapshot-envelope JSON-FILE]\n\
+        "rs-harness query --selector 'rust://OWNER#item/KIND/NAME' [--workspace WORKSPACE] [--source-snapshot-envelope JSON-FILE] [--names-only | --code]\n\
+rs-harness query --treesitter-query QUERY [--workspace WORKSPACE]\n\
 rs-harness query --catalog flow-lite --where 'source.call=NAME sink.constructs=TYPE scope.fn=FUNCTION' [<workspace-root>] [--json] [--workspace WORKSPACE]\n\
 rs-harness query --from-hook direct-source-read --selector 'rust://OWNER#item/KIND/NAME' [--workspace WORKSPACE] [--source-snapshot-envelope JSON-FILE] --code\n\
-rs-harness query --from-hook KIND --selector SELECTOR [--query SYMBOL | --term TERM] [--names-only | --code] [--workspace WORKSPACE]\n\
+rs-harness query --from-hook KIND --selector SELECTOR --source-snapshot-envelope JSON-FILE --code --json --asp-provider-id ID --asp-parser-identity-digest DIGEST --asp-query-pack-digest DIGEST [--workspace WORKSPACE]\n\
 rs-harness search dependency <crate-or-package> [items docs-use tests] [--view seeds] [--workspace WORKSPACE]\n\
 rs-harness search guide [--workspace WORKSPACE]\n\n\
 Maps hook-denied raw reads and broad searches into parser-owned search output.\n\
-Concrete Rust owner selectors route to search owner items/tests; workspace term discovery is owned by ASP `search lexical`.\n\
+Owner and symbol discovery is owned by `search owner`; `query` accepts only exact structural selectors or exact Tree-sitter/relation contracts.\n\
 Dependency search is manifest-first: inspect Cargo.toml/Cargo.lock facts, import owners, public API/docs-use, and tests before web or docs.rs search.\n\
 Flow-lite native relation queries emit compact locator/provenance frontiers or semantic-flow-lite.v1 JSON without running CodeQL.\n\
-Glob or broad selectors without terms route to search prime --view seeds.\n\
-Owner item queries emit |query status=hit|miss match=exact|fallback-contains|none.\n\
-Use --workspace WORKSPACE when the selector is workspace-relative; owner and direct-source query forms never accept a trailing workspace root.\n\
+Use `asp rust search owner OWNER items --query SYMBOL --names-only --workspace .` to discover exact item selectors.\n\
+Use --workspace WORKSPACE when the exact selector is workspace-relative; query never accepts an owner path as a positional discovery shortcut.\n\
 Use --source-snapshot-envelope JSON-FILE with an exact selector to derive an editor-buffer Merkle root from asp.exact-source-snapshot-envelope.v1.\n\
 Flow-lite query forms accept one positional workspace root for ABI corpus compatibility.\n\
-Use --code only with an exact structural selector or a unique owner/symbol match to emit compact parser-owned code."
+Use --code only with an exact structural selector to emit compact parser-owned code."
     );
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/cli/query/authority.rs"]
+mod tests;

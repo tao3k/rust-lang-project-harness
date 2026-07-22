@@ -82,7 +82,7 @@ fn provider_manifest_declares_exact_source_snapshot_envelope_schema() {
     let descriptor = &manifest["searchCapabilities"]["sourceSnapshot"];
     assert_eq!(descriptor["descriptorId"], "rust.source-snapshot");
     assert_eq!(
-        descriptor["sourceOverlaySchemaId"],
+        descriptor["sourceSnapshotEnvelopeSchemaId"],
         "asp.exact-source-snapshot-envelope.v1"
     );
 }
