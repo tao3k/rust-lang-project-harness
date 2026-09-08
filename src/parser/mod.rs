@@ -1,7 +1,5 @@
 //! Internal parser substrate for Rust source and Cargo project facts.
 
-#[cfg(any(feature = "search", test))]
-mod cargo_cfg;
 mod cargo_dependency_facts;
 mod cargo_manifest;
 mod cargo_package_graph;
@@ -19,17 +17,11 @@ mod path_resolution;
 mod reasoning_tree;
 mod source_metrics;
 mod source_path;
-#[cfg(feature = "search")]
-pub(crate) mod syntax_abi;
 mod use_tree;
 
-#[cfg(any(feature = "search", test))]
-pub(crate) use cargo_cfg::parse_cargo_cfg_facts;
 pub(crate) use cargo_dependency_facts::{
     CargoDependencyFacts, CargoDependencyKind, parse_cargo_dependency_facts,
 };
-#[cfg(feature = "search")]
-pub(crate) use cargo_manifest::parse_cargo_workspace_member_roots;
 pub(crate) use cargo_manifest::{
     CargoBenchTargetFacts, CargoManifestFacts, parse_cargo_manifest, parse_required_cargo_manifest,
 };

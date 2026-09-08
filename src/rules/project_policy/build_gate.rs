@@ -21,7 +21,9 @@ pub(super) fn build_gate_findings(
     let has_build_gate_call = build_script.is_some_and(module_contains_build_gate_call);
     let has_direct_build_gate_call =
         build_script.is_some_and(module_contains_direct_build_gate_call);
-    let harness_enabled = cargo_manifest.references_harness || has_build_gate_call;
+    let harness_enabled = cargo_manifest.references_harness_build_dependency
+        || cargo_manifest.references_harness_non_optional_normal_dependency
+        || has_build_gate_call;
 
     if !harness_enabled || project_has_complete_build_gate(project_root, cargo_manifest, modules) {
         return Vec::new();

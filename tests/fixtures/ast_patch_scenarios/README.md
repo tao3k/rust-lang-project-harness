@@ -48,20 +48,9 @@ external Tokio checkout, so the suite stays hermetic in CI.
 For real-checkout evidence, run the ignored test with an external Rust crate
 root. It queries the provider-owned `patchSafety.target`, selects an
 `ast-patch-safe` match, dry-runs against the real checkout without mutation, and
-can optionally apply to a temp copy of the selected file. If several matches
-share the same query term, set `ASP_AST_PATCH_REAL_TARGET_KIND` and
-`ASP_AST_PATCH_REAL_TARGET_NAME` to remove ambiguity:
-
-```sh
-ASP_AST_PATCH_REAL_ROOT=/path/to/tokio/tokio \
-ASP_AST_PATCH_REAL_PATH=src/runtime/builder.rs \
-ASP_AST_PATCH_REAL_QUERY=Builder \
-ASP_AST_PATCH_REAL_TARGET_KIND=impl \
-ASP_AST_PATCH_REAL_APPLY_TEMP=1 \
-cargo test --features cli,search \
-  cli::ast_patch_scenarios::cli_ast_patch_real_checkout_query_target_dry_runs_from_env \
-  -- --ignored
-```
+can optionally apply to a temp copy of the selected file. Native syntax facts
+are exercised through the provider projection tests; there is no provider-local
+Search CLI feature or AST-patch command surface.
 
 The `tests/fixtures/ast_patch_real_projects/` files store only evidence
 metadata: repository commit, query target, compact/exact byte counts,

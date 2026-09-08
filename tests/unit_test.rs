@@ -39,6 +39,9 @@ mod self_policy;
 #[path = "unit/scenario_benchmark.rs"]
 mod scenario_benchmark;
 
+#[path = "unit/workspace_policy_once.rs"]
+mod workspace_policy_once;
+
 #[path = "unit/agent_reasoning_snapshot.rs"]
 mod agent_reasoning_snapshot;
 
@@ -57,7 +60,5 @@ mod nested_item_facts;
 mod no_asp_crate_dependencies;
 #[path = "unit/provider_workspace_search_identity.rs"]
 mod provider_workspace_search_identity;
-#[path = "unit/search.rs"]
-mod search;
 #[path = "unit/structural_selector.rs"]
 mod structural_selector;

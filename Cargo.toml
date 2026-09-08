@@ -14,11 +14,12 @@ publish = []
 
 [features]
 provider-server = [
+    "native-syntax",
     "dep:base64",
     "dep:tokio",
 ]
-default = ["search"]
-search = []
+default = ["native-syntax"]
+native-syntax = []
 
 [dependencies]
 base64 = { version = "0.22.1", optional = true }
@@ -51,7 +52,14 @@ name = "asp-rust"
 path = "src/bin/asp-rust.rs"
 required-features = ["provider-server"]
 
-[[bench]]
-name = "query_search_microbench"
-path = "benches/query_search_microbench.rs"
-required-features = ["search"]
+[profile.provider-runtime]
+inherits = "release"
+opt-level = 3
+codegen-units = 4
+lto = "thin"
+strip = "debuginfo"
+
+[profile.test]
+opt-level = 2
+codegen-units = 16
+debug = false

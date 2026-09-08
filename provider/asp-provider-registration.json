@@ -175,28 +175,6 @@
       "failureSchemaIds": ["agent.semantic-protocols.route-failure"],
       "cache": {"authority": "asp-server", "scope": "workspace", "keySlots": []},
       "telemetry": {"spanName": "asp.route.rust.query", "attributeSlots": []}
-    },
-    {
-      "schemaId": "agent.semantic-protocols.provider-route",
-      "schemaVersion": "1",
-      "routeId": "rust.search.owner",
-      "operation": "search.owner",
-      "authority": "asp-server",
-      "target": {"languageId": "rust", "providerId": "asp-rust"},
-      "requestSchema": {"schemaId": "agent.semantic-protocols.asp-client-owner-search-request", "schemaVersion": "1"},
-      "inputs": [
-        {"name": "schemaId", "valueType": "string", "cardinality": "required", "source": "request"},
-        {"name": "schemaVersion", "valueType": "string", "cardinality": "required", "source": "request"},
-        {"name": "ownerPath", "valueType": "workspace-relative-path", "cardinality": "required", "source": "request"},
-        {"name": "query", "valueType": "string", "cardinality": "optional", "source": "request"},
-        {"name": "view", "valueType": "presentation", "cardinality": "optional", "source": "request"}
-      ],
-      "requirements": [{"kind": "state", "state": "terminal-generation"}],
-      "effects": {"access": "read", "idempotent": true, "cancellable": true, "concurrency": "shared-read", "streaming": false},
-      "output": {"schema": {"schemaId": "agent.semantic-protocols.search-packet", "schemaVersion": "1"}, "mediaType": "application/json"},
-      "failureSchemaIds": ["agent.semantic-protocols.route-failure"],
-      "cache": {"authority": "asp-server", "scope": "workspace", "keySlots": []},
-      "telemetry": {"spanName": "asp.route.rust.search.owner", "attributeSlots": []}
     }
   ],
   "schemas": [

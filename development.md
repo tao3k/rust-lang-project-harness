@@ -3,10 +3,10 @@
 ## Format, test, lint
 
 ```shell
-direnv exec . cargo fmt --all -- --check
-direnv exec . cargo test
-direnv exec . cargo clippy --all-targets --all-features -- -D warnings
-direnv exec . git diff --check
+.devenv/devenv-profile-exec cargo fmt --manifest-path languages/asp-rust/Cargo.toml --all -- --check
+.devenv/devenv-profile-exec cargo test --manifest-path languages/asp-rust/Cargo.toml
+.devenv/devenv-profile-exec cargo clippy --manifest-path languages/asp-rust/Cargo.toml --all-targets --all-features -- -D warnings
+.devenv/devenv-profile-exec git diff --check
 ```
 
 Rust doc comments follow Clippy's `doc_markdown` style. Wrap API names,

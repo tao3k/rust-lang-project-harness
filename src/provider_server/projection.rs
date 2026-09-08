@@ -146,13 +146,31 @@ fn render_batch_owner_projection(
     }
     let relative_path = project_path(owner_path);
     let owner_id = format!("owner:{relative_path}");
-    let items = projection_items(
+    let items = match projection_items(
         source,
         &relative_path,
         &owner_id,
         source_leaf_digest,
         Some(projection_authority),
-    )?;
+    ) {
+        Ok(items) => items,
+        Err(ProjectionItemsError::Syntax(message)) => {
+            return Ok(json!({
+                "ownerPath": relative_path,
+                "sourceLeafDigest": source_leaf_digest,
+                "projectionState": "syntax-unavailable",
+                "diagnostic": {
+                    "schemaId": "agent.semantic-protocols.provider-language-projection-diagnostic",
+                    "schemaVersion": "1",
+                    "reasonKind": "source-syntax-unavailable",
+                    "message": bounded_projection_diagnostic(&message),
+                },
+                "items": [],
+                "relations": [],
+            }));
+        }
+        Err(ProjectionItemsError::Integrity(message)) => return Err(message),
+    };
     let relations = items
         .iter()
         .map(|item| {
@@ -166,6 +184,8 @@ fn render_batch_owner_projection(
     Ok(json!({
         "ownerPath": relative_path,
         "sourceLeafDigest": source_leaf_digest,
+        "projectionState": "ready",
+        "diagnostic": null,
         "items": items,
         "relations": relations,
     }))
@@ -177,8 +197,9 @@ fn projection_items(
     owner_id: &str,
     source_leaf_digest: &str,
     projection_authority: Option<&crate::exact_source_projection::ExactProjectionAuthority>,
-) -> Result<Vec<Value>, String> {
-    let artifacts = crate::exact_source_parse_artifact::parse_owner_items_v1(source)?;
+) -> Result<Vec<Value>, ProjectionItemsError> {
+    let artifacts = crate::exact_source_parse_artifact::parse_owner_items_v1(source)
+        .map_err(ProjectionItemsError::Syntax)?;
     let mut seen_selectors = BTreeSet::new();
     artifacts
         .into_iter()
@@ -244,7 +265,27 @@ fn projection_items(
             })
         })
         .collect::<Result<Vec<_>, String>>()
+        .map_err(ProjectionItemsError::Integrity)
 }
+
+enum ProjectionItemsError {
+    Syntax(String),
+    Integrity(String),
+}
+
+fn bounded_projection_diagnostic(message: &str) -> String {
+    let message = message.trim();
+    let message = if message.is_empty() {
+        "Rust parser rejected the source owner"
+    } else {
+        message
+    };
+    message.chars().take(4096).collect()
+}
+
+#[cfg(test)]
+#[path = "../../tests/unit/provider_projection_batch.rs"]
+mod tests;
 
 fn projection_identity(identity: &crate::content_identity::CanonicalItemIdentity) -> Value {
     json!({

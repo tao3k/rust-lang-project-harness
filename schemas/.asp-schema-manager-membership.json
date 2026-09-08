@@ -1,7 +1,7 @@
 {
   "languageId": "rust",
-  "profileDigest": "blake3-256:0215021ff3fb813d93289dcf85bc0b312f78a2e3ddbb5763641574262496d1b0",
-  "bundleDigest": "blake3-256:c6112187d4aa488fe296cd5b1eb38c54d238b528abc1295dee2de14dfbff5148",
+  "profileDigest": "blake3-256:e0250dbec5b77d25e51ee0d8473ab4163daddc5ce7eb6895fb43dcbe6fba0d34",
+  "bundleDigest": "blake3-256:353e0b2d2c18a149d05d0056e1b04dc081133652fb6de14173471c906152c7dc",
   "schemas": [
     {
       "name": "asp-client-cancellation-probe-request.schema.json",
@@ -21,39 +21,31 @@
     },
     {
       "name": "asp-client-exact-query-failure.schema.json",
-      "digest": "blake3-256:fc451bd39e772ed3a2ba24a2b45da38e161b9b61915f698b1afb1253a051d386"
+      "digest": "blake3-256:0a59369cdd4dd4a305f60fd073733acddabd0593c475817f93064ba54e065cf7"
     },
     {
       "name": "asp-client-exact-query-request.schema.json",
-      "digest": "blake3-256:e412c1f02d08d1632e7104487d6b08d60dde6736d59254c6c2f5f45b702d4aa4"
+      "digest": "blake3-256:95e9b4cf48223f31bbe86a816890e4689070790288b300799290d7041adaa7ba"
     },
     {
       "name": "asp-client-exact-query-response.schema.json",
-      "digest": "blake3-256:feb1d24eaba02eaf53c7e5e7ba4f11dea436ebee99380d221f796007fee4625c"
+      "digest": "blake3-256:95e3897fce365809610d2ee3eea636cb2d21d56037721dd81fd8e1e96cc257ef"
     },
     {
       "name": "asp-client-frame.schema.json",
-      "digest": "blake3-256:f16667311475fd65f4b849611e3df4ca2f7fe847a4730d6fa9d025753fb7cf7c"
+      "digest": "blake3-256:67df97458bb86ef192bfe03f6200860fa2c1b952199a92881a9d474acc04666b"
     },
     {
       "name": "asp-client-graphs-timeline-request.v1.schema.json",
       "digest": "blake3-256:dc856c6a65c352081670053d6347d7632d71cc7f90e9248b2553833f30b178df"
     },
     {
-      "name": "asp-client-owner-search-request.schema.json",
-      "digest": "blake3-256:1c8f421a1bc84116f3a6f70593f15e9579b8a5e6a425d4051759001e7d1e6044"
-    },
-    {
-      "name": "asp-client-owner-search-response.schema.json",
-      "digest": "blake3-256:9b4ba14fbc31663b8e908ade83a3070b89f9320c62fe0f47b364ec43959c35f5"
-    },
-    {
       "name": "asp-client-protocol-catalog.schema.json",
-      "digest": "blake3-256:5a6b492c931c64aacfe217a8ac0c636574435ae858fdaa86f617a21e6f192003"
+      "digest": "blake3-256:e3b6411bd9e583608a41d01852b052ba1438948f485e4ec08750c7d6d454c64a"
     },
     {
       "name": "asp-client-query-readiness-failure.schema.json",
-      "digest": "blake3-256:e9119a4bdfb5674a56a28dbf0f53c99276f3a15c143cfd638a9437bc2facfd08"
+      "digest": "blake3-256:451736da76395cdb07ffc14523323657db1be90f22bd4e776282f47bc3e32fb3"
     },
     {
       "name": "asp-client-schema-bundle-request.schema.json",
@@ -65,7 +57,7 @@
     },
     {
       "name": "asp-client-search-request.schema.json",
-      "digest": "blake3-256:f10cb97d3d72b3c081ed1f4a67dd3aef607a9906dee7ef86032aabc938ec17fa"
+      "digest": "blake3-256:4572cbcd7247eac5019c98749971c5b8a0c1e742112c6fb299bf68827d32b5bc"
     },
     {
       "name": "asp-client-server-descriptor.schema.json",
@@ -80,16 +72,36 @@
       "digest": "blake3-256:aba81ca4e8f518bb515cb7b014b5c535cab3d1634dfd9ae6ccdf24d553ba3133"
     },
     {
+      "name": "asp-client-workspace-generation-ensure-ready-request.schema.json",
+      "digest": "blake3-256:9f7c9a437713874b8ea5c4e701f61adf355f26bbc35ddd5a59a2d6889d1f2bd0"
+    },
+    {
+      "name": "asp-client-workspace-query-playbook-request.v1.schema.json",
+      "digest": "blake3-256:171112801e36325b4854c1190ad2f67581a3b4a2d9849f3578ebf80be025ddd3"
+    },
+    {
+      "name": "asp-client-workspace-search-playbook-request.v1.schema.json",
+      "digest": "blake3-256:6e4c2cf3da32a9c74999a35542bea21866e2ed9ed99bb02247393e2405cb4078"
+    },
+    {
       "name": "asp-client-workspace-source-mutation.schema.json",
       "digest": "blake3-256:74b0baf814e96b3f2f47eefcc537ae53c5ac740315cdbc8c4f1079dcc2f484a8"
     },
     {
+      "name": "asp-client-workspace-syntax-query-request.v1.schema.json",
+      "digest": "blake3-256:5d545b03a0ed1ea888bcdb0d7566b82b4df9bc15ce6d88096e2ee89454a61dda"
+    },
+    {
+      "name": "asp-client-workspace-syntax-query-response.v1.schema.json",
+      "digest": "blake3-256:003e5090bb807467a75fa814d92c97cca7489c6bab777f41634a38a57c5b5137"
+    },
+    {
       "name": "asp-python-graphs-session.v1.schema.json",
-      "digest": "blake3-256:d586fac852cf87fef849a76498834b8baac0a4a8250ede41d7022a006746ef61"
+      "digest": "blake3-256:74ced1d824c781b78062fd9f1f4ef4d3859adf07bb22a7cecb0e1011a99bbe7e"
     },
     {
       "name": "callable-skeleton.schema.json",
-      "digest": "blake3-256:4d999ee27a470459659765bff2ffd3e40c25d7422dfdda09e69733c344ff2d40"
+      "digest": "blake3-256:094f5d077b8aeaf1be0d835246a8bf1f6c6ff26e2238e6d9147236daaa22e9bd"
     },
     {
       "name": "canonical-item-selector.v1.schema.json",
@@ -100,12 +112,28 @@
       "digest": "blake3-256:29932815327cfba4424cc6443f04a9b3586c6ab8ce1f64d76904e9e80fc970e4"
     },
     {
+      "name": "content-binding.schema.json",
+      "digest": "blake3-256:d994d67092a39eb4c7cec8df470839372d06c815f9068c7e685336ad251a0b1a"
+    },
+    {
+      "name": "content-publication-commit.v1.schema.json",
+      "digest": "blake3-256:afac75ce2bece1c60ffb9435a5c107c9687088459988dc7c3e79fd78c38aacfe"
+    },
+    {
       "name": "exact-definitions.v1.schema.json",
       "digest": "blake3-256:f2a9d369c221ad07ec3376150fec180c617d40318d4b0d49def6e68b0c5d00f1"
     },
     {
       "name": "exact-structural-selector.v1.schema.json",
       "digest": "blake3-256:3def98370fcc3d4a3c7958b5b31e32398d8b5d4aa33d2831a95026078603f8f9"
+    },
+    {
+      "name": "grpc-warm-latency-receipt.schema.json",
+      "digest": "blake3-256:b05cb70a17c9169e81fef1491fb6e6c972e9bab8843131af5637d52405424297"
+    },
+    {
+      "name": "host-workspace-initialization-binding.v1.schema.json",
+      "digest": "blake3-256:bd2fd298d4b3f8e469986a092aa40653a3bbfc59c4f51810c1829f4f6dd146a0"
     },
     {
       "name": "language-package-graph.schema.json",
@@ -116,12 +144,32 @@
       "digest": "blake3-256:11f17ec46eb769fc3d650236af1fc19ba02486bce478b57d2fdd62a0cab3512d"
     },
     {
+      "name": "large-search-playbook-performance-receipt.v1.schema.json",
+      "digest": "blake3-256:951cee907a77fd2bc695a19b977a50508dc216eb3fe1e51f10195572880b4377"
+    },
+    {
+      "name": "lexical-postings-work-reduction-receipt.schema.json",
+      "digest": "blake3-256:416d3bbbd584a7268632aa9852eae189501f923bd39c5af9ed5469d001c9fff5"
+    },
+    {
       "name": "project-resolution.schema.json",
       "digest": "blake3-256:bfa2f1966d9d05e0f0c05cdb635112513498dedb076edf760f0504db60a358bb"
     },
     {
+      "name": "project-topology-library.v1.schema.json",
+      "digest": "blake3-256:6affc5b32ccc6530126038a2925ba224979499b093f27d3c09d548081b8860c4"
+    },
+    {
+      "name": "project-workspace-binding.v1.schema.json",
+      "digest": "blake3-256:85a1cfdff5e432e593bb346ae447116a4bf11e5e49be10530ff1362e81603061"
+    },
+    {
       "name": "provider-definitions.v1.schema.json",
       "digest": "blake3-256:0ff66bd35a2c1561424f0aa2b95df689cfcb6513059ea5d06245f7efb38c45ce"
+    },
+    {
+      "name": "provider-document-resolution-descriptor.v1.schema.json",
+      "digest": "blake3-256:b8ac27d78e7450932817b7018f4c2b98130d64e8fb5f9425c48df39cd6d0c5b5"
     },
     {
       "name": "provider-language-projection-batch-request.schema.json",
@@ -129,7 +177,11 @@
     },
     {
       "name": "provider-language-projection-batch-response.schema.json",
-      "digest": "blake3-256:5053370366b61b10844e084d9a0d622f93d7df7fa244798a69d74d5b592122ae"
+      "digest": "blake3-256:1fb2e8d535c278bb46e09f391b6b1812d1242491089a6abf49603783b8c6d122"
+    },
+    {
+      "name": "provider-manifest.schema.json",
+      "digest": "blake3-256:083ce2246c3590c626452fd06b7271031e1f989cf219af113643afd54b57ed44"
     },
     {
       "name": "provider-method-argument-projection.v1.schema.json",
@@ -142,6 +194,10 @@
     {
       "name": "provider-native-exact-response.v1.schema.json",
       "digest": "blake3-256:81a3c3149a15bdd3171e780e2786f7eac2be280345d50254cb620c6ef39aa25e"
+    },
+    {
+      "name": "provider-project-resolution-descriptor.schema.json",
+      "digest": "blake3-256:1bd422dbb2b0c8d561aff3df34f6ac0361c0725279bd64c55e63b17a15036e53"
     },
     {
       "name": "provider-project-resolution-request.schema.json",
@@ -177,27 +233,87 @@
     },
     {
       "name": "provider-syntax-query-request.schema.json",
-      "digest": "blake3-256:1ea810545fc18f35251a373d047c76c029e3b230416ce0a426c77c272f980e3c"
+      "digest": "blake3-256:703ae2fb298878c363a50721efaf8a575f03c1f4d4b96881da7be9017b1722fd"
     },
     {
       "name": "provider-syntax-query-response.schema.json",
-      "digest": "blake3-256:3bee1335447c75985a2f3db390e6b6cc4e64693b211f818bef6a7f9bc3c3b8ef"
+      "digest": "blake3-256:2405405f11c1c8a391541e30328f812e66dc1ab9b239fe558490aa7ddb28c760"
     },
     {
       "name": "provider-workspace-install.schema.json",
       "digest": "blake3-256:a607ae5a7ea24b889a6bac9ee4624c03def801da7932b8c9818de176a66f856f"
     },
     {
+      "name": "python-generation-graph-performance-receipt.v1.schema.json",
+      "digest": "blake3-256:301ad2fce1050064cfd20ba63522c1261434b030fe4513e9105cf14951d7e048"
+    },
+    {
+      "name": "query-playbook-materialization-receipt.v1.schema.json",
+      "digest": "blake3-256:05d6793b11c3b2643bf394b8773c1b9131aa17cf9ddcc588f3f592542553d83c"
+    },
+    {
+      "name": "query-playbook-materialization-request.v1.schema.json",
+      "digest": "blake3-256:080aa7a4443f7f694d38da9cd26dee1cc86f75618159c3f91f799e28591ef6d3"
+    },
+    {
       "name": "resident-search-result.v1.schema.json",
-      "digest": "blake3-256:66cb31e1a55f6b1ac60e898c2a0bd6a6c0f4aaa6e112625de3307c2e6e4ec3b0"
+      "digest": "blake3-256:f725fd1b7a004f28e7e579e6b6b76626880931ff9663bbd1de42519d66afbe78"
     },
     {
       "name": "resolved-source-scope.v1.schema.json",
       "digest": "blake3-256:0dcc57d7b2f8ffc931901231a72c61f4dca1b22d8eb7ffeccb544e3aad9c5b01"
     },
     {
+      "name": "rg-coverage-receipt.schema.json",
+      "digest": "blake3-256:9faa9e8e584171ff85907fbe6715fab6408e77c505e97cd484a286c17f2aa836"
+    },
+    {
+      "name": "runtime-artifact-bundle-binding.v2.schema.json",
+      "digest": "blake3-256:33502b4f75b3213cba8f24ba74d460525838b9627542c7fec9bdb28e35d1cbce"
+    },
+    {
+      "name": "runtime-artifact-execution-closure-member.v1.schema.json",
+      "digest": "blake3-256:f0f47ae132953e45ac81ef407a3279d6a5f153e5f0bd60cc042755e5df5caa4c"
+    },
+    {
+      "name": "runtime-binary-bundle.v2.schema.json",
+      "digest": "blake3-256:70ad1c9d87f4841788ba348fba007f8e12152bb74aa34a00f3e52c1a016eab91"
+    },
+    {
+      "name": "runtime-client-terminal.schema.json",
+      "digest": "blake3-256:bdf3e6b1bd11b201cc7802a364d678ad7a99a74cc40df2be90f76e2f6e050e70"
+    },
+    {
+      "name": "runtime-execution-binding.v2.schema.json",
+      "digest": "blake3-256:86f2829a05451dd84d180a6dab2cf621a14bd7e0c1ffcb3552ab9b7e61f6feb6"
+    },
+    {
       "name": "runtime-provider-search-receipt.v1.schema.json",
-      "digest": "blake3-256:81c8c9ce229230a8aa70c5e6b99d04b9ea18355f4b59ed3d39ecff58228c686c"
+      "digest": "blake3-256:2e439b2ee83198710238aed803c9c37cd2cb06bc7a5e2c010486cdaa605df691"
+    },
+    {
+      "name": "runtime-search-client-timing-witness.v1.schema.json",
+      "digest": "blake3-256:076543ae9ba44348c9867a5454f043aeb36211742a6c299f57f33543cc071881"
+    },
+    {
+      "name": "runtime-search-execution-budget.v1.schema.json",
+      "digest": "blake3-256:e7af7abd057b887c63490bcb143e6be322ed8e10ce244fa93e9cb043ed1107a7"
+    },
+    {
+      "name": "runtime-workspace-execution-pointer.v1.schema.json",
+      "digest": "blake3-256:858db6ddc09da3fc1b71e45aa7cea58680bee44bfd78b0fa4c36bfb9b56b9276"
+    },
+    {
+      "name": "runtime-workspace-execution-publication.v1.schema.json",
+      "digest": "blake3-256:889e816172637c38d87e8e0fdd8d186d0a1562149823774638f0128189d2f5d5"
+    },
+    {
+      "name": "search-generation-change-set.v1.schema.json",
+      "digest": "blake3-256:2c367cda53c1d03672c268fe2576fff2d11b7cd349992bc0f2c96bea206a2d80"
+    },
+    {
+      "name": "search-topology-settlement.v1.schema.json",
+      "digest": "blake3-256:9fc0cfde08823e1c52d302d1fae437b9395e7a8fb1f33dacc6a1892edcc60104"
     },
     {
       "name": "semantic-assurance-case.v1.schema.json",
@@ -280,6 +396,14 @@
       "digest": "blake3-256:f3d04cc56caa24b4a48f524810ccafe3e77838c96d600d78776108e3373202db"
     },
     {
+      "name": "semantic-graph-resident-evaluation-request.v1.schema.json",
+      "digest": "blake3-256:3147c5f98f8e0af8a461c74fba6d0114dab0f173fae6e2df4a43bee8e8cd1839"
+    },
+    {
+      "name": "semantic-graph-resident-evaluation-result.v1.schema.json",
+      "digest": "blake3-256:0b4c0b2ff31409e0e61745f2db72b20a7a786370efa304cb7c31cacc0059e3d4"
+    },
+    {
       "name": "semantic-graph-turbo-artifact-events.v1.schema.json",
       "digest": "blake3-256:2be62f0ff356bbeeb0eeca549018c47709c3e8cbb34c528066579c3ab397ab88"
     },
@@ -289,7 +413,7 @@
     },
     {
       "name": "semantic-graph-turbo-request.v1.schema.json",
-      "digest": "blake3-256:ef8593d37038e0eb77d163700c0079d48d29ae37b6ba727e4f49c8f13f42eef2"
+      "digest": "blake3-256:bb79347cc1d9310d0628e2d7184b95df5784dde368e2ea4159a8574bf0cb7176"
     },
     {
       "name": "semantic-graph.v1.schema.json",
@@ -309,7 +433,7 @@
     },
     {
       "name": "semantic-language-registry.v1.schema.json",
-      "digest": "blake3-256:5d440b89b13de434b5fdc6144f0e41678bb5dd89569e28cccd13db73ff37fff7"
+      "digest": "blake3-256:8892eba517e307a1dc55dc46ed9e7114eb8c4cbd681cc19761362a37b8802361"
     },
     {
       "name": "semantic-native-syntax-fact-index.v1.schema.json",
@@ -337,7 +461,7 @@
     },
     {
       "name": "semantic-search-packet.v1.schema.json",
-      "digest": "blake3-256:993623779091e9fa3e0689a591481cda8393c0f42d3b55dd58b53af620598d71"
+      "digest": "blake3-256:a179736b63d468cf78e5c78f4e78b35304d94993e50402cea328be06bec8a9fb"
     },
     {
       "name": "semantic-search-storage-route.v1.schema.json",

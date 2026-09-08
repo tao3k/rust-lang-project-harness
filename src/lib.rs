@@ -31,8 +31,6 @@ pub mod provider_workspace_search_identity;
 mod render;
 mod rules;
 mod runner;
-#[cfg(feature = "search")]
-mod search;
 pub mod structural_selector;
 mod verification;
 #[path = "workspace_dependency_graph.rs"]
@@ -180,6 +178,10 @@ mod parser_native_syntax_api_shape_tests;
 #[path = "../tests/unit/parser_native_syntax/data_shape.rs"]
 mod parser_native_syntax_data_shape_tests;
 
+#[cfg(test)]
+#[path = "../tests/unit/provider_workspace_install.rs"]
+mod provider_workspace_install_tests;
+
 pub use agent_snapshot::{
     render_asp_rust_agent_snapshot, render_asp_rust_agent_snapshot_with_config,
 };
@@ -193,7 +195,7 @@ pub use build_gate::{
     assert_asp_rust_downstream_policy, assert_asp_rust_downstream_policy_from_env,
     assert_asp_rust_downstream_policy_with_authority,
     assert_asp_rust_verification_from_env_with_config, assert_asp_rust_verification_with_config,
-    render_asp_rust_downstream_policy_receipt_json,
+    evaluate_asp_rust_downstream_policy, render_asp_rust_downstream_policy_receipt_json,
 };
 pub use discovery::{DEFAULT_IGNORED_DIR_NAMES, asp_rust_scope, discover_rust_files};
 pub use downstream_gate_guide::{
@@ -223,17 +225,6 @@ pub use runner::{
     assert_rust_workspace_harness_clean_with_config, default_asp_rust_config,
     run_asp_rust_for_scope, run_asp_rust_with_config_for_scope, run_rust_lang_harness,
     run_rust_lang_harness_with_config,
-};
-#[cfg(feature = "search")]
-pub use search::{
-    RustSearchOptions, RustSearchViewRequest, render_asp_rust_search_compare_json_with_config,
-    render_asp_rust_search_ingest_with_config, render_asp_rust_search_prime,
-    render_asp_rust_search_prime_with_config, render_asp_rust_search_view_with_config,
-};
-#[cfg(feature = "search")]
-pub use search::{
-    render_asp_rust_dependency_topology_json, render_asp_rust_dependency_topology_metadata_json,
-    render_asp_rust_search_semantic_facts_json,
 };
 pub use verification::{
     RUST_VERIFICATION_REPORT_MANIFEST_SCHEMA_ID, RUST_VERIFICATION_REPORT_MANIFEST_SCHEMA_VERSION,
@@ -330,6 +321,7 @@ pub use workspace_evidence_graph::{
     AspRustWorkspaceEvidenceGraphSummaryReceipt, AspRustWorkspaceMemberRunReport,
     AspRustWorkspaceRunReport, AspRustWorkspaceTrustLoopStepReceipt,
     AspRustWorkspaceTrustLoopStepStatus, asp_rust_workspace_evidence_graph_receipt,
-    assert_asp_rust_workspace_policy, assert_asp_rust_workspace_policy_from_env,
-    assert_asp_rust_workspace_policy_with, render_asp_rust_workspace_evidence_graph_receipt_json,
+    assert_asp_rust_workspace_build_dag_policy_with, assert_asp_rust_workspace_policy,
+    assert_asp_rust_workspace_policy_from_env, assert_asp_rust_workspace_policy_with,
+    render_asp_rust_workspace_evidence_graph_receipt_json,
 };

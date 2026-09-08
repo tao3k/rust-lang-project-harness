@@ -113,20 +113,40 @@ pub fn assert_asp_rust_workspace_policy(
 pub fn assert_asp_rust_workspace_policy_with<F>(
     workspace_root: &Path,
     workspace_policy: &crate::build_gate::AspRustWorkspacePolicy,
-    mut configure_member: F,
+    configure_member: F,
 ) -> AspRustWorkspaceRunReport
 where
     F: FnMut(&str, crate::AspRustConfig) -> crate::AspRustConfig,
 {
     let build_dag = asp_rust_workspace_build_dag(workspace_root, workspace_policy.config())
         .unwrap_or_else(|error| panic!("ASP Rust workspace dependency graph: {error}"));
+    assert_asp_rust_workspace_build_dag_policy_with(build_dag, workspace_policy, configure_member)
+}
+
+/// Assert a pre-derived Cargo Build DAG without rediscovering workspace packages.
+///
+/// This is the build-script boundary: the workspace owner derives the Cargo DAG
+/// exactly once, then evaluates every package atom exactly once against that
+/// immutable graph. Downstream packages never compile or invoke a second full
+/// source scanner.
+#[track_caller]
+pub fn assert_asp_rust_workspace_build_dag_policy_with<F>(
+    build_dag: AspRustWorkspaceBuildDag,
+    workspace_policy: &crate::build_gate::AspRustWorkspacePolicy,
+    mut configure_member: F,
+) -> AspRustWorkspaceRunReport
+where
+    F: FnMut(&str, crate::AspRustConfig) -> crate::AspRustConfig,
+{
+    let workspace_root = build_dag.workspace_root.clone();
     let mut reports = Vec::new();
+    let mut rejections = Vec::new();
     for package in &build_dag.packages {
         let policy = workspace_policy.member_crate_with_config(&package.package_name, |config| {
             configure_member(&package.package_name, config)
         });
         let report =
-            crate::build_gate::assert_asp_rust_downstream_policy(&package.package_root, &policy);
+            crate::build_gate::evaluate_asp_rust_downstream_policy(&package.package_root, &policy);
         assert!(
             report
                 .root_paths
@@ -135,14 +155,33 @@ where
             "workspace member gate escaped package atom {}",
             package.package_root.display()
         );
+        // Workspace evidence keeps advisory `Info` findings visible in each
+        // package atom, but admission is governed by the report's configured
+        // blocking severities. Reusing the member build-script rejection here
+        // would incorrectly turn missing transitional advice explanations into
+        // workspace publication failures.
+        if !report.is_clean() {
+            rejections.push(format!(
+                "[{}]\n{}",
+                policy.gate_label(),
+                crate::render_asp_rust(&report)
+            ));
+        }
         reports.push(AspRustWorkspaceMemberRunReport {
             crate_label: package.package_name.clone(),
             project_root: package.package_root.clone(),
             report,
         });
     }
+    assert!(
+        rejections.is_empty(),
+        "ASP Rust workspace policy rejected {} of {} package atoms:\n{}",
+        rejections.len(),
+        build_dag.packages.len(),
+        rejections.join("\n\n")
+    );
     AspRustWorkspaceRunReport {
-        workspace_root: crate::path::normalize_lexical_path(workspace_root),
+        workspace_root,
         build_dag,
         members: reports,
     }

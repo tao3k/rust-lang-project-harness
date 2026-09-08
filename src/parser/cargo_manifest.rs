@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 #[cfg(feature = "provider-server")]
 use std::collections::HashSet;
-#[cfg(any(feature = "provider-server", feature = "search"))]
+#[cfg(feature = "provider-server")]
 use std::fs;
 #[cfg(feature = "provider-server")]
 use std::io;
@@ -16,7 +16,7 @@ const ASP_RUST_PACKAGE_NAMES: &[&str] = &["asp-rust", "asp-rust-build-support"];
 #[derive(Debug, Clone, Default)]
 pub(crate) struct CargoManifestFacts {
     pub(crate) has_package: bool,
-    #[cfg(any(feature = "provider-server", feature = "search"))]
+    #[cfg(feature = "provider-server")]
     pub(crate) package_name: Option<String>,
     pub(crate) package_edition: Option<String>,
     pub(crate) workspace_members: Vec<String>,
@@ -29,6 +29,7 @@ pub(crate) struct CargoManifestFacts {
     pub(crate) test_target_files: Vec<PathBuf>,
     pub(crate) bench_targets: Vec<CargoBenchTargetFacts>,
     pub(crate) references_harness: bool,
+    pub(crate) references_harness_non_optional_normal_dependency: bool,
     pub(crate) references_harness_build_dependency: bool,
 }
 
@@ -135,6 +136,8 @@ fn read_candidate_manifest(project_root: &Path) -> Option<Manifest> {
 
 fn cargo_manifest_facts(project_root: &Path, manifest: &Manifest) -> CargoManifestFacts {
     let references_harness = manifest_references_harness(manifest);
+    let references_harness_non_optional_normal_dependency =
+        manifest_references_harness_non_optional_normal_dependency(manifest);
     let references_harness_build_dependency =
         manifest_references_harness_build_dependency(manifest);
     let package_name = manifest
@@ -162,7 +165,7 @@ fn cargo_manifest_facts(project_root: &Path, manifest: &Manifest) -> CargoManife
     let path_dependency_roots = manifest_path_dependency_roots(project_root, manifest);
     CargoManifestFacts {
         has_package,
-        #[cfg(any(feature = "provider-server", feature = "search"))]
+        #[cfg(feature = "provider-server")]
         package_name,
         package_edition,
         workspace_members,
@@ -175,33 +178,9 @@ fn cargo_manifest_facts(project_root: &Path, manifest: &Manifest) -> CargoManife
         test_target_files,
         bench_targets,
         references_harness,
+        references_harness_non_optional_normal_dependency,
         references_harness_build_dependency,
     }
-}
-
-#[cfg(feature = "search")]
-pub(crate) fn parse_cargo_workspace_member_roots(project_root: &Path) -> Vec<PathBuf> {
-    let Some(manifest) = read_manifest(project_root) else {
-        return Vec::new();
-    };
-    let Some(workspace) = manifest.workspace.as_ref() else {
-        return Vec::new();
-    };
-    let mut roots = BTreeSet::new();
-    for member in &workspace.members {
-        expand_workspace_member_pattern(project_root, member, &mut roots);
-    }
-    roots.retain(|root| {
-        root.join("Cargo.toml").is_file()
-            && root.strip_prefix(project_root).ok().is_none_or(|relative| {
-                let relative = relative.to_string_lossy().replace('\\', "/");
-                !workspace
-                    .exclude
-                    .iter()
-                    .any(|pattern| workspace_member_pattern_matches(pattern, &relative))
-            })
-    });
-    roots.into_iter().collect()
 }
 
 #[cfg(feature = "provider-server")]
@@ -323,7 +302,7 @@ fn workspace_contains_manifest_dir(
         .any(|pattern| workspace_member_pattern_matches(pattern, &relative))
 }
 
-#[cfg(any(feature = "provider-server", feature = "search"))]
+#[cfg(feature = "provider-server")]
 pub(crate) fn workspace_member_pattern_matches(pattern: &str, relative: &str) -> bool {
     if !pattern.contains('*') {
         return pattern == relative;
@@ -339,7 +318,7 @@ pub(crate) fn workspace_member_pattern_matches(pattern: &str, relative: &str) ->
         )
 }
 
-#[cfg(any(feature = "provider-server", feature = "search"))]
+#[cfg(feature = "provider-server")]
 fn workspace_member_component_matches(pattern: &str, value: &str) -> bool {
     if pattern == "*" {
         return true;
@@ -369,54 +348,6 @@ fn workspace_member_component_matches(pattern: &str, value: &str) -> bool {
         }
     }
     pattern.ends_with('*') || remaining.is_empty()
-}
-
-#[cfg(feature = "search")]
-fn expand_workspace_member_pattern(
-    project_root: &Path,
-    pattern: &str,
-    roots: &mut BTreeSet<PathBuf>,
-) {
-    let normalized = pattern.replace('\\', "/");
-    let components = normalized
-        .split('/')
-        .filter(|component| !component.is_empty())
-        .collect::<Vec<_>>();
-    if components.is_empty() {
-        return;
-    }
-    expand_workspace_member_components(project_root, &components, roots);
-}
-
-#[cfg(feature = "search")]
-fn expand_workspace_member_components(
-    current: &Path,
-    components: &[&str],
-    roots: &mut BTreeSet<PathBuf>,
-) {
-    let Some((component, remaining)) = components.split_first() else {
-        roots.insert(current.to_path_buf());
-        return;
-    };
-    if !component.contains('*') {
-        expand_workspace_member_components(&current.join(component), remaining, roots);
-        return;
-    }
-    let Ok(entries) = fs::read_dir(current) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_dir() {
-            continue;
-        }
-        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
-            continue;
-        };
-        if workspace_member_component_matches(component, name) {
-            expand_workspace_member_components(&path, remaining, roots);
-        }
-    }
 }
 
 fn manifest_example_targets(
@@ -490,11 +421,6 @@ fn resolve_dependency_path(base: &Path, path: &str) -> PathBuf {
 fn read_manifest(project_root: &Path) -> Option<Manifest> {
     let manifest_path = project_root.join("Cargo.toml");
     Manifest::from_path(&manifest_path).ok()
-}
-
-#[cfg(any(feature = "search", test))]
-pub(super) fn read_manifest_for_cfg(project_root: &Path) -> Option<Manifest> {
-    read_manifest(project_root)
 }
 
 fn manifest_source_target_files(project_root: &Path, manifest: &Manifest) -> Vec<PathBuf> {
@@ -722,6 +648,24 @@ fn manifest_references_harness_build_dependency(manifest: &Manifest) -> bool {
             .target
             .values()
             .any(|target| dependency_table_references_harness(&target.build_dependencies))
+}
+
+fn manifest_references_harness_non_optional_normal_dependency(manifest: &Manifest) -> bool {
+    dependency_table_references_non_optional_harness(&manifest.dependencies)
+        || manifest
+            .target
+            .values()
+            .any(|target| dependency_table_references_non_optional_harness(&target.dependencies))
+}
+
+fn dependency_table_references_non_optional_harness(dependencies: &DepsSet) -> bool {
+    dependencies
+        .iter()
+        .any(|(name, value)| dependency_references_full_harness(name, value) && !value.optional())
+}
+
+fn dependency_references_full_harness(name: &str, value: &Dependency) -> bool {
+    name == "asp-rust" || value.package().is_some_and(|package| package == "asp-rust")
 }
 
 fn dependency_table_references_harness(dependencies: &DepsSet) -> bool {

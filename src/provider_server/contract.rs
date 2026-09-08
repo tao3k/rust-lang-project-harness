@@ -185,6 +185,7 @@ pub(super) struct ProviderSyntaxQueryCapture {
     pub(super) pattern_index: usize,
     pub(super) capture_name: String,
     pub(super) native_fact_ref: String,
+    pub(super) structural_selector: String,
     pub(super) source_byte_start: u64,
     pub(super) source_byte_end: u64,
 }

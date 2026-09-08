@@ -43,6 +43,22 @@ pub fn assert_asp_rust_downstream_policy(
         policy,
         cache_root.as_deref(),
         "blake3-256:legacy-unbound-policy-authority",
+        true,
+    )
+}
+
+/// Evaluate one package atom without terminating a whole-workspace audit early.
+pub fn evaluate_asp_rust_downstream_policy(
+    project_root: &Path,
+    policy: &AspRustDownstreamPolicy,
+) -> AspRustReport {
+    let cache_root = super::cache::build_gate_cache_root_from_env(project_root);
+    run_asp_rust_downstream_policy(
+        project_root,
+        policy,
+        cache_root.as_deref(),
+        "blake3-256:workspace-policy-authority",
+        false,
     )
 }
 
@@ -62,6 +78,7 @@ pub fn assert_asp_rust_downstream_policy_with_authority(
         policy,
         Some(authority.cache_root()),
         authority.policy_digest(),
+        true,
     )
 }
 
@@ -79,6 +96,7 @@ pub(crate) fn assert_asp_rust_downstream_policy_with_state_home(
         policy,
         Some(&cache_root),
         "blake3-256:test-policy-authority",
+        true,
     )
 }
 
@@ -87,6 +105,7 @@ fn run_asp_rust_downstream_policy(
     policy: &AspRustDownstreamPolicy,
     cache_root: Option<&Path>,
     policy_authority_digest: &str,
+    assert_report: bool,
 ) -> AspRustReport {
     let dependency_baseline_receipts = super::receipt::dependency_baseline_package_receipts(policy);
     let snapshot = super::cache::snapshot_build_gate_inputs_with_cache(
@@ -122,11 +141,13 @@ fn run_asp_rust_downstream_policy(
             project_root,
             record.snapshot.files.iter().map(|file| &file.path),
         );
-        assert_build_report_clean_with_agent_guidance(
-            &record.report,
-            policy.config(),
-            policy.gate_label(),
-        );
+        if assert_report {
+            assert_build_report_clean_with_agent_guidance(
+                &record.report,
+                policy.config(),
+                policy.gate_label(),
+            );
+        }
         super::verification_gate::assert_asp_rust_verification_plan(
             &record.verification_plan,
             &policy.config().verification_policy,
@@ -170,7 +191,13 @@ fn run_asp_rust_downstream_policy(
     });
     super::rerun::emit_cargo_rerun_inputs(project_root, &analysis);
     let report = analysis.to_report(policy.config());
-    assert_build_report_clean_with_agent_guidance(&report, policy.config(), policy.gate_label());
+    if assert_report {
+        assert_build_report_clean_with_agent_guidance(
+            &report,
+            policy.config(),
+            policy.gate_label(),
+        );
+    }
     let verification_plan = crate::verification::plan_rust_verification_from_harness_analysis(
         analysis,
         &policy.config().verification_policy,
@@ -226,22 +253,33 @@ fn assert_build_report_clean_with_agent_guidance(
     config: &AspRustConfig,
     gate_label: &str,
 ) {
+    if let Some(rejection) = build_report_rejection(report, config, gate_label) {
+        panic!("{rejection}");
+    }
+}
+
+pub(crate) fn build_report_rejection(
+    report: &AspRustReport,
+    config: &AspRustConfig,
+    gate_label: &str,
+) -> Option<String> {
     if !report.is_clean() {
-        panic!(
+        return Some(format!(
             "{}\n{}",
             crate::render_asp_rust(report),
             downstream_build_gate_agent_guidance(gate_label)
-        );
+        ));
     }
     if !config_allows_agent_advice(config) {
         let rendered = crate::render_asp_rust_advice(report);
         if !rendered.is_empty() {
-            panic!(
+            return Some(format!(
                 "{rendered}\n{}",
                 downstream_build_gate_agent_guidance(gate_label)
-            );
+            ));
         }
     }
+    None
 }
 
 fn config_allows_agent_advice(config: &AspRustConfig) -> bool {

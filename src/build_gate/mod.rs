@@ -18,7 +18,7 @@ pub use dependency_baseline::{
 pub(crate) use downstream::assert_asp_rust_downstream_policy_with_state_home;
 pub use downstream::{
     assert_asp_rust_downstream_policy, assert_asp_rust_downstream_policy_from_env,
-    assert_asp_rust_downstream_policy_with_authority,
+    assert_asp_rust_downstream_policy_with_authority, evaluate_asp_rust_downstream_policy,
 };
 pub use policy::{AspRustBuildGateAuthority, AspRustDownstreamPolicy, AspRustWorkspacePolicy};
 pub(crate) use receipt::downstream_policy_receipt_from_plan;

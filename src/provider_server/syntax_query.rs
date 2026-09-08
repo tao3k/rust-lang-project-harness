@@ -57,14 +57,53 @@ fn collect_pattern_item_captures(
     parsed: &crate::parser::ParsedRustModule,
 ) -> Result<Vec<super::contract::ProviderSyntaxQueryCapture>, String> {
     let mut captures = Vec::new();
+    let exact_items = crate::exact_source_parse_artifact::parse_owner_items_v1(&request.source)?;
+    let exact_item_index = exact_items
+        .iter()
+        .filter(|item| item.identity.scopes.is_empty())
+        .map(|item| {
+            (
+                (item.identity.kind.as_str(), item.identity.symbol.as_str()),
+                item,
+            )
+        })
+        .collect::<std::collections::BTreeMap<_, _>>();
     for pattern in &request.plan.patterns {
+        let pattern_capture_names = pattern
+            .captures
+            .iter()
+            .map(String::as_str)
+            .collect::<std::collections::BTreeSet<_>>();
         for item in &parsed.syntax_facts.top_level_items {
             if !pattern_matches_item(pattern, item.kind)
-                || !predicates_match_item(&request.plan.predicates, pattern, item.name.as_deref())?
+                || !predicates_match_item(
+                    &request.plan.predicates,
+                    &pattern_capture_names,
+                    item.name.as_deref(),
+                )?
             {
                 continue;
             }
             let (item_start, item_end) = line_byte_range(&request.source, item.line, item.end_line);
+            let Some(item_name) = item.name.as_deref() else {
+                continue;
+            };
+            let canonical_kind = match item.kind {
+                "fn" => "function",
+                "mod" => "module",
+                "trait_alias" => "trait-alias",
+                kind => kind,
+            };
+            let Some(exact_item) = exact_item_index.get(&(canonical_kind, item_name)) else {
+                continue;
+            };
+            let structural_selector = format!(
+                "rust://{}#{}",
+                request.owner_path,
+                crate::structural_selector::encode_canonical_item_identity_path(
+                    &exact_item.identity,
+                )
+            );
             for capture_name in &pattern.captures {
                 let (source_byte_start, source_byte_end) = capture_source_range(
                     &request.source,
@@ -83,6 +122,7 @@ fn collect_pattern_item_captures(
                         item.end_line,
                         item.name.as_deref().unwrap_or(item.kind)
                     ),
+                    structural_selector: structural_selector.clone(),
                     source_byte_start: source_byte_start as u64,
                     source_byte_end: source_byte_end as u64,
                 });
@@ -132,12 +172,12 @@ fn pattern_matches_item(pattern: &super::contract::SyntaxQueryPattern, item_kind
 
 fn predicates_match_item(
     predicates: &[super::contract::SyntaxQueryPredicate],
-    pattern: &super::contract::SyntaxQueryPattern,
+    pattern_capture_names: &std::collections::BTreeSet<&str>,
     item_name: Option<&str>,
 ) -> Result<bool, String> {
     predicates
         .iter()
-        .filter(|predicate| pattern.captures.contains(&predicate.capture))
+        .filter(|predicate| pattern_capture_names.contains(predicate.capture.as_str()))
         .try_fold(true, |matched, predicate| {
             if !matched {
                 return Ok(false);
@@ -177,6 +217,10 @@ fn predicates_match_item(
             Ok(positive)
         })
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/provider_server_syntax_query.rs"]
+mod tests;
 
 fn line_byte_range(source: &str, start_line: usize, end_line: usize) -> (usize, usize) {
     let line_ends = source

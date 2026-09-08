@@ -1,7 +1,7 @@
 set shell := ["bash", "-cu"]
 
 bin := "asp-rust"
-features := "cli"
+features := "provider-server"
 
 default:
     @just --list
@@ -11,7 +11,7 @@ build-cli:
 
 # ASP owns artifact publication; this package owns its development build.
 install:
-    cargo build --offline --release --features {{features}} --bin {{bin}}
+    cargo build --offline --profile provider-runtime --features {{features}} --bin {{bin}}
 
 install-bin-macos prefix="/opt/homebrew":
     CARGO_INSTALL_ROOT="{{prefix}}" cargo install --path . --features {{features}} --bin {{bin}} --force

@@ -328,7 +328,7 @@ fn owner_missing_packet_carries_generation_evidence_and_lexical_recovery() {
         packet["recommendedNext"]["command"]
             .as_str()
             .expect("recommended command")
-            .contains("search lexical")
+            .contains("search playbook")
     );
 }
 

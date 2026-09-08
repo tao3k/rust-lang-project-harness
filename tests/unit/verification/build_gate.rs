@@ -629,6 +629,38 @@ fn build_dag_deduplicates_diamond_and_orders_dependencies_first() {
 }
 
 #[test]
+fn workspace_policy_collects_every_package_rejection_before_terminating() {
+    let temp = TempDir::new().expect("temp dir");
+    let workspace = temp.path();
+    write_dependency_graph_workspace(workspace, false);
+    fs::write(
+        workspace.join("left/src/lib.rs"),
+        "//! Left package.\npub fn undocumented_left() {}\n",
+    )
+    .expect("write left policy failure");
+    fs::write(
+        workspace.join("right/src/lib.rs"),
+        "//! Right package.\npub fn undocumented_right() {}\n",
+    )
+    .expect("write right policy failure");
+
+    let workspace_policy =
+        AspRustWorkspacePolicy::new("aggregate-fixture", default_asp_rust_config());
+    let failure = std::panic::catch_unwind(|| {
+        assert_asp_rust_workspace_policy(workspace, &workspace_policy);
+    })
+    .expect_err("workspace policy must reject both package atoms");
+    let message = panic_message(failure);
+
+    assert!(message.contains("aggregate-fixture::left"), "{message}");
+    assert!(message.contains("aggregate-fixture::right"), "{message}");
+    assert!(
+        message.contains("rejected 2 of 4 package atoms"),
+        "{message}"
+    );
+}
+
+#[test]
 fn build_dag_uses_workspace_members_and_excludes_non_members() {
     let temp = TempDir::new().expect("temp dir");
     let workspace = temp.path();

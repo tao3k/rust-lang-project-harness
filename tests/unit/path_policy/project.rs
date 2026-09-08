@@ -161,7 +161,7 @@ fn root_test_target_comment_mentions_do_not_count_as_structure() {
 }
 
 #[test]
-fn harness_dev_dependency_requires_cargo_check_build_gate() {
+fn harness_dev_dependency_remains_test_layer_only() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     write_manifest(root, "missing-embedded-lib-gate");
@@ -177,7 +177,7 @@ fn harness_dev_dependency_requires_cargo_check_build_gate() {
         .expect("run project harness");
 
     assert!(
-        has_rule(&report, "RUST-AGENT-PROJECT-012"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-012"),
         "{:?}",
         report.findings
     );
@@ -208,7 +208,7 @@ fn library_target_ignores_comment_mentions_of_embedded_cargo_test_gate() {
         .expect("run project harness");
 
     assert!(
-        has_rule(&report, "RUST-AGENT-PROJECT-012"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-012"),
         "{:?}",
         report.findings
     );
@@ -247,7 +247,7 @@ fn manifest_comment_does_not_enable_library_harness_policy() {
 }
 
 #[test]
-fn manifest_package_field_uses_the_canonical_harness_identity() {
+fn manifest_package_field_dev_dependency_remains_test_layer_only() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     fs::write(
@@ -262,7 +262,7 @@ fn manifest_package_field_uses_the_canonical_harness_identity() {
         .expect("run project harness");
 
     assert!(
-        has_rule(&report, "RUST-AGENT-PROJECT-012"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-012"),
         "{:?}",
         report.findings
     );
@@ -274,7 +274,7 @@ fn manifest_package_field_uses_the_canonical_harness_identity() {
 }
 
 #[test]
-fn target_dependency_table_uses_canonical_harness_identity() {
+fn target_dev_dependency_table_remains_test_layer_only() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     fs::write(
@@ -289,7 +289,7 @@ fn target_dependency_table_uses_canonical_harness_identity() {
         .expect("run project harness");
 
     assert!(
-        has_rule(&report, "RUST-AGENT-PROJECT-012"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-012"),
         "{:?}",
         report.findings
     );

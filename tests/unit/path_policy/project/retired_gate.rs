@@ -59,7 +59,7 @@ fn retired_source_cargo_test_gate_reports_migration_warning() {
         .expect("run project harness");
 
     assert!(
-        has_rule(&report, "RUST-AGENT-PROJECT-012"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-012"),
         "{:?}",
         report.findings
     );

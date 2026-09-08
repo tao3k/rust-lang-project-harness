@@ -156,7 +156,7 @@ fn harness_enabled_build_script_requires_build_gate_snapshot() {
     let root = temp.path();
     fs::write(
         root.join("Cargo.toml"),
-        "[package]\nname = \"missing-build-gate\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dev-dependencies]\nasp-rust = { path = \".\" }\n",
+        "[package]\nname = \"missing-build-gate\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nasp-rust = { path = \".\" }\n",
     )
     .expect("write manifest");
     fs::create_dir(root.join("src")).expect("create src");
@@ -180,7 +180,7 @@ fn harness_enabled_build_script_requires_build_gate_snapshot() {
 }
 
 #[test]
-fn harness_dependency_requires_cargo_check_build_gate_without_build_script() {
+fn dev_harness_dependency_does_not_require_a_build_script() {
     let temp = TempDir::new().expect("temp dir");
     let root = temp.path();
     fs::write(
@@ -195,12 +195,56 @@ fn harness_dependency_requires_cargo_check_build_gate_without_build_script() {
         .expect("run project harness");
 
     assert!(
-        has_rule(&report, "RUST-AGENT-PROJECT-012"),
+        !has_rule(&report, "RUST-AGENT-PROJECT-012"),
         "{:?}",
         report.findings
     );
     assert!(
         !has_rule(&report, "RUST-AGENT-PROJECT-009"),
+        "{:?}",
+        report.findings
+    );
+}
+
+#[test]
+fn optional_full_harness_tool_dependency_does_not_require_a_build_script() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"optional-workspace-policy-tool\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[features]\nworkspace-policy = [\"dep:asp-rust\"]\n\n[dependencies]\nasp-rust = { path = \".\", optional = true }\n",
+    )
+    .expect("write manifest");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
+
+    let report = run_asp_rust_for_scope(root, asp_rust::AspRustRunScope::Package)
+        .expect("run project harness");
+
+    assert!(
+        !has_rule(&report, "RUST-AGENT-PROJECT-012"),
+        "{:?}",
+        report.findings
+    );
+}
+
+#[test]
+fn normal_build_support_library_dependency_is_not_the_full_harness() {
+    let temp = TempDir::new().expect("temp dir");
+    let root = temp.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"workspace-policy-adapter\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nasp-rust-build-support = { path = \"build-support\" }\n",
+    )
+    .expect("write manifest");
+    fs::create_dir(root.join("src")).expect("create src");
+    fs::write(root.join("src/lib.rs"), "//! Test crate.\n").expect("write lib");
+
+    let report = run_asp_rust_for_scope(root, asp_rust::AspRustRunScope::Package)
+        .expect("run project harness");
+
+    assert!(
+        !has_rule(&report, "RUST-AGENT-PROJECT-012"),
         "{:?}",
         report.findings
     );

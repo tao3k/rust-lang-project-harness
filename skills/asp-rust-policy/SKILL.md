@@ -47,9 +47,9 @@ bindings are configured.
 Run the repository validation set before committing code changes:
 
 ```shell
-direnv exec . cargo test
-direnv exec . cargo fmt --check
-direnv exec . cargo clippy --all-targets -- -D warnings
+.devenv/devenv-profile-exec cargo test --manifest-path languages/asp-rust/Cargo.toml
+.devenv/devenv-profile-exec cargo fmt --manifest-path languages/asp-rust/Cargo.toml --check
+.devenv/devenv-profile-exec cargo clippy --manifest-path languages/asp-rust/Cargo.toml --all-targets -- -D warnings
 git diff --check
 ```
 
