@@ -3,6 +3,13 @@ pub(crate) struct ParseArtifactItem {
     pub(crate) identity: crate::content_identity::CanonicalItemIdentity,
     pub(crate) source_byte_start: usize,
     pub(crate) source_byte_end: usize,
+    pub(crate) callable_syntax: Option<ParsedCallableSyntax>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct ParsedCallableSyntax {
+    pub(crate) signature: syn::Signature,
+    pub(crate) block: Option<syn::Block>,
 }
 
 pub(crate) fn collect_parse_artifact_items(
@@ -18,11 +25,16 @@ pub(crate) fn collect_parse_artifact_items(
             syn::Item::Enum(item) => {
                 push_parse_artifact_item("enum", item.ident.to_string(), &item.attrs, item, output)
             }
-            syn::Item::Fn(item) => push_parse_artifact_item(
-                "function",
-                item.sig.ident.to_string(),
+            syn::Item::Fn(item) => push_callable_parse_artifact_item(
+                crate::content_identity::CanonicalItemIdentity::new(
+                    "rust",
+                    "function",
+                    item.sig.ident.to_string(),
+                ),
                 &item.attrs,
                 item,
+                item.sig.clone(),
+                Some((*item.block).clone()),
                 output,
             ),
             syn::Item::Macro(item) => collect_macro_parse_artifact_item(item, output),
@@ -114,9 +126,11 @@ fn collect_impl_parse_artifact_items(item: &syn::ItemImpl, output: &mut Vec<Pars
         if let Some(trait_owner) = trait_owner.as_deref() {
             identity = identity.with_scope("trait-owner", "trait", trait_owner);
         }
-        push_canonical_parse_artifact_item(
+        push_canonical_callable_parse_artifact_item(
             with_cfg_scopes(identity, &method.attrs),
             method,
+            method.sig.clone(),
+            Some(method.block.clone()),
             output,
         );
     }
@@ -135,9 +149,11 @@ fn collect_trait_parse_artifact_items(item: &syn::ItemTrait, output: &mut Vec<Pa
             method.sig.ident.to_string(),
         )
         .with_scope("trait-owner", "trait", trait_owner.clone());
-        push_canonical_parse_artifact_item(
+        push_canonical_callable_parse_artifact_item(
             with_cfg_scopes(identity, &method.attrs),
             method,
+            method.sig.clone(),
+            method.default.clone(),
             output,
         );
     }
@@ -168,6 +184,7 @@ fn collect_reexport_items(
             identity: crate::content_identity::CanonicalItemIdentity::new("rust", kind, name),
             source_byte_start,
             source_byte_end,
+            callable_syntax: None,
         });
     }
 }
@@ -217,5 +234,39 @@ fn push_canonical_parse_artifact_item<T: syn::spanned::Spanned>(
         identity,
         source_byte_start: byte_range.start,
         source_byte_end: byte_range.end,
+        callable_syntax: None,
+    });
+}
+
+fn push_callable_parse_artifact_item<T: syn::spanned::Spanned>(
+    identity: crate::content_identity::CanonicalItemIdentity,
+    attrs: &[syn::Attribute],
+    item: &T,
+    signature: syn::Signature,
+    block: Option<syn::Block>,
+    output: &mut Vec<ParseArtifactItem>,
+) {
+    push_canonical_callable_parse_artifact_item(
+        with_cfg_scopes(identity, attrs),
+        item,
+        signature,
+        block,
+        output,
+    );
+}
+
+fn push_canonical_callable_parse_artifact_item<T: syn::spanned::Spanned>(
+    identity: crate::content_identity::CanonicalItemIdentity,
+    item: &T,
+    signature: syn::Signature,
+    block: Option<syn::Block>,
+    output: &mut Vec<ParseArtifactItem>,
+) {
+    let byte_range = item.span().byte_range();
+    output.push(ParseArtifactItem {
+        identity,
+        source_byte_start: byte_range.start,
+        source_byte_end: byte_range.end,
+        callable_syntax: Some(ParsedCallableSyntax { signature, block }),
     });
 }

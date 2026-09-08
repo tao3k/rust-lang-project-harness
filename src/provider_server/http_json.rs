@@ -27,6 +27,10 @@ impl HttpJsonResponse {
             .map(|body| Self { status, body })
             .map_err(|error| format!("encode HTTP JSON response: {error}"))
     }
+
+    pub(super) fn encoded_json(status: u16, body: Vec<u8>) -> Self {
+        Self { status, body }
+    }
 }
 
 pub(super) async fn serve_http_json<H, F>(

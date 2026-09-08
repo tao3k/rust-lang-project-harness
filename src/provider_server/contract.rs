@@ -54,11 +54,6 @@ impl ProviderRuntimeRequestFrame {
         }
         Ok(())
     }
-
-    pub(super) fn payload_bytes(&self) -> Result<Vec<u8>, String> {
-        serde_json::to_vec(&self.payload)
-            .map_err(|error| format!("encode provider runtime request payload: {error}"))
-    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -82,17 +77,6 @@ pub(super) struct ProviderRuntimeResponseFrame {
 }
 
 impl ProviderRuntimeResponseFrame {
-    pub(super) fn ready(request_id: impl Into<String>, payload: serde_json::Value) -> Self {
-        Self {
-            schema_id: PROVIDER_RUNTIME_RESPONSE_FRAME_SCHEMA_ID.to_owned(),
-            schema_version: PROVIDER_RUNTIME_FRAME_SCHEMA_VERSION.to_owned(),
-            request_id: request_id.into(),
-            outcome: ProviderRuntimeResponseOutcome::Ready,
-            payload: Some(payload),
-            error: None,
-        }
-    }
-
     pub(super) fn error(request_id: impl Into<String>, error: impl Into<String>) -> Self {
         Self {
             schema_id: PROVIDER_RUNTIME_RESPONSE_FRAME_SCHEMA_ID.to_owned(),

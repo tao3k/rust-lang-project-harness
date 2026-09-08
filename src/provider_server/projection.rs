@@ -38,23 +38,37 @@ struct LanguageProjectionBatchOwner {
 }
 
 impl LanguageProjectionBatchOwner {
-    fn decode_source_bytes(&self) -> Result<Vec<u8>, String> {
+    fn validate_source_encoding_payload(&self) -> Result<(), String> {
         match (
             self.source_encoding.as_str(),
             self.source_text.as_deref(),
             self.source_bytes_base64.as_deref(),
         ) {
-            ("utf8", Some(source_text), None) => Ok(source_text.as_bytes().to_vec()),
+            ("utf8", Some(_), None) => Ok(()),
             ("base64", None, Some(source_bytes_base64)) => BASE64_STANDARD
                 .decode(source_bytes_base64)
+                .map(|_| ())
                 .map_err(|error| format!("decode projection owner base64 source: {error}")),
             _ => Err("projection owner source encoding payload mismatch".to_string()),
         }
     }
 
     fn decode_source_text(&self) -> Result<String, String> {
-        String::from_utf8(self.decode_source_bytes()?)
-            .map_err(|error| format!("Rust projection owner is not UTF-8: {error}"))
+        match (
+            self.source_encoding.as_str(),
+            self.source_text.as_deref(),
+            self.source_bytes_base64.as_deref(),
+        ) {
+            ("utf8", Some(source_text), None) => Ok(source_text.to_owned()),
+            ("base64", None, Some(source_bytes_base64)) => BASE64_STANDARD
+                .decode(source_bytes_base64)
+                .map_err(|error| format!("decode projection owner base64 source: {error}"))
+                .and_then(|source| {
+                    String::from_utf8(source)
+                        .map_err(|error| format!("Rust projection owner is not UTF-8: {error}"))
+                }),
+            _ => Err("projection owner source encoding payload mismatch".to_string()),
+        }
     }
 }
 
@@ -69,27 +83,48 @@ pub(super) fn handle_language_projection_batch_value(request: &Value) -> Result<
     };
     let projected_owners = header
         .owners
-        .into_iter()
+        .iter()
         .map(|owner| {
-            validate_relative_owner(&owner.owner_path)?;
             let source_text = owner.decode_source_text()?;
-            render_batch_owner_projection(
+            let projection = render_batch_owner_projection(
                 &owner.owner_path,
                 &owner.source_leaf_digest,
                 &source_text,
                 &projection_authority,
-            )
+            )?;
+            serde_json::to_vec(&projection)
+                .map_err(|error| format!("encode projected Rust owner: {error}"))
         })
         .collect::<Result<Vec<_>, String>>()?;
-    serde_json::to_vec(&json!({
-        "schemaId": "agent.semantic-protocols.provider-language-projection-batch-response",
-        "schemaVersion": "1",
-        "languageId": header.language_id,
-        "providerId": header.provider_id,
-        "generationRootDigest": header.generation_root_digest,
-        "owners": projected_owners,
-    }))
-    .map_err(|error| format!("encode structured projection response: {error}"))
+    encode_projection_batch_response(&header, &projected_owners)
+}
+
+fn encode_projection_batch_response(
+    header: &LanguageProjectionBatchHeader,
+    projected_owners: &[Vec<u8>],
+) -> Result<Vec<u8>, String> {
+    let projected_bytes = projected_owners.iter().map(Vec::len).sum::<usize>();
+    let mut response = Vec::with_capacity(projected_bytes + 512);
+    response.extend_from_slice(
+        br#"{"schemaId":"agent.semantic-protocols.provider-language-projection-batch-response","schemaVersion":"1","languageId":"#,
+    );
+    serde_json::to_writer(&mut response, &header.language_id)
+        .map_err(|error| format!("encode projection response languageId: {error}"))?;
+    response.extend_from_slice(br#","providerId":"#);
+    serde_json::to_writer(&mut response, &header.provider_id)
+        .map_err(|error| format!("encode projection response providerId: {error}"))?;
+    response.extend_from_slice(br#","generationRootDigest":"#);
+    serde_json::to_writer(&mut response, &header.generation_root_digest)
+        .map_err(|error| format!("encode projection response generationRootDigest: {error}"))?;
+    response.extend_from_slice(br#","owners":["#);
+    for (index, owner) in projected_owners.iter().enumerate() {
+        if index != 0 {
+            response.push(b',');
+        }
+        response.extend_from_slice(owner);
+    }
+    response.extend_from_slice(b"]}");
+    Ok(response)
 }
 
 fn validate_projection_batch_header(header: &LanguageProjectionBatchHeader) -> Result<(), String> {
@@ -125,7 +160,7 @@ fn validate_projection_batch_header(header: &LanguageProjectionBatchHeader) -> R
     let mut paths = BTreeSet::new();
     for owner in header.owners.iter().chain(&header.auxiliary_owners) {
         validate_relative_owner(&owner.owner_path)?;
-        owner.decode_source_bytes()?;
+        owner.validate_source_encoding_payload()?;
         if owner.source_leaf_digest.trim().is_empty() || !paths.insert(&owner.owner_path) {
             return Err(
                 "projection batch owner identities must be non-empty and unique".to_string(),
@@ -208,10 +243,7 @@ fn projection_items(
                 crate::structural_selector::encode_canonical_item_identity_path(&artifact.identity);
             let selector = format!("rust://{relative_path}#{encoded_identity}");
             seen_selectors.insert(selector.clone()).then(|| {
-                let projections = if matches!(
-                    artifact.identity.kind.as_str(),
-                    "function" | "method" | "trait-function"
-                ) {
+                let projections = if let Some(callable_syntax) = artifact.callable_syntax.as_ref() {
                     projection_authority
                         .map(|authority| {
                             let code = source
@@ -236,8 +268,11 @@ fn projection_items(
                                 owner_blob_digest: source_leaf_digest.to_owned(),
                                 parser_artifact_digest: None,
                             };
-                            crate::exact_source_projection::callable_skeleton_projection(
-                                &resolved, authority,
+                            crate::exact_source_projection::callable_skeleton_projection_from_owner_syntax(
+                                &resolved,
+                                authority,
+                                callable_syntax,
+                                source,
                             )
                             .map(|payload| {
                                 vec![json!({

@@ -15,6 +15,7 @@ fn item(selector: &str) -> ParseArtifactItem {
         identity: identity(selector),
         source_byte_start: 0,
         source_byte_end: 0,
+        callable_syntax: None,
     }
 }
 

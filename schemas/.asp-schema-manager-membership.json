@@ -1,7 +1,7 @@
 {
   "languageId": "rust",
   "profileDigest": "blake3-256:e0250dbec5b77d25e51ee0d8473ab4163daddc5ce7eb6895fb43dcbe6fba0d34",
-  "bundleDigest": "blake3-256:353e0b2d2c18a149d05d0056e1b04dc081133652fb6de14173471c906152c7dc",
+  "bundleDigest": "blake3-256:58ed10247f6fe8960c90118d63103c4feaa74043f15f8c283066d592676bc85d",
   "schemas": [
     {
       "name": "asp-client-cancellation-probe-request.schema.json",
@@ -145,7 +145,7 @@
     },
     {
       "name": "large-search-playbook-performance-receipt.v1.schema.json",
-      "digest": "blake3-256:951cee907a77fd2bc695a19b977a50508dc216eb3fe1e51f10195572880b4377"
+      "digest": "blake3-256:06a8a9c3fdcd7394b11eef3b7a00c4fd3f1d8a582a19ad6955efda59284e4db2"
     },
     {
       "name": "lexical-postings-work-reduction-receipt.schema.json",

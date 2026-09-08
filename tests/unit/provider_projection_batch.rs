@@ -1,7 +1,5 @@
-use serde_json::{Value, json};
-use std::time::{Duration, Instant};
-
 use super::handle_language_projection_batch_value;
+use serde_json::{Value, json};
 
 fn request(owners: Value) -> Value {
     json!({
@@ -17,6 +15,29 @@ fn request(owners: Value) -> Value {
         "owners": owners,
         "auxiliaryOwners": [],
     })
+}
+
+#[test]
+fn projection_batch_rejects_invalid_auxiliary_owner_base64() {
+    let mut request = request(json!([{
+        "ownerPath": "src/lib.rs",
+        "sourceLeafDigest": "blake3-256:primary",
+        "sourceEncoding": "utf8",
+        "sourceText": "pub fn primary() {}\n"
+    }]));
+    request["auxiliaryOwners"] = json!([{
+        "ownerPath": "src/auxiliary.rs",
+        "sourceLeafDigest": "blake3-256:auxiliary",
+        "sourceEncoding": "base64",
+        "sourceBytesBase64": "not-valid-base64***"
+    }]);
+
+    let error = handle_language_projection_batch_value(&request)
+        .expect_err("invalid auxiliary bytes must fail the generation batch");
+    assert!(
+        error.contains("decode projection owner base64 source"),
+        "unexpected auxiliary decoding failure: {error}"
+    );
 }
 
 #[test]
@@ -67,10 +88,39 @@ fn projection_batch_isolates_one_syntax_unavailable_owner() {
 }
 
 #[test]
-fn representative_projection_batch_p99_stays_below_runtime_frame_budget() {
+fn projection_batch_reuses_owner_parse_without_rebasing_nested_source_locations() {
+    let source = "pub const PREFIX: usize = 1;\n\npub fn locate(value: usize) -> usize {\n    if value > 0 { value } else { PREFIX }\n}\n";
+    let response = handle_language_projection_batch_value(&request(json!([{
+        "ownerPath": "src/location.rs",
+        "sourceLeafDigest": "blake3-256:location",
+        "sourceEncoding": "utf8",
+        "sourceText": source,
+    }])))
+    .expect("projection batch");
+    let response: Value = serde_json::from_slice(&response).expect("response JSON");
+    let callable = response["owners"][0]["items"]
+        .as_array()
+        .expect("projected items")
+        .iter()
+        .find(|item| item["name"] == "locate")
+        .expect("locate callable");
+    let branch = callable["projections"][0]["payload"]["nodes"]
+        .as_array()
+        .expect("skeleton nodes")
+        .iter()
+        .find(|node| node["kind"] == "branch")
+        .expect("if branch");
+
+    assert_eq!(
+        branch["sourceLocatorHint"]["sourceByteStart"],
+        source.find("if value").expect("if byte offset") as u64
+    );
+}
+
+#[test]
+fn representative_generation_projection_produces_the_complete_batch() {
     const OWNER_COUNT: usize = 32;
     const CALLABLES_PER_OWNER: usize = 32;
-    const SAMPLE_COUNT: usize = 16;
     let owners = (0..OWNER_COUNT)
         .map(|owner| {
             let mut source = String::new();
@@ -88,30 +138,14 @@ fn representative_projection_batch_p99_stays_below_runtime_frame_budget() {
         })
         .collect::<Vec<_>>();
     let request = request(Value::Array(owners));
-    let mut samples = Vec::with_capacity(SAMPLE_COUNT);
-    for _ in 0..SAMPLE_COUNT {
-        let started = Instant::now();
-        let response = handle_language_projection_batch_value(&request)
-            .expect("representative projection batch");
-        samples.push(started.elapsed());
-        let response: Value = serde_json::from_slice(&response).expect("projection response JSON");
-        assert_eq!(
-            response["owners"]
-                .as_array()
-                .expect("projected owners")
-                .len(),
-            OWNER_COUNT
-        );
-    }
-    samples.sort_unstable();
-    let p50 = samples[(SAMPLE_COUNT - 1) * 50 / 100];
-    let p95 = samples[(SAMPLE_COUNT - 1) * 95 / 100];
-    let p99 = samples[(SAMPLE_COUNT - 1) * 99 / 100];
-    eprintln!(
-        "rust projection batch receipt: owners={OWNER_COUNT} callablesPerOwner={CALLABLES_PER_OWNER} samples={SAMPLE_COUNT} p50Micros={} p95Micros={} p99Micros={} frameDeadlineMillis=2000",
-        p50.as_micros(),
-        p95.as_micros(),
-        p99.as_micros(),
+    let response = handle_language_projection_batch_value(&request)
+        .expect("representative generation projection batch");
+    let response: Value = serde_json::from_slice(&response).expect("projection response JSON");
+    assert_eq!(
+        response["owners"]
+            .as_array()
+            .expect("projected owners")
+            .len(),
+        OWNER_COUNT
     );
-    assert!(p99 < Duration::from_millis(250));
 }

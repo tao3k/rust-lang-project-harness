@@ -55,8 +55,10 @@
           "properties": {
             "samples": {"type": "integer", "minimum": 32},
             "fdProcessCount": {"const": 0},
-            "rgProcessCount": {"type": "integer", "minimum": 32},
+            "rgProcessCount": {"const": 0},
             "tantivyBuildCount": {"const": 0},
+            "p99Nanos": {"type": "integer", "minimum": 0, "exclusiveMaximum": 1000000},
+            "maxNanos": {"type": "integer", "minimum": 0, "exclusiveMaximum": 1000000},
             "contentVerificationP95Nanos": {"$ref": "#/$defs/nanos"},
             "nativeSyntaxVerificationP95Nanos": {"$ref": "#/$defs/nanos"}
           }
@@ -128,7 +130,11 @@
       "unevaluatedProperties": false,
       "allOf": [
         {"$ref": "#/$defs/distribution"},
-        {"properties": {"samples": {"type": "integer", "minimum": 512}}}
+        {"properties": {
+          "samples": {"type": "integer", "minimum": 512},
+          "p99Nanos": {"type": "integer", "minimum": 0, "exclusiveMaximum": 1000000},
+          "maxNanos": {"type": "integer", "minimum": 0, "exclusiveMaximum": 1000000}
+        }}
       ]
     },
     "concurrent": {

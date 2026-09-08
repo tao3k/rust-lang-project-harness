@@ -17,24 +17,23 @@ pub(crate) struct ResolvedExactItem {
     pub(crate) parser_artifact_digest: Option<String>,
 }
 
-pub(crate) fn callable_skeleton_projection(
+pub(crate) fn callable_skeleton_projection_from_owner_syntax(
     resolved: &ResolvedExactItem,
     authority: &ExactProjectionAuthority,
+    callable: &crate::exact_source_parse_artifact::ParsedCallableSyntax,
+    owner_source: &str,
 ) -> Result<serde_json::Value, String> {
-    let (signature, block) = match syn::parse_str::<syn::ItemFn>(&resolved.code) {
-        Ok(item) => (item.sig, Some(*item.block)),
-        Err(function_error) => match syn::parse_str::<syn::ImplItemFn>(&resolved.code) {
-            Ok(item) => (item.sig, Some(item.block)),
-            Err(method_error) => match syn::parse_str::<syn::TraitItemFn>(&resolved.code) {
-                Ok(item) => (item.sig, item.default),
-                Err(trait_method_error) => {
-                    return Err(format!(
-                        "parse callable skeleton root: function={function_error} method={method_error} traitMethod={trait_method_error}"
-                    ));
-                }
-            },
-        },
-    };
+    render_callable_skeleton_projection(resolved, authority, callable, owner_source, 0)
+}
+
+fn render_callable_skeleton_projection(
+    resolved: &ResolvedExactItem,
+    authority: &ExactProjectionAuthority,
+    callable: &crate::exact_source_parse_artifact::ParsedCallableSyntax,
+    span_source: &str,
+    span_base: usize,
+) -> Result<serde_json::Value, String> {
+    let signature = &callable.signature;
     let root_selector = exact_selector_json(resolved, authority, Vec::new());
     let root_node_selector = root_selector
         .get("selector")
@@ -44,6 +43,8 @@ pub(crate) fn callable_skeleton_projection(
     let mut collector = SkeletonCollector {
         resolved,
         authority: Some(authority),
+        span_source,
+        span_base,
         nodes: vec![serde_json::json!({
             "nodeId": root_node_id,
             "kind": "callable",
@@ -62,7 +63,7 @@ pub(crate) fn callable_skeleton_projection(
         relations: Vec::new(),
         next_order: 1,
     };
-    if let Some(block) = block.as_ref() {
+    if let Some(block) = callable.block.as_ref() {
         syn::visit::Visit::visit_block(&mut collector, block);
     }
     let source_bytes = resolved.code.len() as u64;
@@ -106,6 +107,8 @@ pub(crate) fn callable_skeleton_projection(
 struct SkeletonCollector<'a> {
     resolved: &'a ResolvedExactItem,
     authority: Option<&'a ExactProjectionAuthority>,
+    span_source: &'a str,
+    span_base: usize,
     nodes: Vec<serde_json::Value>,
     relations: Vec<serde_json::Value>,
     next_order: u64,
@@ -117,9 +120,9 @@ impl SkeletonCollector<'_> {
         self.next_order += 1;
         let node_id = format!("{kind}:{order}");
         let source_byte_start =
-            line_column_offset(&self.resolved.code, span.start()).unwrap_or_default();
+            line_column_offset(self.span_source, span.start()).unwrap_or_default();
         let source_byte_end =
-            line_column_offset(&self.resolved.code, span.end()).unwrap_or(source_byte_start);
+            line_column_offset(self.span_source, span.end()).unwrap_or(source_byte_start);
         let segment = serde_json::json!({
             "relation": "contains",
             "kind": kind,
@@ -136,8 +139,8 @@ impl SkeletonCollector<'_> {
                 "queryable": true,
             "selector": exact_selector["selector"].clone(),
                 "sourceLocatorHint": {
-                    "sourceByteStart": self.resolved.source_byte_start + source_byte_start,
-                    "sourceByteEnd": self.resolved.source_byte_start + source_byte_end,
+                    "sourceByteStart": self.span_base + source_byte_start,
+                    "sourceByteEnd": self.span_base + source_byte_end,
                 },
             }));
             self.relations.push(serde_json::json!({

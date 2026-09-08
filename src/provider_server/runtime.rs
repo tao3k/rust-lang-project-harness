@@ -148,9 +148,10 @@ fn handle_http_request(
         ("POST", "/v1/provider-runtime") => {
             let request = serde_json::from_slice::<ProviderRuntimeRequestFrame>(&request.body)
                 .map_err(|error| format!("decode asp-client-server request: {error}"))?;
-            let response = serde_json::to_value(handle_request(request))
-                .map_err(|error| format!("encode asp-client-server response: {error}"))?;
-            AspClientServerResponse::json(200, &response)
+            Ok(AspClientServerResponse::encoded_json(
+                200,
+                handle_request(request)?,
+            ))
         }
         ("POST", "/shutdown") => {
             shutdown_tx
@@ -165,40 +166,44 @@ fn handle_http_request(
     }
 }
 
-fn handle_request(request: ProviderRuntimeRequestFrame) -> ProviderRuntimeResponseFrame {
+fn handle_request(request: ProviderRuntimeRequestFrame) -> Result<Vec<u8>, String> {
     let request_id = request.request_id.clone();
-    let result = request
-        .validate()
-        .and_then(|()| request.payload_bytes())
-        .and_then(|payload| {
-            let payload: serde_json::Value = serde_json::from_slice(&payload)
-                .map_err(|error| format!("decode provider runtime operation payload: {error}"))?;
-            match request.operation.as_str() {
-                "syntax-query" => {
-                    super::syntax_query::handle_syntax_query_operation_value(&payload)
-                }
-                "projection-batch" => {
-                    super::projection::handle_language_projection_batch_value(&payload)
-                }
-                "project-resolution" => {
-                    super::project_resolution::handle_project_resolution_request_value(&payload)
-                        .map(|(response, _)| response)
-                }
-                operation => Err(format!(
-                    "provider runtime operation is not admitted: {operation}"
-                )),
+    let result = match request.validate() {
+        Ok(()) => match request.operation.as_str() {
+            "syntax-query" => {
+                super::syntax_query::handle_syntax_query_operation_value(&request.payload)
             }
-        });
-    match result {
-        Ok(payload) => match serde_json::from_slice(&payload) {
-            Ok(payload) => ProviderRuntimeResponseFrame::ready(request_id, payload),
-            Err(error) => ProviderRuntimeResponseFrame::error(
-                request_id,
-                format!("provider operation returned non-JSON payload: {error}"),
-            ),
+            "projection-batch" => {
+                super::projection::handle_language_projection_batch_value(&request.payload)
+            }
+            "project-resolution" => {
+                super::project_resolution::handle_project_resolution_request_value(&request.payload)
+                    .map(|(response, _)| response)
+            }
+            operation => Err(format!(
+                "provider runtime operation is not admitted: {operation}"
+            )),
         },
-        Err(error) => ProviderRuntimeResponseFrame::error(request_id, error),
+        Err(error) => Err(error),
+    };
+    match result {
+        Ok(payload) => encode_ready_response_frame(&request_id, &payload),
+        Err(error) => serde_json::to_vec(&ProviderRuntimeResponseFrame::error(request_id, error))
+            .map_err(|error| format!("encode provider Runtime error frame: {error}")),
     }
+}
+
+fn encode_ready_response_frame(request_id: &str, payload: &[u8]) -> Result<Vec<u8>, String> {
+    let mut response = Vec::with_capacity(payload.len() + request_id.len() + 192);
+    response.extend_from_slice(
+        br#"{"schemaId":"agent.semantic-protocols.provider-runtime-response-frame","schemaVersion":"1","requestId":"#,
+    );
+    serde_json::to_writer(&mut response, request_id)
+        .map_err(|error| format!("encode provider Runtime requestId: {error}"))?;
+    response.extend_from_slice(br#","outcome":"ready","payload":"#);
+    response.extend_from_slice(payload);
+    response.push(b'}');
+    Ok(response)
 }
 
 #[cfg(test)]
