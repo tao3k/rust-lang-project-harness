@@ -6,7 +6,7 @@ Use the Rust provider as the native-syntax authority for Rust source.  The
 public discovery surface is one bounded command:
 
 #+begin_src sh
-asp rust search playbook '<question>' --workspace .
+asp search playbook --languages rust --rg -n -e '<question>' . --tantivy term '<question>'
 #+end_src
 
 The playbook composes four internal stages in a fixed order:
@@ -22,25 +22,20 @@ ask the agent to select or sequence them.
 
 * Playbook intents
 
-Use the smallest intent that expresses the task:
+Express each independent axis as its own native argument block:
 
 #+begin_src sh
-asp rust search playbook 'where is request admission decided' \
-  --intent conceptual --workspace .
+asp search playbook --languages rust \
+  --rg -n -e 'request admission' crates \
+  --tantivy term 'request admission'
 
-asp rust search playbook 'callers and tests for RuntimeSearchServiceHandle' \
-  --intent relationship --workspace .
-
-asp rust search playbook 'exact declaration of RuntimeSearchServiceHandle' \
-  --intent exact-literal --workspace .
-
-asp rust search playbook 'prove no legacy SearchOperation Pipe remains' \
-  --intent absence-proof --coverage complete --workspace .
+asp search playbook --languages rust \
+  --rg -n -e RuntimeSearchServiceHandle crates tests \
+  --tantivy term RuntimeSearchServiceHandle
 #+end_src
 
-Use =--scope owner:<path>= only when the owner is already known.  A scoped
-playbook still returns native-syntax projections and never degrades into an
-owner-only lookup.
+Pass a known owner path inside the native ripgrep block to narrow acquisition.
+The playbook still returns native-syntax projections and graph evidence.
 
 * Receipt contract
 
@@ -76,9 +71,3 @@ Edit only the owner selected by the receipt.  Route Rust build, test, check,
 clippy, and formatting commands to ASP Testing.  Preserve the playbook
 generation and selector identities in the validation receipt so the result can
 be tied back to the evidence used for the change.
-
-* Removed surfaces
-
-=search prime=, =search owner=, =search lexical=, =search ingest=, and =search
-pipe= are removed public operations.  They are not aliases and must not appear
-in agent guidance, recovery messages, or generated next commands.

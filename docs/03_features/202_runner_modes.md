@@ -191,7 +191,7 @@ silently using `allow` to avoid repairs.
 
 ## Explicit-Path Runner
 
-Use `run_rust_lang_harness()` or `assert_rust_lang_harness_clean()` when a caller
+Use `run_asp_rust_paths()` or `assert_asp_rust_paths_clean()` when a caller
 only wants to inspect explicit files or directories. This runner has no project
 scope, so project-scoped packs do not emit findings. The practical contract is:
 

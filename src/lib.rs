@@ -35,7 +35,7 @@ pub mod structural_selector;
 mod verification;
 #[path = "workspace_dependency_graph.rs"]
 mod workspace_build_dag;
-mod workspace_evidence_graph;
+mod workspace_policy;
 
 pub use asp_rust_rules::{
     ASP_RUST_RULES_MD, asp_rust_rules_markdown, render_asp_rust_rules_markdown,
@@ -74,30 +74,6 @@ pub use verification::{
     render_rust_determinism_readiness, render_rust_determinism_readiness_json,
 };
 
-pub use verification::{
-    RUST_ASSURANCE_CASE_PROTOCOL_ID, RUST_ASSURANCE_CASE_PROTOCOL_VERSION,
-    RUST_ASSURANCE_CASE_SCHEMA_ID, RUST_ASSURANCE_CASE_SCHEMA_VERSION, RustAssuranceActionRef,
-    RustAssuranceCase, RustAssuranceCaseInput, RustAssuranceCaseSet, RustAssuranceCaseSetProducer,
-    RustAssuranceCaseSetProject, RustAssuranceCaseStatus, RustAssuranceCaseSummary,
-    RustAssuranceClaim, RustAssuranceClaimKind, RustAssuranceGap, RustAssuranceNodeKind,
-    RustAssuranceNodeRef, RustAssuranceNodeStatus, build_rust_assurance_case_set,
-    render_rust_assurance_case_set, render_rust_assurance_case_set_json,
-};
-pub use verification::{
-    RUST_EVIDENCE_GRAPH_ANALYSIS_PACKET_KIND, RUST_EVIDENCE_GRAPH_ANALYSIS_PROFILE,
-    RUST_EVIDENCE_GRAPH_ANALYSIS_REQUEST_SCHEMA_ID,
-    RUST_EVIDENCE_GRAPH_ANALYSIS_REQUEST_SCHEMA_VERSION, RUST_EVIDENCE_GRAPH_PROTOCOL_ID,
-    RUST_EVIDENCE_GRAPH_PROTOCOL_VERSION, RUST_EVIDENCE_GRAPH_SCHEMA_ID,
-    RUST_EVIDENCE_GRAPH_SCHEMA_VERSION, RustEvidenceEdge, RustEvidenceEdgeKind, RustEvidenceGap,
-    RustEvidenceGraph, RustEvidenceGraphAnalysisGraph, RustEvidenceGraphAnalysisInput,
-    RustEvidenceGraphAnalysisPacketKind, RustEvidenceGraphAnalysisProducer,
-    RustEvidenceGraphAnalysisRequest, RustEvidenceGraphAnalysisSummary, RustEvidenceGraphInput,
-    RustEvidenceGraphProducer, RustEvidenceGraphProject, RustEvidenceGraphSummary,
-    RustEvidenceLocation, RustEvidenceNode, RustEvidenceNodeKind, RustEvidenceNodeStatus,
-    build_rust_evidence_graph, build_rust_evidence_graph_analysis_request,
-    render_rust_evidence_graph, render_rust_evidence_graph_analysis_request,
-    render_rust_evidence_graph_analysis_request_json, render_rust_evidence_graph_json,
-};
 pub use verification::{
     RUST_FORMAL_PROOF_PILOT_PROTOCOL_ID, RUST_FORMAL_PROOF_PILOT_PROTOCOL_VERSION,
     RUST_FORMAL_PROOF_PILOT_SCHEMA_ID, RUST_FORMAL_PROOF_PILOT_SCHEMA_VERSION,
@@ -221,10 +197,9 @@ pub use rules::{
 pub use runner::{
     AspRustRunScope, asp_rust_config_for_project, assert_asp_rust_cargo_test_clean,
     assert_asp_rust_cargo_test_clean_with_config, assert_asp_rust_clean,
-    assert_asp_rust_clean_with_config, assert_rust_lang_harness_clean,
-    assert_rust_workspace_harness_clean_with_config, default_asp_rust_config,
-    run_asp_rust_for_scope, run_asp_rust_with_config_for_scope, run_rust_lang_harness,
-    run_rust_lang_harness_with_config,
+    assert_asp_rust_clean_with_config, assert_asp_rust_paths_clean,
+    assert_asp_rust_workspace_clean_with_config, default_asp_rust_config, run_asp_rust_for_scope,
+    run_asp_rust_paths, run_asp_rust_paths_with_config, run_asp_rust_with_config_for_scope,
 };
 pub use verification::{
     RUST_VERIFICATION_REPORT_MANIFEST_SCHEMA_ID, RUST_VERIFICATION_REPORT_MANIFEST_SCHEMA_VERSION,
@@ -311,17 +286,8 @@ pub use workspace_build_dag::{
     asp_rust_workspace_build_dag_from_env, asp_rust_workspace_build_dag_from_env_with_metrics,
     asp_rust_workspace_build_dag_with_metrics,
 };
-pub use workspace_evidence_graph::{
-    ASP_RUST_WORKSPACE_EVIDENCE_GRAPH_RECEIPT_SCHEMA_ID,
-    ASP_RUST_WORKSPACE_EVIDENCE_GRAPH_RECEIPT_SCHEMA_VERSION,
-    AspRustVerificationTaskKindCountReceipt, AspRustWorkspaceEvidenceGraphEdgeKind,
-    AspRustWorkspaceEvidenceGraphEdgeReceipt, AspRustWorkspaceEvidenceGraphMemberInput,
-    AspRustWorkspaceEvidenceGraphMemberReceipt, AspRustWorkspaceEvidenceGraphNodeKind,
-    AspRustWorkspaceEvidenceGraphNodeReceipt, AspRustWorkspaceEvidenceGraphReceipt,
-    AspRustWorkspaceEvidenceGraphSummaryReceipt, AspRustWorkspaceMemberRunReport,
-    AspRustWorkspaceRunReport, AspRustWorkspaceTrustLoopStepReceipt,
-    AspRustWorkspaceTrustLoopStepStatus, asp_rust_workspace_evidence_graph_receipt,
+pub use workspace_policy::{
+    AspRustWorkspaceMemberRunReport, AspRustWorkspaceRunReport,
     assert_asp_rust_workspace_build_dag_policy_with, assert_asp_rust_workspace_policy,
     assert_asp_rust_workspace_policy_from_env, assert_asp_rust_workspace_policy_with,
-    render_asp_rust_workspace_evidence_graph_receipt_json,
 };

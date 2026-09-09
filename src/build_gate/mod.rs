@@ -21,8 +21,6 @@ pub use downstream::{
     assert_asp_rust_downstream_policy_with_authority, evaluate_asp_rust_downstream_policy,
 };
 pub use policy::{AspRustBuildGateAuthority, AspRustDownstreamPolicy, AspRustWorkspacePolicy};
-pub(crate) use receipt::downstream_policy_receipt_from_plan;
-pub(crate) use receipt::verification_task_kind_key;
 pub use receipt::{
     ASP_RUST_DOWNSTREAM_POLICY_RECEIPT_SCHEMA_ID,
     ASP_RUST_DOWNSTREAM_POLICY_RECEIPT_SCHEMA_VERSION, AspRustDependencyBaselinePackageReceipt,

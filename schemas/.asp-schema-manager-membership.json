@@ -1,7 +1,7 @@
 {
   "languageId": "rust",
   "profileDigest": "blake3-256:e0250dbec5b77d25e51ee0d8473ab4163daddc5ce7eb6895fb43dcbe6fba0d34",
-  "bundleDigest": "blake3-256:58ed10247f6fe8960c90118d63103c4feaa74043f15f8c283066d592676bc85d",
+  "bundleDigest": "blake3-256:e8918c2388fbf300cc817e5d321fb64defdcc193eeaa0ee85ec769a863218357",
   "schemas": [
     {
       "name": "asp-client-cancellation-probe-request.schema.json",
@@ -56,10 +56,6 @@
       "digest": "blake3-256:9e42923bf92de5b10b74ec2412b1d855f46219e2153e14a4cf7560a5598675a4"
     },
     {
-      "name": "asp-client-search-request.schema.json",
-      "digest": "blake3-256:4572cbcd7247eac5019c98749971c5b8a0c1e742112c6fb299bf68827d32b5bc"
-    },
-    {
       "name": "asp-client-server-descriptor.schema.json",
       "digest": "blake3-256:d4e432eacba544a5eb504c1e6d1161d9599a14cfb85d62d2d5da0e1d47f6cdde"
     },
@@ -81,7 +77,7 @@
     },
     {
       "name": "asp-client-workspace-search-playbook-request.v1.schema.json",
-      "digest": "blake3-256:6e4c2cf3da32a9c74999a35542bea21866e2ed9ed99bb02247393e2405cb4078"
+      "digest": "blake3-256:1d2ffadb2d9a101ff544b3bdd356aeaee490ad847f46076c58f8fb78569e4440"
     },
     {
       "name": "asp-client-workspace-source-mutation.schema.json",
@@ -89,7 +85,7 @@
     },
     {
       "name": "asp-client-workspace-syntax-query-request.v1.schema.json",
-      "digest": "blake3-256:5d545b03a0ed1ea888bcdb0d7566b82b4df9bc15ce6d88096e2ee89454a61dda"
+      "digest": "blake3-256:10e706b9e1fc701ca240810f97cd4aaacf7d94e598ff9ba2668b0fc47c7ba82c"
     },
     {
       "name": "asp-client-workspace-syntax-query-response.v1.schema.json",
@@ -145,7 +141,7 @@
     },
     {
       "name": "large-search-playbook-performance-receipt.v1.schema.json",
-      "digest": "blake3-256:06a8a9c3fdcd7394b11eef3b7a00c4fd3f1d8a582a19ad6955efda59284e4db2"
+      "digest": "blake3-256:fc1ad6a88802f416a49e73c6b020a237f0bae61a5b3f385e82981c31956796c0"
     },
     {
       "name": "lexical-postings-work-reduction-receipt.schema.json",
@@ -156,8 +152,12 @@
       "digest": "blake3-256:bfa2f1966d9d05e0f0c05cdb635112513498dedb076edf760f0504db60a358bb"
     },
     {
+      "name": "project-topology-inference-receipt.v1.schema.json",
+      "digest": "blake3-256:a55c11817cde68db3a30092f06467ae49ff43508ccd155d15432df5d57cb52bb"
+    },
+    {
       "name": "project-topology-library.v1.schema.json",
-      "digest": "blake3-256:6affc5b32ccc6530126038a2925ba224979499b093f27d3c09d548081b8860c4"
+      "digest": "blake3-256:bb4d6d756d488b210d2ab104c60db812616bf100c150864c4531256052a4830c"
     },
     {
       "name": "project-workspace-binding.v1.schema.json",
@@ -181,7 +181,7 @@
     },
     {
       "name": "provider-manifest.schema.json",
-      "digest": "blake3-256:083ce2246c3590c626452fd06b7271031e1f989cf219af113643afd54b57ed44"
+      "digest": "blake3-256:5beb3ddeeac806d3dc69285b36b77b2cdf262be154d1c9f11fa8db780907c0f9"
     },
     {
       "name": "provider-method-argument-projection.v1.schema.json",
@@ -245,7 +245,7 @@
     },
     {
       "name": "python-generation-graph-performance-receipt.v1.schema.json",
-      "digest": "blake3-256:301ad2fce1050064cfd20ba63522c1261434b030fe4513e9105cf14951d7e048"
+      "digest": "blake3-256:a643303b31fadc141b265c8e073b24ad69c7edd95a773bd044ac4ab5c18e8135"
     },
     {
       "name": "query-playbook-materialization-receipt.v1.schema.json",
@@ -273,7 +273,7 @@
     },
     {
       "name": "runtime-artifact-execution-closure-member.v1.schema.json",
-      "digest": "blake3-256:f0f47ae132953e45ac81ef407a3279d6a5f153e5f0bd60cc042755e5df5caa4c"
+      "digest": "blake3-256:8d18d295e3e6651d665a01efc2e53e8b434261927579259d2faf48074f0d8077"
     },
     {
       "name": "runtime-binary-bundle.v2.schema.json",
@@ -290,6 +290,10 @@
     {
       "name": "runtime-provider-search-receipt.v1.schema.json",
       "digest": "blake3-256:2e439b2ee83198710238aed803c9c37cd2cb06bc7a5e2c010486cdaa605df691"
+    },
+    {
+      "name": "runtime-resident-request-plane-receipt.v1.schema.json",
+      "digest": "blake3-256:57b822406c38a630efba30c231d09ced69d5a0f1cda34fd688a5a042816eb8da"
     },
     {
       "name": "runtime-search-client-timing-witness.v1.schema.json",
@@ -313,11 +317,7 @@
     },
     {
       "name": "search-topology-settlement.v1.schema.json",
-      "digest": "blake3-256:9fc0cfde08823e1c52d302d1fae437b9395e7a8fb1f33dacc6a1892edcc60104"
-    },
-    {
-      "name": "semantic-assurance-case.v1.schema.json",
-      "digest": "blake3-256:f672ea13226296635f24c033bb6e238f6eae8ca1639d13d9f20c94fc9cb9ac3c"
+      "digest": "blake3-256:0417bbaeaf787da8ab63931270b8d99d3dcfc0db64418bd4ca26b4170cd867ba"
     },
     {
       "name": "semantic-assurance-definitions.v1.schema.json",
@@ -353,7 +353,7 @@
     },
     {
       "name": "semantic-definitions.v1.schema.json",
-      "digest": "blake3-256:da29ac203939d09c6b7e8e62e529ae820489817ec74e101baa8635a9eeb35df2"
+      "digest": "blake3-256:6567efcdc71e72f1bb66c536dc746d5240c3e4566b098f5f7c1ef8e6a01291b2"
     },
     {
       "name": "semantic-dependency-topology.v1.schema.json",
@@ -366,10 +366,6 @@
     {
       "name": "semantic-dev-command-log.v1.schema.json",
       "digest": "blake3-256:d42cd166c1e47a2769584f86efde7f89cab0bd24174a805552b623d39a23e6ee"
-    },
-    {
-      "name": "semantic-evidence-graph.v1.schema.json",
-      "digest": "blake3-256:abc6ed9c3a39730d55f34d0f8ac17f9569cf191449570851c9c6905d1166c746"
     },
     {
       "name": "semantic-exact-selector-receipt.v1.schema.json",
@@ -413,11 +409,11 @@
     },
     {
       "name": "semantic-graph-turbo-request.v1.schema.json",
-      "digest": "blake3-256:bb79347cc1d9310d0628e2d7184b95df5784dde368e2ea4159a8574bf0cb7176"
+      "digest": "blake3-256:01d3574500ce52ea5cb4170b483c5f68c8316a301e34a765016b1f0818316c64"
     },
     {
       "name": "semantic-graph.v1.schema.json",
-      "digest": "blake3-256:0ecb8b9b830d2212dd6a6bf776f10f763e96e232cdfcbc2effc5f5189ea37a34"
+      "digest": "blake3-256:86bec566b06fa54de2f786aa1b21ae8216a6b46a391e5995f4b76718d9fe0522"
     },
     {
       "name": "semantic-handle.v1.schema.json",
@@ -429,11 +425,11 @@
     },
     {
       "name": "semantic-language-projection.v1.schema.json",
-      "digest": "blake3-256:70113f49e94ac82bc3d2a1dfaec34da537516cf77a680aa05f1758cfbe57734a"
+      "digest": "blake3-256:e1e62111d74a6fe408130e1de0d3a8c2d7a16bfff2ff7e16eb842742cb5ffac5"
     },
     {
       "name": "semantic-language-registry.v1.schema.json",
-      "digest": "blake3-256:8892eba517e307a1dc55dc46ed9e7114eb8c4cbd681cc19761362a37b8802361"
+      "digest": "blake3-256:a76fc564023e63cab6b81131e96d9472788fee6c5a8f2dadd553e56df0c8be29"
     },
     {
       "name": "semantic-native-syntax-fact-index.v1.schema.json",
@@ -458,6 +454,10 @@
     {
       "name": "semantic-review-packet.v1.schema.json",
       "digest": "blake3-256:5114705b02088801a5ca0e446c749dc0b515f8990fcc3e3a2284b9a6656defbd"
+    },
+    {
+      "name": "semantic-search-definitions.v1.schema.json",
+      "digest": "blake3-256:e9766a7280a5fe3960ab4c478b20a82c1d8bb06a9ea52b0eededc69a33495159"
     },
     {
       "name": "semantic-search-packet.v1.schema.json",

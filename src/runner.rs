@@ -143,8 +143,8 @@ pub fn analyze_rust_project_once(
 /// # Errors
 ///
 /// Returns an error when any requested root does not exist.
-pub fn run_rust_lang_harness(paths: &[PathBuf]) -> Result<AspRustReport, String> {
-    run_rust_lang_harness_with_config(paths, &AspRustConfig::default())
+pub fn run_asp_rust_paths(paths: &[PathBuf]) -> Result<AspRustReport, String> {
+    run_asp_rust_paths_with_config(paths, &AspRustConfig::default())
 }
 
 /// Run the harness over explicit files or directories with explicit config.
@@ -152,7 +152,7 @@ pub fn run_rust_lang_harness(paths: &[PathBuf]) -> Result<AspRustReport, String>
 /// # Errors
 ///
 /// Returns an error when any requested root does not exist.
-pub fn run_rust_lang_harness_with_config(
+pub fn run_asp_rust_paths_with_config(
     paths: &[PathBuf],
     config: &AspRustConfig,
 ) -> Result<AspRustReport, String> {
@@ -231,7 +231,7 @@ pub fn assert_asp_rust_cargo_test_clean_with_config(
     report
 }
 
-/// Assert an explicitly workspace-scoped configured harness run is clean.
+/// Assert an explicitly workspace-scoped configured ASP Rust run is clean.
 ///
 /// Downstream Cargo package gates must use the package-scoped `project`
 /// assertions. Workspace expansion is deliberately named and opt-in.
@@ -240,7 +240,7 @@ pub fn assert_asp_rust_cargo_test_clean_with_config(
 ///
 /// Panics when discovery fails or configured-blocking findings exist.
 #[track_caller]
-pub fn assert_rust_workspace_harness_clean_with_config(
+pub fn assert_asp_rust_workspace_clean_with_config(
     workspace_root: &Path,
     config: &AspRustConfig,
 ) -> AspRustReport {
@@ -260,8 +260,8 @@ pub fn assert_rust_workspace_harness_clean_with_config(
 ///
 /// Panics when the run fails or when configured-blocking findings exist.
 #[track_caller]
-pub fn assert_rust_lang_harness_clean(paths: &[PathBuf]) -> AspRustReport {
-    let report = run_rust_lang_harness(paths).unwrap_or_else(|error| panic!("{error}"));
+pub fn assert_asp_rust_paths_clean(paths: &[PathBuf]) -> AspRustReport {
+    let report = run_asp_rust_paths(paths).unwrap_or_else(|error| panic!("{error}"));
     report.assert_clean();
     report
 }

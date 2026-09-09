@@ -6,7 +6,7 @@ use asp_rust::{
     assert_asp_rust_cargo_test_clean_with_config, assert_asp_rust_clean_with_config,
     default_asp_rust_config, render_asp_rust, render_asp_rust_advice,
     render_asp_rust_agent_snapshot, render_asp_rust_json, run_asp_rust_for_scope,
-    run_rust_lang_harness,
+    run_asp_rust_paths,
 };
 use tempfile::TempDir;
 
@@ -161,7 +161,7 @@ fn root_package_assertion_does_not_enter_nested_workspace_members() {
 fn explicit_path_runner_returns_compact_report() {
     let paths = vec![PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/lib.rs")];
 
-    let report = run_rust_lang_harness(&paths).expect("run harness over lib.rs");
+    let report = run_asp_rust_paths(&paths).expect("run harness over lib.rs");
 
     assert_eq!(report.file_count(), 1);
     assert!(report.parsed_count() == 1);
@@ -179,7 +179,7 @@ fn explicit_path_runner_is_syntax_only_without_project_resolution() {
     )
     .expect("write source");
 
-    let report = run_rust_lang_harness(&[source]).expect("run explicit path harness");
+    let report = run_asp_rust_paths(&[source]).expect("run explicit path harness");
 
     assert!(report.is_clean());
     assert!(report.project_resolution.is_none());
@@ -192,7 +192,7 @@ fn explicit_path_runner_reports_unreadable_source_as_syntax_error() {
     let source = temp.path().join("invalid_utf8.rs");
     fs::write(&source, [0xff]).expect("write invalid utf8");
 
-    let report = run_rust_lang_harness(&[source]).expect("run explicit path harness");
+    let report = run_asp_rust_paths(&[source]).expect("run explicit path harness");
     let rendered = render_asp_rust(&report);
 
     assert_eq!(report.file_count(), 1);
@@ -224,7 +224,7 @@ fn advice_renderer_selects_info_findings() {
     );
 
     let paths = vec![PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/lib.rs")];
-    let report = run_rust_lang_harness(&paths).expect("run harness over lib.rs");
+    let report = run_asp_rust_paths(&paths).expect("run harness over lib.rs");
     let rendered = render_asp_rust_advice(&report);
 
     assert!(rendered.is_empty(), "{rendered}");

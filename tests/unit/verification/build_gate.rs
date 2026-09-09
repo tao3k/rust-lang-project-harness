@@ -1,17 +1,12 @@
 use asp_rust::{
     ASP_RUST_DOWNSTREAM_POLICY_RECEIPT_SCHEMA_ID,
     ASP_RUST_DOWNSTREAM_POLICY_RECEIPT_SCHEMA_VERSION, ASP_RUST_WORKSPACE_BUILD_DAG_SCHEMA_ID,
-    ASP_RUST_WORKSPACE_EVIDENCE_GRAPH_RECEIPT_SCHEMA_ID, AspRustDependencyBaseline,
-    AspRustDownstreamPolicy, AspRustWorkspaceEvidenceGraphEdgeKind,
-    AspRustWorkspaceEvidenceGraphMemberInput, AspRustWorkspaceEvidenceGraphNodeKind,
-    AspRustWorkspacePolicy, AspRustWorkspaceTrustLoopStepStatus,
+    AspRustDependencyBaseline, AspRustDownstreamPolicy, AspRustWorkspacePolicy,
     asp_rust_downstream_policy_receipt, asp_rust_workspace_build_dag,
-    asp_rust_workspace_build_dag_with_metrics, asp_rust_workspace_evidence_graph_receipt,
-    assert_asp_rust_dependency_baseline, assert_asp_rust_downstream_policy,
-    assert_asp_rust_verification_with_config, assert_asp_rust_workspace_policy,
-    assert_asp_rust_workspace_policy_with, default_asp_rust_config,
-    render_asp_rust_downstream_policy_receipt_json,
-    render_asp_rust_workspace_evidence_graph_receipt_json,
+    asp_rust_workspace_build_dag_with_metrics, assert_asp_rust_dependency_baseline,
+    assert_asp_rust_downstream_policy, assert_asp_rust_verification_with_config,
+    assert_asp_rust_workspace_policy, assert_asp_rust_workspace_policy_with,
+    default_asp_rust_config, render_asp_rust_downstream_policy_receipt_json,
     rust_downstream_verification_gate_guide_markdown,
 };
 use std::fs;
@@ -133,139 +128,6 @@ fn downstream_policy_receipt_projects_verification_and_dependency_contract() {
     assert_eq!(
         value["dependency_baseline_packages"][0]["source_contains"],
         "rev=abc123"
-    );
-}
-
-#[test]
-fn workspace_evidence_graph_receipt_connects_multi_crate_trust_loop() {
-    let temp = TempDir::new().expect("temp dir");
-    let workspace_root = temp.path();
-    let api_root = workspace_root.join("api");
-    let worker_root = workspace_root.join("worker");
-    fs::create_dir_all(&api_root).expect("api dir");
-    fs::create_dir_all(&worker_root).expect("worker dir");
-    write_api_project(&api_root);
-    write_api_project(&worker_root);
-
-    let workspace_policy = AspRustWorkspacePolicy::new(
-        "example-workspace",
-        default_asp_rust_config()
-            .with_latency_sensitive_performance_owner(
-                "src/api.rs",
-                "API request path owns latency-sensitive dispatch",
-            )
-            .with_availability_stability_owner(
-                "src/api.rs",
-                "API request path must degrade and recover predictably",
-            ),
-    )
-    .with_dependency_baseline(AspRustDependencyBaseline::new().require_git_package(
-        "asp-rust",
-        "0.1.2",
-        "rev=abc123",
-    ));
-
-    let receipt = asp_rust_workspace_evidence_graph_receipt(
-        workspace_root,
-        workspace_policy.workspace_label(),
-        vec![
-            AspRustWorkspaceEvidenceGraphMemberInput::new(
-                "api",
-                &api_root,
-                workspace_policy.member_crate("api"),
-            ),
-            AspRustWorkspaceEvidenceGraphMemberInput::new(
-                "worker",
-                &worker_root,
-                workspace_policy.member_crate("worker"),
-            ),
-        ],
-    )
-    .expect("workspace evidence graph receipt");
-
-    assert_eq!(
-        receipt.schema_id,
-        ASP_RUST_WORKSPACE_EVIDENCE_GRAPH_RECEIPT_SCHEMA_ID
-    );
-    assert_eq!(receipt.workspace_label, "example-workspace");
-    assert_eq!(receipt.summary.member_crate_count, 2);
-    assert_eq!(receipt.summary.dependency_baseline_package_count, 2);
-    assert!(receipt.summary.active_verification_task_count >= 4);
-    assert!(receipt.summary.performance_task_count >= 2);
-    assert!(receipt.summary.stability_task_count >= 2);
-    assert!(receipt.summary.report_obligation_count >= 4);
-    assert_eq!(receipt.summary.security_task_count, 0);
-    assert_eq!(receipt.members.len(), 2);
-    assert!(
-        receipt
-            .nodes
-            .iter()
-            .any(|node| node.kind == AspRustWorkspaceEvidenceGraphNodeKind::Workspace)
-    );
-    assert!(
-        receipt
-            .nodes
-            .iter()
-            .any(|node| { node.kind == AspRustWorkspaceEvidenceGraphNodeKind::MemberCrate })
-    );
-    assert!(
-        receipt
-            .nodes
-            .iter()
-            .any(|node| node.kind
-                == AspRustWorkspaceEvidenceGraphNodeKind::DependencyBaselinePackage)
-    );
-    assert!(
-        receipt
-            .nodes
-            .iter()
-            .any(|node| node.kind == AspRustWorkspaceEvidenceGraphNodeKind::ReportObligation)
-    );
-    assert!(
-        receipt
-            .edges
-            .iter()
-            .any(|edge| edge.kind
-                == AspRustWorkspaceEvidenceGraphEdgeKind::RequiresDependencyBaseline)
-    );
-    assert!(
-        receipt
-            .edges
-            .iter()
-            .any(|edge| edge.kind == AspRustWorkspaceEvidenceGraphEdgeKind::RequiresReport)
-    );
-    assert!(receipt.trust_loop_steps.iter().any(|step| {
-        step.key == "performance_stability_reports"
-            && step.status == AspRustWorkspaceTrustLoopStepStatus::Required
-    }));
-    assert!(
-        receipt
-            .trust_loop_steps
-            .iter()
-            .any(|step| step.key == "security_review"
-                && step.status == AspRustWorkspaceTrustLoopStepStatus::NotConfigured)
-    );
-    assert!(
-        receipt
-            .trust_loop_steps
-            .iter()
-            .any(|step| step.key == "build_gate"
-                && step.status == AspRustWorkspaceTrustLoopStepStatus::Enforced)
-    );
-
-    let json = render_asp_rust_workspace_evidence_graph_receipt_json(&receipt).expect("json");
-    let value: serde_json::Value = serde_json::from_str(&json).expect("valid json");
-    assert_eq!(
-        value["schema_id"],
-        ASP_RUST_WORKSPACE_EVIDENCE_GRAPH_RECEIPT_SCHEMA_ID
-    );
-    assert_eq!(value["summary"]["member_crate_count"], 2);
-    assert_eq!(
-        value["trust_loop_steps"]
-            .as_array()
-            .expect("trust loop array")
-            .len(),
-        6
     );
 }
 

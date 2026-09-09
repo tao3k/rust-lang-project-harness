@@ -66,7 +66,7 @@ pub fn evaluate_asp_rust_downstream_policy(
 ///
 /// This is the preferred API for package build scripts. Cache ownership and
 /// declarative policy identity are supplied by the downstream build-support
-/// package rather than inferred by the language harness.
+/// package rather than inferred by the ASP language provider.
 #[track_caller]
 pub fn assert_asp_rust_downstream_policy_with_authority(
     project_root: &Path,
