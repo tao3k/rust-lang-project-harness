@@ -99,7 +99,7 @@ fn native_parser_and_tree_sitter_have_the_same_admitted_top_level_match_set() {
     );
     assert_eq!(
         query_grammar_digest,
-        "blake3-256:8cce2ee31e888123bd915c9cfec46c957df23767033c4b1162cde54fcb1ab14f"
+        "blake3-256:a5f7d55c6c3dbc57f442790e1d55868f6454f7d92393359fa61807b99b60ac98"
     );
     assert_eq!(
         corpus_digest,
@@ -126,7 +126,7 @@ fn capability_table_is_bound_to_the_executable_differential_receipt() {
     );
     assert_eq!(
         table["tableDigest"],
-        "blake3-256:55846cb3ab907973f4797032e44a28091bb29ef169f973ee463382461325036a"
+        "blake3-256:49b5721c82bc2d9b15688e28442e78b19479b5d968cc56c0c810917ee1220e9f"
     );
 
     let rows = table["rows"].as_array().expect("capability rows");
