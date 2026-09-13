@@ -66,20 +66,16 @@ fn native_parser_and_tree_sitter_have_the_same_admitted_top_level_match_set() {
 
     assert_eq!(native_rows, tree_sitter_rows);
 
-    let parser_abi_digest = framed_digest(
-        "asp-rust-syn-native-items-v1",
-        &[
-            include_bytes!("../../src/parser/parsed_module.rs"),
-            include_bytes!("../../src/parser/native_syntax/collect.rs"),
-            include_bytes!("../../src/parser/native_syntax/item_facts.rs"),
-            include_bytes!("../../src/parser/native_syntax/facts.rs"),
-        ],
-    );
-    let query_grammar_digest = framed_digest(
+    let parser_abi_files = [
+        include_bytes!("../../src/parser/parsed_module.rs").as_slice(),
+        include_bytes!("../../src/parser/native_syntax/collect.rs").as_slice(),
+        include_bytes!("../../src/parser/native_syntax/item_facts.rs").as_slice(),
+        include_bytes!("../../src/parser/native_syntax/facts.rs").as_slice(),
+    ];
+    let parser_abi_digest = framed_text_digest("asp-rust-syn-native-items-v1", &parser_abi_files);
+    let query_grammar_digest = framed_text_digest(
         "asp-rust-tree-sitter-query-grammar-v1",
-        &[include_bytes!(
-            "../../tree-sitter/tree-sitter-rust/grammar-profile.json"
-        )],
+        &[include_bytes!("../../tree-sitter/tree-sitter-rust/grammar-profile.json").as_slice()],
     );
     let corpus_digest = framed_digest("asp-rust-enhanced-query-corpus-v1", &[CORPUS.as_bytes()]);
     let mut receipt_hasher = blake3::Hasher::new();
@@ -170,6 +166,30 @@ fn framed_digest(domain: &str, fields: &[&[u8]]) -> String {
         digest_field(&mut hasher, field);
     }
     format!("blake3-256:{}", hasher.finalize().to_hex())
+}
+
+fn framed_text_digest(domain: &str, fields: &[&[u8]]) -> String {
+    let canonical = fields
+        .iter()
+        .map(|field| canonical_text(field))
+        .collect::<Vec<_>>();
+    let canonical = canonical.iter().map(Vec::as_slice).collect::<Vec<_>>();
+    framed_digest(domain, &canonical)
+}
+
+fn canonical_text(value: &[u8]) -> Vec<u8> {
+    let mut canonical = Vec::with_capacity(value.len());
+    let mut cursor = 0;
+    while cursor < value.len() {
+        if value[cursor] == b'\r' {
+            canonical.push(b'\n');
+            cursor += usize::from(value.get(cursor + 1) == Some(&b'\n')) + 1;
+        } else {
+            canonical.push(value[cursor]);
+            cursor += 1;
+        }
+    }
+    canonical
 }
 
 fn digest_field(hasher: &mut blake3::Hasher, value: &[u8]) {
