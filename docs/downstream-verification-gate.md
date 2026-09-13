@@ -276,7 +276,7 @@ Library/build.rs semantic gate:
 
 Agent observation surface:
 
-- `asp rust search` and `asp rust query` for agent discovery.
+- `asp search playbook --language rust` and `asp query playbook --language rust` for agent discovery.
 - `asp rust agent doctor` for provider and registry health.
 - `asp rust evidence`, `receipt`, `review`, `proof`, `behavior`, and
   `determinism` for bounded diagnostics or artifact generation.

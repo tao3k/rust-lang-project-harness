@@ -1,3 +1,7 @@
+#[cfg(test)]
+#[path = "../tests/unit/resident_callable_projection.rs"]
+mod tests;
+
 #[derive(Clone, Debug)]
 pub(crate) struct ExactProjectionAuthority {
     pub(crate) generation_identity_digest: String,
@@ -72,6 +76,7 @@ fn render_callable_skeleton_projection(
         kind => kind,
     };
     let mut payload = serde_json::json!({
+        "rootSelector": root_node_selector,
         "rootNodeId": root_node_id,
         "callable": {
             "kind": callable_kind,

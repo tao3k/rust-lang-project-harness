@@ -60,16 +60,14 @@
     "scope": {
       "enum": [
         "workspace",
-        "prime",
+        "search-playbook",
         "owner",
         "dependency",
         "policy",
         "query",
         "query-set",
-        "lexical",
         "text",
         "tests",
-        "ingest",
         "custom"
       ]
     },
@@ -241,15 +239,13 @@
         "scope": {
           "enum": [
             "workspace",
-            "prime",
+            "search-playbook",
             "owner",
             "dependency",
             "policy",
             "query",
             "query-set",
-            "lexical",
             "tests",
-            "ingest",
             "failure",
             "custom"
           ]

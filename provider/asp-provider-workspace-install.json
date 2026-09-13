@@ -7,7 +7,7 @@
   "providerId": "asp-rust",
   "binary": "asp-rust",
   "providerRegistration": "asp-provider-registration.json",
-  "schemaBundleReceipt": "schemas/.asp-schema-manager-receipt.json",
+  "schemaBundleReceipt": "../schemas/.asp-schema-manager-receipt.json",
   "workspaceArtifact": {
     "root": "languages/asp-rust/target/provider-runtime/asp-rust",
     "entrypoint": "."

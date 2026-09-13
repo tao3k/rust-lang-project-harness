@@ -6,7 +6,7 @@ Use the Rust provider as the native-syntax authority for Rust source.  The
 public discovery surface is one bounded command:
 
 #+begin_src sh
-asp search playbook --languages rust --rg -n -e '<question>' . --tantivy term '<question>'
+asp search playbook --language rust --rg -n -e '<question>' . --tantivy 'title:<question>^2 OR body:<question>'
 #+end_src
 
 The playbook composes four internal stages in a fixed order:
@@ -25,11 +25,11 @@ ask the agent to select or sequence them.
 Express each independent axis as its own native argument block:
 
 #+begin_src sh
-asp search playbook --languages rust \
+asp search playbook --language rust \
   --rg -n -e 'request admission' crates \
   --tantivy term 'request admission'
 
-asp search playbook --languages rust \
+asp search playbook --language rust \
   --rg -n -e RuntimeSearchServiceHandle crates tests \
   --tantivy term RuntimeSearchServiceHandle
 #+end_src
@@ -59,7 +59,7 @@ silently widened to raw source reads.
 After the playbook returns a canonical selector, materialize only that selector:
 
 #+begin_src sh
-asp rust query --selector '<rust-selector>' --projection source --workspace .
+asp query playbook --language rust --selector '<rust-selector>' --projection source --workspace .
 #+end_src
 
 Use =--projection callable-skeleton= when a callable outline is sufficient.

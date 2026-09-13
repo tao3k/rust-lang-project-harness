@@ -62,11 +62,6 @@ pub fn render_asp_rust_failure_frontier(
             "|hotBlock selector={} source={} rule={} line={}",
             hot_block.selector, hot_block.source, hot_block.rule_id, hot_block.line
         );
-        let _ = writeln!(
-            rendered,
-            "|next asp rust query --from-hook direct-source-read --code --workspace . --selector {}",
-            shell_single_quote(&hot_block.selector)
-        );
     }
     rendered
 }
@@ -266,10 +261,6 @@ fn project_relative_display_path(project_root: &Path, path: &Path) -> String {
         return display_path(relative);
     }
     display_path(path)
-}
-
-fn shell_single_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "'\\''"))
 }
 
 fn title_case(value: &str) -> String {

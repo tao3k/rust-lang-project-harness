@@ -858,7 +858,7 @@
           "treesitter-query",
           "multi-clause-rg-query",
           "scoped-rg-query",
-          "search-deps",
+          "dependency-query",
           "syntax"
         ]
       },
@@ -870,7 +870,7 @@
             "rg",
             "owner-items",
             "treesitter-query",
-            "search-deps"
+            "query"
           ]
         },
         "target": {

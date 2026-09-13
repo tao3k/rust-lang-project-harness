@@ -19,6 +19,9 @@
     "semanticFacts": true,
     "dependencyTopology": true,
     "dependencyTopologyMetadata": true,
+    "enhancedSyntaxQueryCapability": {
+      "$ref": "../tree-sitter/tree-sitter-rust/enhanced-query-capabilities.v1.json"
+    },
     "sourceSnapshot": {
       "descriptorId": "rust.source-snapshot",
       "descriptorVersion": "1",
