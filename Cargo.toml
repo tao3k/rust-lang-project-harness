@@ -43,8 +43,6 @@ toml = "1.1"
 asp-rust-build-support = { path = "build-support" }
 insta = "1"
 tempfile = "3"
-tree-sitter = "0.26"
-tree-sitter-rust = "0.24"
 
 [build-dependencies]
 asp-rust-build-support = { path = "build-support" }

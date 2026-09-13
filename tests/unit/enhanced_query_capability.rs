@@ -15,21 +15,21 @@ type Alias = u8;
 macro_rules! sample { () => {} }
 "#;
 
-const ADMITTED_NODE_TYPES: &[&str] = &[
-    "const_item",
-    "enum_item",
-    "function_item",
-    "impl_item",
-    "mod_item",
-    "static_item",
-    "struct_item",
-    "trait_item",
-    "type_item",
-    "use_declaration",
+const RUNTIME_ADMITTED_ROWS: &[(&str, &str)] = &[
+    ("const_item", "LIMIT"),
+    ("enum_item", "Choice"),
+    ("function_item", "run"),
+    ("impl_item", ""),
+    ("mod_item", "inner"),
+    ("static_item", "FLAG"),
+    ("struct_item", "Data"),
+    ("trait_item", "Work"),
+    ("type_item", "Alias"),
+    ("use_declaration", ""),
 ];
 
 #[test]
-fn native_parser_and_tree_sitter_have_the_same_admitted_top_level_match_set() {
+fn native_parser_matches_the_runtime_admitted_top_level_receipt() {
     let native = crate::parser::parse_rust_source(Path::new("src/lib.rs"), CORPUS.to_owned());
     assert!(native.report.is_valid);
     let native_rows = native
@@ -42,29 +42,15 @@ fn native_parser_and_tree_sitter_have_the_same_admitted_top_level_match_set() {
         })
         .collect::<BTreeSet<_>>();
 
-    let mut parser = tree_sitter::Parser::new();
-    let language = tree_sitter_rust::LANGUAGE.into();
-    parser
-        .set_language(&language)
-        .expect("tree-sitter Rust language must load");
-    let tree = parser.parse(CORPUS, None).expect("tree-sitter parse tree");
-    assert!(!tree.root_node().has_error());
-    let mut cursor = tree.root_node().walk();
-    let tree_sitter_rows = tree
-        .root_node()
-        .named_children(&mut cursor)
-        .filter(|node| ADMITTED_NODE_TYPES.contains(&node.kind()))
-        .map(|node| {
-            let name = node
-                .child_by_field_name("name")
-                .and_then(|name| name.utf8_text(CORPUS.as_bytes()).ok())
-                .unwrap_or_default()
-                .to_owned();
-            (node.kind().to_owned(), name)
-        })
+    // ASP owns the Tree-sitter runtime and independently regenerates this
+    // admitted-row receipt in the workspace contract gate.  The provider owns
+    // only its native parser half of the equivalence proof.
+    let runtime_admitted_rows = RUNTIME_ADMITTED_ROWS
+        .iter()
+        .map(|(kind, name)| ((*kind).to_owned(), (*name).to_owned()))
         .collect::<BTreeSet<_>>();
 
-    assert_eq!(native_rows, tree_sitter_rows);
+    assert_eq!(native_rows, runtime_admitted_rows);
 
     let parser_abi_files = [
         include_bytes!("../../src/parser/parsed_module.rs").as_slice(),
